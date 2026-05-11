@@ -4,7 +4,7 @@ Tags: email logs, smtp, email, gmail smtp, wp mail smtp
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.2.3
+Stable tag: 1.2.4
 License: GPLv2 or later
 
 SMTP plugin for reliable and secure email delivery. Connect with Gmail, Outlook, Sendgrid, Brevo, MailGun, Amazon SES, and more mail SMTP servers.
@@ -230,6 +230,9 @@ Wp-Telemetry DOES NOT IMMEDIATELY start gathering data; rather, it will gather b
 5. Preview of email log
 
 == Changelog ==
+
+= 1.2.4 (11 May, 2026) =
+* fix: short description issue in readme.txt 
 
 = 1.2.3 (20 Feb, 2026) =
 * fix: broken access control 

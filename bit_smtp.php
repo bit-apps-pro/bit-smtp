@@ -7,7 +7,7 @@ if (! \defined('ABSPATH')) {
  * Plugin Name: Bit SMTP
  * Plugin URI:  https://www.bitapps.pro/bit-smtp
  * Description: Send email via SMTP using BIT SMTP plugin by Bit Apps
- * Version:     1.2.3
+ * Version:     1.2.4
  * Author:      Bit Apps
  * Author URI:  https://bitapps.pro
  * Text Domain: bit-smtp
