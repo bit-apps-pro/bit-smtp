@@ -7,7 +7,6 @@ Requires PHP: 7.4
 Stable tag: 1.2.3
 License: GPLv2 or later
 
-== Short Description ==
 SMTP plugin for reliable and secure email delivery. Connect with Gmail, Outlook, Sendgrid, Brevo, MailGun, Amazon SES, and more mail SMTP servers.
 
 == Description ==
