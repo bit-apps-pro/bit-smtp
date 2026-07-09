@@ -1,6 +1,5 @@
 /* eslint-disable import/no-extraneous-dependencies */
 /// <reference types="vite/client" />
-import commonjs from '@rollup/plugin-commonjs'
 import react from '@vitejs/plugin-react'
 import detectPort from 'detect-port'
 import fs from 'node:fs'
@@ -46,7 +45,6 @@ export default defineConfig(({ mode }) => {
         },
         jsxRuntime: 'automatic'
       }),
-      commonjs(),
       setDevServerConfig()
 
       // babel()
