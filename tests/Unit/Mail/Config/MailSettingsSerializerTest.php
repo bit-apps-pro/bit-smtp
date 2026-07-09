@@ -264,4 +264,53 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
 
         $this->assertSame([], $result['connections'][0]['credentials']);
     }
+
+    public function testToApiShapeMasksScalarCredential(): void
+    {
+        $data = $this->v2Array();
+        $data['connections'][0]['credentials'] = [
+            'api_key' => 'raw-api-key-value',
+        ];
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertSame('********', $result['connections'][0]['credentials']['api_key']);
+    }
+
+    public function testToApiShapeMasksNestedValueAtAnyDepth(): void
+    {
+        $data = $this->v2Array();
+        $data['connections'][0]['credentials'] = [
+            'token' => [
+                'meta' => [
+                    'value' => 'deeply-nested-secret',
+                ],
+            ],
+        ];
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertSame('********', $result['connections'][0]['credentials']['token']['meta']['value']);
+    }
+
+    public function testToApiShapePreservesNonValueKeysInNestedCredential(): void
+    {
+        $data = $this->v2Array();
+        $data['connections'][0]['credentials'] = [
+            'password' => [
+                'source' => 'database',
+                'value'  => 'secret',
+                'label'  => 'My Password',
+            ],
+        ];
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertSame('database', $result['connections'][0]['credentials']['password']['source']);
+        $this->assertSame('My Password', $result['connections'][0]['credentials']['password']['label']);
+        $this->assertSame('********', $result['connections'][0]['credentials']['password']['value']);
+    }
 }

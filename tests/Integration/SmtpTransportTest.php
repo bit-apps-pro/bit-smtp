@@ -136,6 +136,47 @@ final class SmtpTransportTest extends IntegrationTestCase
         $this->assertContains('reply@example.org', $replyToAddresses);
     }
 
+    public function testSendStripsHeaderNameCrlf(): void
+    {
+        $connection = $this->mailpitConnection();
+        $message    = MailMessage::fromArray([
+            'to'      => ['recipient@example.org'],
+            'subject' => 'CRLF Injection Test',
+            'body'    => 'Body',
+            'headers' => ["X-Safe\r\nX-Injected" => 'should-not-appear'],
+        ]);
+
+        $result = $this->transport->send($message, $connection);
+        $this->assertTrue($result->isOk(), 'send should succeed: ' . (string) $result->getError());
+
+        $delivered = $this->latestMailpitMessage();
+        $this->assertNotNull($delivered);
+
+        $headers = $this->mailpitHeaders($delivered['ID']);
+
+        // Assert that the injected header name does not appear (case-insensitive check).
+        $headerKeyLower = strtolower('X-Injected');
+        $injectedExists  = false;
+        foreach (array_keys($headers) as $key) {
+            if (strtolower($key) === $headerKeyLower) {
+                $injectedExists = true;
+                break;
+            }
+        }
+        $this->assertFalse($injectedExists, 'Header name CRLF injection should be stripped; X-Injected must not appear');
+
+        // The CR+LF is stripped without a separator, so "X-Safe\r\nX-Injected" collapses to
+        // "X-SafeX-Injected" as a single harmless custom header — assert it is present.
+        $collapsedExists = false;
+        foreach (array_keys($headers) as $key) {
+            if (strtolower($key) === strtolower('X-SafeX-Injected')) {
+                $collapsedExists = true;
+                break;
+            }
+        }
+        $this->assertTrue($collapsedExists, 'Collapsed header X-SafeX-Injected should be present as a single header');
+    }
+
     private function mailpitConnection(): Connection
     {
         return Connection::fromArray([

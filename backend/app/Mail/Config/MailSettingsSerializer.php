@@ -71,14 +71,38 @@ class MailSettingsSerializer
                 continue;
             }
             foreach ($conn['credentials'] as &$cred) {
-                if (isset($cred['value'])) {
-                    $cred['value'] = '********';
-                }
+                $cred = self::maskCredential($cred);
             }
             unset($cred);
         }
         unset($conn);
 
         return $data;
+    }
+
+    /**
+     * Mask a single credential entry defensively:
+     * - Scalar entries are secrets → replace entirely with the mask.
+     * - Array entries: blank any key named 'value' at any depth; recurse into nested arrays.
+     *
+     * @param mixed $cred
+     * @return mixed
+     */
+    private static function maskCredential($cred)
+    {
+        if (!\is_array($cred)) {
+            return '********';
+        }
+
+        foreach ($cred as $k => &$v) {
+            if ($k === 'value') {
+                $v = '********';
+            } elseif (\is_array($v)) {
+                $v = self::maskCredential($v);
+            }
+        }
+        unset($v);
+
+        return $cred;
     }
 }

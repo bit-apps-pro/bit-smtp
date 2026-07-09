@@ -116,7 +116,8 @@ class SmtpTransport implements TransportInterface
             if (\in_array($name, ['MIME-Version', 'X-Mailer'], true)) {
                 continue;
             }
-            // Drop CRLF to prevent header injection through a crafted value.
+            // Drop CRLF from both name and value to prevent header injection.
+            $name    = str_replace(["\r", "\n"], '', $name);
             $content = str_replace(["\r", "\n"], '', $content);
             $mailer->addCustomHeader(\sprintf('%s: %s', $name, $content));
         }
