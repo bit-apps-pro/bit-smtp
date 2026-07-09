@@ -1,3 +1,6 @@
+// Mirrors the backend MailSettingsSerializer::MASK_SENTINEL.
+export const MASK_SENTINEL = '********'
+
 export interface FieldOption {
   value: string
   label: string

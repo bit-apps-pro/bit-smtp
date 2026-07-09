@@ -7,6 +7,7 @@ export const MAIL_PROVIDERS_QUERY_KEY = ['mail-providers']
 export default function useProviders() {
   return useQuery({
     queryKey: MAIL_PROVIDERS_QUERY_KEY,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const response = await request<{ providers: ProviderMeta[] }>({
         action: 'mail/providers',

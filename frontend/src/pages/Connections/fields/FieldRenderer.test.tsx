@@ -108,4 +108,25 @@ describe('FieldRenderer', () => {
     )
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
   })
+
+  it('masks a non-password field whose metadata marks it secret', () => {
+    render(
+      <Form>
+        <FieldRenderer
+          field={{
+            key: 'apiKey',
+            label: 'API Key',
+            type: 'text',
+            options: [],
+            required: false,
+            secret: true,
+            placeholder: '',
+            default: '',
+            dependsOn: null
+          }}
+        />
+      </Form>
+    )
+    expect(screen.getByLabelText('API Key')).toHaveAttribute('type', 'password')
+  })
 })

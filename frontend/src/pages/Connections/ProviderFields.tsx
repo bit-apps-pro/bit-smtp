@@ -1,12 +1,11 @@
-import { type FieldMeta } from '@pages/Connections/types'
+import { type FieldDependency, type FieldMeta } from '@pages/Connections/types'
 import { Form } from 'antd'
 import FieldRenderer from './fields/FieldRenderer'
 
-function ProviderField({ field }: { field: FieldMeta }) {
-  const dependency = field.dependsOn
-  const watchedValue = Form.useWatch(dependency?.field)
+function DependentField({ field, dependsOn }: { field: FieldMeta; dependsOn: FieldDependency }) {
+  const watchedValue = Form.useWatch(dependsOn.field)
 
-  if (dependency && watchedValue !== dependency.value) {
+  if (watchedValue !== dependsOn.value) {
     return null
   }
 
@@ -16,9 +15,13 @@ function ProviderField({ field }: { field: FieldMeta }) {
 export default function ProviderFields({ fields }: { fields: FieldMeta[] }) {
   return (
     <>
-      {fields.map(field => (
-        <ProviderField key={field.key} field={field} />
-      ))}
+      {fields.map(field =>
+        field.dependsOn ? (
+          <DependentField key={field.key} field={field} dependsOn={field.dependsOn} />
+        ) : (
+          <FieldRenderer key={field.key} field={field} />
+        )
+      )}
     </>
   )
 }

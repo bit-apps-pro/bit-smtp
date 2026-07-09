@@ -1,15 +1,11 @@
-import { __ } from '@common/helpers/i18nwrap'
 import { type FieldMeta } from '@pages/Connections/types'
-import { Form, Select } from 'antd'
+import { Select } from 'antd'
+import FieldItem from './FieldItem'
 
 export default function SelectField({ field }: { field: FieldMeta }) {
   return (
-    <Form.Item
-      label={field.label}
-      name={field.key}
-      rules={field.required ? [{ required: true, message: __('This field is required') }] : undefined}
-    >
+    <FieldItem field={field}>
       <Select placeholder={field.placeholder} options={field.options} />
-    </Form.Item>
+    </FieldItem>
   )
 }

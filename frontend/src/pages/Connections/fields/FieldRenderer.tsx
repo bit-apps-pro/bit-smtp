@@ -6,6 +6,10 @@ import SwitchField from './SwitchField'
 import TextField from './TextField'
 
 export default function FieldRenderer({ field }: { field: FieldMeta }) {
+  if (field.secret) {
+    return <MaskedPasswordField field={field} />
+  }
+
   switch (field.type) {
     case 'number':
       return <NumberField field={field} />
@@ -13,8 +17,6 @@ export default function FieldRenderer({ field }: { field: FieldMeta }) {
       return <SelectField field={field} />
     case 'switch':
       return <SwitchField field={field} />
-    case 'password':
-      return <MaskedPasswordField field={field} />
     case 'text':
     case 'email':
     default:
