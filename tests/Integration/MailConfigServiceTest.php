@@ -284,6 +284,36 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('new-host.example.com', $conn->setting('host'));
     }
 
+    public function test_save_connection_omitting_credentials_preserves_stored_password(): void
+    {
+        $service = $this->freshService();
+        // Create a connection with a real password stored in the DB.
+        $service->saveSettings($this->v2SettingsArray('conn_abc', 'keep-me'));
+
+        // Update the same connection with a payload that omits the credentials key entirely.
+        $this->freshService()->saveConnection([
+            'id'           => 'conn_abc',
+            'provider'     => 'other_smtp',
+            'kind'         => 'smtp',
+            'name'         => 'Updated without credentials',
+            'enabled'      => true,
+            'fromEmail'    => 'b@example.com',
+            'fromName'     => 'B',
+            'replyToEmail' => '',
+            'settings'     => ['host' => 'new-host.example.com', 'port' => 587, 'encryption' => 'tls', 'auth' => true, 'username' => 'user', 'smtp_debug' => false],
+            // credentials key is intentionally absent
+        ]);
+
+        $conn = $this->freshService()->load()->getConnections()->byId('conn_abc');
+        $this->assertNotNull($conn);
+        $this->assertSame(
+            'keep-me',
+            $conn->getCredentials()['password']['value'],
+            'Stored password must survive a saveConnection payload that omits the credentials key.'
+        );
+        $this->assertSame('new-host.example.com', $conn->setting('host'));
+    }
+
     public function test_delete_connection_removes_it_and_repoints_default(): void
     {
         // Store two connections, conn_1 as default

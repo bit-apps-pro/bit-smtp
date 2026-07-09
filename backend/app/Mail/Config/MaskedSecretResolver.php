@@ -19,11 +19,18 @@ final class MaskedSecretResolver
         }
 
         foreach ($incomingV2['connections'] as &$conn) {
+            $storedConn = $current->getConnections()->byId($conn['id'] ?? '');
+
             if (!isset($conn['credentials']) || !\is_array($conn['credentials'])) {
+                // No credentials key in the payload: copy stored credentials for existing connections
+                // so an update that omits credentials does not silently wipe the stored password.
+                // Brand-new connections (id not in $current) stay as-is — there is nothing to restore.
+                if ($storedConn !== null) {
+                    $conn['credentials'] = $storedConn->getCredentials();
+                }
+
                 continue;
             }
-
-            $storedConn = $current->getConnections()->byId($conn['id'] ?? '');
 
             foreach ($conn['credentials'] as $key => &$cred) {
                 $storedValue = $storedConn !== null

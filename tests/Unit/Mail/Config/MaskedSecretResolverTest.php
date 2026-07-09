@@ -24,6 +24,66 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
         \Brain\Monkey\Functions\when('wp_generate_uuid4')->justReturn('test-uuid-1234');
     }
 
+    public function testAbsentCredentialsKeyPreservesStoredCredentials(): void
+    {
+        $current = $this->currentSettings();
+
+        // $incomingV2 has conn_abc with NO credentials key at all (not just an empty array).
+        $incoming = [
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_abc',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                [
+                    'id'       => 'conn_abc',
+                    'provider' => 'other_smtp',
+                    'kind'     => 'smtp',
+                    // credentials key is intentionally absent
+                ],
+            ],
+            'features' => [],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            ['password' => ['source' => 'database', 'value' => 'stored-secret']],
+            $result['connections'][0]['credentials'],
+            'Stored credentials must be copied when the update payload omits the credentials key.'
+        );
+    }
+
+    public function testAbsentCredentialsKeyOnNewConnectionIsLeftAsIs(): void
+    {
+        $current = $this->currentSettings();
+
+        // A brand-new connection (id not in $current) with no credentials key stays as-is.
+        $incoming = [
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_new',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                [
+                    'id'       => 'conn_new',
+                    'provider' => 'other_smtp',
+                    'kind'     => 'smtp',
+                    // credentials key is intentionally absent, and there is no stored connection
+                ],
+            ],
+            'features' => [],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertArrayNotHasKey(
+            'credentials',
+            $result['connections'][0],
+            'A brand-new connection with no credentials key must not have one injected.'
+        );
+    }
+
     public function testSentinelValueIsReplacedWithStoredSecret(): void
     {
         $current  = $this->currentSettings();

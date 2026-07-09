@@ -64,6 +64,7 @@ class SmtpTransport implements TransportInterface
         $debugLines = [];
         $mailer     = new PHPMailer(true);
 
+        // Keep at DEBUG_CONNECTION (level 3): level 4 (DEBUG_LOWLEVEL) includes the base64 AUTH payload, which is returned to the client by the connection-test endpoint.
         $mailer->SMTPDebug   = SMTP::DEBUG_CONNECTION;
         $mailer->Debugoutput = static function ($str, $level) use (&$debugLines) {
             $debugLines[] = $str;
