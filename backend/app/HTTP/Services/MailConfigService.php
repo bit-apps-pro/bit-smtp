@@ -3,72 +3,94 @@
 namespace BitApps\SMTP\HTTP\Services;
 
 use BitApps\SMTP\Config;
-use BitApps\SMTP\Connectors\SmtpConfig;
+use BitApps\SMTP\Mail\Config\MailSettings;
+use BitApps\SMTP\Mail\Config\MailSettingsMigrator;
+use BitApps\SMTP\Mail\Config\MailSettingsSanitizer;
+use BitApps\SMTP\Mail\Config\MailSettingsSerializer;
 
 /**
- * MailConfigService
- *
- * Provides explicit get/set/is methods for SMTP mail configuration stored under
- * Config::getOption('options') / Config::updateOption('options').
+ * Facade over the v2 mail-settings domain. Reads migrate legacy config in memory only (never
+ * rewriting the DB), while writes persist the full v2 array atomically and preserve a one-time
+ * backup of any pre-migration legacy config.
  */
 class MailConfigService
 {
-    /**
-     * @var SmtpConfig
-     * */
-    private $config;
+    private const OPTION = 'options';
 
-    public function __construct()
-    {
-        $this->config = $this->load();
-    }
+    private const LEGACY_BACKUP_OPTION = 'options_v1_backup';
 
     /**
-     * Load options from persistent storage
-     *
-     * @return SmtpConfig
+     * @var null|MailSettings
      */
-    public function load()
+    private $settings;
+
+    public function load(): MailSettings
     {
-        if (!isset($this->config)) {
-            $this->config = new SmtpConfig(Config::getOption('options', []));
+        if ($this->settings === null) {
+            $this->settings = MailSettings::fromArray(
+                MailSettingsMigrator::migrate(Config::getOption(self::OPTION, []))
+            );
         }
 
-        return $this->config;
+        return $this->settings;
     }
 
-    /**
-     * Reload from storage and return self
-     */
     public function reload(): self
     {
-        unset($this->config);
+        $this->settings = null;
         $this->load();
 
         return $this;
     }
 
     /**
-     * Persist current in-memory options
+     * Persist the full v2 array in a single write, backing up any legacy config exactly once first.
      */
-    public function store(): bool
+    public function store(MailSettings $settings): bool
     {
-        return (bool) Config::updateOption('options', $this->config->getAll());
+        $this->backupLegacyOnce();
+
+        $stored = (bool) Config::updateOption(self::OPTION, $settings->toArray());
+
+        $this->settings = $settings;
+
+        return $stored;
     }
 
-    public function getProviders(): array
+    /**
+     * Persist config coming from the legacy flat REST shape, preserving an existing password when
+     * the incoming one is empty.
+     *
+     * @param array<string,mixed> $flat
+     */
+    public function saveFromLegacy(array $flat): bool
     {
-        // TODO: implement different providers
-        $providers            = [];
-        $providers['default'] = $this->config;
+        $v2        = MailSettingsSerializer::fromLegacyShape($flat, $this->load());
+        $sanitized = MailSettingsSanitizer::sanitize($v2);
+        $stored    = $this->store(MailSettings::fromArray($sanitized));
 
-        return $providers;
+        $this->reload();
+
+        return $stored;
     }
 
-    public function getViewOnlyConfig(string $provider = 'default'): array
+    /**
+     * @return array<string,mixed> Legacy flat shape with PLAINTEXT password for the legacy route.
+     */
+    public function toLegacyShape(): array
     {
-        $provider = $this->getProviders()[$provider] ?? $this->getProviders()['default'];
+        return MailSettingsSerializer::toLegacyShape($this->load());
+    }
 
-        return $this->config->getViewOnlyConfig();
+    /**
+     * Snapshot the pre-migration legacy array before the first v2 write. add_option is a no-op when
+     * the key already exists, giving a natural once-guard.
+     */
+    private function backupLegacyOnce(): void
+    {
+        $current = Config::getOption(self::OPTION, []);
+        if (\is_array($current) && $current !== [] && !isset($current['schema_version'])) {
+            Config::addOption(self::LEGACY_BACKUP_OPTION, $current);
+        }
     }
 }

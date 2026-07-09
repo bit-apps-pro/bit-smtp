@@ -18,30 +18,14 @@ class SMTPController
 {
     public function index()
     {
-        $mailConfig = Plugin::instance()->mailConfigService()->load();
-
-        return Response::success(['mailConfig' => $mailConfig->getAll()]);
+        return Response::success([
+            'mailConfig' => Plugin::instance()->mailConfigService()->toLegacyShape(),
+        ]);
     }
 
     public function saveMailConfig(MailConfigStoreRequest $request)
     {
-        $validated = $request->validated();
-
-        $mailConfig = Plugin::instance()->mailConfigService()->load();
-
-        $mailConfig->setStatus(Arr::get($validated, 'status', false));
-        $mailConfig->setFromEmailAddress(Arr::get($validated, 'from_email_address'));
-        $mailConfig->setFromName(Arr::get($validated, 'from_name'));
-        $mailConfig->setReEmailAddress(Arr::get($validated, 're_email_address'));
-        $mailConfig->setSmtpHost(Arr::get($validated, 'smtp_host'));
-        $mailConfig->setEncryption(Arr::get($validated, 'encryption', 'none'));
-        $mailConfig->setPort(Arr::get($validated, 'port'));
-        $mailConfig->setSmtpAuth(Arr::get($validated, 'smtp_auth', false));
-        $mailConfig->setSmtpDebug(Arr::get($validated, 'smtp_debug', false));
-        $mailConfig->setSmtpUserName(Arr::get($validated, 'smtp_user_name'));
-        $mailConfig->setSmtpPassword(Arr::get($validated, 'smtp_password'));
-
-        Plugin::instance()->mailConfigService()->store();
+        Plugin::instance()->mailConfigService()->saveFromLegacy($request->validated());
 
         return Response::success(__('SMTP config saved successfully', 'bit-smtp'));
     }

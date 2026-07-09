@@ -18,7 +18,12 @@ use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\TelemetryConfig;
 use BitApps\SMTP\HTTP\Middleware\NonceCheckerMiddleware;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\Mail\Connections\ConnectionResolver;
+use BitApps\SMTP\Mail\Credentials\DatabaseCredentialResolver;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
+use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
+use BitApps\SMTP\Mail\Providers\ProviderRegistry;
+use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Providers\HookProvider;
 use BitApps\SMTP\Providers\InstallerProvider;
 use BitApps\SMTP\Views\Layout;
@@ -101,7 +106,14 @@ final class Plugin
 
         new HookProvider();
 
-        $this->_container['smtpProvider'] = new WpMailBridge();
+        $resolver  = new DatabaseCredentialResolver();
+        $transport = new SmtpTransport($resolver);
+
+        $registry = new ProviderRegistry();
+        $registry->register(new OtherSmtpProvider($transport));
+        $this->_container['providerRegistry'] = $registry;
+
+        $this->_container['smtpProvider'] = new WpMailBridge($transport, new ConnectionResolver());
     }
 
     /**
@@ -112,6 +124,11 @@ final class Plugin
     public function smtpProvider()
     {
         return $this->_container['smtpProvider'];
+    }
+
+    public function providerRegistry(): ProviderRegistry
+    {
+        return $this->_container['providerRegistry'];
     }
 
     public function logger(): LogService

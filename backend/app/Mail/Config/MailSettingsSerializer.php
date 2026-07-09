@@ -46,7 +46,9 @@ class MailSettingsSerializer
     {
         $v2 = MailSettingsMigrator::migrate($flat);
 
-        $incoming = $flat['smtp_password'] ?? '';
+        // Coalesce null/absent to '': a nullable smtp_password must preserve the stored secret,
+        // never wipe it, whether the request omits the field or sends it as null.
+        $incoming = (string) ($flat['smtp_password'] ?? '');
         if ($incoming === '' && $current !== null) {
             $existingConn = $current->defaultConnection();
             if ($existingConn !== null) {

@@ -3,6 +3,8 @@
 namespace BitApps\SMTP\Mail\Dispatch;
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
+use BitApps\SMTP\Mail\Connections\ConnectionResolver;
+use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Plugin;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
@@ -21,10 +23,16 @@ class WpMailBridge
 
     private MailEventLogger $eventLogger;
 
-    public function __construct()
+    private SmtpTransport $transport;
+
+    private ConnectionResolver $connectionResolver;
+
+    public function __construct(SmtpTransport $transport, ConnectionResolver $connectionResolver)
     {
-        $this->context     = new SendContext();
-        $this->eventLogger = new MailEventLogger(Plugin::instance()->logger());
+        $this->transport          = $transport;
+        $this->connectionResolver = $connectionResolver;
+        $this->context            = new SendContext();
+        $this->eventLogger        = new MailEventLogger(Plugin::instance()->logger());
 
         Hooks::addAction('phpmailer_init', [$this, 'configureMailer'], 1000);
 
@@ -89,35 +97,21 @@ class WpMailBridge
         // Start of a wp_mail send: clear stale output but keep caller-set inputs.
         $this->context->resetForSend();
 
-        $mailConfig = Plugin::instance()->mailConfigService()->load();
-
-        if ($mailConfig->isEnabled() && $mailConfig->getSmtpHost()) {
-            $mailer->Mailer = 'smtp';
-            $mailer->Host   = $mailConfig->getSmtpHost();
-            $mailer->Port   = $mailConfig->getPort();
-            if ($mailConfig->isSmtpAuth()) {
-                $mailer->SMTPAuth = true;
-                $mailer->Username = $mailConfig->getSmtpUserName();
-                $mailer->Password = $mailConfig->getSmtpPassword();
-            }
-            if ($mailConfig->hasReplyAddress()) {
-                $mailer->addReplyTo($mailConfig->getReEmailAddress());
-            }
-
-            if ($mailConfig->isEncryptionEnabled()) {
-                $mailer->SMTPSecure = $mailConfig->getEncryption();
-            }
-
-            if ($mailConfig->hasFromAddress()) {
-                $mailer->setFrom(
-                    $mailConfig->getFromEmailAddress(),
-                    $mailConfig->getFromName()
-                );
-                $mailer->Sender = $mailConfig->getFromEmailAddress();
-            }
+        $settings = Plugin::instance()->mailConfigService()->load();
+        if (!$settings->isEnabled()) {
+            // Not enabled: leave WP's default mail path untouched.
+            return;
         }
 
-        if ($this->context->isDebug() || $mailConfig->isSmtpDebug()) {
+        $connection = $this->connectionResolver->resolve($settings);
+        if ($connection === null || (string) $connection->setting('host', '') === '') {
+            // No usable connection (or no host yet): leave WP's default mail path untouched.
+            return;
+        }
+
+        $this->transport->configure($mailer, $connection);
+
+        if ($this->context->isDebug() || (bool) $connection->setting('smtp_debug', false)) {
             // Capture connection-level debug so test-mail failures surface actionable insight.
             $mailer->SMTPDebug   = SMTP::DEBUG_CONNECTION;
             $mailer->Debugoutput = [$this, 'captureDebugOutput'];
