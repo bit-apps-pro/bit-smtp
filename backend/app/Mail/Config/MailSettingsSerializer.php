@@ -6,6 +6,8 @@ namespace BitApps\SMTP\Mail\Config;
 
 class MailSettingsSerializer
 {
+    public const MASK_SENTINEL = '********';
+
     public static function toLegacyShape(MailSettings $s): array
     {
         $conn = $s->defaultConnection();
@@ -92,12 +94,12 @@ class MailSettingsSerializer
     private static function maskCredential($cred)
     {
         if (!\is_array($cred)) {
-            return '********';
+            return self::MASK_SENTINEL;
         }
 
         foreach ($cred as $k => &$v) {
             if ($k === 'value') {
-                $v = '********';
+                $v = self::MASK_SENTINEL;
             } elseif (\is_array($v)) {
                 $v = self::maskCredential($v);
             }

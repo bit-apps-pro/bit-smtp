@@ -197,6 +197,153 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
     }
 
+    public function test_save_settings_with_sentinel_preserves_stored_secret(): void
+    {
+        $service = $this->freshService();
+
+        // First write stores a real password
+        $service->saveSettings($this->v2SettingsArray('conn_1', 'real-secret'));
+
+        // Second write sends the sentinel; stored secret must survive
+        $incoming = $this->v2SettingsArray('conn_1', '********');
+        $this->freshService()->saveSettings($incoming);
+
+        $stored = $this->freshService()->load()->getConnections()->byId('conn_1');
+        $this->assertNotNull($stored);
+        $this->assertSame('real-secret', $stored->getCredentials()['password']['value']);
+    }
+
+    public function test_save_settings_with_real_password_overwrites(): void
+    {
+        $service = $this->freshService();
+        $service->saveSettings($this->v2SettingsArray('conn_1', 'old-secret'));
+
+        $this->freshService()->saveSettings($this->v2SettingsArray('conn_1', 'new-secret'));
+
+        $stored = $this->freshService()->load()->getConnections()->byId('conn_1');
+        $this->assertSame('new-secret', $stored->getCredentials()['password']['value']);
+    }
+
+    public function test_api_settings_returns_masked_password(): void
+    {
+        $service = $this->freshService();
+        $service->saveSettings($this->v2SettingsArray('conn_1', 'super-secret'));
+
+        $api = $this->freshService()->apiSettings();
+
+        $this->assertSame('********', $api['connections'][0]['credentials']['password']['value']);
+    }
+
+    public function test_save_connection_assigns_id_and_sets_default_on_first(): void
+    {
+        $service = $this->freshService();
+        $service->saveConnection([
+            'id'           => '',
+            'provider'     => 'other_smtp',
+            'kind'         => 'smtp',
+            'name'         => 'First',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['host' => 'smtp.example.com', 'port' => 587, 'encryption' => 'tls', 'auth' => false, 'username' => '', 'smtp_debug' => false],
+            'credentials'  => ['password' => ['source' => 'database', 'value' => 'pw1']],
+        ]);
+
+        $loaded = $this->freshService()->load();
+        $conn   = $loaded->getConnections()->first();
+
+        $this->assertNotNull($conn);
+        $this->assertStringStartsWith('conn_', $conn->getId());
+        $this->assertSame($conn->getId(), $loaded->getDefaultConnectionId());
+    }
+
+    public function test_save_connection_updates_existing_without_wiping_password(): void
+    {
+        $service = $this->freshService();
+        // Create a connection with a real password
+        $service->saveSettings($this->v2SettingsArray('conn_abc', 'keep-me'));
+
+        // Update the same connection sending sentinel
+        $this->freshService()->saveConnection([
+            'id'           => 'conn_abc',
+            'provider'     => 'other_smtp',
+            'kind'         => 'smtp',
+            'name'         => 'Updated',
+            'enabled'      => true,
+            'fromEmail'    => 'b@example.com',
+            'fromName'     => 'B',
+            'replyToEmail' => '',
+            'settings'     => ['host' => 'new-host.example.com', 'port' => 587, 'encryption' => 'tls', 'auth' => true, 'username' => 'user', 'smtp_debug' => false],
+            'credentials'  => ['password' => ['source' => 'database', 'value' => '********']],
+        ]);
+
+        $conn = $this->freshService()->load()->getConnections()->byId('conn_abc');
+        $this->assertNotNull($conn);
+        $this->assertSame('keep-me', $conn->getCredentials()['password']['value']);
+        $this->assertSame('new-host.example.com', $conn->setting('host'));
+    }
+
+    public function test_delete_connection_removes_it_and_repoints_default(): void
+    {
+        // Store two connections, conn_1 as default
+        $data = $this->v2SettingsArray('conn_1', 'pass1');
+        $data['connections'][] = [
+            'id'           => 'conn_2',
+            'provider'     => 'other_smtp',
+            'kind'         => 'smtp',
+            'name'         => 'Second',
+            'enabled'      => true,
+            'fromEmail'    => 'b@example.com',
+            'fromName'     => 'B',
+            'replyToEmail' => '',
+            'settings'     => ['host' => 'smtp2.example.com', 'port' => 587, 'encryption' => 'tls', 'auth' => false, 'username' => '', 'smtp_debug' => false],
+            'credentials'  => ['password' => ['source' => 'database', 'value' => 'pass2']],
+        ];
+        $this->freshService()->saveSettings($data);
+
+        // Delete the default connection
+        $this->freshService()->deleteConnection('conn_1');
+
+        $loaded = $this->freshService()->load();
+        $this->assertNull($loaded->getConnections()->byId('conn_1'));
+        $this->assertSame('conn_2', $loaded->getDefaultConnectionId());
+    }
+
+    private function v2SettingsArray(string $connId, string $password): array
+    {
+        return [
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => $connId,
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                [
+                    'id'           => $connId,
+                    'provider'     => 'other_smtp',
+                    'kind'         => 'smtp',
+                    'name'         => 'Primary',
+                    'enabled'      => true,
+                    'fromEmail'    => 'from@example.com',
+                    'fromName'     => 'From',
+                    'replyToEmail' => '',
+                    'settings'     => [
+                        'host'       => 'smtp.example.com',
+                        'port'       => 587,
+                        'encryption' => 'tls',
+                        'auth'       => true,
+                        'username'   => 'user',
+                        'smtp_debug' => false,
+                    ],
+                    'credentials'  => [
+                        'password' => ['source' => 'database', 'value' => $password],
+                    ],
+                ],
+            ],
+            'features' => [],
+        ];
+    }
+
     private function freshService(): MailConfigService
     {
         return new MailConfigService();
