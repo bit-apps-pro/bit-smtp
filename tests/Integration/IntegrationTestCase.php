@@ -1,0 +1,66 @@
+<?php
+
+namespace BitApps\SMTP\Tests\Integration;
+
+use BitApps\SMTP\Config;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Base for integration tests. Real WordPress (wp-phpunit) is loaded by the bootstrap; the
+ * ephemeral docker `db` and `mailpit` services back the run. Extends plain TestCase because
+ * wp-phpunit's WP_UnitTestCase is not PHPUnit 12 compatible; DB state is reset per test here.
+ */
+abstract class IntegrationTestCase extends TestCase
+{
+    protected const MAILPIT_API = 'http://127.0.0.1:8025/api/v1';
+
+    protected const SMTP_HOST = '127.0.0.1';
+
+    protected const SMTP_PORT = 1025;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Config::deleteOption('options');
+        $this->clearMailpit();
+    }
+
+    /**
+     * Persist the plugin option (legacy flat array or v2 schema).
+     *
+     * @param array<string,mixed> $options
+     */
+    protected function storeOptions(array $options): void
+    {
+        Config::updateOption('options', $options);
+    }
+
+    protected function clearMailpit(): void
+    {
+        wp_remote_request(self::MAILPIT_API . '/messages', ['method' => 'DELETE']);
+    }
+
+    /**
+     * @return array<int,array<string,mixed>> Mailpit message summaries, newest first
+     */
+    protected function mailpitMessages(): array
+    {
+        $response = wp_remote_get(self::MAILPIT_API . '/messages');
+        $body     = json_decode(wp_remote_retrieve_body($response), true);
+
+        return isset($body['messages']) && \is_array($body['messages']) ? $body['messages'] : [];
+    }
+
+    /**
+     * @return array<string,mixed>|null Full latest delivered message, or null when the box is empty
+     */
+    protected function latestMailpitMessage(): ?array
+    {
+        $response = wp_remote_get(self::MAILPIT_API . '/message/latest');
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            return null;
+        }
+
+        return json_decode(wp_remote_retrieve_body($response), true);
+    }
+}
