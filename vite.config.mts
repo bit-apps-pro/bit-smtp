@@ -136,10 +136,9 @@ export default defineConfig(({ mode }) => {
       }
     },
     test: {
-      // globals: true,
+      globals: true,
       environment: 'jsdom',
-      setupFiles: './config/test.setup.ts'
-      // css: true, // since parsing CSS is slow
+      setupFiles: ['./config/test.setup.ts']
     },
     server: {
       cors: true, // required to load scripts from custom host
