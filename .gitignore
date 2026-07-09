@@ -19,3 +19,6 @@ locale.pot
 package-lock.json
 port
 build/
+.superpowers/
+.phpunit.cache/
+docker-compose.test.override.yml

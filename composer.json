@@ -14,16 +14,26 @@
       "BitApps\\SMTP\\": "./backend/app"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "BitApps\\SMTP\\Tests\\": "tests/"
+    }
+  },
   "scripts": {
     "lint": "./vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.php",
     "unused:variable": "phpcs -p --standard=VariableAnalysis backend",
     "compat": "./vendor/bin/phpcs -p ./backend --standard=PHPCompatibilityWP --runtime-set testVersion 7.4-",
+    "test:unit": "./vendor/bin/phpunit -c phpunit.xml.dist",
+    "test:integration": "./vendor/bin/phpunit -c phpunit.integration.xml",
     "clean": "rm -rf ./vendor && rm composer.lock"
   },
   "require-dev": {
     "friendsofphp/php-cs-fixer": "^3.10",
     "dealerdirect/phpcodesniffer-composer-installer": "^0.7",
-    "phpcompatibility/phpcompatibility-wp": "*"
+    "phpcompatibility/phpcompatibility-wp": "*",
+    "phpunit/phpunit": "^12",
+    "brain/monkey": "^2.6",
+    "mockery/mockery": "^1.6"
   },
   "config": {
     "allow-plugins": {
