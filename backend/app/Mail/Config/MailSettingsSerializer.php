@@ -1,0 +1,82 @@
+<?php
+
+declare(strict_types=1);
+
+namespace BitApps\SMTP\Mail\Config;
+
+class MailSettingsSerializer
+{
+    public static function toLegacyShape(MailSettings $s): array
+    {
+        $conn = $s->defaultConnection();
+
+        if ($conn === null) {
+            return [
+                'status'             => false,
+                'from_email_address' => '',
+                'from_name'          => '',
+                're_email_address'   => '',
+                'smtp_host'          => '',
+                'encryption'         => 'none',
+                'port'               => 0,
+                'smtp_auth'          => false,
+                'smtp_debug'         => false,
+                'smtp_user_name'     => '',
+                'smtp_password'      => '',
+            ];
+        }
+
+        return [
+            'status'             => $s->isEnabled() && $conn->isEnabled(),
+            'from_email_address' => $conn->getFromEmail(),
+            'from_name'          => $conn->getFromName(),
+            're_email_address'   => $conn->getReplyToEmail(),
+            'smtp_host'          => $conn->setting('host', ''),
+            'encryption'         => $conn->setting('encryption', 'none'),
+            'port'               => (int) $conn->setting('port', 0),
+            'smtp_auth'          => (bool) $conn->setting('auth', false),
+            'smtp_debug'         => (bool) $conn->setting('smtp_debug', false),
+            'smtp_user_name'     => $conn->setting('username', ''),
+            // Return plaintext — legacy frontend needs the real password
+            'smtp_password'      => $conn->getCredentials()['password']['value'] ?? '',
+        ];
+    }
+
+    public static function fromLegacyShape(array $flat, ?MailSettings $current = null): array
+    {
+        $v2 = MailSettingsMigrator::migrate($flat);
+
+        $incoming = $flat['smtp_password'] ?? '';
+        if ($incoming === '' && $current !== null) {
+            $existingConn = $current->defaultConnection();
+            if ($existingConn !== null) {
+                $existing = $existingConn->getCredentials()['password']['value'] ?? '';
+                if ($existing !== '' && isset($v2['connections'][0])) {
+                    $v2['connections'][0]['credentials']['password']['value'] = $existing;
+                }
+            }
+        }
+
+        return $v2;
+    }
+
+    public static function toApiShape(MailSettings $s): array
+    {
+        $data = $s->toArray();
+
+        foreach ($data['connections'] as &$conn) {
+            if (!isset($conn['credentials']) || !is_array($conn['credentials'])) {
+                continue;
+            }
+            foreach ($conn['credentials'] as &$cred) {
+                if (isset($cred['value'])) {
+                    $cred['value'] = '********';
+                }
+            }
+            unset($cred);
+        }
+        unset($conn);
+
+        return $data;
+    }
+}
