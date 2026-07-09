@@ -17,7 +17,7 @@ interface ProviderInterface
     public function kind(): string;
 
     /**
-     * Assoc arrays with keys: key, label, type, required, secret.
+     * Assoc arrays with keys: key, label, type, required, secret, placeholder, default, options, dependsOn.
      */
     public function fields(): array;
 

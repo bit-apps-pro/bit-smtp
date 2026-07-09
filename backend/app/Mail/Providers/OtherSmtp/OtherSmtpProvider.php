@@ -57,16 +57,39 @@ class OtherSmtpProvider implements ProviderInterface
 
     public function fields(): array
     {
+        $dependsOnAuth = ['field' => 'auth', 'value' => true];
+
         return [
-            ['key' => 'host',           'label' => 'SMTP Host',      'type' => 'text',     'required' => true,  'secret' => false],
-            ['key' => 'port',           'label' => 'SMTP Port',      'type' => 'number',   'required' => true,  'secret' => false],
-            ['key' => 'encryption',     'label' => 'Encryption',     'type' => 'select',   'required' => true,  'secret' => false],
-            ['key' => 'auth',           'label' => 'Authentication', 'type' => 'checkbox', 'required' => false, 'secret' => false],
-            ['key' => 'username',       'label' => 'Username',       'type' => 'text',     'required' => false, 'secret' => false],
-            ['key' => 'password',       'label' => 'Password',       'type' => 'password', 'required' => false, 'secret' => true],
-            ['key' => 'from_email',     'label' => 'From Email',     'type' => 'text',     'required' => false, 'secret' => false],
-            ['key' => 'from_name',      'label' => 'From Name',      'type' => 'text',     'required' => false, 'secret' => false],
-            ['key' => 'reply_to_email', 'label' => 'Reply-To Email', 'type' => 'text',     'required' => false, 'secret' => false],
+            [
+                'key'         => 'host', 'label' => 'SMTP Host', 'type' => 'text', 'required' => true, 'secret' => false,
+                'placeholder' => 'smtp.example.com', 'default' => '', 'options' => [], 'dependsOn' => null,
+            ],
+            [
+                'key'         => 'port', 'label' => 'SMTP Port', 'type' => 'number', 'required' => true, 'secret' => false,
+                'placeholder' => '', 'default' => 587, 'options' => [], 'dependsOn' => null,
+            ],
+            [
+                'key'         => 'encryption', 'label' => 'Encryption', 'type' => 'select', 'required' => true, 'secret' => false,
+                'placeholder' => '', 'default' => 'tls',
+                'options'     => [
+                    ['value' => 'none', 'label' => 'None'],
+                    ['value' => 'ssl', 'label' => 'SSL'],
+                    ['value' => 'tls', 'label' => 'TLS'],
+                ],
+                'dependsOn' => null,
+            ],
+            [
+                'key'         => 'auth', 'label' => 'Authentication', 'type' => 'switch', 'required' => false, 'secret' => false,
+                'placeholder' => '', 'default' => true, 'options' => [], 'dependsOn' => null,
+            ],
+            [
+                'key'         => 'username', 'label' => 'Username', 'type' => 'text', 'required' => false, 'secret' => false,
+                'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => $dependsOnAuth,
+            ],
+            [
+                'key'         => 'password', 'label' => 'Password', 'type' => 'password', 'required' => false, 'secret' => true,
+                'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => $dependsOnAuth,
+            ],
         ];
     }
 }

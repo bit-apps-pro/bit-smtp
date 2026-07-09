@@ -40,6 +40,25 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertContains('other_smtp', $keys);
     }
 
+    public function test_provider_index_other_smtp_field_metadata_supports_form_rendering(): void
+    {
+        (new ProviderController())->index();
+        $data = $this->responseData();
+
+        $otherSmtp = current(array_filter($data['providers'], static function (array $provider): bool {
+            return $provider['key'] === 'other_smtp';
+        }));
+        $this->assertNotFalse($otherSmtp);
+
+        $fieldsByKey = array_column($otherSmtp['fields'], null, 'key');
+
+        $this->assertSame(
+            [['value' => 'none', 'label' => 'None'], ['value' => 'ssl', 'label' => 'SSL'], ['value' => 'tls', 'label' => 'TLS']],
+            $fieldsByKey['encryption']['options']
+        );
+        $this->assertTrue($fieldsByKey['password']['secret']);
+    }
+
     // --- MailSettingsController ---
 
     public function test_settings_index_returns_masked_password(): void

@@ -63,6 +63,36 @@ class OtherSmtpProviderTest extends BaseUnitTestCase
         }
     }
 
+    public function testEachFieldExposesAllRenderMetadataKeys(): void
+    {
+        $expectedKeys = ['key', 'label', 'type', 'required', 'secret', 'placeholder', 'default', 'options', 'dependsOn'];
+
+        foreach ($this->provider->fields() as $field) {
+            $this->assertSame($expectedKeys, array_keys($field), "Field '{$field['key']}' must expose exactly the render-metadata keys");
+        }
+    }
+
+    public function testFieldsExposeRenderMetadata(): void
+    {
+        $byKey = [];
+
+        foreach ($this->provider->fields() as $f) {
+            $byKey[$f['key']] = $f;
+        }
+
+        self::assertSame('select', $byKey['encryption']['type']);
+        self::assertSame(
+            [['value' => 'none', 'label' => 'None'], ['value' => 'ssl', 'label' => 'SSL'], ['value' => 'tls', 'label' => 'TLS']],
+            $byKey['encryption']['options']
+        );
+        self::assertSame('switch', $byKey['auth']['type']);
+        self::assertTrue($byKey['password']['secret']);
+        self::assertSame(['field' => 'auth', 'value' => true], $byKey['password']['dependsOn']);
+        self::assertSame(['field' => 'auth', 'value' => true], $byKey['username']['dependsOn']);
+        self::assertSame('number', $byKey['port']['type']);
+        self::assertSame(587, $byKey['port']['default']);
+    }
+
     public function testTransportReturnsInjectedInstance(): void
     {
         $transport = Mockery::mock(TransportInterface::class);
