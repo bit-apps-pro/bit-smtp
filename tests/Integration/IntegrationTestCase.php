@@ -41,6 +41,21 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
+     * Swap wp-phpunit's MockPHPMailer (which captures mail without sending) for a real PHPMailer,
+     * so wp_mail() performs a genuine SMTP send to mailpit through our phpmailer_init config.
+     */
+    protected function useRealPhpMailer(): void
+    {
+        // WP loads PHPMailer/SMTP lazily; require them so phpmailer_init can reference SMTP constants.
+        require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
+        require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+        require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
+
+        global $phpmailer;
+        $phpmailer = new \PHPMailer\PHPMailer\PHPMailer(true);
+    }
+
+    /**
      * @return array<int,array<string,mixed>> Mailpit message summaries, newest first
      */
     protected function mailpitMessages(): array

@@ -6,3 +6,9 @@
  */
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+// Neutralise the `\defined('ABSPATH') || exit()` guards so guarded classes can be loaded for mocking.
+\defined('ABSPATH') || \define('ABSPATH', dirname(__DIR__) . '/');
+
+// Minimal WP_Error double for classes that type-hint it; real WP is only present in the integration tier.
+require_once __DIR__ . '/stubs/WP_Error.php';

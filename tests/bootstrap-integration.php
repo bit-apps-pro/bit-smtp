@@ -22,3 +22,8 @@ tests_add_filter('muplugins_loaded', static function () {
 });
 
 require $_tests_dir . '/includes/bootstrap.php';
+
+// Create the plugin's tables in the test DB; activation hooks don't fire under wp-phpunit.
+\BitApps\SMTP\Deps\BitApps\WPKit\Migration\MigrationHelper::migrate(
+    \BitApps\SMTP\Providers\InstallerProvider::migration()
+);

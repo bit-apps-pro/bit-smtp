@@ -18,9 +18,9 @@ use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\TelemetryConfig;
 use BitApps\SMTP\HTTP\Middleware\NonceCheckerMiddleware;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
 use BitApps\SMTP\Providers\HookProvider;
 use BitApps\SMTP\Providers\InstallerProvider;
-use BitApps\SMTP\Providers\SmtpProvider;
 use BitApps\SMTP\Views\Layout;
 use Exception;
 
@@ -101,13 +101,13 @@ final class Plugin
 
         new HookProvider();
 
-        $this->_container['smtpProvider'] = new SmtpProvider();
+        $this->_container['smtpProvider'] = new WpMailBridge();
     }
 
     /**
-     * Get Mail Config Provider instance.
+     * Get the wp_mail bridge instance. Accessor name kept for backward compatibility.
      *
-     * @return SmtpProvider
+     * @return WpMailBridge
      */
     public function smtpProvider()
     {
@@ -165,7 +165,7 @@ final class Plugin
             try {
                 MigrationHelper::migrate(InstallerProvider::migration());
             } catch (Exception $e) {
-                //phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- we want to log this error
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- we want to log this error
                 error_log('BIT SMTP Migration Error: ' . $e->getMessage());
             }
         }
