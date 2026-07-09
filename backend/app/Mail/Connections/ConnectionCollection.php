@@ -4,20 +4,21 @@ namespace BitApps\SMTP\Mail\Connections;
 
 use ArrayIterator;
 use Countable;
+use InvalidArgumentException;
 use IteratorAggregate;
 
 class ConnectionCollection implements IteratorAggregate, Countable
 {
-    /** @var Connection[] */
+    /**
+     * @var Connection[]
+     */
     private array $connections;
 
     public function __construct(array $connections)
     {
         foreach ($connections as $element) {
             if (!($element instanceof Connection)) {
-                throw new \InvalidArgumentException(
-                    'ConnectionCollection expects only Connection instances.'
-                );
+                throw new InvalidArgumentException('ConnectionCollection expects only Connection instances.');
             }
         }
         $this->connections = $connections;

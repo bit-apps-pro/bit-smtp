@@ -8,7 +8,9 @@ use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
 
 class ProviderRegistry
 {
-    /** @var array<string, ProviderInterface> */
+    /**
+     * @var array<string, ProviderInterface>
+     */
     private array $providers = [];
 
     public function register(ProviderInterface $provider): void
@@ -36,13 +38,17 @@ class ProviderRegistry
         return isset($this->providers[$key]);
     }
 
-    /** @return ProviderInterface[] */
+    /**
+     * @return ProviderInterface[]
+     */
     public function all(): array
     {
         return array_values($this->providers);
     }
 
-    /** @return array<int, array{key: string, label: string, kind: string, fields: array}> */
+    /**
+     * @return array<int, array{key: string, label: string, kind: string, fields: array}>
+     */
     public function metadata(): array
     {
         return array_values(array_map(static function (ProviderInterface $provider): array {

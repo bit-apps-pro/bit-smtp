@@ -62,7 +62,7 @@ final class MailSettingsMigrator
 
     private static function resolveEncryption(array $stored): string
     {
-        if (!array_key_exists('encryption', $stored)) {
+        if (!\array_key_exists('encryption', $stored)) {
             return 'none';
         }
 
@@ -86,7 +86,7 @@ final class MailSettingsMigrator
             'replyToEmail' => (string) ($stored['re_email_address'] ?? ''),
             'settings'     => [
                 'host'       => (string) ($stored['smtp_host'] ?? ''),
-                'port'       => intval($stored['port'] ?? 0),
+                'port'       => \intval($stored['port'] ?? 0),
                 'encryption' => self::resolveEncryption($stored),
                 'auth'       => (bool) filter_var($stored['smtp_auth'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'username'   => (string) ($stored['smtp_user_name'] ?? ''),

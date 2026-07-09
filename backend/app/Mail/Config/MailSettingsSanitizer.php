@@ -31,27 +31,33 @@ final class MailSettingsSanitizer
             switch ($key) {
                 case 'schema_version':
                     $out[$key] = isset($v2[$key]) ? (int) $v2[$key] : 2;
+
                     break;
                 case 'enabled':
                     $out[$key] = isset($v2[$key])
                         ? (bool) filter_var($v2[$key], FILTER_VALIDATE_BOOLEAN)
                         : false;
+
                     break;
                 case 'default_connection_id':
                     $out[$key] = isset($v2[$key]) ? trim((string) $v2[$key]) : '';
+
                     break;
                 case 'fallback_connection_ids':
-                    $ids = isset($v2[$key]) && is_array($v2[$key]) ? $v2[$key] : [];
+                    $ids       = isset($v2[$key]) && \is_array($v2[$key]) ? $v2[$key] : [];
                     $out[$key] = array_map(static function ($id): string {
                         return trim((string) $id);
                     }, $ids);
+
                     break;
                 case 'connections':
-                    $conns = isset($v2[$key]) && is_array($v2[$key]) ? $v2[$key] : [];
+                    $conns     = isset($v2[$key]) && \is_array($v2[$key]) ? $v2[$key] : [];
                     $out[$key] = array_map([self::class, 'sanitizeConnection'], $conns);
+
                     break;
                 case 'features':
                     $out[$key] = self::sanitizeFeatures($v2[$key] ?? []);
+
                     break;
             }
         }
@@ -62,7 +68,7 @@ final class MailSettingsSanitizer
     private static function sanitizeConnection(array $conn): array
     {
         $stringFields = ['id', 'provider', 'kind', 'name', 'fromEmail', 'fromName', 'replyToEmail'];
-        $out = [];
+        $out          = [];
 
         foreach ($stringFields as $field) {
             $out[$field] = isset($conn[$field]) ? trim((string) $conn[$field]) : '';
@@ -73,10 +79,10 @@ final class MailSettingsSanitizer
             : false;
 
         $out['settings'] = self::sanitizeConnectionSettings(
-            isset($conn['settings']) && is_array($conn['settings']) ? $conn['settings'] : []
+            isset($conn['settings']) && \is_array($conn['settings']) ? $conn['settings'] : []
         );
 
-        $raw                = isset($conn['credentials']) && is_array($conn['credentials'])
+        $raw                = isset($conn['credentials']) && \is_array($conn['credentials'])
             ? $conn['credentials']
             : [];
         $out['credentials'] = array_map([self::class, 'sanitizeCredentialEntry'], $raw);
@@ -98,7 +104,7 @@ final class MailSettingsSanitizer
 
         return [
             'host'       => isset($settings['host']) ? trim((string) $settings['host']) : '',
-            'port'       => isset($settings['port']) ? intval($settings['port']) : 0,
+            'port'       => isset($settings['port']) ? \intval($settings['port']) : 0,
             'encryption' => $encryption !== '' ? $encryption : 'none',
             'auth'       => isset($settings['auth'])
                 ? (bool) filter_var($settings['auth'], FILTER_VALIDATE_BOOLEAN)
@@ -115,7 +121,7 @@ final class MailSettingsSanitizer
         $out = [];
 
         foreach (self::ALLOWED_FEATURE_KEYS as $key) {
-            $out[$key] = isset($features[$key]) && is_array($features[$key]) ? $features[$key] : [];
+            $out[$key] = isset($features[$key]) && \is_array($features[$key]) ? $features[$key] : [];
         }
 
         return $out;

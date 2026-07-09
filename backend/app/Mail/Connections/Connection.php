@@ -2,6 +2,8 @@
 
 namespace BitApps\SMTP\Mail\Connections;
 
+use InvalidArgumentException;
+
 class Connection
 {
     private string $id;
@@ -51,8 +53,8 @@ class Connection
     public static function fromArray(array $data): self
     {
         foreach (['id', 'provider', 'kind'] as $required) {
-            if (!array_key_exists($required, $data)) {
-                throw new \InvalidArgumentException("Missing required key: {$required}");
+            if (!\array_key_exists($required, $data)) {
+                throw new InvalidArgumentException("Missing required key: {$required}");
             }
         }
 
@@ -62,35 +64,67 @@ class Connection
             $data['kind'],
             $data['name'] ?? '',
             (bool) ($data['enabled'] ?? false),
-            $data['fromEmail'] ?? '',
-            $data['fromName'] ?? '',
+            $data['fromEmail']    ?? '',
+            $data['fromName']     ?? '',
             $data['replyToEmail'] ?? '',
-            $data['settings'] ?? [],
-            $data['credentials'] ?? []
+            $data['settings']     ?? [],
+            $data['credentials']  ?? []
         );
     }
 
-    public function getId(): string { return $this->id; }
+    public function getId(): string
+    {
+        return $this->id;
+    }
 
-    public function getProvider(): string { return $this->provider; }
+    public function getProvider(): string
+    {
+        return $this->provider;
+    }
 
-    public function getKind(): string { return $this->kind; }
+    public function getKind(): string
+    {
+        return $this->kind;
+    }
 
-    public function getName(): string { return $this->name; }
+    public function getName(): string
+    {
+        return $this->name;
+    }
 
-    public function isEnabled(): bool { return $this->enabled; }
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
 
-    public function getFromEmail(): string { return $this->fromEmail; }
+    public function getFromEmail(): string
+    {
+        return $this->fromEmail;
+    }
 
-    public function getFromName(): string { return $this->fromName; }
+    public function getFromName(): string
+    {
+        return $this->fromName;
+    }
 
-    public function getReplyToEmail(): string { return $this->replyToEmail; }
+    public function getReplyToEmail(): string
+    {
+        return $this->replyToEmail;
+    }
 
-    public function getSettings(): array { return $this->settings; }
+    public function getSettings(): array
+    {
+        return $this->settings;
+    }
 
-    public function getCredentials(): array { return $this->credentials; }
+    public function getCredentials(): array
+    {
+        return $this->credentials;
+    }
 
-    /** @return mixed */
+    /**
+     * @return mixed
+     */
     public function setting(string $key, $default = null)
     {
         return $this->settings[$key] ?? $default;

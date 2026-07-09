@@ -4,15 +4,21 @@ namespace BitApps\SMTP\Mail\Contracts;
 
 interface ProviderInterface
 {
-    /** Unique machine key, e.g. 'other_smtp'. */
+    /**
+     * Unique machine key, e.g. 'other_smtp'.
+     */
     public function key(): string;
 
     public function label(): string;
 
-    /** 'smtp' or 'api'. */
+    /**
+     * 'smtp' or 'api'.
+     */
     public function kind(): string;
 
-    /** Assoc arrays with keys: key, label, type, required, secret. */
+    /**
+     * Assoc arrays with keys: key, label, type, required, secret.
+     */
     public function fields(): array;
 
     public function defaults(): array;

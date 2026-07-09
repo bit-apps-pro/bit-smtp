@@ -67,7 +67,7 @@ class MailSettingsSerializer
         $data = $s->toArray();
 
         foreach ($data['connections'] as &$conn) {
-            if (!isset($conn['credentials']) || !is_array($conn['credentials'])) {
+            if (!isset($conn['credentials']) || !\is_array($conn['credentials'])) {
                 continue;
             }
             foreach ($conn['credentials'] as &$cred) {
@@ -86,6 +86,7 @@ class MailSettingsSerializer
      * - Array entries: blank any key named 'value' at any depth; recurse into nested arrays.
      *
      * @param mixed $cred
+     *
      * @return mixed
      */
     private static function maskCredential($cred)

@@ -30,11 +30,23 @@ class SendResult
         return new self(false, $code, $error, $debug);
     }
 
-    public function isOk(): bool { return $this->ok; }
+    public function isOk(): bool
+    {
+        return $this->ok;
+    }
 
-    public function getCode(): ?string { return $this->code; }
+    public function getCode(): ?string
+    {
+        return $this->code;
+    }
 
-    public function getError(): ?string { return $this->error; }
+    public function getError(): ?string
+    {
+        return $this->error;
+    }
 
-    public function getDebug(): array { return $this->debug; }
+    public function getDebug(): array
+    {
+        return $this->debug;
+    }
 }

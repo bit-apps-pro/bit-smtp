@@ -2,6 +2,8 @@
 
 namespace BitApps\SMTP\Mail\Credentials;
 
+use InvalidArgumentException;
+
 class Credential
 {
     private string $source;
@@ -16,16 +18,22 @@ class Credential
 
     public static function fromArray(array $data): self
     {
-        if (!array_key_exists('source', $data)) {
-            throw new \InvalidArgumentException("Missing required key: source");
+        if (!\array_key_exists('source', $data)) {
+            throw new InvalidArgumentException('Missing required key: source');
         }
 
         return new self($data['source'], $data['value'] ?? null);
     }
 
-    public function getSource(): string { return $this->source; }
+    public function getSource(): string
+    {
+        return $this->source;
+    }
 
-    public function getValue(): ?string { return $this->value; }
+    public function getValue(): ?string
+    {
+        return $this->value;
+    }
 
     public function toArray(): array
     {

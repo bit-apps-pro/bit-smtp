@@ -10,10 +10,15 @@ use BitApps\SMTP\Mail\Connections\ConnectionCollection;
 final class MailSettings
 {
     private int $schemaVersion;
+
     private bool $enabled;
+
     private string $defaultConnectionId;
+
     private array $fallbackConnectionIds;
+
     private ConnectionCollection $connections;
+
     private array $features;
 
     private function __construct(
@@ -24,12 +29,12 @@ final class MailSettings
         ConnectionCollection $connections,
         array $features
     ) {
-        $this->schemaVersion = $schemaVersion;
-        $this->enabled = $enabled;
-        $this->defaultConnectionId = $defaultConnectionId;
+        $this->schemaVersion         = $schemaVersion;
+        $this->enabled               = $enabled;
+        $this->defaultConnectionId   = $defaultConnectionId;
         $this->fallbackConnectionIds = $fallbackConnectionIds;
-        $this->connections = $connections;
-        $this->features = $features;
+        $this->connections           = $connections;
+        $this->features              = $features;
     }
 
     public static function fromArray(array $data): self

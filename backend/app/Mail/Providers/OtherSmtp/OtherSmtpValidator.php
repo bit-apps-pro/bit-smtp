@@ -22,7 +22,7 @@ class OtherSmtpValidator implements ValidatorInterface
             $errors['port'] = 'Port must be between 1 and 65535.';
         }
 
-        if (!in_array($settings['encryption'] ?? '', ['none', 'ssl', 'tls'], true)) {
+        if (!\in_array($settings['encryption'] ?? '', ['none', 'ssl', 'tls'], true)) {
             $errors['encryption'] = 'Encryption must be one of: none, ssl, tls.';
         }
 
