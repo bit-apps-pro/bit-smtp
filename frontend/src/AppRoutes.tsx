@@ -1,7 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { StyleProvider } from '@ant-design/cssinjs'
 import ThemeProvider from '@config/themes/theme.provider'
-import SMTP from '@pages/Homepage'
+import ConnectionsPage from '@pages/Connections/ConnectionsPage'
 import Layout from '@pages/Layout'
 import Logs from '@pages/Logs'
 import LogDetails from '@pages/Logs/ui/LogDetails'
@@ -20,12 +20,12 @@ export default function AppRoutes() {
         {messageContextHolder}
         <Routes>
           <Route path="/" element={<Layout />}>
-            <Route index element={<SMTP />} />
+            <Route index element={<ConnectionsPage />} />
             <Route path="/test-mail" element={<MailSendTest />} />
             <Route path="/logs" element={<Logs />} />
             <Route path="/logs/:id" element={<LogDetails />} />
             <Route path="/others" element={<Others />} />
-            <Route path="*" element={<SMTP />} />
+            <Route path="*" element={<ConnectionsPage />} />
           </Route>
         </Routes>
       </StyleProvider>
