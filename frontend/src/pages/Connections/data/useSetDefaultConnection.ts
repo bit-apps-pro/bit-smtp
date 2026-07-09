@@ -11,6 +11,10 @@ export default function useSetDefaultConnection() {
   // ride along with the new default id or the backend sanitizer drops them.
   return useMailSettingsMutation((defaultConnectionId: string) => {
     const settings = queryClient.getQueryData<MailSettings>(MAIL_SETTINGS_QUERY_KEY)
+    if (!settings) {
+      // Never POST without the cached connections — the sanitizer would wipe them all.
+      return Promise.reject(new Error('Mail settings not loaded'))
+    }
     return request({
       action: 'mail/settings/save',
       data: { ...settings, default_connection_id: defaultConnectionId }
