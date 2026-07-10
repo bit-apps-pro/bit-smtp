@@ -1,5 +1,6 @@
-import { DeleteOutlined, EditOutlined, StarOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, HolderOutlined, StarOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
+import { type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core'
 import { type Connection } from '@pages/Connections/types'
 import { Button, Card, Flex, Popconfirm, Tag, Typography } from 'antd'
 
@@ -8,20 +9,46 @@ const { Text } = Typography
 export default function ConnectionCard({
   connection,
   isDefault,
+  priority,
   onSetDefault,
   onEdit,
-  onDelete
+  onDelete,
+  dragHandleAttributes,
+  dragHandleListeners
 }: {
   connection: Connection
   isDefault: boolean
+  priority?: number
   onSetDefault: () => void
   onEdit: () => void
   onDelete: () => void
+  dragHandleAttributes?: DraggableAttributes
+  dragHandleListeners?: DraggableSyntheticListeners
 }) {
   return (
     <Card
-      title={connection.name}
-      extra={isDefault && <Tag color="blue">{__('Default')}</Tag>}
+      title={
+        <Flex align="center" gap="small">
+          <Button
+            type="text"
+            size="small"
+            icon={<HolderOutlined />}
+            aria-label={__('Drag to reorder')}
+            style={{ cursor: 'grab' }}
+            // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
+            {...dragHandleAttributes}
+            // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
+            {...dragHandleListeners}
+          />
+          <Text>{connection.name}</Text>
+        </Flex>
+      }
+      extra={
+        <Flex gap="small" align="center">
+          {typeof priority === 'number' && <Tag>{`${__('Priority')} ${priority}`}</Tag>}
+          {isDefault && <Tag color="blue">{__('Default')}</Tag>}
+        </Flex>
+      }
       actions={[
         <Button
           key="default"
