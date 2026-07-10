@@ -1,7 +1,7 @@
 === Bit SMTP – Easy SMTP Solution with Email Logs ===
 Contributors: bitpressadmin, akaioum
 Tags: email logs, smtp, email, gmail smtp, wp mail smtp
-Requires at least: 5.0
+Requires at least: 5.7
 Tested up to: 6.9
 Requires PHP: 7.4
 Stable tag: 1.2.4

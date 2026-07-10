@@ -74,9 +74,10 @@ class SmtpTransport implements TransportInterface
             $this->configure($mailer, $connection);
             $this->applyMessage($mailer, $message);
 
-            // Our connection config is the baseline; fire phpmailer_init last (mirroring core) so
-            // third-party listeners (DKIM, custom headers) can tweak the fully-built mailer.
-            do_action('phpmailer_init', $mailer);
+            // Our connection config is the baseline; fire phpmailer_init last (mirroring core's
+            // do_action_ref_array by-reference call) so third-party listeners (DKIM, custom headers)
+            // can tweak — or even reassign — the fully-built mailer.
+            do_action_ref_array('phpmailer_init', [&$mailer]);
 
             $mailer->send();
 
