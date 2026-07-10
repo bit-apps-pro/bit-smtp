@@ -59,6 +59,17 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
         $this->assertArrayHasKey('features', $result);
     }
 
+    public function testLegacyMigrationIsIdempotentAcrossLoads(): void
+    {
+        // Migrate-on-load runs every request until the first v2 save; a non-stable id
+        // would mismatch the frontend load vs the save-time re-migration → duplicate connection.
+        $first  = MailSettingsMigrator::migrate($this->legacyInput());
+        $second = MailSettingsMigrator::migrate($this->legacyInput());
+
+        $this->assertSame($first['connections'][0]['id'], $second['connections'][0]['id']);
+        $this->assertSame(MailSettingsMigrator::MIGRATED_CONNECTION_ID, $first['connections'][0]['id']);
+    }
+
     public function testLegacyMigrationMapsAllFields(): void
     {
         $result = MailSettingsMigrator::migrate($this->legacyInput());
@@ -66,10 +77,10 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
 
         $this->assertSame(2, $result['schema_version']);
         $this->assertTrue($result['enabled']);
-        $this->assertSame('conn_test-uuid-1234', $result['default_connection_id']);
+        $this->assertSame(MailSettingsMigrator::MIGRATED_CONNECTION_ID, $result['default_connection_id']);
         $this->assertSame([], $result['fallback_connection_ids']);
         $this->assertCount(1, $result['connections']);
-        $this->assertSame('conn_test-uuid-1234', $conn['id']);
+        $this->assertSame(MailSettingsMigrator::MIGRATED_CONNECTION_ID, $conn['id']);
         $this->assertSame('other_smtp', $conn['provider']);
         $this->assertSame('smtp', $conn['kind']);
         $this->assertSame('Primary SMTP', $conn['name']);

@@ -6,6 +6,14 @@ namespace BitApps\SMTP\Mail\Config;
 
 final class MailSettingsMigrator
 {
+    /**
+     * Deterministic id for the single connection a legacy config migrates to.
+     * Must be stable: migrate-on-load runs on every request until the first v2 save,
+     * so a random id would mismatch between the frontend's load and the backend's
+     * re-migration during save, creating a duplicate connection.
+     */
+    public const MIGRATED_CONNECTION_ID = 'conn_default';
+
     public static function migrate(array $stored): array
     {
         if (isset($stored['schema_version']) && (int) $stored['schema_version'] === 2) {
@@ -23,7 +31,7 @@ final class MailSettingsMigrator
     {
         $stored  = self::resolveTypoKeys($stored);
         $enabled = self::resolveEnabled($stored);
-        $connId  = 'conn_' . wp_generate_uuid4();
+        $connId  = self::MIGRATED_CONNECTION_ID;
         $conn    = self::buildConnectionArray($stored, $connId, $enabled);
 
         return [

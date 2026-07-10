@@ -50,6 +50,30 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('s3cret', $connection->getCredentials()['password']['value']);
     }
 
+    public function test_saving_a_migrated_legacy_connection_does_not_duplicate_it(): void
+    {
+        // Regression (found via live E2E): migrate-on-load used a random connection id,
+        // so the id the frontend loaded mismatched the save-time re-migration of the still
+        // legacy option, and saveConnection appended a second connection instead of updating.
+        $this->storeOptions([
+            'status'         => true,
+            'smtp_host'      => 'legacy.example.org',
+            'smtp_user_name' => 'user@example.org',
+            'smtp_password'  => 'real-secret',
+            'smtp_auth'      => true,
+        ]);
+
+        // Mirror the frontend: load (migrates), then save the connection back with the
+        // masked (untouched) password sentinel — exactly what ConnectionEditor posts.
+        $migrated = $this->freshService()->load()->defaultConnection()->toArray();
+        $migrated['credentials']['password']['value'] = '********';
+        $this->freshService()->saveConnection($migrated);
+
+        $reloaded = $this->freshService()->load();
+        $this->assertCount(1, $reloaded->getConnections()->all());
+        $this->assertSame('real-secret', $reloaded->defaultConnection()->getCredentials()['password']['value']);
+    }
+
     public function test_load_never_writes_the_db(): void
     {
         $this->storeOptions(['status' => true, 'smtp_host' => 'smtp.example.org']);
