@@ -21,6 +21,7 @@ use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
 use BitApps\SMTP\Mail\Credentials\DatabaseCredentialResolver;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
+use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Transport\SmtpTransport;
@@ -113,7 +114,7 @@ final class Plugin
         $registry->register(new OtherSmtpProvider($transport));
         $this->_container['providerRegistry'] = $registry;
 
-        $this->_container['smtpProvider'] = new WpMailBridge($transport, new ConnectionResolver());
+        $this->_container['smtpProvider'] = new WpMailBridge($transport, new ConnectionResolver(), new MailMessageFactory());
     }
 
     /**

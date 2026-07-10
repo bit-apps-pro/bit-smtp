@@ -14,7 +14,7 @@ use PHPMailer\PHPMailer\SMTP;
 
 /**
  * Explicit SMTP send seam: builds and drives its own PHPMailer, bypassing wp_mail().
- * The wp_mail SMTP path (with third-party filters) stays via WpMailBridge's phpmailer_init.
+ * Fires `phpmailer_init` on the fully-built mailer (as core does) so third-party tweaks still apply.
  */
 class SmtpTransport implements TransportInterface
 {
@@ -73,6 +73,11 @@ class SmtpTransport implements TransportInterface
         try {
             $this->configure($mailer, $connection);
             $this->applyMessage($mailer, $message);
+
+            // Our connection config is the baseline; fire phpmailer_init last (mirroring core) so
+            // third-party listeners (DKIM, custom headers) can tweak the fully-built mailer.
+            do_action('phpmailer_init', $mailer);
+
             $mailer->send();
 
             return SendResult::success($debugLines);
@@ -154,16 +159,22 @@ class SmtpTransport implements TransportInterface
     }
 
     /**
-     * Load the WP-bundled PHPMailer classes if the host application has not already.
+     * Load the WP-bundled PHPMailer classes if the host application has not already. Each class is
+     * guarded independently: on the pre_wp_mail path core has not yet loaded them, and some hosts
+     * load PHPMailer without SMTP (e.g. WP's MockPHPMailer), which this send() relies on.
      */
     private function requirePhpMailer(): void
     {
-        if (class_exists(PHPMailer::class)) {
-            return;
+        if (!class_exists(PHPMailer::class)) {
+            require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
         }
 
-        require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
-        require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
-        require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
+        if (!class_exists(SMTP::class)) {
+            require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+        }
+
+        if (!class_exists(PHPMailerException::class)) {
+            require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
+        }
     }
 }

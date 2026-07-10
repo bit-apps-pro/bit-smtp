@@ -3,19 +3,22 @@
 namespace BitApps\SMTP\Mail\Dispatch;
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
+use BitApps\SMTP\Mail\Config\MailSettings;
+use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
+use BitApps\SMTP\Mail\Message\MailMessage;
+use BitApps\SMTP\Mail\Message\MailMessageFactory;
+use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Plugin;
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
+use InvalidArgumentException;
 use WP_Error;
 
 /**
- * Bridges WordPress' wp_mail pipeline onto our SMTP configuration and logging.
- *
- * Maps the stored SMTP config onto PHPMailer via `phpmailer_init`, and delegates the
- * `wp_mail_succeeded` / `wp_mail_failed` outcomes to a composed MailEventLogger. Owns the single
- * mutable SendContext that the controller mutates before wp_mail() and reads back afterwards.
+ * Drives wp_mail through our connection dispatch: on `pre_wp_mail` it sends the message over each
+ * resolved connection in priority order, falling back to the next on failure, then logs the outcome
+ * and re-fires the standard wp_mail_succeeded/failed actions for third-party listeners. Owns the
+ * single mutable SendContext the controller reads back after wp_mail() for test-mail/resend.
  */
 class WpMailBridge
 {
@@ -27,19 +30,34 @@ class WpMailBridge
 
     private ConnectionResolver $connectionResolver;
 
-    public function __construct(SmtpTransport $transport, ConnectionResolver $connectionResolver)
-    {
+    private MailMessageFactory $messageFactory;
+
+    private bool $loggingEnabled;
+
+    /**
+     * True while our dispatch loop is running, so the native-path log listeners skip our own sends.
+     */
+    private bool $dispatching = false;
+
+    public function __construct(
+        SmtpTransport $transport,
+        ConnectionResolver $connectionResolver,
+        MailMessageFactory $messageFactory
+    ) {
         $this->transport          = $transport;
         $this->connectionResolver = $connectionResolver;
+        $this->messageFactory     = $messageFactory;
         $this->context            = new SendContext();
         $this->eventLogger        = new MailEventLogger(Plugin::instance()->logger());
+        $this->loggingEnabled     = Plugin::instance()->logger()->isEnabled();
 
-        Hooks::addAction('phpmailer_init', [$this, 'configureMailer'], 1000);
+        Hooks::addFilter('pre_wp_mail', [$this, 'onPreWpMail'], 10, 2);
 
-        if (Plugin::instance()->logger()->isEnabled()) {
-            // Only wire logging when enabled, to avoid unnecessary overhead on every send.
-            Hooks::addAction('wp_mail_succeeded', [$this, 'logMailSuccess']);
-            Hooks::addAction('wp_mail_failed', [$this, 'logMailFailed']);
+        if ($this->loggingEnabled) {
+            // Sends we defer to native wp_mail (routing disabled / mid-setup) still fire these core
+            // actions; keep logging them as before. Our own dispatch is skipped via $dispatching.
+            Hooks::addAction('wp_mail_succeeded', [$this, 'onNativeMailSucceeded']);
+            Hooks::addAction('wp_mail_failed', [$this, 'onNativeMailFailed']);
         }
     }
 
@@ -92,50 +110,229 @@ class WpMailBridge
         return $this;
     }
 
-    public function configureMailer(PHPMailer $mailer): void
+    /**
+     * pre_wp_mail handler: short-circuits wp_mail() with a fallback dispatch over the ordered
+     * connections. Returns null to defer to native wp_mail (a prior listener already handled the
+     * send, the plugin is disabled, or there is no usable connection to send with).
+     *
+     * @param null|bool           $return short-circuit value from an earlier pre_wp_mail listener
+     * @param array<string,mixed> $atts   wp_mail() arguments: to, subject, message, headers, attachments
+     *
+     * @return null|bool null lets wp_mail() run natively; a bool short-circuits it
+     */
+    public function onPreWpMail($return, array $atts)
     {
-        // Start of a wp_mail send: clear stale output but keep caller-set inputs.
+        if ($return !== null) {
+            return $return;
+        }
+
+        // Clear stale per-send output up front so a deferred (native) send's read-back is not
+        // polluted by a prior dispatch; the native log listeners record that send's outcome.
         $this->context->resetForSend();
 
         $settings = Plugin::instance()->mailConfigService()->load();
         if (!$settings->isEnabled()) {
-            // Not enabled: leave WP's default mail path untouched.
             return;
         }
 
-        $connection = $this->connectionResolver->resolve($settings);
-        if ($connection === null || (string) $connection->setting('host', '') === '') {
-            // No usable connection (or no host yet): leave WP's default mail path untouched.
+        $connections = $this->sendableConnections($settings);
+        if ($connections === []) {
             return;
         }
 
-        $this->transport->configure($mailer, $connection);
-
-        if ($this->context->isDebug() || (bool) $connection->setting('smtp_debug', false)) {
-            // Capture connection-level debug so test-mail failures surface actionable insight.
-            $mailer->SMTPDebug   = SMTP::DEBUG_CONNECTION;
-            $mailer->Debugoutput = [$this, 'captureDebugOutput'];
+        try {
+            $message = $this->messageFactory->fromWpMailAtts($atts);
+        } catch (InvalidArgumentException $e) {
+            // Degenerate input (e.g. no valid recipients): defer to core rather than fatal the request.
+            return;
         }
+
+        return $this->dispatch($connections, $message, $this->buildMailData($atts));
     }
 
-    public function logMailSuccess($mailData): void
+    /**
+     * wp_mail_succeeded listener for sends we deferred to native wp_mail; our own dispatch is logged
+     * directly and skipped here via $dispatching.
+     *
+     * @param array<string,mixed> $mailData
+     */
+    public function onNativeMailSucceeded($mailData): void
     {
-        $this->eventLogger->logMailSuccess($mailData, $this->context);
+        if ($this->dispatching) {
+            return;
+        }
+
+        $this->eventLogger->logMailSuccess((array) $mailData, $this->context);
     }
 
-    public function logMailFailed(WP_Error $error): void
+    /**
+     * wp_mail_failed listener for sends we deferred to native wp_mail (see onNativeMailSucceeded).
+     */
+    public function onNativeMailFailed(WP_Error $error): void
     {
+        if ($this->dispatching) {
+            return;
+        }
+
         $this->eventLogger->logMailFailed($error, $this->context);
     }
 
     /**
-     * PHPMailer Debugoutput callback: ($str, $level).
+     * Attempt each connection in order, stopping at the first success.
      *
-     * @param mixed $debugOutput
-     * @param mixed $debugLevel
+     * @param Connection[]        $connections
+     * @param array<string,mixed> $mailData
      */
-    public function captureDebugOutput($debugOutput, $debugLevel): void
+    private function dispatch(array $connections, MailMessage $message, array $mailData): bool
     {
-        $this->context->appendDebug($debugOutput . "\n");
+        $this->dispatching = true;
+
+        try {
+            $isRetry    = $this->context->isRetrying();
+            $succeeded  = false;
+            $lastResult = null;
+
+            foreach ($connections as $connection) {
+                $lastResult = $this->transport->send($message, $connection);
+                $this->appendDebug($lastResult);
+
+                // A resend updates its originating log once with the final outcome (below); a fresh
+                // send records every attempt so the fallback history is visible.
+                if (!$isRetry) {
+                    $this->logAttempt($lastResult, $mailData);
+                }
+
+                if ($lastResult->isOk()) {
+                    $succeeded = true;
+
+                    break;
+                }
+            }
+
+            $this->context->setFailed(!$succeeded);
+
+            if ($isRetry) {
+                $this->logOutcome($succeeded, $lastResult, $mailData);
+            }
+
+            $this->fireWpMailAction($succeeded, $lastResult, $mailData);
+
+            return $succeeded;
+        } finally {
+            $this->dispatching = false;
+        }
+    }
+
+    /**
+     * Drop connections that are not yet configured with a host so an incomplete setup falls through
+     * to native wp_mail instead of forcing a broken SMTP send (mirrors the pre-refactor guard).
+     *
+     * @return Connection[]
+     */
+    private function sendableConnections(MailSettings $settings): array
+    {
+        return array_values(array_filter(
+            $this->connectionResolver->resolveOrdered($settings),
+            static function (Connection $connection): bool {
+                return (string) $connection->setting('host', '') !== '';
+            }
+        ));
+    }
+
+    private function appendDebug(SendResult $result): void
+    {
+        foreach ($result->getDebug() as $line) {
+            $this->context->appendDebug($line . "\n");
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $mailData
+     */
+    private function logAttempt(SendResult $result, array $mailData): void
+    {
+        if (!$this->loggingEnabled) {
+            return;
+        }
+
+        if ($result->isOk()) {
+            $this->eventLogger->logMailSuccess($mailData, $this->context);
+
+            return;
+        }
+
+        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context);
+    }
+
+    /**
+     * @param array<string,mixed> $mailData
+     */
+    private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData): void
+    {
+        if (!$this->loggingEnabled) {
+            return;
+        }
+
+        if ($succeeded) {
+            $this->eventLogger->logMailSuccess($mailData, $this->context);
+
+            return;
+        }
+
+        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context);
+    }
+
+    /**
+     * Fire the standard WP action once for the final outcome so third-party wp_mail_succeeded /
+     * wp_mail_failed listeners still run on a short-circuited send.
+     *
+     * @param array<string,mixed> $mailData
+     */
+    private function fireWpMailAction(bool $succeeded, ?SendResult $result, array $mailData): void
+    {
+        if ($succeeded) {
+            do_action('wp_mail_succeeded', $mailData);
+
+            return;
+        }
+
+        do_action('wp_mail_failed', $this->toError($result, $mailData));
+    }
+
+    /**
+     * Build the WP_Error core would hand to wp_mail_failed, carrying the mail data and the
+     * PHPMailer exception code the logger inspects for connection-level failures.
+     *
+     * @param array<string,mixed> $mailData
+     */
+    private function toError(?SendResult $result, array $mailData): WP_Error
+    {
+        $mailData['phpmailer_exception_code'] = $result !== null ? (int) $result->getCode() : 0;
+        $errorMessage                         = $result !== null && $result->getError() !== null ? $result->getError() : '';
+
+        return new WP_Error('wp_mail_failed', $errorMessage, $mailData);
+    }
+
+    /**
+     * Mirror core's wp_mail $mail_data so logging and the re-fired actions carry the same shape.
+     *
+     * @param array<string,mixed> $atts
+     *
+     * @return array<string,mixed>
+     */
+    private function buildMailData(array $atts): array
+    {
+        $to = $atts['to'] ?? [];
+        if (!\is_array($to)) {
+            $to = explode(',', $to);
+        }
+
+        return [
+            'to'          => $to,
+            'subject'     => $atts['subject']     ?? '',
+            'message'     => $atts['message']     ?? '',
+            'headers'     => $atts['headers']     ?? '',
+            'attachments' => $atts['attachments'] ?? [],
+        ];
     }
 }

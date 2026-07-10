@@ -193,15 +193,18 @@ final class MailConfigServiceTest extends IntegrationTestCase
 
     public function testEnabledConfigWithoutHostLeavesWpDefaultMailUntouched(): void
     {
-        $this->useRealPhpMailer();
-        // Enabled mid-setup with no host: the bridge must not switch PHPMailer to a broken SMTP send.
+        // Enabled mid-setup with no host: pre_wp_mail must defer to native wp_mail (return null)
+        // rather than take over the send with a hostless, broken SMTP connection.
         $this->storeOptions(['status' => true, 'smtp_host' => '']);
         Plugin::instance()->mailConfigService()->reload();
 
-        global $phpmailer;
-        Plugin::instance()->smtpProvider()->configureMailer($phpmailer);
+        $result = Plugin::instance()->smtpProvider()->onPreWpMail(null, [
+            'to'      => 'to@example.org',
+            'subject' => 'Subject',
+            'message' => 'Body',
+        ]);
 
-        $this->assertNotSame('smtp', $phpmailer->Mailer);
+        $this->assertNull($result);
     }
 
     public function testEndToEndLegacyConfigDeliversThroughV2Path(): void

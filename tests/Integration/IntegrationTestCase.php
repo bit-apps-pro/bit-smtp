@@ -78,4 +78,15 @@ abstract class IntegrationTestCase extends TestCase
 
         return json_decode(wp_remote_retrieve_body($response), true);
     }
+
+    /**
+     * @return array<string,array<int,string>> Raw headers of the delivered message, keyed by name
+     */
+    protected function mailpitHeaders(string $id): array
+    {
+        $response = wp_remote_get(self::MAILPIT_API . '/message/' . $id . '/headers');
+        $headers  = json_decode(wp_remote_retrieve_body($response), true);
+
+        return \is_array($headers) ? $headers : [];
+    }
 }

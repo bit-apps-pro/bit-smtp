@@ -155,11 +155,12 @@ final class SmtpTransportTest extends IntegrationTestCase
         $headers = $this->mailpitHeaders($delivered['ID']);
 
         // Assert that the injected header name does not appear (case-insensitive check).
-        $headerKeyLower = strtolower('X-Injected');
+        $headerKeyLower  = strtolower('X-Injected');
         $injectedExists  = false;
         foreach (array_keys($headers) as $key) {
             if (strtolower($key) === $headerKeyLower) {
                 $injectedExists = true;
+
                 break;
             }
         }
@@ -171,6 +172,7 @@ final class SmtpTransportTest extends IntegrationTestCase
         foreach (array_keys($headers) as $key) {
             if (strtolower($key) === strtolower('X-SafeX-Injected')) {
                 $collapsedExists = true;
+
                 break;
             }
         }
@@ -205,16 +207,5 @@ final class SmtpTransportTest extends IntegrationTestCase
         $headers = $this->mailpitHeaders($latest['ID']);
 
         return isset($headers['Content-Type'][0]) ? (string) $headers['Content-Type'][0] : '';
-    }
-
-    /**
-     * @return array<string,array<int,string>>
-     */
-    private function mailpitHeaders(string $id): array
-    {
-        $response = wp_remote_get(self::MAILPIT_API . '/message/' . $id . '/headers');
-        $headers  = json_decode(wp_remote_retrieve_body($response), true);
-
-        return \is_array($headers) ? $headers : [];
     }
 }
