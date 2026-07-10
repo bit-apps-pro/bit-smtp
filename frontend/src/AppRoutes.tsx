@@ -3,6 +3,7 @@ import { StyleProvider } from '@ant-design/cssinjs'
 import ThemeProvider from '@config/themes/theme.provider'
 import ConnectionDetailPage from '@pages/Connections/ConnectionDetailPage'
 import ConnectionsListPage from '@pages/Connections/ConnectionsListPage'
+import NewConnectionPage from '@pages/Connections/NewConnectionPage'
 import Layout from '@pages/Layout'
 import Logs from '@pages/Logs'
 import LogDetails from '@pages/Logs/ui/LogDetails'
@@ -22,6 +23,7 @@ export default function AppRoutes() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<ConnectionsListPage />} />
+            <Route path="/connection/new" element={<NewConnectionPage />} />
             <Route path="/connection/:id" element={<ConnectionDetailPage />} />
             <Route path="/test-mail" element={<MailSendTest />} />
             <Route path="/logs" element={<Logs />} />
