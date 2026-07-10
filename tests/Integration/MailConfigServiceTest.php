@@ -10,6 +10,10 @@ use BitApps\SMTP\Plugin;
  * Data-safety guarantees for the MailConfigService facade: legacy config maps correctly, writes are
  * v2, the pre-migration legacy array is backed up exactly once, the legacy shape stays plaintext,
  * empty passwords never wipe the stored secret, and the live send path works end-to-end.
+ *
+ * @internal
+ *
+ * @coversNothing
  */
 final class MailConfigServiceTest extends IntegrationTestCase
 {
@@ -27,7 +31,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         parent::tearDown();
     }
 
-    public function test_load_maps_legacy_config_onto_default_connection(): void
+    public function testLoadMapsLegacyConfigOntoDefaultConnection(): void
     {
         $this->storeOptions([
             'status'             => true,
@@ -50,7 +54,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('s3cret', $connection->getCredentials()['password']['value']);
     }
 
-    public function test_saving_a_migrated_legacy_connection_does_not_duplicate_it(): void
+    public function testSavingAMigratedLegacyConnectionDoesNotDuplicateIt(): void
     {
         // Regression (found via live E2E): migrate-on-load used a random connection id,
         // so the id the frontend loaded mismatched the save-time re-migration of the still
@@ -65,7 +69,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
 
         // Mirror the frontend: load (migrates), then save the connection back with the
         // masked (untouched) password sentinel — exactly what ConnectionEditor posts.
-        $migrated = $this->freshService()->load()->defaultConnection()->toArray();
+        $migrated                                     = $this->freshService()->load()->defaultConnection()->toArray();
         $migrated['credentials']['password']['value'] = '********';
         $this->freshService()->saveConnection($migrated);
 
@@ -74,7 +78,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('real-secret', $reloaded->defaultConnection()->getCredentials()['password']['value']);
     }
 
-    public function test_load_never_writes_the_db(): void
+    public function testLoadNeverWritesTheDb(): void
     {
         $this->storeOptions(['status' => true, 'smtp_host' => 'smtp.example.org']);
 
@@ -84,7 +88,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertArrayNotHasKey('schema_version', Config::getOption('options'));
     }
 
-    public function test_save_from_legacy_persists_v2_schema(): void
+    public function testSaveFromLegacyPersistsV2Schema(): void
     {
         $this->storeOptions(['status' => true, 'smtp_host' => 'legacy.example.org']);
 
@@ -99,7 +103,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('saved.example.org', $stored['connections'][0]['settings']['host']);
     }
 
-    public function test_legacy_backup_is_created_once_and_never_overwritten(): void
+    public function testLegacyBackupIsCreatedOnceAndNeverOverwritten(): void
     {
         $legacy = ['status' => true, 'smtp_host' => 'original.example.org', 'port' => 25];
         $this->storeOptions($legacy);
@@ -116,7 +120,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame($legacy, Config::getOption(self::LEGACY_BACKUP_OPTION));
     }
 
-    public function test_to_legacy_shape_returns_all_keys_with_plaintext_password(): void
+    public function testToLegacyShapeReturnsAllKeysWithPlaintextPassword(): void
     {
         $this->storeOptions([
             'status'             => true,
@@ -143,7 +147,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('plaintext-secret', $legacy['smtp_password']);
     }
 
-    public function test_empty_password_preserves_stored_secret(): void
+    public function testEmptyPasswordPreservesStoredSecret(): void
     {
         $this->freshService()->saveFromLegacy([
             'status'         => true,
@@ -165,7 +169,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('keep-me', $this->freshService()->toLegacyShape()['smtp_password']);
     }
 
-    public function test_null_password_preserves_stored_secret(): void
+    public function testNullPasswordPreservesStoredSecret(): void
     {
         $this->freshService()->saveFromLegacy([
             'status'         => true,
@@ -187,7 +191,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('keep-me', $this->freshService()->toLegacyShape()['smtp_password']);
     }
 
-    public function test_enabled_config_without_host_leaves_wp_default_mail_untouched(): void
+    public function testEnabledConfigWithoutHostLeavesWpDefaultMailUntouched(): void
     {
         $this->useRealPhpMailer();
         // Enabled mid-setup with no host: the bridge must not switch PHPMailer to a broken SMTP send.
@@ -200,7 +204,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertNotSame('smtp', $phpmailer->Mailer);
     }
 
-    public function test_end_to_end_legacy_config_delivers_through_v2_path(): void
+    public function testEndToEndLegacyConfigDeliversThroughV2Path(): void
     {
         $this->useRealPhpMailer();
         $this->storeOptions([
@@ -221,7 +225,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
     }
 
-    public function test_save_settings_with_sentinel_preserves_stored_secret(): void
+    public function testSaveSettingsWithSentinelPreservesStoredSecret(): void
     {
         $service = $this->freshService();
 
@@ -237,7 +241,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('real-secret', $stored->getCredentials()['password']['value']);
     }
 
-    public function test_save_settings_with_real_password_overwrites(): void
+    public function testSaveSettingsWithRealPasswordOverwrites(): void
     {
         $service = $this->freshService();
         $service->saveSettings($this->v2SettingsArray('conn_1', 'old-secret'));
@@ -248,7 +252,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('new-secret', $stored->getCredentials()['password']['value']);
     }
 
-    public function test_api_settings_returns_masked_password(): void
+    public function testApiSettingsReturnsMaskedPassword(): void
     {
         $service = $this->freshService();
         $service->saveSettings($this->v2SettingsArray('conn_1', 'super-secret'));
@@ -258,7 +262,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('********', $api['connections'][0]['credentials']['password']['value']);
     }
 
-    public function test_save_connection_assigns_id_and_sets_default_on_first(): void
+    public function testSaveConnectionAssignsIdAndSetsDefaultOnFirst(): void
     {
         $service = $this->freshService();
         $service->saveConnection([
@@ -282,7 +286,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame($conn->getId(), $loaded->getDefaultConnectionId());
     }
 
-    public function test_save_connection_updates_existing_without_wiping_password(): void
+    public function testSaveConnectionUpdatesExistingWithoutWipingPassword(): void
     {
         $service = $this->freshService();
         // Create a connection with a real password
@@ -308,7 +312,7 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('new-host.example.com', $conn->setting('host'));
     }
 
-    public function test_save_connection_omitting_credentials_preserves_stored_password(): void
+    public function testSaveConnectionOmittingCredentialsPreservesStoredPassword(): void
     {
         $service = $this->freshService();
         // Create a connection with a real password stored in the DB.
@@ -338,10 +342,10 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('new-host.example.com', $conn->setting('host'));
     }
 
-    public function test_delete_connection_removes_it_and_repoints_default(): void
+    public function testDeleteConnectionRemovesItAndRepointsDefault(): void
     {
         // Store two connections, conn_1 as default
-        $data = $this->v2SettingsArray('conn_1', 'pass1');
+        $data                  = $this->v2SettingsArray('conn_1', 'pass1');
         $data['connections'][] = [
             'id'           => 'conn_2',
             'provider'     => 'other_smtp',

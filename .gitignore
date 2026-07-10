@@ -22,3 +22,6 @@ build/
 .superpowers/
 .phpunit.cache/
 docker-compose.test.override.yml
+
+.playwright-mcp/
+bit-smtp-e2e-*.png

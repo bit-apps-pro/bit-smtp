@@ -8,29 +8,17 @@ use BitApps\SMTP\Mail\Config\MailSettingsMigrator;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class MailSettingsMigratorTest extends BaseUnitTestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
         Functions\when('wp_generate_uuid4')->justReturn('test-uuid-1234');
-    }
-
-    private function legacyInput(): array
-    {
-        return [
-            'status'             => '1',
-            'from_email_address' => 'test@example.com',
-            'from_name'          => 'Test User',
-            're_email_address'   => 'reply@example.com',
-            'smtp_host'          => 'smtp.example.com',
-            'port'               => '587',
-            'encryption'         => 'tls',
-            'smtp_auth'          => '1',
-            'smtp_user_name'     => 'user@example.com',
-            'smtp_password'      => 'secret123',
-            'smtp_debug'         => '0',
-        ];
     }
 
     public function testAlreadyV2PassesThroughUnchanged(): void
@@ -100,7 +88,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
     {
         $input          = $this->legacyInput();
         $input['port']  = '465';
-        $result = MailSettingsMigrator::migrate($input);
+        $result         = MailSettingsMigrator::migrate($input);
 
         $this->assertSame(465, $result['connections'][0]['settings']['port']);
     }
@@ -118,7 +106,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
     {
         $input               = $this->legacyInput();
         $input['encryption'] = '';
-        $result = MailSettingsMigrator::migrate($input);
+        $result              = MailSettingsMigrator::migrate($input);
 
         $this->assertSame('none', $result['connections'][0]['settings']['encryption']);
     }
@@ -127,7 +115,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
     {
         $input               = $this->legacyInput();
         $input['encryption'] = 'ssl';
-        $result = MailSettingsMigrator::migrate($input);
+        $result              = MailSettingsMigrator::migrate($input);
 
         $this->assertSame('ssl', $result['connections'][0]['settings']['encryption']);
     }
@@ -136,7 +124,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
     {
         $input               = $this->legacyInput();
         $input['smtp_debug'] = '1';
-        $result = MailSettingsMigrator::migrate($input);
+        $result              = MailSettingsMigrator::migrate($input);
 
         $this->assertTrue($result['connections'][0]['settings']['smtp_debug']);
     }
@@ -152,7 +140,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
 
     public function testTypoKeyFormNameFixed(): void
     {
-        $input = ['form_name' => 'Typo Name', 'smtp_host' => 'h', 'port' => 25];
+        $input  = ['form_name' => 'Typo Name', 'smtp_host' => 'h', 'port' => 25];
         $result = MailSettingsMigrator::migrate($input);
 
         $this->assertSame('Typo Name', $result['connections'][0]['fromName']);
@@ -173,7 +161,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
 
     public function testTypoKeyFormEmailAddressFixed(): void
     {
-        $input = ['form_email_address' => 'typo@example.com', 'smtp_host' => 'h', 'port' => 25];
+        $input  = ['form_email_address' => 'typo@example.com', 'smtp_host' => 'h', 'port' => 25];
         $result = MailSettingsMigrator::migrate($input);
 
         $this->assertSame('typo@example.com', $result['connections'][0]['fromEmail']);
@@ -181,7 +169,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
 
     public function testReEmailAddressMapsToReplyToEmail(): void
     {
-        $input = ['re_email_address' => 'reply@example.com', 'smtp_host' => 'h', 'port' => 25];
+        $input  = ['re_email_address' => 'reply@example.com', 'smtp_host' => 'h', 'port' => 25];
         $result = MailSettingsMigrator::migrate($input);
 
         $this->assertSame('reply@example.com', $result['connections'][0]['replyToEmail']);
@@ -191,7 +179,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
     {
         $input           = $this->legacyInput();
         $input['status'] = 0;
-        $result = MailSettingsMigrator::migrate($input);
+        $result          = MailSettingsMigrator::migrate($input);
 
         $this->assertFalse($result['enabled']);
         $this->assertFalse($result['connections'][0]['enabled']);
@@ -201,7 +189,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
     {
         $input           = $this->legacyInput();
         $input['status'] = 'true';
-        $result = MailSettingsMigrator::migrate($input);
+        $result          = MailSettingsMigrator::migrate($input);
 
         $this->assertTrue($result['enabled']);
     }
@@ -210,7 +198,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
     {
         $input                  = $this->legacyInput();
         $input['smtp_password'] = 'mypass';
-        $result = MailSettingsMigrator::migrate($input);
+        $result                 = MailSettingsMigrator::migrate($input);
 
         $this->assertSame(
             ['source' => 'database', 'value' => 'mypass'],
@@ -222,7 +210,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
     {
         $input         = $this->legacyInput();
         $input['port'] = 2525;
-        $result = MailSettingsMigrator::migrate($input);
+        $result        = MailSettingsMigrator::migrate($input);
 
         $this->assertSame(2525, $result['connections'][0]['settings']['port']);
     }
@@ -232,5 +220,22 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
         $result = MailSettingsMigrator::migrate($this->legacyInput());
 
         $this->assertStringStartsWith('conn_', $result['connections'][0]['id']);
+    }
+
+    private function legacyInput(): array
+    {
+        return [
+            'status'             => '1',
+            'from_email_address' => 'test@example.com',
+            'from_name'          => 'Test User',
+            're_email_address'   => 'reply@example.com',
+            'smtp_host'          => 'smtp.example.com',
+            'port'               => '587',
+            'encryption'         => 'tls',
+            'smtp_auth'          => '1',
+            'smtp_user_name'     => 'user@example.com',
+            'smtp_password'      => 'secret123',
+            'smtp_debug'         => '0',
+        ];
     }
 }
