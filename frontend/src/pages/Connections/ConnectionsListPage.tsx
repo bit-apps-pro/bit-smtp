@@ -14,6 +14,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { type Connection, type MailSettings } from '@pages/Connections/types'
 import { Button, Col, Flex, Row, Spin, Typography } from 'antd'
 import ConnectionCard from './ConnectionCard'
+import ProviderSelectorModal from './ProviderSelectorModal'
 import useDeleteConnection from './data/useDeleteConnection'
 import useMailSettings from './data/useMailSettings'
 import useProviders from './data/useProviders'
@@ -93,6 +94,7 @@ export default function ConnectionsListPage() {
   const sensors = useSensors(useSensor(PointerSensor))
 
   const [orderedIds, setOrderedIds] = useState<string[]>([])
+  const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
 
   useEffect(() => {
     if (settings) {
@@ -134,16 +136,25 @@ export default function ConnectionsListPage() {
     updateSettings.mutate({ fallback_connection_ids: newOrder })
   }
 
+  const handleProviderSelected = (providerKey: string) => {
+    navigate(`/connection/new?provider=${encodeURIComponent(providerKey)}`)
+  }
+
   return (
     <Flex vertical gap="middle" style={{ padding: 24 }}>
       <Flex justify="space-between" align="center">
         <Title level={4} style={{ margin: 0 }}>
           {__('Connections')}
         </Title>
-        <Button type="primary" onClick={() => navigate('/connection/new')}>
+        <Button type="primary" onClick={() => setIsProviderModalOpen(true)}>
           {__('Add connection')}
         </Button>
       </Flex>
+      <ProviderSelectorModal
+        open={isProviderModalOpen}
+        onClose={() => setIsProviderModalOpen(false)}
+        onSelect={handleProviderSelected}
+      />
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedIds} strategy={rectSortingStrategy}>
           <Row gutter={[16, 16]}>

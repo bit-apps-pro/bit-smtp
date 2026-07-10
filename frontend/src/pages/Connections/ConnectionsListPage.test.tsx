@@ -124,12 +124,23 @@ describe('ConnectionsListPage', () => {
     expect(navigateMock).toHaveBeenCalledWith('/connection/conn_2')
   })
 
-  it('navigates to /connection/new when Add connection is clicked', async () => {
+  it('opens the provider selector modal when Add connection is clicked', async () => {
     renderWithProviders(<ConnectionsListPage />)
 
     await userEvent.click(screen.getByRole('button', { name: 'Add connection' }))
 
-    expect(navigateMock).toHaveBeenCalledWith('/connection/new')
+    expect(screen.getByText('Choose a provider')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Other SMTP' })).toBeInTheDocument()
+    expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  it('navigates to the new-connection route with the provider when a provider is selected', async () => {
+    renderWithProviders(<ConnectionsListPage />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Other SMTP' }))
+
+    expect(navigateMock).toHaveBeenCalledWith('/connection/new?provider=other_smtp')
   })
 
   it('calls the set-default mutation with the connection id', async () => {
