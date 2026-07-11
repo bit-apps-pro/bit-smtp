@@ -6,8 +6,9 @@ use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 
 /**
- * Exercises the pre_wp_mail dispatch loop end-to-end: priority fallback, all-fail, the disabled
- * escape hatch, single-connection BC, and third-party phpmailer_init preservation, against mailpit.
+ * Exercises the pre_wp_mail dispatch loop end-to-end: priority fallback, mixed-transport fallback
+ * (SMTP → API), all-fail, the disabled escape hatch, single-connection BC, and third-party
+ * phpmailer_init preservation, against mailpit.
  *
  * @internal
  *
@@ -38,6 +39,64 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertCount(2, $logs, 'both the failed primary and successful fallback attempts should be logged');
         $this->assertSame(Log::SUCCESS, $logs[0]->status, 'newest log is the successful fallback');
         $this->assertSame(Log::ERROR, $logs[1]->status, 'older log is the failed primary');
+    }
+
+    public function testFallsBackToApiProviderWhenPrimarySmtpIsUnreachable(): void
+    {
+        // Default = SMTP pointed at an unreachable host; fallback = a SendGrid connection. The SMTP
+        // primary must fail and the SendGrid transport must carry the send over a mocked 202 — proving
+        // dispatch resolves each connection's OWN provider transport, not a hardcoded SMTP one.
+        $apiKey   = 'SG.test-key-abc123';
+        $captured = [];
+
+        $filter = static function ($preempt, $args, $url) use (&$captured, $apiKey) {
+            if (strpos($url, 'api.sendgrid.com') === false) {
+                return $preempt;
+            }
+
+            $captured['url']     = $url;
+            $captured['headers'] = $args['headers'] ?? [];
+            $captured['body']    = $args['body']    ?? '';
+
+            return [
+                'headers'  => [],
+                'body'     => '',
+                'response' => ['code' => 202, 'message' => 'Accepted'],
+                'cookies'  => [],
+                'filename' => null,
+            ];
+        };
+        add_filter('pre_http_request', $filter, 10, 3);
+
+        try {
+            $this->storeV2([
+                $this->connection('conn_primary', '127.0.0.1', 2),
+                $this->sendGridConnection('conn_sendgrid', $apiKey),
+            ], 'conn_primary', ['conn_sendgrid']);
+
+            $sent = wp_mail('to@example.org', 'Mixed Fallback', 'Body');
+        } finally {
+            remove_filter('pre_http_request', $filter, 10);
+        }
+
+        $this->assertTrue($sent, 'the SendGrid fallback should report the send as successful');
+        $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
+
+        $this->assertNotEmpty($captured, 'the SendGrid transport should have issued an outbound HTTP request');
+        $this->assertStringContainsString(
+            'Bearer ' . $apiKey,
+            (string) wp_json_encode($captured['headers']),
+            'the credentials api_key must be sent as a Bearer token'
+        );
+        $this->assertStringContainsString('to@example.org', (string) $captured['body'], 'the recipient must be in the JSON body');
+        $this->assertStringContainsString('Mixed Fallback', (string) $captured['body'], 'the subject must be in the JSON body');
+
+        $this->assertEmpty($this->mailpitMessages(), 'the API fallback must not deliver through SMTP/mailpit');
+
+        $logs = $this->logs();
+        $this->assertCount(2, $logs, 'both the failed SMTP primary and the successful SendGrid fallback should be logged');
+        $this->assertSame(Log::SUCCESS, $logs[0]->status, 'newest log is the successful SendGrid attempt');
+        $this->assertSame(Log::ERROR, $logs[1]->status, 'older log is the failed SMTP attempt');
     }
 
     public function testReturnsFalseAndDeliversNothingWhenAllConnectionsFail(): void
@@ -197,6 +256,25 @@ final class WpMailFallbackTest extends IntegrationTestCase
             'replyToEmail' => '',
             'settings'     => ['host' => $host, 'port' => $port, 'encryption' => 'none', 'auth' => false],
             'credentials'  => [],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function sendGridConnection(string $id, string $apiKey): array
+    {
+        return [
+            'id'           => $id,
+            'provider'     => 'sendgrid',
+            'kind'         => 'api',
+            'name'         => $id,
+            'enabled'      => true,
+            'fromEmail'    => 'from@example.org',
+            'fromName'     => 'From',
+            'replyToEmail' => '',
+            'settings'     => [],
+            'credentials'  => ['api_key' => ['source' => 'database', 'value' => $apiKey]],
         ];
     }
 

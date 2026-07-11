@@ -6,19 +6,21 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
 use BitApps\SMTP\Mail\Config\MailSettings;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
+use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Mail\Message\SendResult;
-use BitApps\SMTP\Mail\Transport\SmtpTransport;
+use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Plugin;
 use InvalidArgumentException;
 use WP_Error;
 
 /**
  * Drives wp_mail through our connection dispatch: on `pre_wp_mail` it sends the message over each
- * resolved connection in priority order, falling back to the next on failure, then logs the outcome
- * and re-fires the standard wp_mail_succeeded/failed actions for third-party listeners. Owns the
- * single mutable SendContext the controller reads back after wp_mail() for test-mail/resend.
+ * resolved connection in priority order — each through its OWN provider transport — falling back to
+ * the next on failure, then logs the outcome and re-fires the standard wp_mail_succeeded/failed
+ * actions for third-party listeners. Owns the single mutable SendContext the controller reads back
+ * after wp_mail() for test-mail/resend.
  */
 class WpMailBridge
 {
@@ -26,7 +28,7 @@ class WpMailBridge
 
     private MailEventLogger $eventLogger;
 
-    private SmtpTransport $transport;
+    private ProviderRegistry $registry;
 
     private ConnectionResolver $connectionResolver;
 
@@ -40,11 +42,11 @@ class WpMailBridge
     private bool $dispatching = false;
 
     public function __construct(
-        SmtpTransport $transport,
+        ProviderRegistry $registry,
         ConnectionResolver $connectionResolver,
         MailMessageFactory $messageFactory
     ) {
-        $this->transport          = $transport;
+        $this->registry           = $registry;
         $this->connectionResolver = $connectionResolver;
         $this->messageFactory     = $messageFactory;
         $this->context            = new SendContext();
@@ -193,7 +195,7 @@ class WpMailBridge
             $lastResult = null;
 
             foreach ($connections as $connection) {
-                $lastResult = $this->transport->send($message, $connection);
+                $lastResult = $this->sendVia($connection, $message);
                 $this->appendDebug($lastResult);
 
                 // A resend updates its originating log once with the final outcome (below); a fresh
@@ -224,8 +226,25 @@ class WpMailBridge
     }
 
     /**
-     * Drop connections that are not yet configured with a host so an incomplete setup falls through
-     * to native wp_mail instead of forcing a broken SMTP send (mirrors the pre-refactor guard).
+     * Send over the connection's OWN provider transport, resolved from the registry by provider key.
+     * A connection whose provider is not registered is treated as a failed attempt — logged, then the
+     * fallback loop continues — rather than fataling the request (BC for unavailable providers).
+     */
+    private function sendVia(Connection $connection, MailMessage $message): SendResult
+    {
+        try {
+            $transport = $this->registry->get($connection->getProvider())->transport();
+        } catch (ProviderNotFoundException $e) {
+            return SendResult::failure($e->getMessage());
+        }
+
+        return $transport->send($message, $connection);
+    }
+
+    /**
+     * Drop connections that cannot send yet so an incomplete setup falls through to native wp_mail
+     * instead of forcing a broken send (mirrors the pre-refactor guard). Only SMTP connections gate
+     * on a host; API connections carry no host and are always eligible to attempt.
      *
      * @return Connection[]
      */
@@ -234,6 +253,10 @@ class WpMailBridge
         return array_values(array_filter(
             $this->connectionResolver->resolveOrdered($settings),
             static function (Connection $connection): bool {
+                if ($connection->getKind() !== 'smtp') {
+                    return true;
+                }
+
                 return (string) $connection->setting('host', '') !== '';
             }
         ));
@@ -242,8 +265,28 @@ class WpMailBridge
     private function appendDebug(SendResult $result): void
     {
         foreach ($result->getDebug() as $line) {
-            $this->context->appendDebug($line . "\n");
+            $this->context->appendDebug($this->stringifyDebug($line) . "\n");
         }
+    }
+
+    /**
+     * Debug entries are transport-shaped: SMTP yields plain strings, API transports yield scalars
+     * and nested arrays (status/body). Normalize any non-string to a string so accumulating debug
+     * output never trips a PHP "array to string conversion" on the API send path.
+     *
+     * @param mixed $line
+     */
+    private function stringifyDebug($line): string
+    {
+        if (\is_string($line)) {
+            return $line;
+        }
+
+        if (\is_scalar($line)) {
+            return (string) $line;
+        }
+
+        return (string) json_encode($line);
     }
 
     /**

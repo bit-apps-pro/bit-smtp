@@ -10,6 +10,7 @@ namespace BitApps\SMTP;
 
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection as DB;
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
+use BitApps\SMTP\Deps\BitApps\WPKit\Http\Client\HttpClient;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\RequestType;
 use BitApps\SMTP\Deps\BitApps\WPKit\Migration\MigrationHelper;
 use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
@@ -18,12 +19,22 @@ use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\TelemetryConfig;
 use BitApps\SMTP\HTTP\Middleware\NonceCheckerMiddleware;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\Mail\Aws\SigV4Signer;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
 use BitApps\SMTP\Mail\Credentials\DatabaseCredentialResolver;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
+use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
+use BitApps\SMTP\Mail\Message\MimeBuilder;
+use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
+use BitApps\SMTP\Mail\Providers\AmazonSes\SesProvider;
+use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
+use BitApps\SMTP\Mail\Providers\Gmail\GmailProvider;
+use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
 use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
+use BitApps\SMTP\Mail\Providers\SendGrid\SendGridProvider;
+use BitApps\SMTP\Mail\Providers\SendGrid\SendGridTransport;
 use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Providers\HookProvider;
 use BitApps\SMTP\Providers\InstallerProvider;
@@ -107,14 +118,19 @@ final class Plugin
 
         new HookProvider();
 
-        $resolver  = new DatabaseCredentialResolver();
-        $transport = new SmtpTransport($resolver);
+        $apiClient     = new ApiClient(new HttpClient());
+        $mimeBuilder   = new MimeBuilder();
+        $tokenProvider = new OAuth2TokenProvider($apiClient, $this->mailConfigService());
+        $sigV4Signer   = new SigV4Signer();
 
         $registry = new ProviderRegistry();
-        $registry->register(new OtherSmtpProvider($transport));
+        $registry->register(new OtherSmtpProvider(new SmtpTransport(new DatabaseCredentialResolver())));
+        $registry->register(new SendGridProvider(new SendGridTransport($apiClient)));
+        $registry->register(new GmailProvider(new GmailTransport($apiClient, $tokenProvider, $mimeBuilder)));
+        $registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
         $this->_container['providerRegistry'] = $registry;
 
-        $this->_container['smtpProvider'] = new WpMailBridge($transport, new ConnectionResolver(), new MailMessageFactory());
+        $this->_container['smtpProvider'] = new WpMailBridge($registry, new ConnectionResolver(), new MailMessageFactory());
     }
 
     /**
