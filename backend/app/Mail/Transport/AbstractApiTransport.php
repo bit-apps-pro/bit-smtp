@@ -16,7 +16,7 @@ use Throwable;
  */
 abstract class AbstractApiTransport implements TransportInterface
 {
-    private ApiClient $client;
+    protected ApiClient $client;
 
     public function __construct(ApiClient $client)
     {
@@ -55,7 +55,7 @@ abstract class AbstractApiTransport implements TransportInterface
      */
     abstract protected function errorFrom(int $status, $body): string;
 
-    private function toSendResult(ApiResponse $response): SendResult
+    protected function toSendResult(ApiResponse $response): SendResult
     {
         $status = $response->getStatus();
         $body   = $response->getBody();
