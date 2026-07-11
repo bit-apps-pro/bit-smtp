@@ -8,6 +8,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Route;
 use BitApps\SMTP\HTTP\Controllers\ConnectionController;
 use BitApps\SMTP\HTTP\Controllers\LogController;
 use BitApps\SMTP\HTTP\Controllers\MailSettingsController;
+use BitApps\SMTP\HTTP\Controllers\OAuthController;
 use BitApps\SMTP\HTTP\Controllers\ProviderController;
 use BitApps\SMTP\HTTP\Controllers\SMTPController;
 use BitApps\SMTP\HTTP\Controllers\TelemetryPopupController;
@@ -35,4 +36,9 @@ Route::group(function () {
     Route::post('mail/connections/save', [ConnectionController::class, 'save']);
     Route::post('mail/connections/delete', [ConnectionController::class, 'delete']);
     Route::post('mail/connections/test', [ConnectionController::class, 'test']);
+    Route::get('mail/oauth/authorize', [OAuthController::class, 'authorize']);
 })->middleware('nonce:admin');
+
+// Public: the OAuth provider redirects the browser here. No nonce is possible on a cross-site
+// redirect, so it is secured by the signed `state` verified inside the controller.
+Route::get('mail/oauth/callback', [OAuthController::class, 'callback']);

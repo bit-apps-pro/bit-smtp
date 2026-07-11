@@ -7,31 +7,18 @@ namespace BitApps\SMTP\Tests\Unit\Mail\Config;
 use BitApps\SMTP\Mail\Config\MailSettingsSanitizer;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class MailSettingsSanitizerTest extends BaseUnitTestCase
 {
-    private function baseV2(): array
-    {
-        return [
-            'schema_version'          => 2,
-            'enabled'                 => false,
-            'default_connection_id'   => '',
-            'fallback_connection_ids' => [],
-            'connections'             => [],
-            'features'                => [
-                'logging'        => [],
-                'alerts'         => [],
-                'routing'        => [],
-                'tracking'       => [],
-                'email_controls' => [],
-            ],
-        ];
-    }
-
     public function testDropsUnknownTopLevelKeys(): void
     {
         $input           = $this->baseV2();
         $input['foo']    = 'bar';
-        $result = MailSettingsSanitizer::sanitize($input);
+        $result          = MailSettingsSanitizer::sanitize($input);
 
         $this->assertArrayNotHasKey('foo', $result);
     }
@@ -40,7 +27,7 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
     {
         $input                   = $this->baseV2();
         $input['schema_version'] = '2';
-        $result = MailSettingsSanitizer::sanitize($input);
+        $result                  = MailSettingsSanitizer::sanitize($input);
 
         $this->assertSame(2, $result['schema_version']);
         $this->assertIsInt($result['schema_version']);
@@ -50,7 +37,7 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
     {
         $input            = $this->baseV2();
         $input['enabled'] = '1';
-        $result = MailSettingsSanitizer::sanitize($input);
+        $result           = MailSettingsSanitizer::sanitize($input);
 
         $this->assertTrue($result['enabled']);
         $this->assertIsBool($result['enabled']);
@@ -105,7 +92,7 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
     {
         $input             = $this->baseV2();
         $input['features'] = ['logging' => [], 'unknown_key' => []];
-        $result = MailSettingsSanitizer::sanitize($input);
+        $result            = MailSettingsSanitizer::sanitize($input);
 
         $this->assertArrayNotHasKey('unknown_key', $result['features']);
         $this->assertArrayHasKey('logging', $result['features']);
@@ -238,5 +225,70 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         $result = MailSettingsSanitizer::sanitize($input);
 
         $this->assertSame('tls', $result['connections'][0]['settings']['encryption']);
+    }
+
+    public function testPreservesOAuthClientIdAndTokenExpiry(): void
+    {
+        $input                = $this->baseV2();
+        $input['connections'] = [
+            [
+                'id'           => 'conn_1',
+                'provider'     => 'gmail',
+                'kind'         => 'api',
+                'name'         => 'Gmail',
+                'enabled'      => true,
+                'fromEmail'    => '',
+                'fromName'     => '',
+                'replyToEmail' => '',
+                'settings'     => ['client_id' => '  cid.apps.googleusercontent.com ', 'token_expires_at' => '1700000000'],
+                'credentials'  => [],
+            ],
+        ];
+        $settings = MailSettingsSanitizer::sanitize($input)['connections'][0]['settings'];
+
+        $this->assertSame('cid.apps.googleusercontent.com', $settings['client_id']);
+        $this->assertSame(1700000000, $settings['token_expires_at']);
+        $this->assertIsInt($settings['token_expires_at']);
+    }
+
+    public function testOmitsOAuthKeysForSmtpConnections(): void
+    {
+        $input                = $this->baseV2();
+        $input['connections'] = [
+            [
+                'id'           => 'conn_1',
+                'provider'     => 'other_smtp',
+                'kind'         => 'smtp',
+                'name'         => 'Test',
+                'enabled'      => true,
+                'fromEmail'    => '',
+                'fromName'     => '',
+                'replyToEmail' => '',
+                'settings'     => ['host' => 'smtp.example.com'],
+                'credentials'  => [],
+            ],
+        ];
+        $settings = MailSettingsSanitizer::sanitize($input)['connections'][0]['settings'];
+
+        $this->assertArrayNotHasKey('client_id', $settings);
+        $this->assertArrayNotHasKey('token_expires_at', $settings);
+    }
+
+    private function baseV2(): array
+    {
+        return [
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'logging'        => [],
+                'alerts'         => [],
+                'routing'        => [],
+                'tracking'       => [],
+                'email_controls' => [],
+            ],
+        ];
     }
 }

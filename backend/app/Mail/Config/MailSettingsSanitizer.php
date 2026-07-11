@@ -102,7 +102,7 @@ final class MailSettingsSanitizer
     {
         $encryption = isset($settings['encryption']) ? trim((string) $settings['encryption']) : '';
 
-        return [
+        $sanitized = [
             'host'       => isset($settings['host']) ? trim((string) $settings['host']) : '',
             'port'       => isset($settings['port']) ? \intval($settings['port']) : 0,
             'encryption' => $encryption !== '' ? $encryption : 'none',
@@ -114,6 +114,18 @@ final class MailSettingsSanitizer
                 ? (bool) filter_var($settings['smtp_debug'], FILTER_VALIDATE_BOOLEAN)
                 : false,
         ];
+
+        // OAuth2/API connections carry the public client id and the resolved token lifetime here;
+        // preserve them so the consent flow and token refresh survive a save round-trip.
+        if (isset($settings['client_id'])) {
+            $sanitized['client_id'] = trim((string) $settings['client_id']);
+        }
+
+        if (isset($settings['token_expires_at'])) {
+            $sanitized['token_expires_at'] = \intval($settings['token_expires_at']);
+        }
+
+        return $sanitized;
     }
 
     private static function sanitizeFeatures(array $features): array
