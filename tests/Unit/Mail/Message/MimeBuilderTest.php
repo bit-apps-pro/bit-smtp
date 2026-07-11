@@ -12,6 +12,10 @@ use RuntimeException;
  * requires cannot be loaded here (bootstrap-unit.php defines no WPINC). MimeBuilder detects
  * that and throws instead of faking MIME output; these tests skip themselves in that case and
  * rely on integration coverage (real PHPMailer) for the actual MIME assertions.
+ *
+ * @internal
+ *
+ * @coversNothing
  */
 class MimeBuilderTest extends BaseUnitTestCase
 {
@@ -26,10 +30,10 @@ class MimeBuilderTest extends BaseUnitTestCase
     public function testFromMailMessageProducesMimeContainingSubjectFromAndTo(): void
     {
         $message = MailMessage::fromArray([
-            'to'      => ['recipient@example.com'],
-            'subject' => 'Hello there',
-            'body'    => 'Plain body',
-            'from'    => 'sender@example.com',
+            'to'       => ['recipient@example.com'],
+            'subject'  => 'Hello there',
+            'body'     => 'Plain body',
+            'from'     => 'sender@example.com',
             'fromName' => 'Sender Name',
         ]);
 

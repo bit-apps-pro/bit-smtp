@@ -12,6 +12,10 @@ use WP_Error;
  * HttpClient is `final`, so Mockery cannot subclass it to mock it directly: these tests inject
  * a real HttpClient and stub the WP HTTP functions it calls internally via Brain Monkey. No
  * real HTTP occurs.
+ *
+ * @internal
+ *
+ * @coversNothing
  */
 class ApiClientTest extends BaseUnitTestCase
 {

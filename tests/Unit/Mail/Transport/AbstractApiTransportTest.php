@@ -11,6 +11,11 @@ use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Mockery;
 use RuntimeException;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class AbstractApiTransportTest extends BaseUnitTestCase
 {
     private ApiClient $apiClient;
@@ -25,8 +30,8 @@ class AbstractApiTransportTest extends BaseUnitTestCase
     {
         parent::setUp();
 
-        $this->apiClient = Mockery::mock(ApiClient::class);
-        $this->transport = new FakeApiTransport($this->apiClient);
+        $this->apiClient  = Mockery::mock(ApiClient::class);
+        $this->transport  = new FakeApiTransport($this->apiClient);
         $this->message    = MailMessage::fromArray(['to' => ['user@example.com'], 'subject' => 'Hi', 'body' => 'Body']);
         $this->connection = Connection::fromArray(['id' => 'conn_1', 'provider' => 'fake', 'kind' => 'api']);
     }

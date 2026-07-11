@@ -6,6 +6,11 @@ use BitApps\SMTP\Mail\Http\ApiResponse;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class ApiResponseTest extends BaseUnitTestCase
 {
     #[DataProvider('okStatusProvider')]
