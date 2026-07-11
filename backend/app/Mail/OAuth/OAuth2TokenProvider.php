@@ -50,7 +50,7 @@ class OAuth2TokenProvider
             throw OAuthException::missingRefreshToken();
         }
 
-        $response = $this->client->post($provider->tokenUrl(), [
+        $response = $this->client->postForm($provider->tokenUrl(), [
             'grant_type'    => 'refresh_token',
             'client_id'     => $connection->getSettings()['client_id']                 ?? '',
             'client_secret' => $connection->getCredentials()['client_secret']['value'] ?? '',

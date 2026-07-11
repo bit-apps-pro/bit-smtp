@@ -98,6 +98,12 @@ final class MailSettingsSanitizer
         ];
     }
 
+    /**
+     * Coerce the well-known SMTP keys, keep the numeric token expiry integer-typed, then pass
+     * through any other provider-specific scalar setting (SES access_key/region, OAuth client_id,
+     * future non-secret fields) as a trimmed string. Array/object values are dropped: settings
+     * only ever hold scalars. Credentials are sanitized separately and stay whitelisted.
+     */
     private static function sanitizeConnectionSettings(array $settings): array
     {
         $encryption = isset($settings['encryption']) ? trim((string) $settings['encryption']) : '';
@@ -115,14 +121,18 @@ final class MailSettingsSanitizer
                 : false,
         ];
 
-        // OAuth2/API connections carry the public client id and the resolved token lifetime here;
-        // preserve them so the consent flow and token refresh survive a save round-trip.
-        if (isset($settings['client_id'])) {
-            $sanitized['client_id'] = trim((string) $settings['client_id']);
-        }
-
+        // A UNIX timestamp the OAuth refresh compares against time(); keep it integer-typed rather
+        // than letting the generic pass-through below stringify it.
         if (isset($settings['token_expires_at'])) {
             $sanitized['token_expires_at'] = \intval($settings['token_expires_at']);
+        }
+
+        foreach ($settings as $key => $value) {
+            if (\array_key_exists($key, $sanitized) || !\is_scalar($value)) {
+                continue;
+            }
+
+            $sanitized[$key] = trim((string) $value);
         }
 
         return $sanitized;

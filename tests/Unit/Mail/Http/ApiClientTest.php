@@ -73,6 +73,31 @@ class ApiClientTest extends BaseUnitTestCase
         $this->assertSame(['id' => 'abc'], $response->getBody());
     }
 
+    public function testPostFormSendsFormEncodedBodyWithFormContentType(): void
+    {
+        $this->stubRemoteRequest(function ($url, $options): bool {
+            $this->assertSame('https://oauth2.googleapis.com/token', $url);
+            $this->assertSame('POST', $options['method']);
+            // Exactly the form content-type: no JSON, and prior headers must not leak in.
+            $this->assertSame(['Content-Type' => 'application/x-www-form-urlencoded'], $options['headers']);
+            $this->assertSame('grant_type=refresh_token&refresh_token=r-123', $options['body']);
+            $this->assertStringNotContainsString('{', $options['body']);
+
+            return true;
+        });
+        $this->stubRetrieve('{"access_token":"tok"}', 200, ['Content-Type' => 'application/json']);
+
+        // A stale header from a prior call on the shared client must not leak into the token request.
+        $response = $this->client
+            ->setHeaders(['Authorization' => 'Bearer stale'])
+            ->postForm('https://oauth2.googleapis.com/token', [
+                'grant_type'    => 'refresh_token',
+                'refresh_token' => 'r-123',
+            ]);
+
+        $this->assertTrue($response->isOk());
+    }
+
     public function testPutSendsRawStringBodyUnchanged(): void
     {
         $this->stubRemoteRequest(function ($url, $options): bool {

@@ -49,16 +49,17 @@ class ApiResponse
         return $this->headers;
     }
 
-    /**
-     * @return null|string
-     */
-    public function getHeader(string $key)
+    public function getHeader(string $key): ?string
     {
+        $found = null;
         foreach ($this->headers as $name => $value) {
             if (strcasecmp((string) $name, $key) === 0) {
-                return \is_array($value) ? implode(';', $value) : (string) $value;
+                $found = \is_array($value) ? implode(';', $value) : (string) $value;
+
+                break;
             }
         }
 
+        return $found;
     }
 }

@@ -72,6 +72,10 @@ class OAuthController
             return Response::error(__('Connection not found', 'bit-smtp'));
         }
 
+        if ($provider !== $connection->getProvider()) {
+            return Response::error(__('Provider does not match this connection', 'bit-smtp'));
+        }
+
         try {
             $transport = $this->oauth2Transport($provider);
         } catch (InvalidArgumentException $e) {
@@ -146,11 +150,17 @@ class OAuthController
             throw new RuntimeException('Connection not found for callback.');
         }
 
+        // Reject a state whose provider does not match the connection: never write tokens for one
+        // provider onto a connection configured for another.
+        if ($provider !== $connection->getProvider()) {
+            throw new RuntimeException('Provider does not match this connection.');
+        }
+
         $transport    = $this->oauth2Transport($provider);
         $clientId     = (string) $connection->setting('client_id', '');
         $clientSecret = (string) ($connection->getCredentials()['client_secret']['value'] ?? '');
 
-        $response = $this->client()->post($transport->tokenUrl(), [
+        $response = $this->client()->postForm($transport->tokenUrl(), [
             'grant_type'    => 'authorization_code',
             'code'          => $code,
             'client_id'     => $clientId,

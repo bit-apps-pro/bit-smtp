@@ -52,7 +52,7 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
             ]
         );
 
-        $this->apiClient->shouldNotReceive('post');
+        $this->apiClient->shouldNotReceive('postForm');
         $this->config->shouldNotReceive('saveConnection');
 
         $this->assertSame('cached-token', $this->tokenProvider->accessToken($connection, $this->provider));
@@ -69,7 +69,7 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
             ]
         );
 
-        $this->apiClient->shouldReceive('post')
+        $this->apiClient->shouldReceive('postForm')
             ->once()
             ->with(self::TOKEN_URL, [
                 'grant_type'    => 'refresh_token',
@@ -104,7 +104,7 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
             ]
         );
 
-        $this->apiClient->shouldReceive('post')
+        $this->apiClient->shouldReceive('postForm')
             ->once()
             ->andReturn(new ApiResponse(200, ['access_token' => 'new-token', 'expires_in' => 3600]));
         $this->config->shouldReceive('saveConnection')->once()->andReturn(true);
@@ -119,7 +119,7 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
             ['client_secret' => ['source' => 'database', 'value' => 'csecret']]
         );
 
-        $this->apiClient->shouldNotReceive('post');
+        $this->apiClient->shouldNotReceive('postForm');
         $this->config->shouldNotReceive('saveConnection');
 
         $this->expectException(OAuthException::class);
@@ -137,7 +137,7 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
             ]
         );
 
-        $this->apiClient->shouldReceive('post')
+        $this->apiClient->shouldReceive('postForm')
             ->once()
             ->andReturn(new ApiResponse(401, ['error' => 'invalid_grant']));
         $this->config->shouldNotReceive('saveConnection');
@@ -157,7 +157,7 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
             ]
         );
 
-        $this->apiClient->shouldReceive('post')
+        $this->apiClient->shouldReceive('postForm')
             ->once()
             ->andReturn(new ApiResponse(200, ['expires_in' => 3600]));
         $this->config->shouldNotReceive('saveConnection');

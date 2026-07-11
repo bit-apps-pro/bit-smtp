@@ -160,7 +160,7 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->transport->shouldReceive('tokenUrl')->andReturn(self::TOKEN_URL);
         $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($this->gmailConnection());
 
-        $this->apiClient->shouldReceive('post')
+        $this->apiClient->shouldReceive('postForm')
             ->once()
             ->with(self::TOKEN_URL, [
                 'grant_type'    => 'authorization_code',
@@ -202,7 +202,7 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->registerGmailTransport();
         $this->transport->shouldReceive('tokenUrl')->andReturn(self::TOKEN_URL);
         $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($this->gmailConnection());
-        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+        $this->apiClient->shouldReceive('postForm')->once()->andReturn(new ApiResponse(200, [
             'access_token'  => 'access-token-value',
             'refresh_token' => 'refresh-token-value',
             'expires_in'    => 3600,
@@ -217,7 +217,7 @@ class OAuthControllerTest extends BaseUnitTestCase
 
     public function testCallbackRejectsInvalidStateWithoutExchangeOrSave(): void
     {
-        $this->apiClient->shouldNotReceive('post');
+        $this->apiClient->shouldNotReceive('postForm');
         $this->config->shouldNotReceive('saveConnection');
         $this->config->shouldNotReceive('connectionById');
 
@@ -228,7 +228,7 @@ class OAuthControllerTest extends BaseUnitTestCase
 
     public function testCallbackRejectsProviderErrorParamWithoutSave(): void
     {
-        $this->apiClient->shouldNotReceive('post');
+        $this->apiClient->shouldNotReceive('postForm');
         $this->config->shouldNotReceive('saveConnection');
         $this->config->shouldNotReceive('connectionById');
 
@@ -248,7 +248,7 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->transport->shouldReceive('tokenUrl')->andReturn(self::TOKEN_URL);
         $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($this->gmailConnection());
 
-        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(400, ['error' => 'invalid_grant']));
+        $this->apiClient->shouldReceive('postForm')->once()->andReturn(new ApiResponse(400, ['error' => 'invalid_grant']));
         $this->config->shouldNotReceive('saveConnection');
 
         $this->controller->callback($this->request(['code' => 'AUTH-CODE', 'state' => $state]));

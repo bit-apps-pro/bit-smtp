@@ -251,6 +251,63 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         $this->assertIsInt($settings['token_expires_at']);
     }
 
+    public function testPreservesArbitraryNonSecretSettingKeysAsTrimmedStrings(): void
+    {
+        $input                = $this->baseV2();
+        $input['connections'] = [
+            [
+                'id'           => 'conn_1',
+                'provider'     => 'amazon_ses',
+                'kind'         => 'api',
+                'name'         => 'SES',
+                'enabled'      => true,
+                'fromEmail'    => '',
+                'fromName'     => '',
+                'replyToEmail' => '',
+                'settings'     => ['access_key' => '  AKIAEXAMPLE  ', 'region' => 'eu-central-1'],
+                'credentials'  => [],
+            ],
+        ];
+        $settings = MailSettingsSanitizer::sanitize($input)['connections'][0]['settings'];
+
+        // Provider-specific non-secret settings survive the save, trimmed.
+        $this->assertSame('AKIAEXAMPLE', $settings['access_key']);
+        $this->assertSame('eu-central-1', $settings['region']);
+        // Known SMTP keys are still coerced/defaulted alongside the pass-through settings.
+        $this->assertSame(0, $settings['port']);
+        $this->assertIsInt($settings['port']);
+        $this->assertSame('none', $settings['encryption']);
+        $this->assertFalse($settings['auth']);
+    }
+
+    public function testDropsNonScalarSettingValues(): void
+    {
+        $input                = $this->baseV2();
+        $input['connections'] = [
+            [
+                'id'           => 'conn_1',
+                'provider'     => 'amazon_ses',
+                'kind'         => 'api',
+                'name'         => 'SES',
+                'enabled'      => true,
+                'fromEmail'    => '',
+                'fromName'     => '',
+                'replyToEmail' => '',
+                'settings'     => [
+                    'access_key' => 'AKIAEXAMPLE',
+                    'junk_array' => ['nested' => 'x'],
+                    'junk_obj'   => (object) ['a' => 1],
+                ],
+                'credentials'  => [],
+            ],
+        ];
+        $settings = MailSettingsSanitizer::sanitize($input)['connections'][0]['settings'];
+
+        $this->assertSame('AKIAEXAMPLE', $settings['access_key']);
+        $this->assertArrayNotHasKey('junk_array', $settings);
+        $this->assertArrayNotHasKey('junk_obj', $settings);
+    }
+
     public function testOmitsOAuthKeysForSmtpConnections(): void
     {
         $input                = $this->baseV2();

@@ -61,6 +61,20 @@ class ApiClient
     }
 
     /**
+     * POST an application/x-www-form-urlencoded body. OAuth2 token endpoints (RFC 6749) require
+     * form encoding and reject JSON. Header state is reset to exactly the form content-type so a
+     * prior call on this shared client cannot leak stale headers (e.g. a bearer token) into it.
+     *
+     * @param array<string,mixed> $fields
+     */
+    public function postForm(string $url, array $fields): ApiResponse
+    {
+        $this->headers = ['Content-Type' => 'application/x-www-form-urlencoded'];
+
+        return $this->send('post', $url, http_build_query($fields));
+    }
+
+    /**
      * @param array|string $body
      */
     public function put(string $url, $body = []): ApiResponse
