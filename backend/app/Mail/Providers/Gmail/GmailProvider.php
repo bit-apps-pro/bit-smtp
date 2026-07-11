@@ -53,7 +53,8 @@ class GmailProvider implements ProviderInterface
 
     /**
      * refresh_token is deliberately absent here — it's not a user-entered field, it's set by
-     * the OAuth consent flow and stored as a credential.
+     * the OAuth consent flow and stored as a credential. The `oauth` entry is a render-only
+     * marker so the editor knows to show a Connect control instead of an input for it.
      */
     public function fields(): array
     {
@@ -64,6 +65,10 @@ class GmailProvider implements ProviderInterface
             ],
             [
                 'key'         => 'client_secret', 'label' => 'Client Secret', 'type' => 'password', 'required' => true, 'secret' => true,
+                'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+            ],
+            [
+                'key'         => 'oauth', 'label' => 'Google account', 'type' => 'oauth', 'required' => false, 'secret' => false,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
             ],
         ];

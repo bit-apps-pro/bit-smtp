@@ -1,13 +1,25 @@
+import { type ReactNode } from 'react'
 import { type Connection, type ProviderMeta } from '@pages/Connections/types'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import ConnectionEditor from './ConnectionEditor'
+import useOAuthAuthorize from './data/useOAuthAuthorize'
 import useSaveConnection from './data/useSaveConnection'
 import useTestConnection from './data/useTestConnection'
 
 vi.mock('./data/useSaveConnection', () => ({ default: vi.fn() }))
 vi.mock('./data/useTestConnection', () => ({ default: vi.fn() }))
+vi.mock('./data/useOAuthAuthorize', () => ({ default: vi.fn() }))
+
+function renderWithQueryClient(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  function wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  }
+  return render(ui, { wrapper })
+}
 
 const otherSmtpMeta: ProviderMeta = {
   key: 'other_smtp',
@@ -100,6 +112,63 @@ const connection: Connection = {
   credentials: { password: { source: 'database', value: '********' } }
 }
 
+const gmailMeta: ProviderMeta = {
+  key: 'gmail',
+  label: 'Gmail / Google Workspace',
+  kind: 'api',
+  fields: [
+    {
+      key: 'client_id',
+      label: 'Client ID',
+      type: 'text',
+      required: true,
+      secret: false,
+      placeholder: '',
+      default: '',
+      options: [],
+      dependsOn: null
+    },
+    {
+      key: 'client_secret',
+      label: 'Client Secret',
+      type: 'password',
+      // Not required here: this fixture only exercises oauth-field handling, and the
+      // editor's single generic `password` credential slot has no initial value for a
+      // provider-specific secret key like client_secret.
+      required: false,
+      secret: true,
+      placeholder: '',
+      default: '',
+      options: [],
+      dependsOn: null
+    },
+    {
+      key: 'oauth',
+      label: 'Google account',
+      type: 'oauth',
+      required: false,
+      secret: false,
+      placeholder: '',
+      default: '',
+      options: [],
+      dependsOn: null
+    }
+  ]
+}
+
+const gmailConnection: Connection = {
+  id: 'conn_gmail',
+  provider: 'gmail',
+  kind: 'api',
+  name: 'Gmail',
+  enabled: true,
+  fromEmail: 'a@b.c',
+  fromName: 'A',
+  replyToEmail: '',
+  settings: { client_id: 'abc.apps.googleusercontent.com' },
+  credentials: { client_secret: { source: 'database', value: '********' } }
+}
+
 describe('ConnectionEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -154,5 +223,50 @@ describe('ConnectionEditor', () => {
         credentials: { password: { source: 'database', value: 'newsecret' } }
       })
     )
+  })
+
+  it('renders the OAuth connect control instead of an input for the oauth field', () => {
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
+    )
+
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Google account')).not.toBeInTheDocument()
+  })
+
+  it('shows Reconnect and a Connected tag when a refresh_token credential is present', () => {
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    const connectedGmail: Connection = {
+      ...gmailConnection,
+      credentials: {
+        ...gmailConnection.credentials,
+        refresh_token: { source: 'database', value: '********' }
+      }
+    }
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={connectedGmail} provider={gmailMeta} onSaved={() => {}} />
+    )
+
+    expect(screen.getByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+  })
+
+  it('excludes the oauth field from the saved settings payload', async () => {
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    const save = vi.fn().mockResolvedValue({})
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(save).toHaveBeenCalled()
+    const [payload] = save.mock.calls[0] as [Connection]
+    expect(payload.settings).not.toHaveProperty('oauth')
   })
 })

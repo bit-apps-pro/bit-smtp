@@ -14,7 +14,7 @@ export interface FieldDependency {
 export interface FieldMeta {
   key: string
   label: string
-  type: 'text' | 'email' | 'number' | 'password' | 'select' | 'switch'
+  type: 'text' | 'email' | 'number' | 'password' | 'select' | 'switch' | 'oauth'
   required: boolean
   secret: boolean
   placeholder: string

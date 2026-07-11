@@ -44,11 +44,11 @@ class GmailProviderTest extends BaseUnitTestCase
         $this->assertSame([], $this->provider->defaults());
     }
 
-    public function testFieldsExposesClientIdAndClientSecretOnly(): void
+    public function testFieldsExposesClientIdClientSecretAndOauth(): void
     {
         $keys = array_column($this->provider->fields(), 'key');
 
-        $this->assertSame(['client_id', 'client_secret'], $keys);
+        $this->assertSame(['client_id', 'client_secret', 'oauth'], $keys);
     }
 
     public function testClientIdFieldIsRequiredTextAndNotSecret(): void
@@ -74,6 +74,17 @@ class GmailProviderTest extends BaseUnitTestCase
     public function testFieldsDoNotExposeRefreshTokenAsUserField(): void
     {
         $this->assertNull($this->findField('refresh_token'));
+    }
+
+    public function testOauthFieldIsOptionalAndNotSecret(): void
+    {
+        $field = $this->findField('oauth');
+
+        $this->assertNotNull($field);
+        $this->assertSame('oauth', $field['type']);
+        $this->assertSame('Google account', $field['label']);
+        $this->assertFalse($field['required']);
+        $this->assertFalse($field['secret']);
     }
 
     public function testFieldExposesAllRenderMetadataKeys(): void

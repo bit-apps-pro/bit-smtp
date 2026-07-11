@@ -3,6 +3,7 @@ import notify from '@components/Toaster/Toaster'
 import { type Connection, type ProviderMeta } from '@pages/Connections/types'
 import { Button, Form, Input } from 'antd'
 import ConnectionTestButton from './ConnectionTestButton'
+import OAuthConnectButton from './OAuthConnectButton'
 import ProviderFields from './ProviderFields'
 import useSaveConnection from './data/useSaveConnection'
 
@@ -22,7 +23,9 @@ function buildConnectionPayload(
 ): Connection {
   const { name, fromEmail, fromName, replyToEmail, password } = values
   const settings = Object.fromEntries(
-    provider.fields.filter(field => !field.secret).map(field => [field.key, values[field.key]])
+    provider.fields
+      .filter(field => !field.secret && field.type !== 'oauth')
+      .map(field => [field.key, values[field.key]])
   )
 
   return {
@@ -61,6 +64,8 @@ export default function ConnectionEditor({
   }
 
   const fromEmail = Form.useWatch('fromEmail', form) ?? connection.fromEmail
+  const oauthField = provider.fields.find(field => field.type === 'oauth')
+  const inputFields = provider.fields.filter(field => field.type !== 'oauth')
 
   const buildPayload = () => buildConnectionPayload(form.getFieldsValue(true), connection, provider)
 
@@ -92,7 +97,16 @@ export default function ConnectionEditor({
       <Form.Item label={__('Reply-To Email')} name="replyToEmail">
         <Input type="email" aria-label={__('Reply-To Email')} />
       </Form.Item>
-      <ProviderFields fields={provider.fields} />
+      <ProviderFields fields={inputFields} />
+      {oauthField ? (
+        <Form.Item label={oauthField.label}>
+          <OAuthConnectButton
+            connectionId={connection.id}
+            provider={provider.key}
+            connected={Boolean(connection.credentials?.refresh_token?.value)}
+          />
+        </Form.Item>
+      ) : null}
       <Form.Item>
         <ConnectionTestButton getConnection={buildPayload} to={fromEmail} />
       </Form.Item>
