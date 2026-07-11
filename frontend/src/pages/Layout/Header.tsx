@@ -26,6 +26,7 @@ export default function Header() {
 
   const navItems = [
     { label: __('Configuration'), path: '/' },
+    { label: __('Routing'), path: '/routing' },
     { label: __('Test'), path: '/test-mail' },
     { label: __('Logs'), path: '/logs' },
     { label: __('Others'), path: '/others' }
