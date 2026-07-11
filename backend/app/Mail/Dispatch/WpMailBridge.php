@@ -11,6 +11,10 @@ use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
+use BitApps\SMTP\Mail\Routing\MailSourceDetector;
+use BitApps\SMTP\Mail\Routing\RoutingContext;
+use BitApps\SMTP\Mail\Routing\RoutingResolver;
+use BitApps\SMTP\Mail\Routing\RoutingRules;
 use BitApps\SMTP\Plugin;
 use InvalidArgumentException;
 use WP_Error;
@@ -34,6 +38,10 @@ class WpMailBridge
 
     private MailMessageFactory $messageFactory;
 
+    private RoutingResolver $routingResolver;
+
+    private MailSourceDetector $sourceDetector;
+
     private bool $loggingEnabled;
 
     /**
@@ -44,11 +52,15 @@ class WpMailBridge
     public function __construct(
         ProviderRegistry $registry,
         ConnectionResolver $connectionResolver,
-        MailMessageFactory $messageFactory
+        MailMessageFactory $messageFactory,
+        RoutingResolver $routingResolver,
+        MailSourceDetector $sourceDetector
     ) {
         $this->registry           = $registry;
         $this->connectionResolver = $connectionResolver;
         $this->messageFactory     = $messageFactory;
+        $this->routingResolver    = $routingResolver;
+        $this->sourceDetector     = $sourceDetector;
         $this->context            = new SendContext();
         $this->eventLogger        = new MailEventLogger(Plugin::instance()->logger());
         $this->loggingEnabled     = Plugin::instance()->logger()->isEnabled();
@@ -137,15 +149,15 @@ class WpMailBridge
             return;
         }
 
-        $connections = $this->sendableConnections($settings);
-        if ($connections === []) {
-            return;
-        }
-
         try {
             $message = $this->messageFactory->fromWpMailAtts($atts);
         } catch (InvalidArgumentException $e) {
             // Degenerate input (e.g. no valid recipients): defer to core rather than fatal the request.
+            return;
+        }
+
+        $connections = $this->sendableConnections($settings, $this->routedConnectionId($message, $settings));
+        if ($connections === []) {
             return;
         }
 
@@ -242,16 +254,39 @@ class WpMailBridge
     }
 
     /**
+     * Resolve the connection a matching routing rule picks for this message, or null when routing is
+     * unconfigured or no rule matches — in which case the dispatch order is unchanged (BC). Source
+     * detection (a backtrace walk) is skipped entirely when no rules are configured, the common case.
+     */
+    private function routedConnectionId(MailMessage $message, MailSettings $settings): ?string
+    {
+        $features = $settings->getFeatures();
+        $rawRules = $features['routing'] ?? [];
+        if (!\is_array($rawRules) || $rawRules === []) {
+            return null;
+        }
+
+        $context = RoutingContext::fromArray([
+            'recipients'   => $message->getTo(),
+            'from'         => $message->getFrom() ?? '',
+            'subject'      => $message->getSubject(),
+            'sourcePlugin' => $this->sourceDetector->detect(),
+        ]);
+
+        return $this->routingResolver->resolve($context, RoutingRules::fromArray($rawRules));
+    }
+
+    /**
      * Drop connections that cannot send yet so an incomplete setup falls through to native wp_mail
      * instead of forcing a broken send (mirrors the pre-refactor guard). Only SMTP connections gate
      * on a host; API connections carry no host and are always eligible to attempt.
      *
      * @return Connection[]
      */
-    private function sendableConnections(MailSettings $settings): array
+    private function sendableConnections(MailSettings $settings, ?string $preferredId = null): array
     {
         return array_values(array_filter(
-            $this->connectionResolver->resolveOrdered($settings),
+            $this->connectionResolver->resolveOrdered($settings, $preferredId),
             static function (Connection $connection): bool {
                 if ($connection->getKind() !== 'smtp') {
                     return true;

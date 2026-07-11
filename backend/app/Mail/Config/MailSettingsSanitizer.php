@@ -23,6 +23,10 @@ final class MailSettingsSanitizer
         'email_controls',
     ];
 
+    private const ROUTING_FIELDS = ['recipient', 'from', 'subject', 'source_plugin'];
+
+    private const ROUTING_OPERATORS = ['equals', 'contains', 'domain', 'matches'];
+
     public static function sanitize(array $v2): array
     {
         $out = [];
@@ -143,9 +147,79 @@ final class MailSettingsSanitizer
         $out = [];
 
         foreach (self::ALLOWED_FEATURE_KEYS as $key) {
-            $out[$key] = isset($features[$key]) && \is_array($features[$key]) ? $features[$key] : [];
+            $value = isset($features[$key]) && \is_array($features[$key]) ? $features[$key] : [];
+
+            $out[$key] = $key === 'routing' ? self::sanitizeRoutingRules($value) : $value;
         }
 
         return $out;
+    }
+
+    /**
+     * Whitelist the smart-routing rules: each surviving rule needs a connection id and at least one
+     * condition whose field and operator are known enums. Malformed rules and conditions are dropped.
+     */
+    private static function sanitizeRoutingRules(array $rules): array
+    {
+        $sanitized = [];
+
+        foreach ($rules as $rule) {
+            if (!\is_array($rule)) {
+                continue;
+            }
+
+            $connectionId = self::routingConnectionId($rule);
+            if ($connectionId === '') {
+                continue;
+            }
+
+            $conditions = self::sanitizeRoutingConditions($rule['conditions'] ?? []);
+            if ($conditions === []) {
+                continue;
+            }
+
+            $sanitized[] = [
+                'connectionId' => $connectionId,
+                'conditions'   => $conditions,
+            ];
+        }
+
+        return $sanitized;
+    }
+
+    private static function routingConnectionId(array $rule): string
+    {
+        // RoutingRule::fromArray reads camelCase `connectionId`; accept the snake_case alias too.
+        $id = $rule['connectionId'] ?? $rule['connection_id'] ?? '';
+
+        return \is_scalar($id) ? trim((string) $id) : '';
+    }
+
+    private static function sanitizeRoutingConditions(array $conditions): array
+    {
+        $sanitized = [];
+
+        foreach ($conditions as $condition) {
+            if (!\is_array($condition)) {
+                continue;
+            }
+
+            $field    = isset($condition['field']) ? trim((string) $condition['field']) : '';
+            $operator = isset($condition['operator']) ? trim((string) $condition['operator']) : '';
+
+            if (!\in_array($field, self::ROUTING_FIELDS, true) || !\in_array($operator, self::ROUTING_OPERATORS, true)) {
+                continue;
+            }
+
+            $sanitized[] = [
+                'field'    => $field,
+                'operator' => $operator,
+                'value'    => isset($condition['value']) && \is_scalar($condition['value'])
+                    ? trim((string) $condition['value'])
+                    : '',
+            ];
+        }
+
+        return $sanitized;
     }
 }

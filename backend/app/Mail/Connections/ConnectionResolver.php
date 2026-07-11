@@ -23,17 +23,29 @@ final class ConnectionResolver
     }
 
     /**
+     * Priority order used by the dispatch loop: an optional routed connection first, then the
+     * configured default, the listed fallbacks, and finally any remaining enabled connections —
+     * de-duplicated. Passing no $preferredId yields the exact pre-routing order.
+     *
      * @return Connection[]
      */
-    public function resolveOrdered(MailSettings $settings): array
+    public function resolveOrdered(MailSettings $settings, ?string $preferredId = null): array
     {
         $enabledConnections = $settings->getConnections()->enabled();
 
         $ordered = [];
         $seenIds = [];
 
+        if ($preferredId !== null && $preferredId !== '') {
+            $preferredConnection = $enabledConnections->byId($preferredId);
+            if ($preferredConnection !== null) {
+                $ordered[]             = $preferredConnection;
+                $seenIds[$preferredId] = true;
+            }
+        }
+
         $defaultConnectionId = $settings->getDefaultConnectionId();
-        if ($defaultConnectionId !== '') {
+        if ($defaultConnectionId !== '' && !isset($seenIds[$defaultConnectionId])) {
             $defaultConnection = $enabledConnections->byId($defaultConnectionId);
             if ($defaultConnection !== null) {
                 $ordered[]                     = $defaultConnection;

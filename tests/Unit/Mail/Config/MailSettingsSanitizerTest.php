@@ -331,6 +331,90 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         $this->assertArrayNotHasKey('token_expires_at', $settings);
     }
 
+    public function testKeepsValidRoutingRuleWithWhitelistedFieldAndOperator(): void
+    {
+        $input             = $this->baseV2();
+        $input['features'] = ['routing' => [
+            [
+                'connectionId' => 'conn_b',
+                'conditions'   => [
+                    ['field' => 'recipient', 'operator' => 'domain', 'value' => 'routed.test'],
+                ],
+            ],
+        ]];
+        $routing = MailSettingsSanitizer::sanitize($input)['features']['routing'];
+
+        $this->assertSame([
+            [
+                'connectionId' => 'conn_b',
+                'conditions'   => [
+                    ['field' => 'recipient', 'operator' => 'domain', 'value' => 'routed.test'],
+                ],
+            ],
+        ], $routing);
+    }
+
+    public function testNormalizesSnakeCaseConnectionIdAliasToCamelCase(): void
+    {
+        $input             = $this->baseV2();
+        $input['features'] = ['routing' => [
+            [
+                'connection_id' => 'conn_b',
+                'conditions'    => [['field' => 'subject', 'operator' => 'contains', 'value' => 'invoice']],
+            ],
+        ]];
+        $routing = MailSettingsSanitizer::sanitize($input)['features']['routing'];
+
+        $this->assertSame('conn_b', $routing[0]['connectionId']);
+        $this->assertArrayNotHasKey('connection_id', $routing[0]);
+    }
+
+    public function testTrimsRoutingConditionValueAndDropsMalformedConditions(): void
+    {
+        $input             = $this->baseV2();
+        $input['features'] = ['routing' => [
+            [
+                'connectionId' => 'conn_b',
+                'conditions'   => [
+                    ['field' => 'recipient', 'operator' => 'domain', 'value' => '  routed.test  '],
+                    ['field' => 'body', 'operator' => 'domain', 'value' => 'x'],
+                    ['field' => 'from', 'operator' => 'startswith', 'value' => 'x'],
+                    'not-an-array',
+                ],
+            ],
+        ]];
+        $routing = MailSettingsSanitizer::sanitize($input)['features']['routing'];
+
+        $this->assertSame([
+            ['field' => 'recipient', 'operator' => 'domain', 'value' => 'routed.test'],
+        ], $routing[0]['conditions']);
+    }
+
+    public function testDropsRoutingRuleWithoutConnectionId(): void
+    {
+        $input             = $this->baseV2();
+        $input['features'] = ['routing' => [
+            ['conditions' => [['field' => 'recipient', 'operator' => 'domain', 'value' => 'routed.test']]],
+        ]];
+        $routing = MailSettingsSanitizer::sanitize($input)['features']['routing'];
+
+        $this->assertSame([], $routing);
+    }
+
+    public function testDropsRoutingRuleWhenNoConditionSurvivesWhitelist(): void
+    {
+        $input             = $this->baseV2();
+        $input['features'] = ['routing' => [
+            [
+                'connectionId' => 'conn_b',
+                'conditions'   => [['field' => 'unknown', 'operator' => 'domain', 'value' => 'routed.test']],
+            ],
+        ]];
+        $routing = MailSettingsSanitizer::sanitize($input)['features']['routing'];
+
+        $this->assertSame([], $routing);
+    }
+
     private function baseV2(): array
     {
         return [

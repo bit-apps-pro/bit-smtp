@@ -35,6 +35,8 @@ use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridTransport;
+use BitApps\SMTP\Mail\Routing\MailSourceDetector;
+use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Providers\HookProvider;
 use BitApps\SMTP\Providers\InstallerProvider;
@@ -130,7 +132,13 @@ final class Plugin
         $registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
         $this->_container['providerRegistry'] = $registry;
 
-        $this->_container['smtpProvider'] = new WpMailBridge($registry, new ConnectionResolver(), new MailMessageFactory());
+        $this->_container['smtpProvider'] = new WpMailBridge(
+            $registry,
+            new ConnectionResolver(),
+            new MailMessageFactory(),
+            new RoutingResolver(),
+            new MailSourceDetector()
+        );
     }
 
     /**

@@ -352,6 +352,84 @@ class ConnectionResolverTest extends BaseUnitTestCase
         $this->assertSame(['conn-2', 'conn-3'], $this->ids($result));
     }
 
+    public function testResolveOrderedPutsEnabledPreferredConnectionFirstAndDedupes(): void
+    {
+        $settings = MailSettings::fromArray([
+            'default_connection_id' => 'conn-1',
+            'connections'           => [
+                ['id' => 'conn-1', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+                ['id' => 'conn-2', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+                ['id' => 'conn-3', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+            ],
+        ]);
+
+        $result = $this->resolver->resolveOrdered($settings, 'conn-3');
+
+        $this->assertSame(['conn-3', 'conn-1', 'conn-2'], $this->ids($result));
+    }
+
+    public function testResolveOrderedIgnoresDisabledPreferredConnection(): void
+    {
+        $settings = MailSettings::fromArray([
+            'default_connection_id' => 'conn-1',
+            'connections'           => [
+                ['id' => 'conn-1', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+                ['id' => 'conn-2', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => false],
+                ['id' => 'conn-3', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+            ],
+        ]);
+
+        $result = $this->resolver->resolveOrdered($settings, 'conn-2');
+
+        $this->assertSame(['conn-1', 'conn-3'], $this->ids($result));
+    }
+
+    public function testResolveOrderedIgnoresUnknownPreferredConnection(): void
+    {
+        $settings = MailSettings::fromArray([
+            'default_connection_id' => 'conn-1',
+            'connections'           => [
+                ['id' => 'conn-1', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+                ['id' => 'conn-2', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+            ],
+        ]);
+
+        $result = $this->resolver->resolveOrdered($settings, 'unknown');
+
+        $this->assertSame(['conn-1', 'conn-2'], $this->ids($result));
+    }
+
+    public function testResolveOrderedWithPreferredEqualToDefaultDoesNotDuplicate(): void
+    {
+        $settings = MailSettings::fromArray([
+            'default_connection_id' => 'conn-1',
+            'connections'           => [
+                ['id' => 'conn-1', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+                ['id' => 'conn-2', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+            ],
+        ]);
+
+        $result = $this->resolver->resolveOrdered($settings, 'conn-1');
+
+        $this->assertSame(['conn-1', 'conn-2'], $this->ids($result));
+    }
+
+    public function testResolveOrderedWithEmptyPreferredIdMatchesUnpreferredOrder(): void
+    {
+        $settings = MailSettings::fromArray([
+            'default_connection_id' => 'conn-2',
+            'connections'           => [
+                ['id' => 'conn-1', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+                ['id' => 'conn-2', 'provider' => 'smtp', 'kind' => 'custom', 'enabled' => true],
+            ],
+        ]);
+
+        $this->assertSame(
+            $this->ids($this->resolver->resolveOrdered($settings)),
+            $this->ids($this->resolver->resolveOrdered($settings, ''))
+        );
+    }
+
     /**
      * @param Connection[] $connections
      *
