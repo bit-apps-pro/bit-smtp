@@ -132,9 +132,6 @@ const gmailMeta: ProviderMeta = {
       key: 'client_secret',
       label: 'Client Secret',
       type: 'password',
-      // Not required here: this fixture only exercises oauth-field handling, and the
-      // editor's single generic `password` credential slot has no initial value for a
-      // provider-specific secret key like client_secret.
       required: false,
       secret: true,
       placeholder: '',
@@ -167,6 +164,52 @@ const gmailConnection: Connection = {
   replyToEmail: '',
   settings: { client_id: 'abc.apps.googleusercontent.com' },
   credentials: { client_secret: { source: 'database', value: '********' } }
+}
+
+const sendGridMeta: ProviderMeta = {
+  key: 'sendgrid',
+  label: 'SendGrid',
+  kind: 'api',
+  fields: [
+    {
+      key: 'region',
+      label: 'Region',
+      type: 'select',
+      required: false,
+      secret: false,
+      placeholder: '',
+      default: 'global',
+      options: [
+        { value: 'global', label: 'Global' },
+        { value: 'eu', label: 'EU' }
+      ],
+      dependsOn: null
+    },
+    {
+      key: 'api_key',
+      label: 'API Key',
+      type: 'password',
+      required: true,
+      secret: true,
+      placeholder: '',
+      default: '',
+      options: [],
+      dependsOn: null
+    }
+  ]
+}
+
+const sendGridConnection: Connection = {
+  id: 'conn_sendgrid',
+  provider: 'sendgrid',
+  kind: 'api',
+  name: 'SendGrid',
+  enabled: true,
+  fromEmail: 'a@b.c',
+  fromName: 'A',
+  replyToEmail: '',
+  settings: { region: 'global' },
+  credentials: { api_key: { source: 'database', value: '********' } }
 }
 
 describe('ConnectionEditor', () => {
@@ -221,6 +264,55 @@ describe('ConnectionEditor', () => {
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({
         credentials: { password: { source: 'database', value: 'newsecret' } }
+      })
+    )
+  })
+
+  it('seeds a provider-specific secret field (SendGrid api_key) from its own credential key', () => {
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+
+    render(
+      <ConnectionEditor connection={sendGridConnection} provider={sendGridMeta} onSaved={() => {}} />
+    )
+
+    expect(screen.getByLabelText('API Key')).toHaveValue('********')
+  })
+
+  it('saves an untouched SendGrid api_key under credentials.api_key, not credentials.password', async () => {
+    const save = vi.fn().mockResolvedValue({})
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+
+    render(
+      <ConnectionEditor connection={sendGridConnection} provider={sendGridMeta} onSaved={() => {}} />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: { region: 'global' },
+        credentials: { api_key: { source: 'database', value: '********' } }
+      })
+    )
+    const [payload] = save.mock.calls[0] as [Connection]
+    expect(payload.credentials).not.toHaveProperty('password')
+  })
+
+  it('submits an edited SendGrid api_key as the new value under credentials.api_key', async () => {
+    const save = vi.fn().mockResolvedValue({})
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+
+    render(
+      <ConnectionEditor connection={sendGridConnection} provider={sendGridMeta} onSaved={() => {}} />
+    )
+
+    await userEvent.clear(screen.getByLabelText('API Key'))
+    await userEvent.type(screen.getByLabelText('API Key'), 'sg-newkey')
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentials: { api_key: { source: 'database', value: 'sg-newkey' } }
       })
     )
   })

@@ -12,7 +12,6 @@ interface ConnectionFormValues {
   fromEmail: string
   fromName: string
   replyToEmail: string
-  password?: string
   [settingKey: string]: unknown
 }
 
@@ -21,11 +20,19 @@ function buildConnectionPayload(
   connection: Connection,
   provider: ProviderMeta
 ): Connection {
-  const { name, fromEmail, fromName, replyToEmail, password } = values
+  const { name, fromEmail, fromName, replyToEmail } = values
   const settings = Object.fromEntries(
     provider.fields
       .filter(field => !field.secret && field.type !== 'oauth')
       .map(field => [field.key, values[field.key]])
+  )
+  const credentials = Object.fromEntries(
+    provider.fields
+      .filter(field => field.secret && field.type !== 'oauth')
+      .map(field => [
+        field.key,
+        { source: 'database', value: (values[field.key] as string | undefined) ?? '' }
+      ])
   )
 
   return {
@@ -38,7 +45,7 @@ function buildConnectionPayload(
     fromName,
     replyToEmail,
     settings,
-    credentials: { password: { source: 'database', value: password ?? '' } }
+    credentials
   }
 }
 
@@ -54,13 +61,19 @@ export default function ConnectionEditor({
   const [form] = Form.useForm<ConnectionFormValues>()
   const { mutateAsync, isPending } = useSaveConnection()
 
+  const secretValues = Object.fromEntries(
+    provider.fields
+      .filter(field => field.secret && field.type !== 'oauth')
+      .map(field => [field.key, connection.credentials?.[field.key]?.value ?? ''])
+  )
+
   const initialValues: ConnectionFormValues = {
     name: connection.name,
     fromEmail: connection.fromEmail,
     fromName: connection.fromName,
     replyToEmail: connection.replyToEmail,
     ...connection.settings,
-    password: connection.credentials?.password?.value ?? ''
+    ...secretValues
   }
 
   const fromEmail = Form.useWatch('fromEmail', form) ?? connection.fromEmail
