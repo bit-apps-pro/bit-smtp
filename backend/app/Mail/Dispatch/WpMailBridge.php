@@ -149,6 +149,13 @@ class WpMailBridge
             return;
         }
 
+        // Check eligibility before building the message, so the wp_mail_* value filters aren't
+        // applied here and then again by native wp_mail when we defer with no usable connection.
+        // Routing only reorders the eligible set, so it cannot change emptiness.
+        if ($this->sendableConnections($settings, null) === []) {
+            return;
+        }
+
         try {
             $message = $this->messageFactory->fromWpMailAtts($atts);
         } catch (InvalidArgumentException $e) {
