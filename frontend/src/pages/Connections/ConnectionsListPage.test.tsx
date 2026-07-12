@@ -196,4 +196,16 @@ describe('ConnectionsListPage', () => {
 
     expect(updateSettingsMutate).not.toHaveBeenCalled()
   })
+
+  it('shows an empty state with an add button when there are no connections', () => {
+    ;(useMailSettings as Mock).mockReturnValue({
+      data: { ...settings, connections: [], default_connection_id: '' },
+      isPending: false
+    })
+
+    renderWithProviders(<ConnectionsListPage />)
+
+    expect(screen.getByText(/no connections/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Add connection/i })).toBeInTheDocument()
+  })
 })

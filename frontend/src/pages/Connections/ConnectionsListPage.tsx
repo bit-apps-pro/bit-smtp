@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ApiOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
 import {
   DndContext,
@@ -12,7 +13,7 @@ import {
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { type Connection, type MailSettings } from '@pages/Connections/types'
-import { Button, Col, Flex, Row, Spin, Typography } from 'antd'
+import { Button, Col, Flex, Row, Spin, Typography, theme } from 'antd'
 import ConnectionCard from './ConnectionCard'
 import ProviderSelectorModal from './ProviderSelectorModal'
 import useDeleteConnection from './data/useDeleteConnection'
@@ -21,7 +22,7 @@ import useProviders from './data/useProviders'
 import useSetDefaultConnection from './data/useSetDefaultConnection'
 import useUpdateSettings from './data/useUpdateSettings'
 
-const { Title } = Typography
+const { Title, Text } = Typography
 
 /** Default connection first, then the saved fallback chain, then any connection missing from both. */
 function deriveOrderedIds(settings: MailSettings): string[] {
@@ -84,6 +85,49 @@ function SortableConnectionCard({
   )
 }
 
+function EmptyConnections({ onAddConnection }: { onAddConnection: () => void }) {
+  const { token } = theme.useToken()
+
+  return (
+    <Flex
+      vertical
+      align="center"
+      gap="small"
+      style={{
+        padding: '64px 24px',
+        textAlign: 'center',
+        border: `1px dashed ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadiusLG
+      }}
+    >
+      <Flex
+        align="center"
+        justify="center"
+        aria-hidden="true"
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: token.borderRadiusLG,
+          backgroundColor: token.colorPrimaryBg,
+          color: token.colorPrimary,
+          fontSize: token.fontSizeHeading3
+        }}
+      >
+        <ApiOutlined />
+      </Flex>
+      <Title level={5} style={{ margin: 0 }}>
+        {__('No connections yet')}
+      </Title>
+      <Text type="secondary" style={{ maxWidth: 360 }}>
+        {__('Add an SMTP server or an email API to start delivering mail through Bit SMTP.')}
+      </Text>
+      <Button type="primary" onClick={onAddConnection} style={{ marginTop: token.marginXS }}>
+        {__('Add connection')}
+      </Button>
+    </Flex>
+  )
+}
+
 export default function ConnectionsListPage() {
   const navigate = useNavigate()
   const { data: settings, isPending: isSettingsPending } = useMailSettings()
@@ -140,38 +184,47 @@ export default function ConnectionsListPage() {
     navigate(`/connection/new?provider=${encodeURIComponent(providerKey)}`)
   }
 
+  const hasConnections = settings.connections.length > 0
+  const openProviderModal = () => setIsProviderModalOpen(true)
+
   return (
     <Flex vertical gap="middle" style={{ padding: 24 }}>
       <Flex justify="space-between" align="center">
         <Title level={4} style={{ margin: 0 }}>
           {__('Connections')}
         </Title>
-        <Button type="primary" onClick={() => setIsProviderModalOpen(true)}>
-          {__('Add connection')}
-        </Button>
+        {hasConnections && (
+          <Button type="primary" onClick={openProviderModal}>
+            {__('Add connection')}
+          </Button>
+        )}
       </Flex>
       <ProviderSelectorModal
         open={isProviderModalOpen}
         onClose={() => setIsProviderModalOpen(false)}
         onSelect={handleProviderSelected}
       />
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={orderedIds} strategy={rectSortingStrategy}>
-          <Row gutter={[16, 16]}>
-            {orderedConnections.map((connection, index) => (
-              <SortableConnectionCard
-                key={connection.id}
-                connection={connection}
-                priority={index + 1}
-                isDefault={connection.id === settings.default_connection_id}
-                onSetDefault={() => setDefaultConnection.mutate(connection.id)}
-                onEdit={() => navigate(`/connection/${connection.id}`)}
-                onDelete={() => deleteConnection.mutate(connection.id)}
-              />
-            ))}
-          </Row>
-        </SortableContext>
-      </DndContext>
+      {hasConnections ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={orderedIds} strategy={rectSortingStrategy}>
+            <Row gutter={[16, 16]}>
+              {orderedConnections.map((connection, index) => (
+                <SortableConnectionCard
+                  key={connection.id}
+                  connection={connection}
+                  priority={index + 1}
+                  isDefault={connection.id === settings.default_connection_id}
+                  onSetDefault={() => setDefaultConnection.mutate(connection.id)}
+                  onEdit={() => navigate(`/connection/${connection.id}`)}
+                  onDelete={() => deleteConnection.mutate(connection.id)}
+                />
+              ))}
+            </Row>
+          </SortableContext>
+        </DndContext>
+      ) : (
+        <EmptyConnections onAddConnection={openProviderModal} />
+      )}
     </Flex>
   )
 }

@@ -1,10 +1,19 @@
-import { DeleteOutlined, EditOutlined, HolderOutlined, StarOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  EditOutlined,
+  HolderOutlined,
+  MailOutlined,
+  StarOutlined
+} from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
 import { type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core'
+import { getProviderVisual } from '@pages/Connections/providerVisuals'
 import { type Connection } from '@pages/Connections/types'
-import { Button, Card, Flex, Popconfirm, Tag, Typography } from 'antd'
+import { Button, Card, Flex, Popconfirm, Tag, Typography, theme } from 'antd'
 
 const { Text } = Typography
+
+const PROVIDER_BADGE_SIZE = 30
 
 export default function ConnectionCard({
   connection,
@@ -25,8 +34,19 @@ export default function ConnectionCard({
   dragHandleAttributes?: DraggableAttributes
   dragHandleListeners?: DraggableSyntheticListeners
 }) {
+  const { token } = theme.useToken()
+  const visual = getProviderVisual(connection.provider)
+
   return (
     <Card
+      style={
+        isDefault
+          ? {
+              borderInlineStart: `4px solid ${token.colorPrimary}`,
+              backgroundColor: token.colorPrimaryBg
+            }
+          : undefined
+      }
       title={
         <Flex align="center" gap="small">
           <Button
@@ -40,13 +60,43 @@ export default function ConnectionCard({
             // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
             {...dragHandleListeners}
           />
-          <Text>{connection.name}</Text>
+          {visual.logo ? (
+            <img
+              src={visual.logo}
+              alt={connection.provider}
+              width={PROVIDER_BADGE_SIZE}
+              height={PROVIDER_BADGE_SIZE}
+              style={{ objectFit: 'contain', flexShrink: 0 }}
+            />
+          ) : (
+            <Flex
+              align="center"
+              justify="center"
+              aria-hidden="true"
+              style={{
+                width: PROVIDER_BADGE_SIZE,
+                height: PROVIDER_BADGE_SIZE,
+                flexShrink: 0,
+                borderRadius: token.borderRadius,
+                backgroundColor: visual.accent,
+                color: token.colorWhite,
+                fontWeight: token.fontWeightStrong
+              }}
+            >
+              {visual.initial}
+            </Flex>
+          )}
+          <Text strong>{connection.name}</Text>
         </Flex>
       }
       extra={
         <Flex gap="small" align="center">
-          {typeof priority === 'number' && <Tag>{`${__('Priority')} ${priority}`}</Tag>}
-          {isDefault && <Tag color="blue">{__('Default')}</Tag>}
+          {typeof priority === 'number' && <Tag bordered={false}>{`${__('Priority')} ${priority}`}</Tag>}
+          {isDefault && (
+            <Tag bordered={false} color={token.colorPrimary}>
+              {__('Default')}
+            </Tag>
+          )}
         </Flex>
       }
       actions={[
@@ -75,9 +125,14 @@ export default function ConnectionCard({
         </Popconfirm>
       ]}
     >
-      <Flex vertical gap="small">
-        <Tag>{connection.provider}</Tag>
-        <Text type="secondary">{connection.fromEmail}</Text>
+      <Flex vertical gap={4}>
+        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+          {visual.blurb}
+        </Text>
+        <Flex align="center" gap={6}>
+          <MailOutlined style={{ color: token.colorTextTertiary }} />
+          <Text type="secondary">{connection.fromEmail}</Text>
+        </Flex>
       </Flex>
     </Card>
   )
