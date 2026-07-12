@@ -346,6 +346,15 @@ describe('ConnectionEditor', () => {
     expect(screen.getByText('Connected')).toBeInTheDocument()
   })
 
+  it('shows a provider header with the provider logo and label', () => {
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+
+    render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />)
+
+    expect(screen.getByAltText('Other SMTP')).toBeInTheDocument()
+    expect(screen.getByText('Other SMTP')).toBeInTheDocument()
+  })
+
   it('excludes the oauth field from the saved settings payload', async () => {
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
     const save = vi.fn().mockResolvedValue({})

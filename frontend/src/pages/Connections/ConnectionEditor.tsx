@@ -1,11 +1,17 @@
+import { type ReactNode } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
 import { type Connection, type ProviderMeta } from '@pages/Connections/types'
-import { Button, Form, Input } from 'antd'
+import { Button, Flex, Form, Input, Typography, theme } from 'antd'
 import ConnectionTestButton from './ConnectionTestButton'
 import OAuthConnectButton from './OAuthConnectButton'
 import ProviderFields from './ProviderFields'
 import useSaveConnection from './data/useSaveConnection'
+import { getProviderVisual } from './providerVisuals'
+
+const { Text } = Typography
+
+const PROVIDER_BADGE_SIZE = 48
 
 interface ConnectionFormValues {
   name: string
@@ -49,6 +55,90 @@ function buildConnectionPayload(
   }
 }
 
+function ProviderHeader({ provider }: { provider: ProviderMeta }) {
+  const { token } = theme.useToken()
+  const visual = getProviderVisual(provider.key, provider.label)
+  const haloSize = PROVIDER_BADGE_SIZE + 16
+
+  return (
+    <Flex align="center" gap={16} style={{ marginBottom: 16 }}>
+      <Flex
+        align="center"
+        justify="center"
+        aria-hidden="true"
+        style={{
+          width: haloSize,
+          height: haloSize,
+          borderRadius: '50%',
+          backgroundColor: `${visual.accent}1F`,
+          flexShrink: 0
+        }}
+      >
+        {visual.logo ? (
+          <img
+            src={visual.logo}
+            alt={provider.label}
+            width={PROVIDER_BADGE_SIZE}
+            height={PROVIDER_BADGE_SIZE}
+            style={{ objectFit: 'contain' }}
+          />
+        ) : (
+          <Flex
+            align="center"
+            justify="center"
+            style={{
+              width: PROVIDER_BADGE_SIZE,
+              height: PROVIDER_BADGE_SIZE,
+              borderRadius: token.borderRadius,
+              backgroundColor: visual.accent,
+              color: token.colorWhite,
+              fontWeight: token.fontWeightStrong,
+              fontSize: token.fontSizeLG
+            }}
+          >
+            {visual.initial}
+          </Flex>
+        )}
+      </Flex>
+      <Flex vertical gap={2}>
+        <Text strong style={{ fontSize: token.fontSizeXL }}>
+          {provider.label}
+        </Text>
+        <Text type="secondary">{visual.blurb}</Text>
+      </Flex>
+    </Flex>
+  )
+}
+
+function FormSection({ title, children }: { title: string; children: ReactNode }) {
+  const { token } = theme.useToken()
+
+  return (
+    <div
+      style={{
+        backgroundColor: token.colorBgContainer,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadiusLG,
+        padding: 20,
+        marginBottom: 16
+      }}
+    >
+      <Text
+        strong
+        style={{
+          display: 'block',
+          fontSize: token.fontSizeSM,
+          color: token.colorText,
+          marginBottom: 12
+        }}
+      >
+        {title}
+      </Text>
+      {children}
+    </div>
+  )
+}
+
 export default function ConnectionEditor({
   connection,
   provider,
@@ -58,6 +148,7 @@ export default function ConnectionEditor({
   provider: ProviderMeta
   onSaved: () => void
 }) {
+  const { token } = theme.useToken()
   const [form] = Form.useForm<ConnectionFormValues>()
   const { mutateAsync, isPending } = useSaveConnection()
 
@@ -89,45 +180,63 @@ export default function ConnectionEditor({
   }
 
   return (
-    <Form form={form} layout="vertical" initialValues={initialValues} onFinish={handleFinish}>
-      <Form.Item
-        label={__('Name')}
-        name="name"
-        rules={[{ required: true, message: __('This field is required') }]}
-      >
-        <Input aria-label={__('Name')} />
-      </Form.Item>
-      <Form.Item
-        label={__('From Email')}
-        name="fromEmail"
-        rules={[{ required: true, message: __('This field is required') }]}
-      >
-        <Input type="email" aria-label={__('From Email')} />
-      </Form.Item>
-      <Form.Item label={__('From Name')} name="fromName">
-        <Input aria-label={__('From Name')} />
-      </Form.Item>
-      <Form.Item label={__('Reply-To Email')} name="replyToEmail">
-        <Input type="email" aria-label={__('Reply-To Email')} />
-      </Form.Item>
-      <ProviderFields fields={inputFields} />
-      {oauthField ? (
-        <Form.Item label={oauthField.label}>
-          <OAuthConnectButton
-            connectionId={connection.id}
-            provider={provider.key}
-            connected={Boolean(connection.credentials?.refresh_token?.value)}
-          />
-        </Form.Item>
-      ) : null}
-      <Form.Item>
-        <ConnectionTestButton getConnection={buildPayload} to={fromEmail} />
-      </Form.Item>
-      <Form.Item>
-        <Button type="primary" htmlType="submit" loading={isPending}>
-          {__('Save')}
-        </Button>
-      </Form.Item>
-    </Form>
+    <>
+      <ProviderHeader provider={provider} />
+      <Form form={form} layout="vertical" initialValues={initialValues} onFinish={handleFinish}>
+        <FormSection title={__('Identity')}>
+          <Form.Item
+            label={__('Name')}
+            name="name"
+            rules={[{ required: true, message: __('This field is required') }]}
+          >
+            <Input aria-label={__('Name')} />
+          </Form.Item>
+          <Form.Item
+            label={__('From Email')}
+            name="fromEmail"
+            rules={[{ required: true, message: __('This field is required') }]}
+          >
+            <Input type="email" aria-label={__('From Email')} />
+          </Form.Item>
+          <Form.Item label={__('From Name')} name="fromName">
+            <Input aria-label={__('From Name')} />
+          </Form.Item>
+          <Form.Item label={__('Reply-To Email')} name="replyToEmail">
+            <Input type="email" aria-label={__('Reply-To Email')} />
+          </Form.Item>
+        </FormSection>
+
+        <FormSection title={__('Credentials & settings')}>
+          <ProviderFields fields={inputFields} />
+          {oauthField ? (
+            <Form.Item label={oauthField.label}>
+              <OAuthConnectButton
+                connectionId={connection.id}
+                provider={provider.key}
+                connected={Boolean(connection.credentials?.refresh_token?.value)}
+              />
+            </Form.Item>
+          ) : null}
+        </FormSection>
+
+        <Flex
+          gap="small"
+          justify="flex-end"
+          style={{
+            position: 'sticky',
+            bottom: 0,
+            backgroundColor: token.colorBgContainer,
+            borderTop: `1px solid ${token.colorBorderSecondary}`,
+            padding: '12px 0',
+            zIndex: 1
+          }}
+        >
+          <ConnectionTestButton getConnection={buildPayload} to={fromEmail} />
+          <Button type="primary" htmlType="submit" loading={isPending}>
+            {__('Save')}
+          </Button>
+        </Flex>
+      </Form>
+    </>
   )
 }
