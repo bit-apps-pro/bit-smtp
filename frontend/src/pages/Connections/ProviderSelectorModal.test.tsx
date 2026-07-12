@@ -53,4 +53,14 @@ describe('ProviderSelectorModal', () => {
     expect(onSelect).toHaveBeenCalledWith('other_smtp')
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('renders a logo image for a provider that has one', () => {
+    ;(useProviders as Mock).mockReturnValue({
+      data: [{ key: 'sendgrid', label: 'SendGrid', kind: 'api', fields: [] }],
+      isPending: false
+    })
+    renderWithProviders(<ProviderSelectorModal open onClose={() => {}} onSelect={() => {}} />)
+    expect(screen.getByRole('button', { name: /SendGrid/ })).toBeInTheDocument()
+    expect(screen.getByAltText('SendGrid')).toBeInTheDocument()
+  })
 })

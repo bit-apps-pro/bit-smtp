@@ -1,6 +1,13 @@
+import { type CSSProperties } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
-import { Button, Card, Flex, List, Modal, Spin, Tag, theme } from 'antd'
+import { Flex, Modal, Spin, Tag, Typography, theme } from 'antd'
+import cls from './ProviderSelectorModal.module.css'
 import useProviders from './data/useProviders'
+import { getProviderVisual } from './providerVisuals'
+
+const { Text } = Typography
+
+type TileVars = CSSProperties & Record<`--psm-${string}`, string>
 
 export default function ProviderSelectorModal({
   open,
@@ -19,32 +26,56 @@ export default function ProviderSelectorModal({
     onClose()
   }
 
+  const tileStyle: TileVars = {
+    backgroundColor: token.colorBgContainer,
+    borderRadius: token.borderRadiusLG,
+    padding: token.padding,
+    '--psm-border': token.colorBorderSecondary,
+    '--psm-hover-border': token.colorPrimary,
+    '--psm-hover-shadow': token.boxShadowSecondary,
+    '--psm-focus-color': token.colorPrimary
+  }
+
   return (
-    <Modal title={__('Choose a provider')} open={open} onCancel={onClose} footer={null}>
+    <Modal title={__('Choose a provider')} open={open} onCancel={onClose} footer={null} width={640}>
       {isPending ? (
         <Flex justify="center" style={{ padding: 24 }}>
           <Spin size="large" />
         </Flex>
       ) : (
-        <List
-          dataSource={providers}
-          renderItem={provider => (
-            <List.Item style={{ padding: 0, marginBottom: token.marginSM, border: 'none' }}>
-              <Card size="small" style={{ width: '100%' }}>
-                <Flex justify="space-between" align="center" gap="small">
-                  <Button
-                    type="link"
-                    style={{ padding: 0, height: 'auto' }}
-                    onClick={() => handleSelect(provider.key)}
-                  >
-                    {provider.label}
-                  </Button>
-                  <Tag>{provider.kind}</Tag>
+        <div className={cls.grid}>
+          {providers?.map(provider => {
+            const visual = getProviderVisual(provider.key, provider.label)
+            return (
+              <button
+                key={provider.key}
+                type="button"
+                className={cls.tile}
+                style={tileStyle}
+                onClick={() => handleSelect(provider.key)}
+              >
+                <Flex vertical align="center" gap="small">
+                  <span className={cls.badge} aria-hidden="true">
+                    {visual.logo ? (
+                      <img src={visual.logo} alt={provider.label} className={cls.logo} />
+                    ) : (
+                      <span className={cls.letterBadge} style={{ backgroundColor: visual.accent }}>
+                        {visual.initial}
+                      </span>
+                    )}
+                  </span>
+                  <Text className={cls.label}>{provider.label}</Text>
+                  <span className={cls.meta} aria-hidden="true">
+                    <Text type="secondary" className={cls.blurb}>
+                      {visual.blurb}
+                    </Text>
+                    <Tag>{provider.kind}</Tag>
+                  </span>
                 </Flex>
-              </Card>
-            </List.Item>
-          )}
-        />
+              </button>
+            )
+          })}
+        </div>
       )}
     </Modal>
   )
