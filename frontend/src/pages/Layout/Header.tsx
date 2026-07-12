@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { type CSSProperties, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { MoonOutlined, SunOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
 import config from '@config/config'
@@ -17,6 +17,8 @@ type NavVars = CSSProperties & Record<`--nav-${string}`, string>
 export default function Header() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const { isDark, toggleTheme } = useTheme()
+  const { pathname } = useLocation()
+  const isConnectionSubpage = pathname.startsWith('/connection')
 
   const { AD_BUTTON }: { AD_BUTTON: { title: string; campaign: string; alt?: string; url: string } } =
     config
@@ -82,9 +84,10 @@ export default function Header() {
                 key={item.path}
                 to={item.path}
                 end={item.path === '/'}
-                className={({ isActive }) =>
-                  `${cls.navLink} ${isActive ? cls.navLinkActive : ''}`.trim()
-                }
+                className={({ isActive }) => {
+                  const active = item.path === '/' ? isActive || isConnectionSubpage : isActive
+                  return `${cls.navLink} ${active ? cls.navLinkActive : ''}`.trim()
+                }}
               >
                 {item.label}
               </NavLink>

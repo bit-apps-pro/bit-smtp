@@ -30,7 +30,7 @@ describe('ConnectionCard', () => {
     )
 
     expect(screen.getByText('Primary SMTP')).toBeInTheDocument()
-    expect(screen.getByAltText('other_smtp')).toBeInTheDocument()
+    expect(screen.getByText('Any SMTP server')).toBeInTheDocument()
     expect(screen.getByText('a@b.c')).toBeInTheDocument()
   })
 

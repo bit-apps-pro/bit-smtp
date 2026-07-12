@@ -47,6 +47,7 @@ export default function ConnectionCard({
             }
           : undefined
       }
+      styles={{ title: { overflow: 'visible', whiteSpace: 'normal', textOverflow: 'clip' } }}
       title={
         <Flex align="center" gap="small">
           <Button
@@ -61,13 +62,15 @@ export default function ConnectionCard({
             {...dragHandleListeners}
           />
           {visual.logo ? (
-            <img
-              src={visual.logo}
-              alt={connection.provider}
-              width={PROVIDER_BADGE_SIZE}
-              height={PROVIDER_BADGE_SIZE}
-              style={{ objectFit: 'contain', flexShrink: 0 }}
-            />
+            <Flex align="center" justify="center" aria-hidden="true" style={{ flexShrink: 0 }}>
+              <img
+                src={visual.logo}
+                alt=""
+                width={PROVIDER_BADGE_SIZE}
+                height={PROVIDER_BADGE_SIZE}
+                style={{ objectFit: 'contain' }}
+              />
+            </Flex>
           ) : (
             <Flex
               align="center"

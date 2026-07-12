@@ -14,11 +14,19 @@ function Layout() {
         minHeight: '100vh',
         backgroundColor: token.colorBgLayout,
         borderRadius: token.borderRadiusLG,
-        border: `1px solid ${token.colorBorderSecondary}`,
-        overflow: 'hidden'
+        border: `1px solid ${token.colorBorderSecondary}`
       }}
     >
-      <Header />
+      {/* Clips only the header's square corners; must stay off the outer layout or it becomes
+          the sticky viewport for descendants like the editor's sticky save bar. */}
+      <div
+        style={{
+          borderRadius: `${token.borderRadiusLG}px ${token.borderRadiusLG}px 0 0`,
+          overflow: 'hidden'
+        }}
+      >
+        <Header />
+      </div>
       <AntLayout.Content style={{ maxWidth: CONTENT_MAX_WIDTH, width: '100%', margin: '0 auto' }}>
         <Outlet />
       </AntLayout.Content>

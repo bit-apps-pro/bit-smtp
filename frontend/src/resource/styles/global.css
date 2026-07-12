@@ -66,16 +66,6 @@ body {
   min-height: auto;
 }
 
-#bit-apps-root .link {
-  text-decoration: none;
-  cursor: pointer;
-}
-
-#bit-apps-root .link:focus {
-  outline: none;
-  box-shadow: none;
-}
-
 svg {
   pointer-events: none;
   display: inline-block;
