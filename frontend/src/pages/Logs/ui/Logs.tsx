@@ -14,10 +14,13 @@ import {
   type TableColumnsType,
   type TableProps,
   Typography,
-  notification
+  notification,
+  theme
 } from 'antd'
 import LogRetentionSettings from './LogRetentionSettings'
 import LogToggle from './LogToggle'
+
+const { Title, Text } = Typography
 
 type TableRowSelection<T extends object = object> = TableProps<T>['rowSelection']
 
@@ -35,6 +38,7 @@ const columns: TableColumnsType<LogType> = [
 ]
 
 export default function Logs() {
+  const { token } = theme.useToken()
   const [query, setQuery] = useState<LogQueryType>({
     pageNo: 1,
     limit: 20
@@ -128,16 +132,19 @@ export default function Logs() {
   )
 
   return (
-    <Flex gap="middle" vertical>
-      <Flex align="center" gap="middle" justify="space-between" style={{ paddingInline: 10 }}>
-        <Flex gap="middle" align="center" style={{ padding: 10 }}>
+    <Flex gap="middle" vertical style={{ padding: token.paddingLG }}>
+      <Title level={4} style={{ margin: 0 }}>
+        {__('Logs')}
+      </Title>
+      <Flex align="center" gap="middle" justify="space-between" wrap>
+        <Flex gap="small" align="center">
           <Button type="primary" onClick={handleDelete} disabled={!hasSelected} loading={isLogDeleting}>
-            Delete
+            {__('Delete')}
           </Button>
           <Button type="primary" onClick={handleResend} disabled={!hasSelected} loading={isResending}>
-            Resend
+            {__('Resend')}
           </Button>
-          {hasSelected ? <Typography>Selected {selectedRowKeys.length} items</Typography> : null}
+          {hasSelected ? <Text type="secondary">Selected {selectedRowKeys.length} items</Text> : null}
         </Flex>
         <Flex align="center" gap="small">
           <Input.Search
@@ -148,7 +155,7 @@ export default function Logs() {
             style={{ width: 220 }}
             enterButton={false}
           />
-          {/* date range filter 
+          {/* date range filter
           <DatePicker.RangePicker value={dateRange} onChange={handleDateRangeChange} />
           <Button onClick={clearFilters}>{__('Clear')}</Button>
           */}

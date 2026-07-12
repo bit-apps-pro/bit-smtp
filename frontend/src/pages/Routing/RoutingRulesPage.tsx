@@ -5,7 +5,7 @@ import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type MailSettings } from '@pages/Connections/types'
 import { type EditableRoutingRule, type RoutingRule } from '@pages/Routing/types'
-import { Button, Flex, Spin, Typography } from 'antd'
+import { Button, Flex, Spin, Typography, theme } from 'antd'
 import RoutingRuleRow from './RoutingRuleRow'
 
 const { Title, Text } = Typography
@@ -45,6 +45,7 @@ function toStoredRules(rules: EditableRoutingRule[]): RoutingRule[] {
 }
 
 export default function RoutingRulesPage() {
+  const { token } = theme.useToken()
   const { data: settings, isPending } = useMailSettings()
   const updateSettings = useUpdateSettings()
   const [rules, setRules] = useState<EditableRoutingRule[]>([])
@@ -87,7 +88,7 @@ export default function RoutingRulesPage() {
   }
 
   return (
-    <Flex vertical gap="middle" style={{ padding: 24 }}>
+    <Flex vertical gap="middle" style={{ padding: token.paddingLG }}>
       <Flex justify="space-between" align="center">
         <Title level={4} style={{ margin: 0 }}>
           {__('Routing')}
@@ -105,6 +106,7 @@ export default function RoutingRulesPage() {
             key={rule.id}
             rule={rule}
             connections={settings.connections}
+            priority={index + 1}
             onChange={updated => updateRule(index, updated)}
             onRemove={() => removeRule(index)}
           />

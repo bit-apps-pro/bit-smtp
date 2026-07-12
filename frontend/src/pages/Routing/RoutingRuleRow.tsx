@@ -1,9 +1,14 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
+import { type ProviderVisual, getProviderVisual } from '@pages/Connections/providerVisuals'
 import { type Connection } from '@pages/Connections/types'
 import { type EditableRoutingCondition, type EditableRoutingRule } from '@pages/Routing/types'
-import { Button, Card, Flex, Popconfirm, Select } from 'antd'
+import { Button, Card, Flex, Popconfirm, Select, Typography, theme } from 'antd'
 import ConditionEditor from './ConditionEditor'
+
+const { Text } = Typography
+
+const PROVIDER_BADGE_SIZE = 24
 
 let nextConditionId = 0
 function createConditionId(): string {
@@ -15,21 +20,62 @@ function emptyCondition(): EditableRoutingCondition {
   return { id: createConditionId(), field: 'recipient', operator: 'equals', value: '' }
 }
 
+/** Mirrors ConnectionCard's logo-or-initial badge so a rule's target reads as the same provider identity. */
+function ProviderBadge({ visual }: { visual: ProviderVisual }) {
+  const { token } = theme.useToken()
+
+  if (visual.logo) {
+    return (
+      <img
+        src={visual.logo}
+        alt=""
+        width={PROVIDER_BADGE_SIZE}
+        height={PROVIDER_BADGE_SIZE}
+        style={{ objectFit: 'contain', flexShrink: 0 }}
+      />
+    )
+  }
+
+  return (
+    <Flex
+      align="center"
+      justify="center"
+      aria-hidden="true"
+      style={{
+        width: PROVIDER_BADGE_SIZE,
+        height: PROVIDER_BADGE_SIZE,
+        flexShrink: 0,
+        borderRadius: token.borderRadius,
+        backgroundColor: visual.accent,
+        color: token.colorWhite,
+        fontSize: token.fontSizeSM,
+        fontWeight: token.fontWeightStrong
+      }}
+    >
+      {visual.initial}
+    </Flex>
+  )
+}
+
 export default function RoutingRuleRow({
   rule,
   connections,
+  priority,
   onChange,
   onRemove
 }: {
   rule: EditableRoutingRule
   connections: Connection[]
+  priority?: number
   onChange: (rule: EditableRoutingRule) => void
   onRemove: () => void
 }) {
+  const { token } = theme.useToken()
   const connectionOptions = connections.map(connection => ({
     value: connection.id,
     label: connection.name
   }))
+  const targetConnection = connections.find(connection => connection.id === rule.connectionId)
 
   const updateCondition = (index: number, condition: EditableRoutingCondition) => {
     const conditions = rule.conditions.map((item, itemIndex) => (itemIndex === index ? condition : item))
@@ -47,6 +93,9 @@ export default function RoutingRuleRow({
   return (
     <Card
       size="small"
+      title={
+        <Text strong>{typeof priority === 'number' ? `${__('Rule')} ${priority}` : __('Rule')}</Text>
+      }
       extra={
         <Popconfirm
           title={__('Delete this rule?')}
@@ -60,26 +109,36 @@ export default function RoutingRuleRow({
         </Popconfirm>
       }
     >
-      <Flex vertical gap="small">
-        <Select
-          aria-label={__('Target connection')}
-          placeholder={__('Select a connection')}
-          value={rule.connectionId || undefined}
-          options={connectionOptions}
-          style={{ width: 260 }}
-          onChange={(connectionId: string) => onChange({ ...rule, connectionId })}
-        />
-        {rule.conditions.map((condition, index) => (
-          <ConditionEditor
-            key={condition.id}
-            condition={condition}
-            onChange={updated => updateCondition(index, updated)}
-            onRemove={() => removeCondition(index)}
-          />
-        ))}
-        <Button type="dashed" icon={<PlusOutlined />} onClick={addCondition}>
-          {__('Add condition')}
-        </Button>
+      <Flex vertical gap="middle">
+        <Flex vertical gap={4}>
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            {__('Route matching mail to')}
+          </Text>
+          <Flex align="center" gap="small">
+            {targetConnection && <ProviderBadge visual={getProviderVisual(targetConnection.provider)} />}
+            <Select
+              aria-label={__('Target connection')}
+              placeholder={__('Select a connection')}
+              value={rule.connectionId || undefined}
+              options={connectionOptions}
+              style={{ width: 260 }}
+              onChange={(connectionId: string) => onChange({ ...rule, connectionId })}
+            />
+          </Flex>
+        </Flex>
+        <Flex vertical gap="small">
+          {rule.conditions.map((condition, index) => (
+            <ConditionEditor
+              key={condition.id}
+              condition={condition}
+              onChange={updated => updateCondition(index, updated)}
+              onRemove={() => removeCondition(index)}
+            />
+          ))}
+          <Button type="dashed" icon={<PlusOutlined />} onClick={addCondition}>
+            {__('Add condition')}
+          </Button>
+        </Flex>
       </Flex>
     </Card>
   )

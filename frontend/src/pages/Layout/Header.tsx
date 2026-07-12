@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { type CSSProperties, useState } from 'react'
+import { NavLink } from 'react-router-dom'
 import { MoonOutlined, SunOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
 import config from '@config/config'
@@ -8,21 +8,22 @@ import { useTheme } from '@config/themes/theme.provider'
 import LogoIcon from '@icons/LogoIcon'
 import LogoText from '@icons/LogoText'
 import adBanner from '@resource/img/adBanner.png'
-import { Layout as AntLayout, Button, Flex, Menu, Modal, Space, Typography, theme } from 'antd'
+import { Layout as AntLayout, Button, Flex, Modal, Space, Typography, theme } from 'antd'
 import confetti from 'canvas-confetti'
 import cls from './Layout.module.css'
+
+type NavVars = CSSProperties & Record<`--nav-${string}`, string>
 
 export default function Header() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const { isDark, toggleTheme } = useTheme()
-  const location = useLocation()
 
   const { AD_BUTTON }: { AD_BUTTON: { title: string; campaign: string; alt?: string; url: string } } =
     config
   const { Text } = Typography
 
   const { useToken } = theme
-  const antConfig = useToken()
+  const { token } = useToken()
 
   const navItems = [
     { label: __('Configuration'), path: '/' },
@@ -31,6 +32,13 @@ export default function Header() {
     { label: __('Logs'), path: '/logs' },
     { label: __('Others'), path: '/others' }
   ]
+
+  const navStyle: NavVars = {
+    '--nav-inactive-color': token.colorTextSecondary,
+    '--nav-hover-color': token.colorText,
+    '--nav-active-color': token.colorPrimary,
+    '--nav-underline': `linear-gradient(90deg, ${token.colorPrimary}, ${token.colorInfo})`
+  }
 
   const handleConfetti = () => {
     confetti({
@@ -50,54 +58,57 @@ export default function Header() {
   return (
     <>
       <AntLayout.Header
-        style={{ height: 'min-content', backgroundColor: antConfig.token.colorBgContainer }}
+        style={{
+          height: 'min-content',
+          backgroundColor: token.colorBgContainer,
+          paddingInline: token.paddingLG,
+          paddingBlock: token.paddingSM
+        }}
       >
         <Flex
           align="center"
           justify="space-between"
           wrap
-          style={{ width: '100%', borderBottom: `${antConfig.token.colorBorder} 0.5px solid` }}
+          gap="middle"
+          style={{ width: '100%', borderBottom: `${token.colorBorder} 0.5px solid` }}
         >
           <Flex align="center">
             <LogoIcon size={44} />
             <LogoText h={44} w={120} />
           </Flex>
-          <Space align="center" size="large">
-            <Menu
-              mode="horizontal"
-              disabledOverflow
-              selectedKeys={[
-                navItems.find(item =>
-                  item.path === '/'
-                    ? item.path === location.pathname
-                    : location.pathname.includes(item.path)
-                )?.path || '/'
-              ]}
-              items={navItems.map(item => ({
-                key: item.path,
-                label: (
-                  <NavLink to={item.path} className="link">
-                    {item.label}
-                  </NavLink>
-                )
-              }))}
-              style={{ border: 'none', background: 'none', fontWeight: 500 }}
-            />
-          </Space>
-          <Space align="center" size="middle">
-            <Text style={{ fontSize: 14 }}>Share Your Product Experience!</Text>
+          <nav className={cls.nav} style={navStyle}>
+            {navItems.map(item => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === '/'}
+                className={({ isActive }) =>
+                  `${cls.navLink} ${isActive ? cls.navLinkActive : ''}`.trim()
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+          <Space align="center" size="small">
+            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+              {__('Share Your Product Experience!')}
+            </Text>
             <a
               href="https://wordpress.org/support/plugin/bit-smtp/reviews/"
               target="_blank"
               rel="noreferrer"
+              className={cls.reviewLink}
+              style={{ color: token.colorPrimary, fontWeight: token.fontWeightStrong }}
             >
-              Review us
+              {__('Review us')}
             </a>
             <Button
               type="text"
               icon={isDark ? <SunOutlined /> : <MoonOutlined />}
               onClick={toggleTheme}
-              style={{ fontSize: 18 }}
+              aria-label={isDark ? __('Switch to light theme') : __('Switch to dark theme')}
+              style={{ fontSize: 16 }}
             />
           </Space>
         </Flex>

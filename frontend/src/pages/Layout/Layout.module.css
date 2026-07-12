@@ -1,3 +1,50 @@
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.navLink {
+  position: relative;
+  padding: 10px 16px;
+  color: var(--nav-inactive-color);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+.navLink:hover {
+  color: var(--nav-hover-color);
+}
+
+.navLink::after {
+  content: '';
+  position: absolute;
+  right: 16px;
+  bottom: 0;
+  left: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--nav-underline);
+  opacity: 0;
+  transform: scaleX(0.6);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.navLinkActive {
+  color: var(--nav-active-color);
+  font-weight: 600;
+}
+
+.navLinkActive::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.reviewLink:hover {
+  text-decoration: underline;
+}
+
 /* stylelint-disable color-function-notation */
 .bitSmtpAd .btn {
   position: relative;
