@@ -7,12 +7,15 @@ const commonConfig: ThemeConfig = {
   token: {
     fontFamily,
     borderRadius: 8,
-    colorPrimary: '#2563eb',
-    colorInfo: '#2563eb',
+    borderRadiusLG: 12,
+    colorPrimary: '#4f46e5',
+    colorInfo: '#7c3aed',
     colorSuccess: '#16a34a',
     colorWarning: '#d97706',
     colorError: '#dc2626',
-    colorTextBase: '#0f172a'
+    colorTextBase: '#0f172a',
+    controlHeight: 38,
+    boxShadowSecondary: '0 4px 16px -4px rgba(15,23,42,0.12)'
   }
 }
 export default commonConfig

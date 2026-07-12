@@ -5,9 +5,11 @@ const lightTheme: ThemeConfig = {
   ...commonConfig,
   token: {
     ...commonConfig.token,
+    colorBgLayout: '#f8fafc',
     colorBgContainer: '#ffffff',
     colorBgElevated: '#ffffff',
-    colorBorder: '#e2e8f0'
+    colorBorder: '#e2e8f0',
+    colorBorderSecondary: '#eef2f7'
   }
 }
 
