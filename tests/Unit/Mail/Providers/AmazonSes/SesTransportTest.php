@@ -47,6 +47,59 @@ class SesTransportTest extends BaseUnitTestCase
         $this->transport->send($this->message(), $this->connection(['settings' => ['region' => 'eu-west-1', 'access_key' => 'AKIDEXAMPLE']]));
     }
 
+    public function testSendReturnsFailureAndNeverCallsApiClientForMalformedRegionWithHostInjectionCharacters(): void
+    {
+        $this->mimeBuilder->shouldNotReceive('fromMailMessage');
+        $this->apiClient->shouldNotReceive('setHeaders');
+        $this->apiClient->shouldNotReceive('post');
+
+        $result = $this->transport->send($this->message(), $this->connection(['settings' => ['region' => 'evil.com#', 'access_key' => 'AKIDEXAMPLE']]));
+
+        $this->assertFalse($result->isOk());
+        $this->assertSame('Invalid AWS SES region.', $result->getError());
+    }
+
+    public function testSendReturnsFailureAndNeverCallsApiClientForMalformedRegionWithPathTraversalCharacters(): void
+    {
+        $this->mimeBuilder->shouldNotReceive('fromMailMessage');
+        $this->apiClient->shouldNotReceive('setHeaders');
+        $this->apiClient->shouldNotReceive('post');
+
+        $result = $this->transport->send($this->message(), $this->connection(['settings' => ['region' => 'a.b/', 'access_key' => 'AKIDEXAMPLE']]));
+
+        $this->assertFalse($result->isOk());
+        $this->assertSame('Invalid AWS SES region.', $result->getError());
+    }
+
+    public function testSendReturnsFailureAndNeverCallsApiClientForRegionWithTrailingNewline(): void
+    {
+        // A bare `$` anchor matches before a trailing newline; the region must still be rejected
+        // so "us-east-1\n" can never reach sprintf into the request host.
+        $this->mimeBuilder->shouldNotReceive('fromMailMessage');
+        $this->apiClient->shouldNotReceive('setHeaders');
+        $this->apiClient->shouldNotReceive('post');
+
+        $result = $this->transport->send($this->message(), $this->connection(['settings' => ['region' => "us-east-1\n", 'access_key' => 'AKIDEXAMPLE']]));
+
+        $this->assertFalse($result->isOk());
+        $this->assertSame('Invalid AWS SES region.', $result->getError());
+    }
+
+    public function testSendBuildsCorrectEndpointAndSucceedsForValidRegion(): void
+    {
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->andReturn('raw-mime');
+
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with('https://email.us-east-1.amazonaws.com/v2/email/outbound-emails', Mockery::any())
+            ->andReturn(new ApiResponse(200, []));
+
+        $result = $this->transport->send($this->message(), $this->connection(['settings' => ['region' => 'us-east-1', 'access_key' => 'AKIDEXAMPLE']]));
+
+        $this->assertTrue($result->isOk());
+    }
+
     public function testBuildBodyEncodesMimeMessageAsBase64RawData(): void
     {
         $mime = "Subject: Hi\r\n\r\nBody";

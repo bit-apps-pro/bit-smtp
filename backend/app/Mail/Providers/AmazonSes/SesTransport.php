@@ -8,9 +8,17 @@ use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
 use BitApps\SMTP\Mail\Transport\AbstractAwsTransport;
+use InvalidArgumentException;
 
 class SesTransport extends AbstractAwsTransport
 {
+    /**
+     * AWS region shape (e.g. us-east-1); the region is interpolated into the signed
+     * request host, so anything outside this charset must never reach endpoint(). The `D`
+     * modifier makes `$` match only the true end of string, rejecting a trailing newline.
+     */
+    private const REGION_PATTERN = '/^[a-z]{2}-[a-z]+-\d+$/D';
+
     private MimeBuilder $mime;
 
     public function __construct(ApiClient $client, SigV4Signer $signer, MimeBuilder $mime)
@@ -26,7 +34,13 @@ class SesTransport extends AbstractAwsTransport
 
     protected function region(Connection $connection): string
     {
-        return (string) ($connection->getSettings()['region'] ?? '');
+        $region = (string) ($connection->getSettings()['region'] ?? '');
+
+        if (!preg_match(self::REGION_PATTERN, $region)) {
+            throw new InvalidArgumentException('Invalid AWS SES region.');
+        }
+
+        return $region;
     }
 
     protected function accessKey(Connection $connection): string
