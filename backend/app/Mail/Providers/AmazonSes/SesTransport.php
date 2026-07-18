@@ -13,11 +13,12 @@ use InvalidArgumentException;
 class SesTransport extends AbstractAwsTransport
 {
     /**
-     * AWS region shape (e.g. us-east-1); the region is interpolated into the signed
-     * request host, so anything outside this charset must never reach endpoint(). The `D`
-     * modifier makes `$` match only the true end of string, rejecting a trailing newline.
+     * AWS region shape, allowing GovCloud/ISO's extra segment (e.g. us-east-1, us-gov-east-1);
+     * the region is interpolated into the signed request host, so anything outside this charset
+     * must never reach endpoint(). The `D` modifier makes `$` match only the true end of string,
+     * rejecting a trailing newline.
      */
-    private const REGION_PATTERN = '/^[a-z]{2}-[a-z]+-\d+$/D';
+    private const REGION_PATTERN = '/^[a-z]{2}(-[a-z]+)+-\d+$/D';
 
     private MimeBuilder $mime;
 

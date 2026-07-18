@@ -100,6 +100,21 @@ class SesTransportTest extends BaseUnitTestCase
         $this->assertTrue($result->isOk());
     }
 
+    public function testSendBuildsCorrectEndpointAndSucceedsForFourSegmentGovCloudRegion(): void
+    {
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->andReturn('raw-mime');
+
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with('https://email.us-gov-east-1.amazonaws.com/v2/email/outbound-emails', Mockery::any())
+            ->andReturn(new ApiResponse(200, []));
+
+        $result = $this->transport->send($this->message(), $this->connection(['settings' => ['region' => 'us-gov-east-1', 'access_key' => 'AKIDEXAMPLE']]));
+
+        $this->assertTrue($result->isOk());
+    }
+
     public function testBuildBodyEncodesMimeMessageAsBase64RawData(): void
     {
         $mime = "Subject: Hi\r\n\r\nBody";
