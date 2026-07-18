@@ -8,7 +8,7 @@ use BitApps\SMTP\HTTP\Services\MailConfigService;
 
 /**
  * Verifies the OAuth routes are wired with the right protection: `authorize` inside the
- * `nonce:admin` group, `callback` public (state-gated) outside it.
+ * `cap:admin` group, `callback` public (state-gated) outside it.
  *
  * @internal
  *
@@ -46,16 +46,16 @@ final class OAuthRouteTest extends IntegrationTestCase
         $this->assertArrayHasKey($prefix . '/mail/oauth/callback', $routes);
     }
 
-    public function testAuthorizeIsBehindNonceAdminMiddleware(): void
+    public function testAuthorizeIsBehindCapAdminMiddleware(): void
     {
         $this->assertArrayHasKey('mail/oauth/authorize', $this->routesByPath);
-        $this->assertContains('nonce:admin', $this->routesByPath['mail/oauth/authorize']->getMiddleware());
+        $this->assertContains('cap:admin', $this->routesByPath['mail/oauth/authorize']->getMiddleware());
     }
 
-    public function testCallbackIsPublicWithoutNonceMiddleware(): void
+    public function testCallbackIsPublicWithoutCapMiddleware(): void
     {
         $this->assertArrayHasKey('mail/oauth/callback', $this->routesByPath);
-        $this->assertNotContains('nonce:admin', $this->routesByPath['mail/oauth/callback']->getMiddleware());
+        $this->assertNotContains('cap:admin', $this->routesByPath['mail/oauth/callback']->getMiddleware());
         $this->assertEmpty($this->routesByPath['mail/oauth/callback']->getMiddleware());
     }
 

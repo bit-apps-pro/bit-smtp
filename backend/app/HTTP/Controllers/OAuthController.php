@@ -53,7 +53,7 @@ class OAuthController
     }
 
     /**
-     * Build the provider consent URL for a connection. Runs under `nonce:admin`; the explicit
+     * Build the provider consent URL for a connection. Runs under `cap:admin`; the explicit
      * capability check is defence in depth.
      *
      * @return Response

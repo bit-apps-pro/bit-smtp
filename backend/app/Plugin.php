@@ -16,7 +16,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Migration\MigrationHelper;
 use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
 use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\Telemetry;
 use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\TelemetryConfig;
-use BitApps\SMTP\HTTP\Middleware\NonceCheckerMiddleware;
+use BitApps\SMTP\HTTP\Middleware\CapabilityCheckerMiddleware;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
@@ -89,7 +89,7 @@ final class Plugin
     public function middlewares()
     {
         return [
-            'nonce' => NonceCheckerMiddleware::class,
+            'cap' => CapabilityCheckerMiddleware::class,
         ];
     }
 

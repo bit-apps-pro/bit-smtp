@@ -37,7 +37,7 @@ Route::group(function () {
     Route::post('mail/connections/delete', [ConnectionController::class, 'delete']);
     Route::post('mail/connections/test', [ConnectionController::class, 'test']);
     Route::get('mail/oauth/authorize', [OAuthController::class, 'authorize']);
-})->middleware('nonce:admin');
+})->middleware('cap:admin');
 
 // Public: the OAuth provider redirects the browser here. No nonce is possible on a cross-site
 // redirect, so it is secured by the signed `state` verified inside the controller.
