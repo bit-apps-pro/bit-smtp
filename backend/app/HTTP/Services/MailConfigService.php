@@ -9,6 +9,8 @@ use BitApps\SMTP\Mail\Config\MailSettingsSanitizer;
 use BitApps\SMTP\Mail\Config\MailSettingsSerializer;
 use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Credentials\CredentialCipher;
+use BitApps\SMTP\Mail\Exceptions\CredentialCipherException;
 
 /**
  * Facade over the v2 mail-settings domain. Reads migrate legacy config in memory only (never
@@ -29,9 +31,8 @@ class MailConfigService
     public function load(): MailSettings
     {
         if ($this->settings === null) {
-            $this->settings = MailSettings::fromArray(
-                MailSettingsMigrator::migrate(Config::getOption(self::OPTION, []))
-            );
+            $migrated       = MailSettingsMigrator::migrate(Config::getOption(self::OPTION, []));
+            $this->settings = MailSettings::fromArray($this->decryptCredentials($migrated));
         }
 
         return $this->settings;
@@ -52,7 +53,8 @@ class MailConfigService
     {
         $this->backupLegacyOnce();
 
-        $stored = (bool) Config::updateOption(self::OPTION, $settings->toArray());
+        $encrypted = $this->encryptCredentials($settings->toArray());
+        $stored    = (bool) Config::updateOption(self::OPTION, $encrypted);
 
         $this->settings = $settings;
 
@@ -232,5 +234,80 @@ class MailConfigService
         if (\is_array($current) && $current !== [] && !isset($current['schema_version'])) {
             Config::addOption(self::LEGACY_BACKUP_OPTION, $current);
         }
+    }
+
+    /**
+     * Encrypt every credential value before it is written to the options table. The in-memory
+     * MailSettings object built from $data stays plaintext; only the persisted copy is ciphertext.
+     *
+     * @param array<string,mixed> $data
+     *
+     * @return array<string,mixed>
+     */
+    private function encryptCredentials(array $data): array
+    {
+        return $this->walkCredentialValues($data, static function (string $value): string {
+            return CredentialCipher::encrypt($value);
+        });
+    }
+
+    /**
+     * Decrypt every credential value read back from the options table, so every other consumer of
+     * load() (masking, legacy shape, sending) keeps working against plaintext unchanged.
+     *
+     * @param array<string,mixed> $data
+     *
+     * @return array<string,mixed>
+     */
+    private function decryptCredentials(array $data): array
+    {
+        return $this->walkCredentialValues($data, [$this, 'decryptCredentialValue']);
+    }
+
+    /**
+     * A rotated wp_salt (or any other CredentialCipherException) makes a stored credential
+     * permanently unrecoverable; degrade that single value to '' rather than fatal the admin screen.
+     */
+    private function decryptCredentialValue(string $value): string
+    {
+        try {
+            return CredentialCipher::decrypt($value);
+        } catch (CredentialCipherException $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface a lost credential without fataling the request
+            error_log('Bit SMTP: ' . $e->getMessage());
+
+            return '';
+        }
+    }
+
+    /**
+     * Walk connections[].credentials[].value defensively, applying $transform to every value found.
+     * Tolerates missing connections/credentials/value keys and an empty credentials array.
+     *
+     * @param array<string,mixed> $data
+     *
+     * @return array<string,mixed>
+     */
+    private function walkCredentialValues(array $data, callable $transform): array
+    {
+        if (!isset($data['connections']) || !\is_array($data['connections'])) {
+            return $data;
+        }
+
+        foreach ($data['connections'] as $i => $connection) {
+            if (!\is_array($connection) || !isset($connection['credentials']) || !\is_array($connection['credentials'])) {
+                continue;
+            }
+
+            foreach ($connection['credentials'] as $key => $credential) {
+                if (!\is_array($credential) || !isset($credential['value'])) {
+                    continue;
+                }
+
+                $data['connections'][$i]['credentials'][$key]['value'] = $transform((string) $credential['value']);
+            }
+        }
+
+        return $data;
     }
 }

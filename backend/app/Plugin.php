@@ -202,8 +202,14 @@ final class Plugin
             Config::deleteOption('new_product_nav_btn_hide');
         }
 
-        if (version_compare(Config::getOption('version'), Config::VERSION, '<')) {
-            // here we checked version. updated version number updates to option through this migration
+        // Gate on the schema version too, not just the plugin version: a schema-only migration (e.g.
+        // encrypting stored credentials) ships without a plugin-version bump, so installs already at
+        // Config::VERSION must still run it when their db_version is behind.
+        $behindVersion   = version_compare(Config::getOption('version'), Config::VERSION, '<');
+        $behindDbVersion = version_compare(Config::getOption('db_version', '0'), Config::DB_VERSION, '<');
+
+        if ($behindVersion || $behindDbVersion) {
+            // BitSmtpPluginOptions::up() writes version and db_version to current, so one run settles both gates.
             try {
                 MigrationHelper::migrate(InstallerProvider::migration());
             } catch (Exception $e) {

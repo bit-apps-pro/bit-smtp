@@ -77,6 +77,7 @@ class InstallerProvider
         $migrations = [
             'BitSmtpPluginOptions',
             'BitSmtpLogsTableMigration',
+            'BitSmtpEncryptSecrets',
         ];
 
         return [
@@ -95,6 +96,7 @@ class InstallerProvider
         $migrations = [
             'BitSmtpPluginOptions',
             'BitSmtpLogsTableMigration',
+            'BitSmtpEncryptSecrets',
         ];
 
         return [

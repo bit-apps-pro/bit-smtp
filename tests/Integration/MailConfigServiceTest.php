@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Tests\Integration;
 use BitApps\SMTP\Config;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Plugin;
+use BitSmtpEncryptSecrets;
 
 /**
  * Data-safety guarantees for the MailConfigService facade: legacy config maps correctly, writes are
@@ -226,6 +227,127 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertTrue($sent);
         $this->assertNotEmpty($this->mailpitMessages());
         $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
+    }
+
+    public function testStoredCredentialValueIsEncryptedAtRestWhileLoadReturnsPlaintext(): void
+    {
+        $service = $this->freshService();
+        $service->saveSettings($this->v2SettingsArray('conn_1', 'real-secret'));
+
+        $raw         = Config::getOption('options');
+        $storedValue = $raw['connections'][0]['credentials']['password']['value'];
+
+        $this->assertStringStartsWith('bsenc:v1:', $storedValue);
+        $this->assertNotSame('real-secret', $storedValue);
+
+        $loaded = $this->freshService()->load()->getConnections()->byId('conn_1');
+        $this->assertNotNull($loaded);
+        $this->assertSame('real-secret', $loaded->getCredentials()['password']['value']);
+    }
+
+    public function testApiShapeMasksAndLegacyShapeDecryptsAfterEncryptedSave(): void
+    {
+        $service = $this->freshService();
+        $service->saveSettings($this->v2SettingsArray('conn_1', 'legacy-secret'));
+
+        $api = $this->freshService()->apiSettings();
+        $this->assertSame('********', $api['connections'][0]['credentials']['password']['value']);
+
+        $legacy = $this->freshService()->toLegacyShape();
+        $this->assertSame('legacy-secret', $legacy['smtp_password']);
+    }
+
+    public function testEncryptSecretsMigrationEncryptsExistingPlaintextInstall(): void
+    {
+        // Seed the raw option exactly as a pre-encryption install would have it: v2 shape, but the
+        // credential value still plain (no bsenc:v1: prefix).
+        $this->storeOptions($this->v2SettingsArray('conn_1', 'plain-install-secret'));
+
+        // Mirror a real request: the shared service instance must reflect the seeded option before
+        // the migration re-stores it, exactly like Plugin::maybeMigrateDB() runs on a fresh request.
+        Plugin::instance()->mailConfigService()->reload();
+
+        if (!class_exists('BitSmtpEncryptSecrets', false)) {
+            require_once \dirname(__DIR__, 2) . '/backend/db/Migrations/BitSmtpEncryptSecrets.php';
+        }
+        (new BitSmtpEncryptSecrets())->up();
+
+        $raw = Config::getOption('options');
+        $this->assertStringStartsWith(
+            'bsenc:v1:',
+            $raw['connections'][0]['credentials']['password']['value']
+        );
+
+        $loaded = $this->freshService()->load()->getConnections()->byId('conn_1');
+        $this->assertNotNull($loaded);
+        $this->assertSame('plain-install-secret', $loaded->getCredentials()['password']['value']);
+    }
+
+    public function testMaybeMigrateDbEncryptsWhenDbVersionIsBehindAtCurrentPluginVersion(): void
+    {
+        // The real upgrade population: an install already at Config::VERSION (so the plugin-version
+        // gate is satisfied) but with db_version behind. The encrypt migration must still fire off the
+        // db_version gate; otherwise every already-updated install keeps its secrets in plaintext.
+        $this->storeOptions($this->v2SettingsArray('conn_1', 'legacy-plaintext'));
+
+        $previousVersion   = Config::getOption('version');
+        $previousDbVersion = Config::getOption('db_version');
+
+        Config::updateOption('version', Config::VERSION, true);
+        Config::updateOption('db_version', '1.1', true);
+
+        // maybeMigrateDB is capability-gated; user 1 is the admin seeded by the WP test suite.
+        wp_set_current_user(1);
+        // The migration reuses the shared service; make it reflect the freshly seeded option.
+        Plugin::instance()->mailConfigService()->reload();
+
+        try {
+            Plugin::maybeMigrateDB();
+
+            $raw = Config::getOption('options');
+            $this->assertStringStartsWith(
+                'bsenc:v1:',
+                $raw['connections'][0]['credentials']['password']['value']
+            );
+
+            $loaded = $this->freshService()->load()->getConnections()->byId('conn_1');
+            $this->assertNotNull($loaded);
+            $this->assertSame('legacy-plaintext', $loaded->getCredentials()['password']['value']);
+        } finally {
+            wp_set_current_user(0);
+            Config::updateOption('version', $previousVersion, true);
+            Config::updateOption('db_version', $previousDbVersion, true);
+            Plugin::instance()->mailConfigService()->reload();
+        }
+    }
+
+    public function testConnectionWithEmptyCredentialsRoundTripsWithoutError(): void
+    {
+        // The encrypt/decrypt walk must tolerate a connection with no credentials at all (e.g. an
+        // API-key provider mid-setup, before any secret has been entered).
+        $data                                  = $this->v2SettingsArray('conn_1', 'unused');
+        $data['connections'][0]['credentials'] = [];
+
+        $this->freshService()->saveSettings($data);
+
+        $loaded = $this->freshService()->load()->getConnections()->byId('conn_1');
+        $this->assertNotNull($loaded);
+        $this->assertSame([], $loaded->getCredentials());
+    }
+
+    public function testCorruptedCiphertextDegradesToEmptyStringWithoutFatal(): void
+    {
+        // Simulates an unrecoverable credential (e.g. rotated wp_salt): the bsenc:v1: prefix is
+        // present but the payload cannot be authenticated. load() must degrade this one value to ''
+        // rather than throw and take down the admin screen.
+        $data                                                       = $this->v2SettingsArray('conn_1', 'placeholder');
+        $data['connections'][0]['credentials']['password']['value'] = 'bsenc:v1:not-valid-base64-payload!!!';
+        $this->storeOptions($data);
+
+        $loaded = $this->freshService()->load()->getConnections()->byId('conn_1');
+
+        $this->assertNotNull($loaded);
+        $this->assertSame('', $loaded->getCredentials()['password']['value']);
     }
 
     public function testSaveSettingsWithSentinelPreservesStoredSecret(): void
