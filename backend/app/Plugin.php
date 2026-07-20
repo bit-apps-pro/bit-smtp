@@ -36,6 +36,7 @@ use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
 use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
 use BitApps\SMTP\Mail\Providers\Postmark\PostmarkProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
+use BitApps\SMTP\Mail\Providers\Resend\ResendProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridTransport;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
@@ -136,6 +137,7 @@ final class Plugin
         $registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
         $registry->register(new PostmarkProvider($apiClient, $authResolver));
         $registry->register(new BrevoProvider($apiClient, $authResolver));
+        $registry->register(new ResendProvider($apiClient, $authResolver));
         $this->_container['providerRegistry'] = $registry;
 
         $this->_container['smtpProvider'] = new WpMailBridge(
