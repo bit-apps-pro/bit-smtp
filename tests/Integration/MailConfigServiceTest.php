@@ -467,6 +467,68 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('new-host.example.com', $conn->setting('host'));
     }
 
+    public function testSaveConnectionEditPayloadWithPartialCredentialsPreservesOAuthTokens(): void
+    {
+        // Seed a connected OAuth connection with all three credential keys, as OAuthController
+        // leaves it after a completed consent flow.
+        $this->freshService()->saveSettings([
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_oauth',
+            'fallback_connection_ids' => [],
+            'connections'             => [[
+                'id'           => 'conn_oauth',
+                'provider'     => 'gmail',
+                'kind'         => 'oauth',
+                'name'         => 'Gmail',
+                'enabled'      => true,
+                'fromEmail'    => 'a@example.com',
+                'fromName'     => 'A',
+                'replyToEmail' => '',
+                'settings'     => ['host' => '', 'port' => 0, 'encryption' => 'none', 'auth' => false, 'username' => '', 'smtp_debug' => false],
+                'credentials'  => [
+                    'client_secret' => ['source' => 'database', 'value' => 'orig-client-secret'],
+                    'access_token'  => ['source' => 'database', 'value' => 'orig-access-token'],
+                    'refresh_token' => ['source' => 'database', 'value' => 'orig-refresh-token'],
+                ],
+            ]],
+            'features' => [],
+        ]);
+
+        // Edit the same connection sending ONLY client_secret — exactly what the frontend posts
+        // when editing an already-connected OAuth connection outside a fresh consent flow.
+        $this->freshService()->saveConnection([
+            'id'           => 'conn_oauth',
+            'provider'     => 'gmail',
+            'kind'         => 'oauth',
+            'name'         => 'Gmail Renamed',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['host' => '', 'port' => 0, 'encryption' => 'none', 'auth' => false, 'username' => '', 'smtp_debug' => false],
+            'credentials'  => [
+                'client_secret' => ['source' => 'database', 'value' => 'new-client-secret'],
+            ],
+        ]);
+
+        $reloaded = $this->freshService()->load()->getConnections()->byId('conn_oauth');
+        $this->assertNotNull($reloaded);
+        $creds = $reloaded->getCredentials();
+        $this->assertSame(
+            'orig-access-token',
+            $creds['access_token']['value'] ?? null,
+            'access_token must survive an edit payload that omits it'
+        );
+        $this->assertSame(
+            'orig-refresh-token',
+            $creds['refresh_token']['value'] ?? null,
+            'refresh_token must survive an edit payload that omits it'
+        );
+        $this->assertSame('new-client-secret', $creds['client_secret']['value'] ?? null);
+        $this->assertSame('Gmail Renamed', $reloaded->getName());
+    }
+
     public function testDeleteConnectionRemovesItAndRepointsDefault(): void
     {
         // Store two connections, conn_1 as default

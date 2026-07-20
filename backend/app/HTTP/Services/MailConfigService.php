@@ -130,12 +130,17 @@ class MailConfigService
         foreach ($connections as $i => $existing) {
             if ($existing['id'] === $incomingId && $incomingId !== '') {
                 // Replace in-place, preserving masked credentials from the stored version.
-                $resolved          = MaskedSecretResolver::apply(
+                $resolved     = MaskedSecretResolver::apply(
                     ['connections' => [$connection]],
                     $current
                 );
-                $connections[$i]   = $resolved['connections'][0];
-                $isNew             = false;
+                $resolvedConn = $resolved['connections'][0];
+                // MaskedSecretResolver only resolves credential keys present in the incoming
+                // payload; an edit that omits a key (e.g. OAuth tokens absent from a re-save)
+                // must not drop it, so union-merge in whatever the stored connection still has.
+                $resolvedConn['credentials'] = ($resolvedConn['credentials'] ?? []) + ($existing['credentials'] ?? []);
+                $connections[$i]             = $resolvedConn;
+                $isNew                       = false;
 
                 break;
             }
