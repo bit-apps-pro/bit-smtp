@@ -24,12 +24,12 @@ class GmailTransport extends AbstractOAuth2Transport
         $this->useStrategy(new OAuth2Strategy($tokens, $this), new JsonEncoder());
     }
 
-    public function authUrl(): string
+    public function authUrl(Connection $connection): string
     {
         return 'https://accounts.google.com/o/oauth2/v2/auth';
     }
 
-    public function tokenUrl(): string
+    public function tokenUrl(Connection $connection): string
     {
         return 'https://oauth2.googleapis.com/token';
     }
@@ -39,9 +39,12 @@ class GmailTransport extends AbstractOAuth2Transport
         return ['https://www.googleapis.com/auth/gmail.send'];
     }
 
-    public function sendEndpoint(): string
+    /**
+     * @return array<string,string>
+     */
+    public function extraAuthParams(): array
     {
-        return self::SEND_ENDPOINT;
+        return ['access_type' => 'offline', 'prompt' => 'consent'];
     }
 
     protected function endpoint(Connection $connection): string

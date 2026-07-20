@@ -37,14 +37,14 @@ class GmailTransportTest extends BaseUnitTestCase
         $this->transport     = new GmailTransport($this->apiClient, $this->tokenProvider, $this->mimeBuilder);
     }
 
-    public function testAuthUrlReturnsGoogleAuthEndpoint(): void
+    public function testAuthUrlReturnsGoogleAuthEndpointIgnoringConnection(): void
     {
-        $this->assertSame('https://accounts.google.com/o/oauth2/v2/auth', $this->transport->authUrl());
+        $this->assertSame('https://accounts.google.com/o/oauth2/v2/auth', $this->transport->authUrl($this->connection()));
     }
 
-    public function testTokenUrlReturnsGoogleTokenEndpoint(): void
+    public function testTokenUrlReturnsGoogleTokenEndpointIgnoringConnection(): void
     {
-        $this->assertSame('https://oauth2.googleapis.com/token', $this->transport->tokenUrl());
+        $this->assertSame('https://oauth2.googleapis.com/token', $this->transport->tokenUrl($this->connection()));
     }
 
     public function testScopesReturnsGmailSendScope(): void
@@ -52,9 +52,9 @@ class GmailTransportTest extends BaseUnitTestCase
         $this->assertSame(['https://www.googleapis.com/auth/gmail.send'], $this->transport->scopes());
     }
 
-    public function testSendEndpointReturnsGmailSendMessagesUrl(): void
+    public function testExtraAuthParamsForcesOfflineAccessAndConsent(): void
     {
-        $this->assertSame('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', $this->transport->sendEndpoint());
+        $this->assertSame(['access_type' => 'offline', 'prompt' => 'consent'], $this->transport->extraAuthParams());
     }
 
     public function testSendPostsToGmailSendEndpoint(): void

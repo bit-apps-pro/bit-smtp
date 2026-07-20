@@ -87,15 +87,15 @@ class OAuthController
             return Response::error(__('This connection is missing its Client ID', 'bit-smtp'));
         }
 
-        $consentUrl = $transport->authUrl() . '?' . http_build_query([
+        $queryParams = array_merge([
             'client_id'     => $clientId,
             'redirect_uri'  => $this->callbackUrl(),
             'response_type' => 'code',
             'scope'         => implode(' ', $transport->scopes()),
-            'access_type'   => 'offline',
-            'prompt'        => 'consent',
             'state'         => OAuthStateCodec::encode($connectionId, $provider),
-        ]);
+        ], $transport->extraAuthParams());
+
+        $consentUrl = $transport->authUrl($connection) . '?' . http_build_query($queryParams);
 
         return Response::success(['url' => $consentUrl]);
     }
@@ -160,7 +160,7 @@ class OAuthController
         $clientId     = (string) $connection->setting('client_id', '');
         $clientSecret = (string) ($connection->getCredentials()['client_secret']['value'] ?? '');
 
-        $response = $this->client()->postForm($transport->tokenUrl(), [
+        $response = $this->client()->postForm($transport->tokenUrl($connection), [
             'grant_type'    => 'authorization_code',
             'code'          => $code,
             'client_id'     => $clientId,

@@ -30,12 +30,12 @@ class AbstractOAuth2TransportTest extends BaseUnitTestCase
  */
 class FakeOAuth2Transport extends AbstractOAuth2Transport
 {
-    public function authUrl(): string
+    public function authUrl(Connection $connection): string
     {
         return 'https://example.com/auth';
     }
 
-    public function tokenUrl(): string
+    public function tokenUrl(Connection $connection): string
     {
         return 'https://example.com/token';
     }
@@ -45,14 +45,14 @@ class FakeOAuth2Transport extends AbstractOAuth2Transport
         return ['scope'];
     }
 
-    public function sendEndpoint(): string
+    public function extraAuthParams(): array
     {
-        return 'https://example.com/send';
+        return [];
     }
 
     protected function endpoint(Connection $connection): string
     {
-        return $this->sendEndpoint();
+        return 'https://example.com/send';
     }
 
     /**

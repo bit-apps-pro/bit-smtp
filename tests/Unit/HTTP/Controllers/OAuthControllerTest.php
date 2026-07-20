@@ -78,10 +78,13 @@ class OAuthControllerTest extends BaseUnitTestCase
 
     public function testAuthorizeBuildsConsentUrlWithGoogleParamsAndValidState(): void
     {
+        $connection = $this->gmailConnection();
+
         $this->registerGmailTransport();
-        $this->transport->shouldReceive('authUrl')->andReturn(self::AUTH_URL);
+        $this->transport->shouldReceive('authUrl')->once()->with($connection)->andReturn(self::AUTH_URL);
         $this->transport->shouldReceive('scopes')->andReturn([self::SCOPE]);
-        $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($this->gmailConnection());
+        $this->transport->shouldReceive('extraAuthParams')->andReturn(['access_type' => 'offline', 'prompt' => 'consent']);
+        $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($connection);
 
         $this->controller->authorize($this->request(['connection_id' => 'conn_1', 'provider' => 'gmail']));
 
