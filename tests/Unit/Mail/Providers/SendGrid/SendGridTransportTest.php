@@ -80,7 +80,7 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), $expectedBody)
+            ->with(Mockery::any(), json_encode($expectedBody))
             ->andReturn(new ApiResponse(202, []));
 
         $this->transport->send($this->message(), $this->connection());
@@ -96,7 +96,9 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), Mockery::on(static function (array $body) {
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) {
+                $body = $this->decodeBody($bodyJson);
+
                 return $body['personalizations'][0]['cc']  === [['email' => 'cc@example.com']]
                     && $body['personalizations'][0]['bcc'] === [['email' => 'bcc@example.com']];
             }))
@@ -110,7 +112,9 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), Mockery::on(static function (array $body) {
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) {
+                $body = $this->decodeBody($bodyJson);
+
                 return !isset($body['personalizations'][0]['cc']) && !isset($body['personalizations'][0]['bcc']);
             }))
             ->andReturn(new ApiResponse(202, []));
@@ -128,7 +132,9 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), Mockery::on(static function (array $body) {
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) {
+                $body = $this->decodeBody($bodyJson);
+
                 return $body['from'] === ['email' => 'override@example.com', 'name' => 'Override Name'];
             }))
             ->andReturn(new ApiResponse(202, []));
@@ -141,7 +147,9 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), Mockery::on(static function (array $body) {
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) {
+                $body = $this->decodeBody($bodyJson);
+
                 return !isset($body['reply_to']);
             }))
             ->andReturn(new ApiResponse(202, []));
@@ -159,7 +167,9 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), Mockery::on(static function (array $body) {
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) {
+                $body = $this->decodeBody($bodyJson);
+
                 return $body['reply_to'] === ['email' => 'reply@example.com'];
             }))
             ->andReturn(new ApiResponse(202, []));
@@ -174,7 +184,9 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), Mockery::on(static function (array $body) {
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) {
+                $body = $this->decodeBody($bodyJson);
+
                 return $body['reply_to'] === ['email' => 'conn-reply@example.com'];
             }))
             ->andReturn(new ApiResponse(202, []));
@@ -187,7 +199,9 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), Mockery::on(static function (array $body) {
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) {
+                $body = $this->decodeBody($bodyJson);
+
                 return !isset($body['attachments']);
             }))
             ->andReturn(new ApiResponse(202, []));
@@ -212,7 +226,9 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), Mockery::on(static function (array $body) use ($expectedAttachment) {
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) use ($expectedAttachment) {
+                $body = $this->decodeBody($bodyJson);
+
                 return $body['attachments'] === [$expectedAttachment];
             }))
             ->andReturn(new ApiResponse(202, []));
@@ -231,7 +247,9 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), Mockery::on(static function (array $body) use ($path) {
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) use ($path) {
+                $body = $this->decodeBody($bodyJson);
+
                 return $body['attachments'][0]['filename'] === basename($path)
                     && $body['attachments'][0]['type']     === 'application/pdf';
             }))
@@ -247,7 +265,9 @@ class SendGridTransportTest extends BaseUnitTestCase
             'attachments' => ['missing.txt' => '/nonexistent/path/missing.txt'],
         ]);
 
-        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        // The strategy path builds/encodes the body before touching the client, so an
+        // unreadable attachment aborts before setHeaders()/post() are ever invoked.
+        $this->apiClient->shouldNotReceive('setHeaders');
         $this->apiClient->shouldNotReceive('post');
 
         $result = $this->transport->send($message, $this->connection());
@@ -313,5 +333,14 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->tempFiles[] = $path;
 
         return $path;
+    }
+
+    /**
+     * The strategy path posts the pre-encoded JSON body string; decode it back to an array
+     * so these assertions can keep comparing structure rather than raw bytes.
+     */
+    private function decodeBody(string $bodyJson): array
+    {
+        return json_decode($bodyJson, true);
     }
 }

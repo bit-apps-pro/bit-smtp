@@ -2,12 +2,15 @@
 
 namespace BitApps\SMTP\Mail\Providers\SendGrid;
 
+use BitApps\SMTP\Mail\Auth\BearerTokenStrategy;
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Message\MailMessage;
-use BitApps\SMTP\Mail\Transport\AbstractApiKeyTransport;
+use BitApps\SMTP\Mail\Support\JsonEncoder;
+use BitApps\SMTP\Mail\Transport\AbstractApiTransport;
 use RuntimeException;
 
-class SendGridTransport extends AbstractApiKeyTransport
+class SendGridTransport extends AbstractApiTransport
 {
     private const MIME_TYPES = [
         'pdf'  => 'application/pdf',
@@ -25,6 +28,13 @@ class SendGridTransport extends AbstractApiKeyTransport
         'xls'  => 'application/vnd.ms-excel',
         'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ];
+
+    public function __construct(ApiClient $client)
+    {
+        parent::__construct($client);
+
+        $this->useStrategy(new BearerTokenStrategy(['credentialKey' => 'api_key']), new JsonEncoder());
+    }
 
     protected function endpoint(Connection $connection): string
     {
@@ -59,6 +69,14 @@ class SendGridTransport extends AbstractApiKeyTransport
         }
 
         return $body;
+    }
+
+    /**
+     * Unused: auth is handled by the BearerTokenStrategy applied in the constructor.
+     */
+    protected function authHeaders(Connection $connection): array
+    {
+        return [];
     }
 
     /**
