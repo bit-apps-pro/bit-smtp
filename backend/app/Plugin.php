@@ -30,6 +30,7 @@ use BitApps\SMTP\Mail\Message\MimeBuilder;
 use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
+use BitApps\SMTP\Mail\Providers\Brevo\BrevoProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
 use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
@@ -134,6 +135,7 @@ final class Plugin
         $registry->register(new GmailProvider(new GmailTransport($apiClient, $tokenProvider, $mimeBuilder)));
         $registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
         $registry->register(new PostmarkProvider($apiClient, $authResolver));
+        $registry->register(new BrevoProvider($apiClient, $authResolver));
         $this->_container['providerRegistry'] = $registry;
 
         $this->_container['smtpProvider'] = new WpMailBridge(

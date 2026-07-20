@@ -5,7 +5,7 @@ namespace BitApps\SMTP\Tests\Integration;
 use BitApps\SMTP\Plugin;
 
 /**
- * Verifies the live plugin registers all four mail providers, so `GET mail/providers` (backed by
+ * Verifies the live plugin registers all six mail providers, so `GET mail/providers` (backed by
  * ProviderRegistry::metadata()) drives the frontend provider modal + metadata-driven fields.
  *
  * @internal
@@ -14,7 +14,7 @@ use BitApps\SMTP\Plugin;
  */
 final class ProviderRegistryMetadataTest extends IntegrationTestCase
 {
-    public function testMetadataExposesAllFourRegisteredProviders(): void
+    public function testMetadataExposesAllSixRegisteredProviders(): void
     {
         $metadata = Plugin::instance()->providerRegistry()->metadata();
 
@@ -24,12 +24,12 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         }
 
         $this->assertSame(
-            ['other_smtp', 'sendgrid', 'gmail', 'amazon_ses'],
+            ['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo'],
             array_keys($byKey),
-            'all four providers register in priority-agnostic insertion order'
+            'all six providers register in priority-agnostic insertion order'
         );
 
-        foreach (['other_smtp', 'sendgrid', 'gmail', 'amazon_ses'] as $key) {
+        foreach (['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo'] as $key) {
             $this->assertArrayHasKey('label', $byKey[$key]);
             $this->assertArrayHasKey('kind', $byKey[$key]);
             $this->assertNotEmpty($byKey[$key]['fields'], "{$key} must expose field metadata");
@@ -39,5 +39,7 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         $this->assertSame('api', $byKey['sendgrid']['kind']);
         $this->assertSame('api', $byKey['gmail']['kind']);
         $this->assertSame('api', $byKey['amazon_ses']['kind']);
+        $this->assertSame('api', $byKey['postmark']['kind']);
+        $this->assertSame('api', $byKey['brevo']['kind']);
     }
 }
