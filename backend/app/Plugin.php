@@ -33,6 +33,7 @@ use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
 use BitApps\SMTP\Mail\Providers\Brevo\BrevoProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
+use BitApps\SMTP\Mail\Providers\Mailjet\MailjetProvider;
 use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
 use BitApps\SMTP\Mail\Providers\Postmark\PostmarkProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
@@ -138,6 +139,7 @@ final class Plugin
         $registry->register(new PostmarkProvider($apiClient, $authResolver));
         $registry->register(new BrevoProvider($apiClient, $authResolver));
         $registry->register(new ResendProvider($apiClient, $authResolver));
+        $registry->register(new MailjetProvider($apiClient, $authResolver));
         $this->_container['providerRegistry'] = $registry;
 
         $this->_container['smtpProvider'] = new WpMailBridge(

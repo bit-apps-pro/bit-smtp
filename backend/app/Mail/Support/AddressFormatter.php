@@ -15,6 +15,8 @@ final class AddressFormatter
 
     public const SHAPE_OBJECT = 'object';
 
+    public const SHAPE_OBJECT_UC = 'object_uc';
+
     public const SHAPE_NESTED = 'nested';
 
     public const SHAPE_RFC822 = 'rfc822';
@@ -33,6 +35,8 @@ final class AddressFormatter
                 return $this->toCsv($parsed);
             case self::SHAPE_OBJECT:
                 return $this->toObjectList($parsed);
+            case self::SHAPE_OBJECT_UC:
+                return $this->toObjectUcList($parsed);
             case self::SHAPE_NESTED:
                 return $this->toNestedList($parsed);
             case self::SHAPE_RFC822:
@@ -94,6 +98,24 @@ final class AddressFormatter
 
             if ($address['name'] !== '') {
                 $entry['name'] = $address['name'];
+            }
+
+            return $entry;
+        }, $parsed);
+    }
+
+    /**
+     * @param array<int, array{name: string, address: string}> $parsed
+     *
+     * @return array<int, array{Email: string, Name?: string}>
+     */
+    private function toObjectUcList(array $parsed): array
+    {
+        return array_map(static function (array $address): array {
+            $entry = ['Email' => $address['address']];
+
+            if ($address['name'] !== '') {
+                $entry['Name'] = $address['name'];
             }
 
             return $entry;

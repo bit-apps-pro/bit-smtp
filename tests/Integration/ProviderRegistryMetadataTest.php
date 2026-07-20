@@ -5,7 +5,7 @@ namespace BitApps\SMTP\Tests\Integration;
 use BitApps\SMTP\Plugin;
 
 /**
- * Verifies the live plugin registers all seven mail providers, so `GET mail/providers` (backed by
+ * Verifies the live plugin registers all eight mail providers, so `GET mail/providers` (backed by
  * ProviderRegistry::metadata()) drives the frontend provider modal + metadata-driven fields.
  *
  * @internal
@@ -14,7 +14,7 @@ use BitApps\SMTP\Plugin;
  */
 final class ProviderRegistryMetadataTest extends IntegrationTestCase
 {
-    public function testMetadataExposesAllSevenRegisteredProviders(): void
+    public function testMetadataExposesAllEightRegisteredProviders(): void
     {
         $metadata = Plugin::instance()->providerRegistry()->metadata();
 
@@ -24,12 +24,12 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         }
 
         $this->assertSame(
-            ['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend'],
+            ['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet'],
             array_keys($byKey),
-            'all seven providers register in priority-agnostic insertion order'
+            'all eight providers register in priority-agnostic insertion order'
         );
 
-        foreach (['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend'] as $key) {
+        foreach (['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet'] as $key) {
             $this->assertArrayHasKey('label', $byKey[$key]);
             $this->assertArrayHasKey('kind', $byKey[$key]);
             $this->assertNotEmpty($byKey[$key]['fields'], "{$key} must expose field metadata");
@@ -42,8 +42,13 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         $this->assertSame('api', $byKey['postmark']['kind']);
         $this->assertSame('api', $byKey['brevo']['kind']);
         $this->assertSame('api', $byKey['resend']['kind']);
+        $this->assertSame('api', $byKey['mailjet']['kind']);
 
         $resendFieldKeys = array_column($byKey['resend']['fields'], 'key');
         $this->assertContains('api_key', $resendFieldKeys, 'resend must expose an api_key field');
+
+        $mailjetFieldKeys = array_column($byKey['mailjet']['fields'], 'key');
+        $this->assertContains('api_key', $mailjetFieldKeys, 'mailjet must expose an api_key field');
+        $this->assertContains('secret_key', $mailjetFieldKeys, 'mailjet must expose a secret_key field');
     }
 }
