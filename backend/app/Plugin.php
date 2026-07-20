@@ -35,6 +35,8 @@ use BitApps\SMTP\Mail\Providers\Gmail\GmailProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
 use BitApps\SMTP\Mail\Providers\Mailgun\MailgunProvider;
 use BitApps\SMTP\Mail\Providers\Mailjet\MailjetProvider;
+use BitApps\SMTP\Mail\Providers\Microsoft365\Microsoft365Provider;
+use BitApps\SMTP\Mail\Providers\Microsoft365\Microsoft365Transport;
 use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
 use BitApps\SMTP\Mail\Providers\Postmark\PostmarkProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
@@ -146,6 +148,7 @@ final class Plugin
         $registry->register(new ZeptoProvider($apiClient, $authResolver));
         $registry->register(new MailgunProvider($apiClient, $authResolver));
         $registry->register(new SparkPostProvider($apiClient, $authResolver));
+        $registry->register(new Microsoft365Provider(new Microsoft365Transport($apiClient, $tokenProvider, $mimeBuilder)));
         $this->_container['providerRegistry'] = $registry;
 
         $this->_container['smtpProvider'] = new WpMailBridge(
