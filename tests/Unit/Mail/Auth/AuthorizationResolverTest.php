@@ -2,8 +2,10 @@
 
 namespace BitApps\SMTP\Tests\Unit\Mail\Auth;
 
+use BitApps\SMTP\Mail\Auth\ApiKeyStrategy;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Auth\AwsSigV4Strategy;
+use BitApps\SMTP\Mail\Auth\BasicAuthStrategy;
 use BitApps\SMTP\Mail\Auth\BearerTokenStrategy;
 use BitApps\SMTP\Mail\Auth\OAuth2Strategy;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
@@ -75,5 +77,47 @@ class AuthorizationResolverTest extends BaseUnitTestCase
         $this->expectException(InvalidArgumentException::class);
 
         $this->resolver->resolve($provider, $this->connection);
+    }
+
+    public function testResolveFromConfigReturnsBearerTokenStrategy(): void
+    {
+        $strategy = $this->resolver->resolveFromConfig(['type' => 'bearer', 'params' => ['credentialKey' => 'api_key']]);
+
+        $this->assertInstanceOf(BearerTokenStrategy::class, $strategy);
+    }
+
+    public function testResolveFromConfigReturnsApiKeyStrategy(): void
+    {
+        $strategy = $this->resolver->resolveFromConfig(['type' => 'api_key', 'params' => ['headerName' => 'X-Key', 'valueTemplate' => '{api_key}']]);
+
+        $this->assertInstanceOf(ApiKeyStrategy::class, $strategy);
+    }
+
+    public function testResolveFromConfigReturnsBasicAuthStrategy(): void
+    {
+        $strategy = $this->resolver->resolveFromConfig(['type' => 'basic', 'params' => ['userExpr' => 'api', 'passExpr' => '{api_key}']]);
+
+        $this->assertInstanceOf(BasicAuthStrategy::class, $strategy);
+    }
+
+    public function testResolveFromConfigReturnsAwsSigV4Strategy(): void
+    {
+        $strategy = $this->resolver->resolveFromConfig(['type' => 'aws_sigv4', 'params' => ['service' => 'ses']]);
+
+        $this->assertInstanceOf(AwsSigV4Strategy::class, $strategy);
+    }
+
+    public function testResolveFromConfigThrowsForOAuth2(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->resolver->resolveFromConfig(['type' => 'oauth2', 'params' => []]);
+    }
+
+    public function testResolveFromConfigThrowsForUnknownType(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->resolver->resolveFromConfig(['type' => 'nope']);
     }
 }

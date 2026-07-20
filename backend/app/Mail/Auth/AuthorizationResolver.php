@@ -28,8 +28,24 @@ final class AuthorizationResolver
     public function resolve(ProviderInterface $provider, Connection $connection): AuthStrategyInterface
     {
         $authConfig = $provider->authConfig();
-        $type       = $authConfig['type'];
-        $params     = $authConfig['params'] ?? [];
+
+        // oauth2 needs the provider's transport (see resolveOAuth2); everything else is
+        // connection-independent and shared with descriptor-driven providers.
+        if (($authConfig['type'] ?? null) === 'oauth2') {
+            return $this->resolveOAuth2($provider);
+        }
+
+        return $this->resolveFromConfig($authConfig);
+    }
+
+    /**
+     * Resolve a connection-independent auth strategy straight from an auth descriptor.
+     * oauth2 is intentionally unsupported here: it depends on the provider's transport.
+     */
+    public function resolveFromConfig(array $authConfig): AuthStrategyInterface
+    {
+        $type   = $authConfig['type'];
+        $params = $authConfig['params'] ?? [];
 
         switch ($type) {
             case 'bearer':
@@ -40,9 +56,6 @@ final class AuthorizationResolver
 
             case 'basic':
                 return new BasicAuthStrategy($params);
-
-            case 'oauth2':
-                return $this->resolveOAuth2($provider);
 
             case 'aws_sigv4':
                 return new AwsSigV4Strategy($this->signer, $params['service'] ?? '');
