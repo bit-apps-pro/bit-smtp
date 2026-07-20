@@ -19,6 +19,7 @@ use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\TelemetryConfig;
 use BitApps\SMTP\HTTP\Middleware\CapabilityCheckerMiddleware;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
 use BitApps\SMTP\Mail\Credentials\DatabaseCredentialResolver;
@@ -32,6 +33,7 @@ use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
 use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
+use BitApps\SMTP\Mail\Providers\Postmark\PostmarkProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridTransport;
@@ -124,12 +126,14 @@ final class Plugin
         $mimeBuilder   = new MimeBuilder();
         $tokenProvider = new OAuth2TokenProvider($apiClient, $this->mailConfigService());
         $sigV4Signer   = new SigV4Signer();
+        $authResolver  = new AuthorizationResolver($tokenProvider, $sigV4Signer);
 
         $registry = new ProviderRegistry();
         $registry->register(new OtherSmtpProvider(new SmtpTransport(new DatabaseCredentialResolver())));
         $registry->register(new SendGridProvider(new SendGridTransport($apiClient)));
         $registry->register(new GmailProvider(new GmailTransport($apiClient, $tokenProvider, $mimeBuilder)));
         $registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
+        $registry->register(new PostmarkProvider($apiClient, $authResolver));
         $this->_container['providerRegistry'] = $registry;
 
         $this->_container['smtpProvider'] = new WpMailBridge(
