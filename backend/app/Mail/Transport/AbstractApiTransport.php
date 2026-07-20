@@ -3,20 +3,28 @@
 namespace BitApps\SMTP\Mail\Transport;
 
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Contracts\AuthStrategyInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Http\ApiResponse;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\SendResult;
+use BitApps\SMTP\Mail\Support\ApiRequest;
+use BitApps\SMTP\Mail\Support\EncoderInterface;
 use Throwable;
 
 /**
  * Base for HTTP API transports: posts a provider-built body to a provider endpoint and maps
- * the response into a SendResult via provider-specific success/error rules.
+ * the response into a SendResult via provider-specific success/error rules. A subclass may opt
+ * into the ApiBase path (useStrategy) to route via a pluggable encoder + auth strategy instead.
  */
 abstract class AbstractApiTransport implements TransportInterface
 {
     protected ApiClient $client;
+
+    private ?AuthStrategyInterface $authStrategy = null;
+
+    private ?EncoderInterface $encoder = null;
 
     public function __construct(ApiClient $client)
     {
@@ -25,6 +33,10 @@ abstract class AbstractApiTransport implements TransportInterface
 
     public function send(MailMessage $message, Connection $connection): SendResult
     {
+        if ($this->authStrategy !== null && $this->encoder !== null) {
+            return $this->sendViaStrategy($message, $connection);
+        }
+
         try {
             $response = $this->client
                 ->setHeaders($this->authHeaders($connection) + ['Content-Type' => 'application/json'])
@@ -34,6 +46,15 @@ abstract class AbstractApiTransport implements TransportInterface
         }
 
         return $this->toSendResult($response);
+    }
+
+    /**
+     * Opt a subclass into the ApiBase path: buildBody() feeds the encoder, the strategy signs last.
+     */
+    protected function useStrategy(AuthStrategyInterface $strategy, EncoderInterface $encoder): void
+    {
+        $this->authStrategy = $strategy;
+        $this->encoder      = $encoder;
     }
 
     abstract protected function endpoint(Connection $connection): string;
@@ -66,5 +87,20 @@ abstract class AbstractApiTransport implements TransportInterface
         }
 
         return SendResult::failure($this->errorFrom($status, $body), (string) $status, $debug);
+    }
+
+    private function sendViaStrategy(MailMessage $message, Connection $connection): SendResult
+    {
+        try {
+            $encoded = $this->encoder->encode($this->buildBody($message, $connection));
+            $request = new ApiRequest('POST', $this->endpoint($connection), $encoded['body'], $encoded['contentType']);
+            $this->authStrategy->apply($request, $connection);
+
+            $response = $this->client->setHeaders($request->headers)->post($request->url, $request->body);
+        } catch (Throwable $e) {
+            return SendResult::failure($e->getMessage(), null, ['exception' => \get_class($e)]);
+        }
+
+        return $this->toSendResult($response);
     }
 }

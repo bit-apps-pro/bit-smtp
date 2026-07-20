@@ -2,10 +2,14 @@
 
 namespace BitApps\SMTP\Tests\Unit\Mail\Transport;
 
+use BitApps\SMTP\Mail\Auth\BearerTokenStrategy;
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Contracts\AuthStrategyInterface;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Http\ApiResponse;
 use BitApps\SMTP\Mail\Message\MailMessage;
+use BitApps\SMTP\Mail\Support\EncoderInterface;
+use BitApps\SMTP\Mail\Support\JsonEncoder;
 use BitApps\SMTP\Mail\Transport\AbstractApiTransport;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Mockery;
@@ -98,6 +102,28 @@ class AbstractApiTransportTest extends BaseUnitTestCase
         $this->assertFalse($result->isOk());
         $this->assertSame('Connection timed out', $result->getError());
     }
+
+    public function testOptInTransportEncodesBodyAppliesStrategyLastAndPostsAsIs(): void
+    {
+        $transport  = new OptInApiTransport($this->apiClient, new BearerTokenStrategy(['credentialKey' => 'api_key']), new JsonEncoder());
+        $connection = Connection::fromArray([
+            'id'          => 'conn_2', 'provider' => 'fake', 'kind' => 'api',
+            'credentials' => ['api_key' => ['source' => 'database', 'value' => 'secret-token']],
+        ]);
+
+        $this->apiClient->shouldReceive('setHeaders')
+            ->once()
+            ->with(['Content-Type' => 'application/json', 'Authorization' => 'Bearer secret-token'])
+            ->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with('https://api.example.com/v1/send', '{"subject":"Hi"}')
+            ->andReturn(new ApiResponse(202, ['id' => 'abc']));
+
+        $result = $transport->send($this->message, $connection);
+
+        $this->assertTrue($result->isOk());
+    }
 }
 
 /**
@@ -138,5 +164,51 @@ class FakeApiTransport extends AbstractApiTransport
     protected function errorFrom(int $status, $body): string
     {
         return \is_array($body) && isset($body['message']) ? $body['message'] : 'Unknown error';
+    }
+}
+
+/**
+ * Concrete transport that opts into the strategy+encoder path — exercises the additive ApiBase seam.
+ */
+class OptInApiTransport extends AbstractApiTransport
+{
+    public function __construct(ApiClient $client, AuthStrategyInterface $strategy, EncoderInterface $encoder)
+    {
+        parent::__construct($client);
+        $this->useStrategy($strategy, $encoder);
+    }
+
+    protected function endpoint(Connection $connection): string
+    {
+        return 'https://api.example.com/v1/send';
+    }
+
+    /**
+     * @return array|string
+     */
+    protected function buildBody(MailMessage $message, Connection $connection)
+    {
+        return ['subject' => $message->getSubject()];
+    }
+
+    protected function authHeaders(Connection $connection): array
+    {
+        return [];
+    }
+
+    /**
+     * @param array|string $body
+     */
+    protected function successFrom(int $status, $body): bool
+    {
+        return $status >= 200 && $status < 300;
+    }
+
+    /**
+     * @param array|string $body
+     */
+    protected function errorFrom(int $status, $body): string
+    {
+        return 'Unknown error';
     }
 }
