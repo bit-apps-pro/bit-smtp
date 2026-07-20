@@ -195,6 +195,42 @@ class MailgunProviderTest extends BaseUnitTestCase
         $this->assertTrue($result->isOk());
     }
 
+    public function testReplyToMapsToTheHReplyToFormField(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with(Mockery::any(), Mockery::on(function (string $body) {
+                parse_str($body, $fields);
+
+                return $fields['h:Reply-To'] === 'Reply Name <reply@example.com>';
+            }))
+            ->andReturn(new ApiResponse(200, []));
+
+        $message = $this->message(['replyTo' => 'Reply Name <reply@example.com>']);
+
+        $result = $this->provider()->transport()->send($message, $this->connection());
+
+        $this->assertTrue($result->isOk());
+    }
+
+    public function testNoReplyToOmitsTheHReplyToFormFieldEntirely(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with(Mockery::any(), Mockery::on(function (string $body) {
+                parse_str($body, $fields);
+
+                return !isset($fields['h:Reply-To']) && strpos($body, 'Reply-To') === false;
+            }))
+            ->andReturn(new ApiResponse(200, []));
+
+        $result = $this->provider()->transport()->send($this->message(), $this->connection());
+
+        $this->assertTrue($result->isOk());
+    }
+
     public function testSubjectMapsToTheSubjectField(): void
     {
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();

@@ -46,10 +46,11 @@ final class MailgunProvider extends DescriptorProvider
             'encoder'  => 'multipart',
             'payload'  => [
                 'addresses' => [
-                    'from' => ['source' => 'from', 'shape' => 'rfc822', 'single' => true],
-                    'to'   => ['source' => 'to',   'shape' => 'rfc822', 'join' => true],
-                    'cc'   => ['source' => 'cc',   'shape' => 'rfc822', 'join' => true],
-                    'bcc'  => ['source' => 'bcc',  'shape' => 'rfc822', 'join' => true],
+                    'from'       => ['source' => 'from',    'shape' => 'rfc822', 'single' => true],
+                    'to'         => ['source' => 'to',      'shape' => 'rfc822', 'join' => true],
+                    'cc'         => ['source' => 'cc',      'shape' => 'rfc822', 'join' => true],
+                    'bcc'        => ['source' => 'bcc',     'shape' => 'rfc822', 'join' => true],
+                    'h:Reply-To' => ['source' => 'replyTo', 'shape' => 'rfc822', 'single' => true],
                 ],
                 'subject'     => 'subject',
                 'body'        => ['html' => 'html', 'text' => 'text'],
