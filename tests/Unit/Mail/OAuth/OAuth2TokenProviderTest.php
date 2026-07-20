@@ -192,7 +192,7 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
         $this->config->shouldReceive('saveConnection')
             ->once()
             ->with(Mockery::on(function (array $saved) use ($before): bool {
-                return $saved['credentials']['access_token'] === ['source' => 'database', 'value' => 'new-token']
+                return $saved['credentials']['access_token']  === ['source' => 'database', 'value' => 'new-token']
                     && $saved['credentials']['refresh_token'] === ['source' => 'database', 'value' => 'rotated-refresh-token']
                     && $saved['settings']['token_expires_at'] >= $before + 3600
                     && $saved['settings']['token_expires_at'] <= time()  + 3600;
@@ -229,7 +229,7 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
         $this->config->shouldReceive('saveConnection')
             ->once()
             ->with(Mockery::on(function (array $saved) use ($before): bool {
-                return $saved['credentials']['access_token'] === ['source' => 'database', 'value' => 'new-token']
+                return $saved['credentials']['access_token']  === ['source' => 'database', 'value' => 'new-token']
                     && $saved['credentials']['refresh_token'] === ['source' => 'database', 'value' => 'refresh-1']
                     && $saved['settings']['token_expires_at'] >= $before + 3600
                     && $saved['settings']['token_expires_at'] <= time()  + 3600;
