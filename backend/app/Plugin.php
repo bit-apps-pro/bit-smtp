@@ -41,6 +41,7 @@ use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Providers\Resend\ResendProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridTransport;
+use BitApps\SMTP\Mail\Providers\SparkPost\SparkPostProvider;
 use BitApps\SMTP\Mail\Providers\Zepto\ZeptoProvider;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
@@ -144,6 +145,7 @@ final class Plugin
         $registry->register(new MailjetProvider($apiClient, $authResolver));
         $registry->register(new ZeptoProvider($apiClient, $authResolver));
         $registry->register(new MailgunProvider($apiClient, $authResolver));
+        $registry->register(new SparkPostProvider($apiClient, $authResolver));
         $this->_container['providerRegistry'] = $registry;
 
         $this->_container['smtpProvider'] = new WpMailBridge(
