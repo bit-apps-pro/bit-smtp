@@ -211,6 +211,10 @@ final class DescriptorApiTransport extends AbstractApiTransport
         $hostByRegion = $endpoint['hostByRegion'] ?? [];
         $region       = (string) $connection->setting((string) ($endpoint['regionSetting'] ?? ''), '');
 
+        if ($region === '' && isset($endpoint['defaultRegion'])) {
+            $region = (string) $endpoint['defaultRegion'];
+        }
+
         // Closed map: an unknown region is a hard error, never spliced into the host (SSRF guard).
         if (!\array_key_exists($region, $hostByRegion)) {
             throw new InvalidArgumentException('Unknown region for endpoint host: ' . json_encode($region));

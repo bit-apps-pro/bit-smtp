@@ -70,6 +70,30 @@ class AddressFormatterTest extends BaseUnitTestCase
         $this->assertSame([['Email' => 'a@x.com'], ['Email' => 'b@y.com', 'Name' => 'Bob']], $result);
     }
 
+    public function testAddressShapeReturnsUnwrappedAssocArraysWithNameWhenPresent(): void
+    {
+        $result = $this->formatter->format(['Alice <a@x.com>'], 'address');
+
+        $this->assertSame([['address' => 'a@x.com', 'name' => 'Alice']], $result);
+    }
+
+    public function testAddressShapeOmitsNameForBareEmail(): void
+    {
+        $result = $this->formatter->format(['a@x.com'], 'address');
+
+        $this->assertSame([['address' => 'a@x.com']], $result);
+    }
+
+    public function testAddressShapeWithTwoAddressesReturnsTwoEntries(): void
+    {
+        $result = $this->formatter->format(['a@x.com', 'Bob <b@y.com>'], 'address');
+
+        $this->assertSame(
+            [['address' => 'a@x.com'], ['address' => 'b@y.com', 'name' => 'Bob']],
+            $result
+        );
+    }
+
     public function testNestedShapeReturnsZeptoMailStyleEnvelopeWithName(): void
     {
         $result = $this->formatter->format(['Alice <a@x.com>'], 'nested');

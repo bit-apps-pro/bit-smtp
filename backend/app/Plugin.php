@@ -40,6 +40,7 @@ use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Providers\Resend\ResendProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridTransport;
+use BitApps\SMTP\Mail\Providers\Zepto\ZeptoProvider;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Transport\SmtpTransport;
@@ -140,6 +141,7 @@ final class Plugin
         $registry->register(new BrevoProvider($apiClient, $authResolver));
         $registry->register(new ResendProvider($apiClient, $authResolver));
         $registry->register(new MailjetProvider($apiClient, $authResolver));
+        $registry->register(new ZeptoProvider($apiClient, $authResolver));
         $this->_container['providerRegistry'] = $registry;
 
         $this->_container['smtpProvider'] = new WpMailBridge(

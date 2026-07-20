@@ -81,6 +81,65 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
         $this->assertFalse($result->isOk());
     }
 
+    public function testMissingRegionSettingFallsBackToTheDescriptorsDefaultRegion(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with('https://api.us.example.com/v1/send', Mockery::any())
+            ->andReturn(new ApiResponse(202, []));
+
+        $result = $this->transportWith($this->descriptorWithDefaultRegion())
+            ->send($this->message(), $this->connection(['settings' => []]));
+
+        $this->assertTrue($result->isOk());
+    }
+
+    public function testAnExplicitRegionSettingOverridesTheDefaultRegion(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with('https://api.eu.example.com/v1/send', Mockery::any())
+            ->andReturn(new ApiResponse(202, []));
+
+        $result = $this->transportWith($this->descriptorWithDefaultRegion())
+            ->send($this->message(), $this->connection(['settings' => ['region' => 'eu']]));
+
+        $this->assertTrue($result->isOk());
+    }
+
+    public function testAnUnknownRegionStillFailsWhenADefaultRegionIsDeclared(): void
+    {
+        $this->apiClient->shouldNotReceive('post');
+
+        $result = $this->transportWith($this->descriptorWithDefaultRegion())
+            ->send($this->message(), $this->connection(['settings' => ['region' => 'moon']]));
+
+        $this->assertFalse($result->isOk());
+        $this->assertStringContainsString('Unknown region', $result->getError());
+    }
+
+    public function testADefaultRegionAbsentFromTheHostMapStillFailsTheClosedMapGuard(): void
+    {
+        // defaultRegion is descriptor-controlled, but a misconfigured one must never bypass the SSRF guard.
+        $this->apiClient->shouldNotReceive('post');
+
+        $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
+            'endpoint' => [
+                'hostByRegion'  => ['us' => 'api.us.example.com', 'eu' => 'api.eu.example.com'],
+                'regionSetting' => 'region',
+                'defaultRegion' => 'moon',
+                'path'          => '/v1/send',
+            ],
+        ]));
+
+        $result = $this->transportWith($descriptor)->send($this->message(), $this->connection(['settings' => []]));
+
+        $this->assertFalse($result->isOk());
+        $this->assertStringContainsString('Unknown region', $result->getError());
+    }
+
     public function testSuccessStatusMapsToSuccessResult(): void
     {
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
@@ -375,6 +434,18 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
             'success'    => [200, 202],
             'errorPaths' => ['errors.0.message', 'message'],
         ], $overrides);
+    }
+
+    private function descriptorWithDefaultRegion(): ProviderDescriptor
+    {
+        return ProviderDescriptor::fromArray($this->descriptorConfig([
+            'endpoint' => [
+                'hostByRegion'  => ['us' => 'api.us.example.com', 'eu' => 'api.eu.example.com'],
+                'regionSetting' => 'region',
+                'defaultRegion' => 'us',
+                'path'          => '/v1/send',
+            ],
+        ]));
     }
 
     private function basePayload(): array
