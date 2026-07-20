@@ -415,6 +415,86 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         $this->assertSame([], $routing);
     }
 
+    public function testStripsSettingsKeyThatCollidesWithProviderSecretField(): void
+    {
+        $input                = $this->baseV2();
+        $input['connections'] = [
+            [
+                'id'           => 'conn_1',
+                'provider'     => 'sendgrid',
+                'kind'         => 'api',
+                'name'         => 'SendGrid',
+                'enabled'      => true,
+                'fromEmail'    => '',
+                'fromName'     => '',
+                'replyToEmail' => '',
+                'settings'     => ['api_key' => 'SG.raw-secret-in-settings', 'region' => 'eu'],
+                'credentials'  => [],
+            ],
+        ];
+        $settings = MailSettingsSanitizer::sanitize($input, $this->sendGridSecretKeyResolver())['connections'][0]['settings'];
+
+        $this->assertArrayNotHasKey('api_key', $settings);
+        $this->assertSame('eu', $settings['region']);
+    }
+
+    public function testDoesNotStripSettingsKeyForProviderWhoseSecretFieldsDiffer(): void
+    {
+        $input                = $this->baseV2();
+        $input['connections'] = [
+            [
+                'id'           => 'conn_1',
+                'provider'     => 'amazon_ses',
+                'kind'         => 'api',
+                'name'         => 'SES',
+                'enabled'      => true,
+                'fromEmail'    => '',
+                'fromName'     => '',
+                'replyToEmail' => '',
+                'settings'     => ['access_key' => 'AKIAEXAMPLE'],
+                'credentials'  => [],
+            ],
+        ];
+        $settings = MailSettingsSanitizer::sanitize($input, $this->sendGridSecretKeyResolver())['connections'][0]['settings'];
+
+        $this->assertSame('AKIAEXAMPLE', $settings['access_key']);
+    }
+
+    public function testCredentialScalarEntryCoercedInsteadOfThrowing(): void
+    {
+        $input                = $this->baseV2();
+        $input['connections'] = [
+            [
+                'id'           => 'conn_1',
+                'provider'     => 'other_smtp',
+                'kind'         => 'smtp',
+                'name'         => 'Test',
+                'enabled'      => true,
+                'fromEmail'    => '',
+                'fromName'     => '',
+                'replyToEmail' => '',
+                'settings'     => [],
+                'credentials'  => ['password' => 'raw'],
+            ],
+        ];
+        $result = MailSettingsSanitizer::sanitize($input);
+
+        $this->assertSame(
+            ['source' => 'database', 'value' => 'raw'],
+            $result['connections'][0]['credentials']['password']
+        );
+    }
+
+    /**
+     * Stands in for the real Plugin::providerRegistry() lookup so the unit tier stays WP-free.
+     */
+    private function sendGridSecretKeyResolver(): callable
+    {
+        return static function (string $provider): array {
+            return $provider === 'sendgrid' ? ['api_key'] : [];
+        };
+    }
+
     private function baseV2(): array
     {
         return [

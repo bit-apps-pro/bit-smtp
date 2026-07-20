@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Config;
 
+use BitApps\SMTP\Plugin;
+use Throwable;
+
 final class MailSettingsSanitizer
 {
     private const ALLOWED_TOP_KEYS = [
@@ -27,7 +30,12 @@ final class MailSettingsSanitizer
 
     private const ROUTING_OPERATORS = ['equals', 'contains', 'domain', 'matches'];
 
-    public static function sanitize(array $v2): array
+    /**
+     * @param null|callable(string):string[] $secretKeyResolver Maps a provider key to its secret
+     *                                                          field keys; defaults to the live
+     *                                                          provider registry when omitted
+     */
+    public static function sanitize(array $v2, ?callable $secretKeyResolver = null): array
     {
         $out = [];
 
@@ -56,7 +64,12 @@ final class MailSettingsSanitizer
                     break;
                 case 'connections':
                     $conns     = isset($v2[$key]) && \is_array($v2[$key]) ? $v2[$key] : [];
-                    $out[$key] = array_map([self::class, 'sanitizeConnection'], $conns);
+                    $out[$key] = array_map(
+                        static function (array $conn) use ($secretKeyResolver): array {
+                            return self::sanitizeConnection($conn, $secretKeyResolver);
+                        },
+                        $conns
+                    );
 
                     break;
                 case 'features':
@@ -69,7 +82,7 @@ final class MailSettingsSanitizer
         return $out;
     }
 
-    private static function sanitizeConnection(array $conn): array
+    private static function sanitizeConnection(array $conn, ?callable $secretKeyResolver): array
     {
         $stringFields = ['id', 'provider', 'kind', 'name', 'fromEmail', 'fromName', 'replyToEmail'];
         $out          = [];
@@ -83,7 +96,8 @@ final class MailSettingsSanitizer
             : false;
 
         $out['settings'] = self::sanitizeConnectionSettings(
-            isset($conn['settings']) && \is_array($conn['settings']) ? $conn['settings'] : []
+            isset($conn['settings']) && \is_array($conn['settings']) ? $conn['settings'] : [],
+            self::secretKeysFor($out['provider'], $secretKeyResolver)
         );
 
         $raw                = isset($conn['credentials']) && \is_array($conn['credentials'])
@@ -94,8 +108,19 @@ final class MailSettingsSanitizer
         return $out;
     }
 
-    private static function sanitizeCredentialEntry(array $entry): array
+    /**
+     * @param mixed $entry Normally {source,value}; a raw scalar (malformed client payload) is
+     *                     coerced into that shape rather than fataling the request
+     */
+    private static function sanitizeCredentialEntry($entry): array
     {
+        if (!\is_array($entry)) {
+            return [
+                'source' => 'database',
+                'value'  => \is_scalar($entry) ? (string) $entry : '',
+            ];
+        }
+
         return [
             'source' => isset($entry['source']) ? trim((string) $entry['source']) : '',
             'value'  => isset($entry['value']) ? (string) $entry['value'] : '',
@@ -107,9 +132,16 @@ final class MailSettingsSanitizer
      * through any other provider-specific scalar setting (SES access_key/region, OAuth client_id,
      * future non-secret fields) as a trimmed string. Array/object values are dropped: settings
      * only ever hold scalars. Credentials are sanitized separately and stay whitelisted.
+     *
+     * @param string[] $secretKeys provider secret field keys, stripped before the pass-through so a
+     *                             client cannot smuggle a secret into `settings` to bypass encryption
      */
-    private static function sanitizeConnectionSettings(array $settings): array
+    private static function sanitizeConnectionSettings(array $settings, array $secretKeys = []): array
     {
+        foreach ($secretKeys as $secretKey) {
+            unset($settings[$secretKey]);
+        }
+
         $encryption = isset($settings['encryption']) ? trim((string) $settings['encryption']) : '';
 
         $sanitized = [
@@ -221,5 +253,48 @@ final class MailSettingsSanitizer
         }
 
         return $sanitized;
+    }
+
+    /**
+     * @return string[]
+     */
+    private static function secretKeysFor(string $provider, ?callable $secretKeyResolver): array
+    {
+        $resolver = $secretKeyResolver ?? [self::class, 'secretKeysFromRegistry'];
+
+        return $resolver($provider);
+    }
+
+    /**
+     * Default resolver: looks up the live provider registry. Plugin::instance() is only populated
+     * once WordPress has booted, so this degrades to no keys (nothing stripped) outside that context
+     * rather than fataling — callers that need the guard enforced pass a resolver explicitly.
+     *
+     * @return string[]
+     */
+    private static function secretKeysFromRegistry(string $provider): array
+    {
+        $plugin = Plugin::instance();
+        if ($plugin === null) {
+            return [];
+        }
+
+        try {
+            $fields = $plugin->providerRegistry()->get($provider)->fields();
+        } catch (Throwable $e) {
+            // Fail open (a not-yet-registered provider is benign) but stay loud: a known provider
+            // whose lookup throws would otherwise let a plaintext secret pass through settings untraced.
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without fataling the save
+            error_log('BIT SMTP: secret-key resolution failed: ' . $e->getMessage());
+
+            return [];
+        }
+
+        return array_column(
+            array_filter($fields, static function (array $field): bool {
+                return ($field['secret'] ?? false) === true;
+            }),
+            'key'
+        );
     }
 }
