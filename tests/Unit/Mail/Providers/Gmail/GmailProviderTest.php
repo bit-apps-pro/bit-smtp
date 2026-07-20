@@ -82,7 +82,7 @@ class GmailProviderTest extends BaseUnitTestCase
 
         $this->assertNotNull($field);
         $this->assertSame('oauth', $field['type']);
-        $this->assertSame('Google account', $field['label']);
+        $this->assertSame('Google / Google Workspace account', $field['label']);
         $this->assertFalse($field['required']);
         $this->assertFalse($field['secret']);
     }
