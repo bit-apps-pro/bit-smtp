@@ -62,17 +62,23 @@ class OAuth2TokenProvider
             throw OAuthException::refreshFailed($this->errorMessage($response));
         }
 
-        $accessToken = (string) $body['access_token'];
-        $expiresAt   = time() + (int) ($body['expires_in'] ?? 0);
+        $accessToken     = (string) $body['access_token'];
+        $newRefreshToken = (string) ($body['refresh_token'] ?? '');
+        $expiresAt       = time() + (int) ($body['expires_in'] ?? 0);
 
-        $this->config->saveConnection($this->withRefreshedToken($connection, $accessToken, $expiresAt));
+        $this->config->saveConnection($this->withRefreshedToken($connection, $accessToken, $newRefreshToken, $expiresAt));
 
         return $accessToken;
     }
 
-    private function withRefreshedToken(Connection $connection, string $accessToken, int $expiresAt): array
+    private function withRefreshedToken(Connection $connection, string $accessToken, string $newRefreshToken, int $expiresAt): array
     {
         $updated = $connection->toArray();
+
+        // Providers only return a refresh_token on first consent; never blank an existing one.
+        if ($newRefreshToken !== '') {
+            $updated['credentials']['refresh_token'] = ['source' => 'database', 'value' => $newRefreshToken];
+        }
 
         $updated['credentials']['access_token']  = ['source' => 'database', 'value' => $accessToken];
         $updated['settings']['token_expires_at'] = $expiresAt;
