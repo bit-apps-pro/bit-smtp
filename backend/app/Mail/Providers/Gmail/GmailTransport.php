@@ -2,11 +2,13 @@
 
 namespace BitApps\SMTP\Mail\Providers\Gmail;
 
+use BitApps\SMTP\Mail\Auth\OAuth2Strategy;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
 use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
+use BitApps\SMTP\Mail\Support\JsonEncoder;
 use BitApps\SMTP\Mail\Transport\AbstractOAuth2Transport;
 
 class GmailTransport extends AbstractOAuth2Transport
@@ -17,8 +19,9 @@ class GmailTransport extends AbstractOAuth2Transport
 
     public function __construct(ApiClient $client, OAuth2TokenProvider $tokens, MimeBuilder $mime)
     {
-        parent::__construct($client, $tokens);
+        parent::__construct($client);
         $this->mime = $mime;
+        $this->useStrategy(new OAuth2Strategy($tokens, $this), new JsonEncoder());
     }
 
     public function authUrl(): string

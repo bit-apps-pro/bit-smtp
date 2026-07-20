@@ -2,75 +2,54 @@
 
 namespace BitApps\SMTP\Mail\Providers\AmazonSes;
 
+use BitApps\SMTP\Mail\Auth\AwsSigV4Strategy;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
-use BitApps\SMTP\Mail\Transport\AbstractAwsTransport;
-use InvalidArgumentException;
+use BitApps\SMTP\Mail\Support\JsonEncoder;
+use BitApps\SMTP\Mail\Transport\AbstractApiTransport;
 
-class SesTransport extends AbstractAwsTransport
+class SesTransport extends AbstractApiTransport
 {
-    /**
-     * AWS region shape, allowing GovCloud/ISO's extra segment (e.g. us-east-1, us-gov-east-1);
-     * the region is interpolated into the signed request host, so anything outside this charset
-     * must never reach endpoint(). The `D` modifier makes `$` match only the true end of string,
-     * rejecting a trailing newline.
-     */
-    private const REGION_PATTERN = '/^[a-z]{2}(-[a-z]+)+-\d+$/D';
-
     private MimeBuilder $mime;
 
     public function __construct(ApiClient $client, SigV4Signer $signer, MimeBuilder $mime)
     {
-        parent::__construct($client, $signer);
+        parent::__construct($client);
         $this->mime = $mime;
-    }
-
-    protected function service(): string
-    {
-        return 'ses';
-    }
-
-    protected function region(Connection $connection): string
-    {
-        $region = (string) ($connection->getSettings()['region'] ?? '');
-
-        if (!preg_match(self::REGION_PATTERN, $region)) {
-            throw new InvalidArgumentException('Invalid AWS SES region.');
-        }
-
-        return $region;
-    }
-
-    protected function accessKey(Connection $connection): string
-    {
-        return (string) ($connection->getSettings()['access_key'] ?? '');
-    }
-
-    protected function secretKey(Connection $connection): string
-    {
-        return (string) ($connection->getCredentials()['secret_key']['value'] ?? '');
+        $this->useStrategy(new AwsSigV4Strategy($signer, 'ses'), new JsonEncoder());
     }
 
     protected function endpoint(Connection $connection): string
     {
-        return \sprintf('https://email.%s.amazonaws.com/v2/email/outbound-emails', $this->region($connection));
+        return \sprintf(
+            'https://email.%s.amazonaws.com/v2/email/outbound-emails',
+            (string) $connection->setting('region', '')
+        );
     }
 
     /**
-     * @return string
+     * @return array
      */
     protected function buildBody(MailMessage $message, Connection $connection)
     {
-        return json_encode([
+        return [
             'Content' => [
                 'Raw' => [
                     'Data' => base64_encode($this->mime->fromMailMessage($message)),
                 ],
             ],
-        ]);
+        ];
+    }
+
+    /**
+     * Unused: SigV4 signing is handled by the AwsSigV4Strategy applied in the constructor.
+     */
+    protected function authHeaders(Connection $connection): array
+    {
+        return [];
     }
 
     /**

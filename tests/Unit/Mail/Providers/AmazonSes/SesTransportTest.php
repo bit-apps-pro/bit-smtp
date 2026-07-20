@@ -49,40 +49,19 @@ class SesTransportTest extends BaseUnitTestCase
 
     public function testSendReturnsFailureAndNeverCallsApiClientForMalformedRegionWithHostInjectionCharacters(): void
     {
-        $this->mimeBuilder->shouldNotReceive('fromMailMessage');
-        $this->apiClient->shouldNotReceive('setHeaders');
-        $this->apiClient->shouldNotReceive('post');
-
-        $result = $this->transport->send($this->message(), $this->connection(['settings' => ['region' => 'evil.com#', 'access_key' => 'AKIDEXAMPLE']]));
-
-        $this->assertFalse($result->isOk());
-        $this->assertSame('Invalid AWS SES region.', $result->getError());
+        $this->assertMalformedRegionIsRejectedBeforeAnyNetworkCall('evil.com#');
     }
 
     public function testSendReturnsFailureAndNeverCallsApiClientForMalformedRegionWithPathTraversalCharacters(): void
     {
-        $this->mimeBuilder->shouldNotReceive('fromMailMessage');
-        $this->apiClient->shouldNotReceive('setHeaders');
-        $this->apiClient->shouldNotReceive('post');
-
-        $result = $this->transport->send($this->message(), $this->connection(['settings' => ['region' => 'a.b/', 'access_key' => 'AKIDEXAMPLE']]));
-
-        $this->assertFalse($result->isOk());
-        $this->assertSame('Invalid AWS SES region.', $result->getError());
+        $this->assertMalformedRegionIsRejectedBeforeAnyNetworkCall('a.b/');
     }
 
     public function testSendReturnsFailureAndNeverCallsApiClientForRegionWithTrailingNewline(): void
     {
-        // A bare `$` anchor matches before a trailing newline; the region must still be rejected
-        // so "us-east-1\n" can never reach sprintf into the request host.
-        $this->mimeBuilder->shouldNotReceive('fromMailMessage');
-        $this->apiClient->shouldNotReceive('setHeaders');
-        $this->apiClient->shouldNotReceive('post');
-
-        $result = $this->transport->send($this->message(), $this->connection(['settings' => ['region' => "us-east-1\n", 'access_key' => 'AKIDEXAMPLE']]));
-
-        $this->assertFalse($result->isOk());
-        $this->assertSame('Invalid AWS SES region.', $result->getError());
+        // A bare `$` anchor matches before a trailing newline; the AwsSigV4Strategy must still
+        // reject "us-east-1\n" so it can never reach the signer or the outbound request host.
+        $this->assertMalformedRegionIsRejectedBeforeAnyNetworkCall("us-east-1\n");
     }
 
     public function testSendBuildsCorrectEndpointAndSucceedsForValidRegion(): void
@@ -262,6 +241,23 @@ class SesTransportTest extends BaseUnitTestCase
 
         $this->assertFalse($result->isOk());
         $this->assertSame('SES error HTTP 500', $result->getError());
+    }
+
+    /**
+     * The region SSRF guard now lives in AwsSigV4Strategy: it validates the region before signing,
+     * so a malformed region still aborts the send before the API client is ever touched. The MIME
+     * body is built first (harmless, no I/O) and the failure carries the strategy's region message.
+     */
+    private function assertMalformedRegionIsRejectedBeforeAnyNetworkCall(string $region): void
+    {
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->andReturn('raw-mime');
+        $this->apiClient->shouldNotReceive('setHeaders');
+        $this->apiClient->shouldNotReceive('post');
+
+        $result = $this->transport->send($this->message(), $this->connection(['settings' => ['region' => $region, 'access_key' => 'AKIDEXAMPLE']]));
+
+        $this->assertFalse($result->isOk());
+        $this->assertSame('Invalid AWS region: ' . json_encode($region), $result->getError());
     }
 
     private function message(): MailMessage

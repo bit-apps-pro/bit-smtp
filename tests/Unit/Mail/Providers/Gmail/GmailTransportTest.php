@@ -98,7 +98,7 @@ class GmailTransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with(Mockery::any(), ['raw' => $expectedRaw])
+            ->with(Mockery::any(), json_encode(['raw' => $expectedRaw]))
             ->andReturn(new ApiResponse(200, []));
 
         $this->transport->send($this->message(), $this->connection());
