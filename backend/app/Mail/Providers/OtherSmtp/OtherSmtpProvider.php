@@ -55,6 +55,11 @@ class OtherSmtpProvider implements ProviderInterface
         return $this->transport;
     }
 
+    public function authConfig(): array
+    {
+        return ['type' => 'smtp', 'params' => []];
+    }
+
     public function fields(): array
     {
         $dependsOnAuth = ['field' => 'auth', 'value' => true];

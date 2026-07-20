@@ -51,6 +51,11 @@ class SendGridProvider implements ProviderInterface
         return $this->transport;
     }
 
+    public function authConfig(): array
+    {
+        return ['type' => 'bearer', 'params' => ['credentialKey' => 'api_key']];
+    }
+
     public function fields(): array
     {
         return [

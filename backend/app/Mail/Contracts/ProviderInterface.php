@@ -26,4 +26,9 @@ interface ProviderInterface
     public function validator(): ValidatorInterface;
 
     public function transport(): TransportInterface;
+
+    /**
+     * HTTP auth descriptor for AuthorizationResolver: ['type' => string, 'params' => array].
+     */
+    public function authConfig(): array;
 }

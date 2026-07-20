@@ -51,6 +51,11 @@ class GmailProvider implements ProviderInterface
         return $this->transport;
     }
 
+    public function authConfig(): array
+    {
+        return ['type' => 'oauth2', 'params' => []];
+    }
+
     /**
      * refresh_token is deliberately absent here — it's not a user-entered field, it's set by
      * the OAuth consent flow and stored as a credential. The `oauth` entry is a render-only

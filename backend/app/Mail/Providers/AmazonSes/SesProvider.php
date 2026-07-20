@@ -51,6 +51,11 @@ class SesProvider implements ProviderInterface
         return $this->transport;
     }
 
+    public function authConfig(): array
+    {
+        return ['type' => 'aws_sigv4', 'params' => ['service' => 'ses']];
+    }
+
     public function fields(): array
     {
         return [
