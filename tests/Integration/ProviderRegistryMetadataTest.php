@@ -5,7 +5,7 @@ namespace BitApps\SMTP\Tests\Integration;
 use BitApps\SMTP\Plugin;
 
 /**
- * Verifies the live plugin registers all nine mail providers, so `GET mail/providers` (backed by
+ * Verifies the live plugin registers all ten mail providers, so `GET mail/providers` (backed by
  * ProviderRegistry::metadata()) drives the frontend provider modal + metadata-driven fields.
  *
  * @internal
@@ -14,7 +14,7 @@ use BitApps\SMTP\Plugin;
  */
 final class ProviderRegistryMetadataTest extends IntegrationTestCase
 {
-    public function testMetadataExposesAllNineRegisteredProviders(): void
+    public function testMetadataExposesAllTenRegisteredProviders(): void
     {
         $metadata = Plugin::instance()->providerRegistry()->metadata();
 
@@ -24,12 +24,12 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         }
 
         $this->assertSame(
-            ['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail'],
+            ['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun'],
             array_keys($byKey),
-            'all nine providers register in priority-agnostic insertion order'
+            'all ten providers register in priority-agnostic insertion order'
         );
 
-        foreach (['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail'] as $key) {
+        foreach (['other_smtp', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun'] as $key) {
             $this->assertArrayHasKey('label', $byKey[$key]);
             $this->assertArrayHasKey('kind', $byKey[$key]);
             $this->assertNotEmpty($byKey[$key]['fields'], "{$key} must expose field metadata");
@@ -44,6 +44,7 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         $this->assertSame('api', $byKey['resend']['kind']);
         $this->assertSame('api', $byKey['mailjet']['kind']);
         $this->assertSame('api', $byKey['zeptomail']['kind']);
+        $this->assertSame('api', $byKey['mailgun']['kind']);
 
         $postmarkFieldKeys = array_column($byKey['postmark']['fields'], 'key');
         $this->assertContains('api_key', $postmarkFieldKeys, 'postmark must expose an api_key field');
@@ -61,5 +62,10 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         $zeptoFieldKeys = array_column($byKey['zeptomail']['fields'], 'key');
         $this->assertContains('api_key', $zeptoFieldKeys, 'zeptomail must expose an api_key field');
         $this->assertContains('data_center', $zeptoFieldKeys, 'zeptomail must expose a data_center field');
+
+        $mailgunFieldKeys = array_column($byKey['mailgun']['fields'], 'key');
+        $this->assertContains('api_key', $mailgunFieldKeys, 'mailgun must expose an api_key field');
+        $this->assertContains('domain', $mailgunFieldKeys, 'mailgun must expose a domain field');
+        $this->assertContains('region', $mailgunFieldKeys, 'mailgun must expose a region field');
     }
 }

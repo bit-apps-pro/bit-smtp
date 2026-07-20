@@ -76,13 +76,6 @@ class DescriptorProviderTest extends BaseUnitTestCase
         $this->assertNotSame($provider->transport(), $provider->transport());
     }
 
-    public function testTransportThrowsForMultipartEncoder(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-
-        $this->provider(['encoder' => 'multipart'])->transport();
-    }
-
     public function testTransportThrowsForUnknownEncoder(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -98,7 +91,7 @@ class DescriptorProviderTest extends BaseUnitTestCase
 
     public static function supportedEncoders(): array
     {
-        return [['json'], ['form'], ['mime_raw']];
+        return [['json'], ['form'], ['mime_raw'], ['multipart']];
     }
 
     private function provider(array $overrides = []): DescriptorProvider

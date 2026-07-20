@@ -11,6 +11,7 @@ use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Support\EncoderInterface;
 use BitApps\SMTP\Mail\Support\FormEncoder;
+use BitApps\SMTP\Mail\Support\FormMultipartEncoder;
 use BitApps\SMTP\Mail\Support\JsonEncoder;
 use BitApps\SMTP\Mail\Support\MimeRawEncoder;
 use BitApps\SMTP\Mail\Validation\RequiredFieldsValidator;
@@ -108,8 +109,9 @@ class DescriptorProvider implements ProviderInterface
                 return new FormEncoder();
             case 'mime_raw':
                 return new MimeRawEncoder();
+            case 'multipart':
+                return new FormMultipartEncoder();
             default:
-                // 'multipart' arrives in Phase 4; until then it (and anything unknown) is unsupported.
                 throw new InvalidArgumentException("Unsupported encoder: {$encoder}");
         }
     }
