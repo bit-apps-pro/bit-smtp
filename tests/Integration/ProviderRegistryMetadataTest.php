@@ -45,6 +45,12 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         $this->assertSame('api', $byKey['mailjet']['kind']);
         $this->assertSame('api', $byKey['zeptomail']['kind']);
 
+        $postmarkFieldKeys = array_column($byKey['postmark']['fields'], 'key');
+        $this->assertContains('api_key', $postmarkFieldKeys, 'postmark must expose an api_key field');
+
+        $brevoFieldKeys = array_column($byKey['brevo']['fields'], 'key');
+        $this->assertContains('api_key', $brevoFieldKeys, 'brevo must expose an api_key field');
+
         $resendFieldKeys = array_column($byKey['resend']['fields'], 'key');
         $this->assertContains('api_key', $resendFieldKeys, 'resend must expose an api_key field');
 
