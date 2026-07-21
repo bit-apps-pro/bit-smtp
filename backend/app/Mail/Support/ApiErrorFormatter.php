@@ -33,6 +33,28 @@ final class ApiErrorFormatter
     }
 
     /**
+     * Some providers (e.g. Mailjet) answer a per-message failure with a 2xx status, so the HTTP
+     * status alone cannot decide success — the body must be checked for a provider error too.
+     *
+     * @param mixed    $body       decoded response body
+     * @param string[] $errorPaths ordered dot-paths tried against an array $body
+     */
+    public function hasError($body, array $errorPaths): bool
+    {
+        if (!\is_array($body)) {
+            return false;
+        }
+
+        foreach ($errorPaths as $path) {
+            if ($this->resolvePath($body, $path) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return null|string the resolved message, or null when the path misses or resolves to an empty value
      */
     private function resolvePath(array $body, string $path): ?string

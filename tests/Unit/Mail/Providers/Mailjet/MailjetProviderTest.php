@@ -235,6 +235,32 @@ class MailjetProviderTest extends BaseUnitTestCase
         $this->assertSame('500', $result->getCode());
     }
 
+    public function testA200WithANestedMessagesErrorBodyMapsToFailure(): void
+    {
+        // Mailjet answers a per-message failure with HTTP 200, so its errorDetectPaths must catch it.
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'Messages' => [['Errors' => [['ErrorMessage' => 'bad']]]],
+        ]));
+
+        $result = $this->provider()->transport()->send($this->message(), $this->connection());
+
+        $this->assertFalse($result->isOk());
+        $this->assertSame('bad', $result->getError());
+        $this->assertSame('200', $result->getCode());
+    }
+
+    public function testA200WithACleanMessagesBodyMapsToSuccess(): void
+    {
+        // Mailjet's success 200 body has no Errors/ErrorMessage, so errorDetectPaths must miss.
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'Messages' => [['Status' => 'success']],
+        ]));
+
+        $this->assertTrue($this->provider()->transport()->send($this->message(), $this->connection())->isOk());
+    }
+
     private function provider(): MailjetProvider
     {
         return new MailjetProvider($this->apiClient, $this->resolver);

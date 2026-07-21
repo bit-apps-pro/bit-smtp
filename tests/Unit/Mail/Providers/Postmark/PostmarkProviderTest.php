@@ -171,6 +171,19 @@ class PostmarkProviderTest extends BaseUnitTestCase
         $this->assertSame('422', $result->getCode());
     }
 
+    public function testA200SuccessBodyWithABenignMessageKeyIsNotAFalseFailure(): void
+    {
+        // Postmark's success 200 carries {"ErrorCode":0,"Message":"OK"}; "Message" is its errorPath
+        // but Postmark never returns 200-with-error, so it must not opt into errorDetectPaths.
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'ErrorCode' => 0,
+            'Message'   => 'OK',
+        ]));
+
+        $this->assertTrue($this->provider()->transport()->send($this->message(), $this->connection())->isOk());
+    }
+
     private function provider(): PostmarkProvider
     {
         return new PostmarkProvider($this->apiClient, $this->resolver);

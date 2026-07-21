@@ -106,11 +106,16 @@ final class DescriptorApiTransport extends AbstractApiTransport
     }
 
     /**
+     * A 2xx status alone isn't enough for providers that opt in: some (e.g. Mailjet) report a
+     * per-message failure in the body under a 2xx, so success also requires no error at any of the
+     * descriptor's errorDetectPaths — which default to [] (status-only success) for every other one.
+     *
      * @param array|string $body
      */
     protected function successFrom(int $status, $body): bool
     {
-        return \in_array($status, $this->descriptor->success(), true);
+        return \in_array($status, $this->descriptor->success(), true)
+            && !$this->errorFormatter->hasError($body, $this->descriptor->errorDetectPaths());
     }
 
     /**

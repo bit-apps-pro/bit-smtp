@@ -31,6 +31,8 @@ final class ProviderDescriptor
 
     private array $errorPaths;
 
+    private array $errorDetectPaths;
+
     /**
      * @var callable|null
      */
@@ -47,19 +49,21 @@ final class ProviderDescriptor
         array $payload,
         array $success,
         array $errorPaths,
+        array $errorDetectPaths,
         ?callable $payloadBuilder
     ) {
-        $this->key            = $key;
-        $this->label          = $label;
-        $this->kind           = $kind;
-        $this->fields         = $fields;
-        $this->auth           = $auth;
-        $this->endpoint       = $endpoint;
-        $this->encoder        = $encoder;
-        $this->payload        = $payload;
-        $this->success        = $success;
-        $this->errorPaths     = $errorPaths;
-        $this->payloadBuilder = $payloadBuilder;
+        $this->key              = $key;
+        $this->label            = $label;
+        $this->kind             = $kind;
+        $this->fields           = $fields;
+        $this->auth             = $auth;
+        $this->endpoint         = $endpoint;
+        $this->encoder          = $encoder;
+        $this->payload          = $payload;
+        $this->success          = $success;
+        $this->errorPaths       = $errorPaths;
+        $this->errorDetectPaths = $errorDetectPaths;
+        $this->payloadBuilder   = $payloadBuilder;
     }
 
     public static function fromArray(array $config): self
@@ -80,10 +84,11 @@ final class ProviderDescriptor
             $auth,
             $config['endpoint'] ?? [],
             (string) ($config['encoder'] ?? ''),
-            $config['payload']        ?? [],
-            $config['success']        ?? [],
-            $config['errorPaths']     ?? [],
-            $config['payloadBuilder'] ?? null
+            $config['payload']          ?? [],
+            $config['success']          ?? [],
+            $config['errorPaths']       ?? [],
+            $config['errorDetectPaths'] ?? [],
+            $config['payloadBuilder']   ?? null
         );
     }
 
@@ -138,6 +143,16 @@ final class ProviderDescriptor
     public function errorPaths(): array
     {
         return $this->errorPaths;
+    }
+
+    /**
+     * Opt-in dot-paths that flag a provider error in a 2xx response body (e.g. Mailjet's per-message
+     * failures under HTTP 200). Empty by default, so success stays status-only for every other
+     * provider — distinct from errorPaths, which only extracts a message on the failure path.
+     */
+    public function errorDetectPaths(): array
+    {
+        return $this->errorDetectPaths;
     }
 
     public function payloadBuilder(): ?callable

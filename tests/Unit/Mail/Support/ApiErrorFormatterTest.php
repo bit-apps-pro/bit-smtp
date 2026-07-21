@@ -131,4 +131,32 @@ class ApiErrorFormatterTest extends BaseUnitTestCase
 
         $this->assertSame('42', $result);
     }
+
+    public function testHasErrorIsTrueWhenAnyPathResolvesToANonEmptyScalar(): void
+    {
+        // Mailjet-style: the first path misses, the second (flat) path hits.
+        $body = ['message' => 'flat error'];
+
+        $this->assertTrue($this->formatter->hasError($body, ['errors.0.message', 'message']));
+    }
+
+    public function testHasErrorIsFalseWhenNoPathMatches(): void
+    {
+        $body = ['foo' => 'bar'];
+
+        $this->assertFalse($this->formatter->hasError($body, ['errors.0.message']));
+    }
+
+    public function testHasErrorIsFalseWhenTheMatchedPathIsAnEmptyString(): void
+    {
+        $body = ['errors' => [['message' => '']]];
+
+        $this->assertFalse($this->formatter->hasError($body, ['errors.0.message']));
+    }
+
+    public function testHasErrorIsFalseForANonArrayBody(): void
+    {
+        $this->assertFalse($this->formatter->hasError('connection refused', ['errors.0.message']));
+        $this->assertFalse($this->formatter->hasError(null, ['errors.0.message']));
+    }
 }

@@ -47,6 +47,9 @@ final class MailjetProvider extends DescriptorProvider
             ],
             'success'    => [200],
             'errorPaths' => ['Messages.0.Errors.0.ErrorMessage', 'Errors.0.ErrorMessage', 'ErrorMessage'],
+            // Mailjet reports per-message failures under HTTP 200; its success body carries no
+            // Errors/ErrorMessage, so these paths only match a real failure.
+            'errorDetectPaths' => ['Messages.0.Errors.0.ErrorMessage', 'Errors.0.ErrorMessage', 'ErrorMessage'],
         ]);
     }
 }

@@ -320,6 +320,19 @@ class MailgunProviderTest extends BaseUnitTestCase
         $this->assertSame('Mailgun error HTTP 202', $result->getError());
     }
 
+    public function testA200SuccessBodyWithABenignMessageKeyIsNotAFalseFailure(): void
+    {
+        // Mailgun's success 200 carries {"id":"...","message":"Queued. Thank you."}; "message" is its
+        // errorPath but Mailgun never returns 200-with-error, so it must not opt into errorDetectPaths.
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'id'      => '<msg@mg.example.com>',
+            'message' => 'Queued. Thank you.',
+        ]));
+
+        $this->assertTrue($this->provider()->transport()->send($this->message(), $this->connection())->isOk());
+    }
+
     private function provider(): MailgunProvider
     {
         return new MailgunProvider($this->apiClient, $this->resolver);

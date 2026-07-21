@@ -170,6 +170,47 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
         $this->assertSame('400', $result->getCode());
     }
 
+    public function testSuccessStatusWithProviderErrorBodyIsAFailureWhenTheProviderOptsIn(): void
+    {
+        // A provider that opts into 2xx-body error detection via errorDetectPaths: HTTP 200 with a
+        // per-message error in the body must be treated as a failed send, not a false positive.
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'errors' => [['message' => 'Recipient rejected']],
+        ]));
+
+        $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
+            'errorDetectPaths' => ['errors.0.message', 'message'],
+        ]));
+
+        $result = $this->transportWith($descriptor)->send($this->message(), $this->connection());
+
+        $this->assertFalse($result->isOk());
+        $this->assertSame('Recipient rejected', $result->getError());
+        $this->assertSame('200', $result->getCode());
+    }
+
+    public function testSuccessStatusWithBenignBodyKeyIsNotAFalseFailureWhenErrorDetectPathsIsEmpty(): void
+    {
+        // The default descriptor sets no errorDetectPaths (→ []), so a benign top-level `message`
+        // (e.g. Mailgun's "Queued. Thank you.") on a 200 must NOT be mistaken for an error.
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'id'      => 'msg_1',
+            'message' => 'Queued. Thank you.',
+        ]));
+
+        $this->assertTrue($this->transport()->send($this->message(), $this->connection())->isOk());
+    }
+
+    public function testSuccessStatusWithCleanBodyStillSucceeds(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, ['id' => 'msg_1']));
+
+        $this->assertTrue($this->transport()->send($this->message(), $this->connection())->isOk());
+    }
+
     public function testEnvelopeWrapsBodyUnderTheEnvelopeKey(): void
     {
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();

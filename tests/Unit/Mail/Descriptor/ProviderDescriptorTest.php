@@ -28,6 +28,7 @@ class ProviderDescriptorTest extends BaseUnitTestCase
         $this->assertSame($config['payload'], $descriptor->payload());
         $this->assertSame($config['success'], $descriptor->success());
         $this->assertSame($config['errorPaths'], $descriptor->errorPaths());
+        $this->assertSame($config['errorDetectPaths'], $descriptor->errorDetectPaths());
         $this->assertSame($config['payloadBuilder'], $descriptor->payloadBuilder());
         $this->assertTrue(\is_callable($descriptor->payloadBuilder()));
         $this->assertSame(['built' => ['to' => 'a@x.com']], ($descriptor->payloadBuilder())(['to' => 'a@x.com']));
@@ -43,6 +44,7 @@ class ProviderDescriptorTest extends BaseUnitTestCase
         $this->assertSame([], $descriptor->payload());
         $this->assertSame([], $descriptor->success());
         $this->assertSame([], $descriptor->errorPaths());
+        $this->assertSame([], $descriptor->errorDetectPaths());
         $this->assertNull($descriptor->payloadBuilder());
     }
 
@@ -176,9 +178,10 @@ class ProviderDescriptorTest extends BaseUnitTestCase
                 'attachmentShape' => 'base64',
                 'envelope'        => ['from' => 'from'],
             ],
-            'success'        => [200, 202],
-            'errorPaths'     => ['errors.0.message', 'message'],
-            'payloadBuilder' => static function (array $message): array {
+            'success'          => [200, 202],
+            'errorPaths'       => ['errors.0.message', 'message'],
+            'errorDetectPaths' => ['errors.0.message'],
+            'payloadBuilder'   => static function (array $message): array {
                 return ['built' => $message];
             },
         ];
