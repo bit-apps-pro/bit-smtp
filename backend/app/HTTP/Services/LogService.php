@@ -102,14 +102,14 @@ class LogService
         if (isset($message)) {
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
         }
-        /*
-        // Don't need to update these fields again....
-            $log->subject     = Arr::get($details, 'subject', '');
-            $log->to_addr    = Arr::get($details, 'to', '');
 
+        // subject/to_addr are content-stable across a resend, but details must be refreshed so the
+        // attempt trail reflects this resend's outcome rather than the original send's stale trail.
+        if (\is_array($details)) {
             unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
-            $log->details    = $details;
-        */
+            $log->details = $details;
+        }
+
         $log->save();
     }
 

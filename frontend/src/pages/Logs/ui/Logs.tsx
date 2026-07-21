@@ -24,6 +24,11 @@ const { Title, Text } = Typography
 
 type TableRowSelection<T extends object = object> = TableProps<T>['rowSelection']
 
+const failedCount = (attempts?: Array<{ status: string }>) => {
+  if (!attempts) return 0
+  return attempts.filter(a => a.status === 'failed').length
+}
+
 const columns: TableColumnsType<LogType> = [
   {
     title: __('Status'),
@@ -35,7 +40,23 @@ const columns: TableColumnsType<LogType> = [
     title: __('Connection'),
     dataIndex: 'connection',
     key: 'connection',
-    render: connection => connection || '—'
+    render: (connection, record) => {
+      const attempts = record.details?.attempts
+      // Only annotate when the send actually fell back; a lone failed attempt is already
+      // conveyed by the Status column.
+      const failed = attempts && attempts.length > 1 ? failedCount(attempts) : 0
+      if (failed > 0) {
+        return (
+          <div>
+            {connection || '—'}
+            <Text type="secondary" style={{ fontSize: '0.85em', marginLeft: '0.5em' }}>
+              · {failed} failed
+            </Text>
+          </div>
+        )
+      }
+      return connection || '—'
+    }
   },
   { title: __('Subject'), dataIndex: 'subject', key: 'subject' },
   { title: __('To'), dataIndex: 'to_addr', key: 'to_addr' },

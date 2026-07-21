@@ -7,10 +7,17 @@ export interface LogQueryType {
   limit: number
 }
 
+export type LogAttempt = {
+  connection: string
+  status: 'sent' | 'accepted' | 'failed'
+  error?: string | null
+}
+
 export type LogDetail = {
   message: string
   headers: Record<string, string>
   attachments: Array<string>
+  attempts?: Array<LogAttempt>
 }
 export type LogType = {
   id: number

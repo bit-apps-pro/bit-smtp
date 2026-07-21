@@ -209,21 +209,16 @@ class WpMailBridge
         $this->dispatching = true;
 
         try {
-            $isRetry        = $this->context->isRetrying();
             $succeeded      = false;
             $lastResult     = null;
             $lastConnection = null;
+            $attempts       = [];
 
             foreach ($connections as $connection) {
                 $lastResult     = $this->sendVia($connection, $message);
                 $lastConnection = $connection;
                 $this->appendDebug($lastResult);
-
-                // A resend updates its originating log once with the final outcome (below); a fresh
-                // send records every attempt so the fallback history is visible.
-                if (!$isRetry) {
-                    $this->logAttempt($lastResult, $mailData, $connection);
-                }
+                $attempts[]     = $this->attemptEntry($connection, $lastResult);
 
                 // Fall back only when NOT accepted: an accepted-but-partial send (e.g. a 2xx with a
                 // per-message error) was already handed off, so retrying via the next connection
@@ -237,9 +232,10 @@ class WpMailBridge
 
             $this->context->setFailed(!$succeeded);
 
-            if ($isRetry) {
-                $this->logOutcome($succeeded, $lastResult, $mailData, $lastConnection);
-            }
+            // One log row per message: the final outcome on the winning (or last-tried) connection,
+            // carrying the whole attempt trail so the fallback chain (failed -> failed -> sent) is
+            // visible in the log detail rather than split across a row per attempt.
+            $this->logOutcome($succeeded, $lastResult, $this->withAttempts($mailData, $attempts), $lastConnection);
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
 
@@ -356,23 +352,39 @@ class WpMailBridge
     }
 
     /**
-     * @param array<string,mixed> $mailData
+     * One entry in a message's attempt trail: the connection tried and how it resolved. 'accepted'
+     * marks a hand-off that carried a per-message error (accepted by the provider but not fully ok).
+     *
+     * @return array{connection: string, status: string, error: string|null}
      */
-    private function logAttempt(SendResult $result, array $mailData, Connection $connection): void
+    private function attemptEntry(Connection $connection, SendResult $result): array
     {
-        if (!$this->loggingEnabled) {
-            return;
-        }
-
-        $connectionLabel = $this->connectionLabel($connection);
-
         if ($result->isOk()) {
-            $this->eventLogger->logMailSuccess($mailData, $this->context, $connectionLabel);
-
-            return;
+            $status = 'sent';
+        } elseif ($result->isAccepted()) {
+            $status = 'accepted';
+        } else {
+            $status = 'failed';
         }
 
-        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel);
+        return [
+            'connection' => $this->connectionLabel($connection),
+            'status'     => $status,
+            'error'      => $result->getError(),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed>                                                      $mailData
+     * @param array<int,array{connection: string, status: string, error: string|null}> $attempts
+     *
+     * @return array<string,mixed>
+     */
+    private function withAttempts(array $mailData, array $attempts): array
+    {
+        $mailData['attempts'] = $attempts;
+
+        return $mailData;
     }
 
     /**

@@ -36,9 +36,14 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
 
         $logs = $this->logs();
-        $this->assertCount(2, $logs, 'both the failed primary and successful fallback attempts should be logged');
-        $this->assertSame(Log::SUCCESS, $logs[0]->status, 'newest log is the successful fallback');
-        $this->assertSame(Log::ERROR, $logs[1]->status, 'older log is the failed primary');
+        $this->assertCount(1, $logs, 'one row per message, carrying the whole fallback trail');
+        $this->assertSame(Log::SUCCESS, $logs[0]->status, 'the row records the successful final outcome');
+        $this->assertSame('conn_fallback', $logs[0]->connection, 'the winning connection is recorded on the row');
+
+        $attempts = $logs[0]->details['attempts'] ?? [];
+        $this->assertCount(2, $attempts, 'the trail records the failed primary then the successful fallback');
+        $this->assertSame(['conn_primary', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
+        $this->assertSame(['conn_fallback', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
     }
 
     public function testFallsBackToApiProviderWhenPrimarySmtpIsUnreachable(): void
@@ -94,9 +99,14 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertEmpty($this->mailpitMessages(), 'the API fallback must not deliver through SMTP/mailpit');
 
         $logs = $this->logs();
-        $this->assertCount(2, $logs, 'both the failed SMTP primary and the successful SendGrid fallback should be logged');
-        $this->assertSame(Log::SUCCESS, $logs[0]->status, 'newest log is the successful SendGrid attempt');
-        $this->assertSame(Log::ERROR, $logs[1]->status, 'older log is the failed SMTP attempt');
+        $this->assertCount(1, $logs, 'one row per message across a mixed SMTP -> API fallback');
+        $this->assertSame(Log::SUCCESS, $logs[0]->status, 'the row records the successful SendGrid outcome');
+        $this->assertSame('conn_sendgrid', $logs[0]->connection, 'the winning connection is recorded on the row');
+
+        $attempts = $logs[0]->details['attempts'] ?? [];
+        $this->assertCount(2, $attempts, 'the trail records the failed SMTP primary then the successful SendGrid send');
+        $this->assertSame(['conn_primary', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
+        $this->assertSame(['conn_sendgrid', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
     }
 
     public function testReturnsFalseAndDeliversNothingWhenAllConnectionsFail(): void
@@ -113,9 +123,14 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertTrue(Plugin::instance()->smtpProvider()->isFailed());
 
         $logs = $this->logs();
-        $this->assertCount(2, $logs, 'every failed attempt should be logged');
+        $this->assertCount(1, $logs, 'one row per message even when every connection fails');
         $this->assertSame(Log::ERROR, $logs[0]->status);
-        $this->assertSame(Log::ERROR, $logs[1]->status);
+        $this->assertSame('conn_fallback', $logs[0]->connection, 'the last-tried connection is recorded on the row');
+
+        $attempts = $logs[0]->details['attempts'] ?? [];
+        $this->assertCount(2, $attempts, 'the trail records every failed attempt');
+        $this->assertSame(['conn_primary', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
+        $this->assertSame(['conn_fallback', 'failed'], [$attempts[1]['connection'], $attempts[1]['status']]);
     }
 
     public function testSingleConnectionDeliversPreservingBackwardCompatibility(): void
@@ -194,6 +209,12 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertNotNull($updated);
         $this->assertSame(Log::SUCCESS, $updated->status);
         $this->assertSame(1, $updated->retry_count, 'exactly one update should have run for the resend');
+
+        // The stored trail must reflect THIS resend, not the seeded row's stale outcome.
+        $attempts = $updated->details['attempts'] ?? [];
+        $this->assertCount(2, $attempts, 'the resend refreshes the trail with its own attempts');
+        $this->assertSame(['conn_primary', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
+        $this->assertSame(['conn_fallback', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
 
         // The bridge is a shared singleton; clear the debug flag so it does not leak into later tests.
         Plugin::instance()->smtpProvider()->setDebug(false);
