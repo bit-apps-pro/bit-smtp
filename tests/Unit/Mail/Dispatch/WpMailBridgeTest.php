@@ -9,11 +9,13 @@ use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 use BitApps\SMTP\Mail\Dispatch\MailEventLogger;
 use BitApps\SMTP\Mail\Dispatch\SendContext;
+use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
+use Brain\Monkey\Functions;
 use Mockery;
 use ReflectionClass;
 use ReflectionMethod;
@@ -25,6 +27,12 @@ use ReflectionMethod;
  */
 class WpMailBridgeTest extends BaseUnitTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Functions\when('wp_generate_uuid4')->justReturn('track-uuid');
+    }
+
     public function testSendViaOverridesMessageFromWithTheConnectionsFromEmailAndName(): void
     {
         $spy = new SpyTransport();
@@ -159,6 +167,47 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertSame(1, $transport->callCount, 'a full success must never try the next connection');
     }
 
+    public function testWebhookEnabledSendThreadsMessageIdAndTrackingIdOntoTheLog(): void
+    {
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()->withMessageId('pm-1')]));
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return $logs[0]['message_id'] === 'pm-1' && $logs[0]['tracking_id'] === 'track-uuid';
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        // api-kind connection with webhook enabled by default.
+        $connection = $this->connection(['name' => 'Postmark']);
+
+        $succeeded = $this->invokeDispatch($bridge, [$connection], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
+
+        $this->assertTrue($succeeded);
+    }
+
+    public function testWebhookDisabledSendStoresNullCorrelationIds(): void
+    {
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()->withMessageId('pm-1')]));
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return $logs[0]['message_id'] === null && $logs[0]['tracking_id'] === null;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $connection = $this->connection(['name' => 'Postmark', 'settings' => ['webhook_enabled' => false]]);
+
+        $this->invokeDispatch($bridge, [$connection], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
+    }
+
     public function testNativeMailSucceededLogsWithoutAConnection(): void
     {
         $bridge = $this->bridgeWithTransport(new SpyTransport());
@@ -246,15 +295,23 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $eventLoggerProperty->setAccessible(true);
         $eventLoggerProperty->setValue($bridge, new MailEventLogger(Mockery::mock(LogService::class)));
 
+        $stamperProperty = $refClass->getProperty('stamper');
+        $stamperProperty->setAccessible(true);
+        $stamperProperty->setValue($bridge, new TrackingIdStamper());
+
         return $bridge;
     }
 
     private function invokeSendVia(WpMailBridge $bridge, Connection $connection, MailMessage $message): SendResult
     {
+        $resolve = new ReflectionMethod(WpMailBridge::class, 'resolveProvider');
+        $resolve->setAccessible(true);
+        $provider = $resolve->invoke($bridge, $connection);
+
         $method = new ReflectionMethod(WpMailBridge::class, 'sendVia');
         $method->setAccessible(true);
 
-        return $method->invoke($bridge, $connection, $message);
+        return $method->invoke($bridge, $provider, $connection, $message, [], null);
     }
 
     private function connection(array $overrides = []): Connection
@@ -366,5 +423,10 @@ final class FakeProvider implements ProviderInterface
     public function authConfig(): array
     {
         return [];
+    }
+
+    public function tracking(): array
+    {
+        return ['channel' => 'metadata', 'key' => 'bit_tracking_id'];
     }
 }

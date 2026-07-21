@@ -56,6 +56,11 @@ class Microsoft365Provider implements ProviderInterface
         return ['type' => 'oauth2', 'params' => []];
     }
 
+    public function tracking(): array
+    {
+        return [];
+    }
+
     /**
      * access_token/refresh_token are deliberately absent — they are not user-entered fields but are
      * set by the OAuth consent flow and stored as credentials. The `oauth` entry is a render-only

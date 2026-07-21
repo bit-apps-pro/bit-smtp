@@ -2,7 +2,7 @@ import { type ReactNode } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
 import { type Connection, type ProviderMeta } from '@pages/Connections/types'
-import { Button, Flex, Form, Input, Typography, theme } from 'antd'
+import { Button, Flex, Form, Input, Switch, Typography, theme } from 'antd'
 import ConnectionTestButton from './ConnectionTestButton'
 import OAuthConnectButton from './OAuthConnectButton'
 import ProviderFields from './ProviderFields'
@@ -40,6 +40,10 @@ function buildConnectionPayload(
         { source: 'database', value: (values[field.key] as string | undefined) ?? '' }
       ])
   )
+
+  if (provider.kind === 'api') {
+    settings.webhook_enabled = values.webhook_enabled ?? true
+  }
 
   return {
     id: connection.id,
@@ -163,6 +167,7 @@ export default function ConnectionEditor({
     fromEmail: connection.fromEmail,
     fromName: connection.fromName,
     replyToEmail: connection.replyToEmail,
+    webhook_enabled: connection.settings?.webhook_enabled ?? true,
     ...connection.settings,
     ...secretValues
   }
@@ -215,6 +220,20 @@ export default function ConnectionEditor({
                 provider={provider.key}
                 connected={Boolean(connection.credentials?.refresh_token?.value)}
               />
+            </Form.Item>
+          ) : null}
+          {provider.kind === 'api' ? (
+            <Form.Item
+              name="webhook_enabled"
+              label={__('Enable delivery webhook')}
+              valuePropName="checked"
+              extra={
+                <Text type="secondary">
+                  {__('Track real delivery status (delivered/bounced) via provider webhooks.')}
+                </Text>
+              }
+            >
+              <Switch />
             </Form.Item>
           ) : null}
         </FormSection>

@@ -38,6 +38,10 @@ final class ProviderDescriptor
      */
     private $payloadBuilder;
 
+    private string $messageIdPath;
+
+    private array $tracking;
+
     private function __construct(
         string $key,
         string $label,
@@ -50,7 +54,9 @@ final class ProviderDescriptor
         array $success,
         array $errorPaths,
         array $errorDetectPaths,
-        ?callable $payloadBuilder
+        ?callable $payloadBuilder,
+        string $messageIdPath,
+        array $tracking
     ) {
         $this->key              = $key;
         $this->label            = $label;
@@ -64,6 +70,8 @@ final class ProviderDescriptor
         $this->errorPaths       = $errorPaths;
         $this->errorDetectPaths = $errorDetectPaths;
         $this->payloadBuilder   = $payloadBuilder;
+        $this->messageIdPath    = $messageIdPath;
+        $this->tracking         = $tracking;
     }
 
     public static function fromArray(array $config): self
@@ -88,7 +96,9 @@ final class ProviderDescriptor
             $config['success']          ?? [],
             $config['errorPaths']       ?? [],
             $config['errorDetectPaths'] ?? [],
-            $config['payloadBuilder']   ?? null
+            $config['payloadBuilder']   ?? null,
+            (string) ($config['messageIdPath'] ?? ''),
+            $config['tracking']         ?? []
         );
     }
 
@@ -158,6 +168,24 @@ final class ProviderDescriptor
     public function payloadBuilder(): ?callable
     {
         return $this->payloadBuilder;
+    }
+
+    /**
+     * Top-level key in the send response holding the provider's message-id (e.g. Postmark
+     * 'MessageID', Brevo 'messageId'); '' when the provider exposes none.
+     */
+    public function messageIdPath(): string
+    {
+        return $this->messageIdPath;
+    }
+
+    /**
+     * How to carry the correlation tracking-id into the send: ['channel' => 'metadata'|'header',
+     * 'key' => string]. Empty when the provider can't round-trip a correlation token.
+     */
+    public function tracking(): array
+    {
+        return $this->tracking;
     }
 
     private static function validatedAuth(array $config): array

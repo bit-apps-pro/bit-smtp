@@ -6,6 +6,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
 use BitApps\SMTP\Mail\Config\MailSettings;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
+use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
@@ -31,6 +32,8 @@ class WpMailBridge
     private SendContext $context;
 
     private MailEventLogger $eventLogger;
+
+    private TrackingIdStamper $stamper;
 
     private ProviderRegistry $registry;
 
@@ -64,6 +67,7 @@ class WpMailBridge
         $this->context            = new SendContext();
         $this->eventLogger        = new MailEventLogger(Plugin::instance()->logger());
         $this->loggingEnabled     = Plugin::instance()->logger()->isEnabled();
+        $this->stamper            = new TrackingIdStamper();
 
         Hooks::addFilter('pre_wp_mail', [$this, 'onPreWpMail'], 10, 2);
 
@@ -209,13 +213,18 @@ class WpMailBridge
         $this->dispatching = true;
 
         try {
-            $succeeded      = false;
-            $lastResult     = null;
-            $lastConnection = null;
-            $attempts       = [];
+            $succeeded         = false;
+            $lastResult        = null;
+            $lastConnection    = null;
+            $attempts          = [];
+            $winningMessageId  = null;
+            $winningTrackingId = null;
 
             foreach ($connections as $connection) {
-                $lastResult     = $this->sendVia($connection, $message);
+                $provider       = $this->resolveProvider($connection);
+                $tracking       = ($provider !== null && $connection->isWebhookEnabled()) ? $provider->tracking() : [];
+                $trackingId     = $tracking !== [] ? $this->stamper->generate() : null;
+                $lastResult     = $this->sendVia($provider, $connection, $message, $tracking, $trackingId);
                 $lastConnection = $connection;
                 $this->appendDebug($lastResult);
                 $attempts[]     = $this->attemptEntry($connection, $lastResult);
@@ -225,6 +234,11 @@ class WpMailBridge
                 // would duplicate-deliver to the recipients the first provider already accepted.
                 if ($lastResult->isAccepted()) {
                     $succeeded = $lastResult->isOk();
+                    // Correlate delivery webhooks against the connection that accepted the message,
+                    // but only when tracking is on for it (trackingId set) — an untracked send stores
+                    // neither key, so the log never shows a delivery status it can't receive.
+                    $winningTrackingId = $trackingId;
+                    $winningMessageId  = $trackingId !== null ? $lastResult->getMessageId() : null;
 
                     break;
                 }
@@ -235,7 +249,7 @@ class WpMailBridge
             // One log row per message: the final outcome on the winning (or last-tried) connection,
             // carrying the whole attempt trail so the fallback chain (failed -> failed -> sent) is
             // visible in the log detail rather than split across a row per attempt.
-            $this->logOutcome($succeeded, $lastResult, $this->withAttempts($mailData, $attempts), $lastConnection);
+            $this->logOutcome($succeeded, $lastResult, $this->withAttempts($mailData, $attempts), $lastConnection, $winningMessageId, $winningTrackingId);
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
 
@@ -250,15 +264,30 @@ class WpMailBridge
      * A connection whose provider is not registered is treated as a failed attempt — logged, then the
      * fallback loop continues — rather than fataling the request (BC for unavailable providers).
      */
-    private function sendVia(Connection $connection, MailMessage $message): SendResult
+    private function resolveProvider(Connection $connection): ?ProviderInterface
     {
         try {
-            $transport = $this->registry->get($connection->getProvider())->transport();
+            return $this->registry->get($connection->getProvider());
         } catch (ProviderNotFoundException $e) {
-            return SendResult::failure($e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * @param array{channel?: string, key?: string} $tracking
+     */
+    private function sendVia(?ProviderInterface $provider, Connection $connection, MailMessage $message, array $tracking, ?string $trackingId): SendResult
+    {
+        if ($provider === null) {
+            return SendResult::failure(\sprintf('Provider "%s" is not registered.', $connection->getProvider()));
         }
 
-        return $transport->send($this->applyConnectionFrom($connection, $message), $connection);
+        $prepared = $this->applyConnectionFrom($connection, $message);
+        if ($trackingId !== null) {
+            $prepared = $this->stamper->stamp($prepared, $tracking, $trackingId);
+        }
+
+        return $provider->transport()->send($prepared, $connection);
     }
 
     /**
@@ -390,7 +419,7 @@ class WpMailBridge
     /**
      * @param array<string,mixed> $mailData
      */
-    private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection): void
+    private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection, ?string $messageId = null, ?string $trackingId = null): void
     {
         if (!$this->loggingEnabled) {
             return;
@@ -399,12 +428,12 @@ class WpMailBridge
         $connectionLabel = $connection !== null ? $this->connectionLabel($connection) : null;
 
         if ($succeeded) {
-            $this->eventLogger->logMailSuccess($mailData, $this->context, $connectionLabel);
+            $this->eventLogger->logMailSuccess($mailData, $this->context, $connectionLabel, $messageId, $trackingId);
 
             return;
         }
 
-        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel);
+        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel, $messageId, $trackingId);
     }
 
     /**

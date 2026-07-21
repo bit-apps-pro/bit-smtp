@@ -69,7 +69,7 @@ class LogService
         return Log::where('id', $ids)->get();
     }
 
-    public function save($status, $details, $message = null, ?string $connection = null)
+    public function save($status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null)
     {
         $log             = new Log();
 
@@ -81,6 +81,8 @@ class LogService
         $log->subject      = Arr::get($details, 'subject', '');
         $log->to_addr      = Arr::get($details, 'to', '[]');
         $log->connection   = $connection;
+        $log->message_id   = $messageId;
+        $log->tracking_id  = $trackingId;
 
         unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
         $log->details    = $details;
@@ -88,7 +90,7 @@ class LogService
         return $log->save();
     }
 
-    public function update($id, $status, $details, $message = null, ?string $connection = null)
+    public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null)
     {
         $log = $this->get($id);
         if (!$log) {
@@ -98,6 +100,11 @@ class LogService
         $log->retry_count = $log->retry_count + 1;
         $log->status      = $status;
         $log->connection  = $connection;
+
+        // A resend gets a fresh provider message-id + tracking token; overwrite so delivery webhooks
+        // correlate to this resend, not the original send.
+        $log->message_id  = $messageId;
+        $log->tracking_id = $trackingId;
 
         if (isset($message)) {
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
@@ -209,7 +216,9 @@ class LogService
             $record = [
                 'status'      => $log['status'],
                 'retry_count' => 0,
-                'connection'  => $log['connection'] ?? null,
+                'connection'  => $log['connection']  ?? null,
+                'message_id'  => $log['message_id']  ?? null,
+                'tracking_id' => $log['tracking_id'] ?? null,
             ];
 
             if ($log['status'] === Log::ERROR && $log['data'] instanceof WP_Error) {

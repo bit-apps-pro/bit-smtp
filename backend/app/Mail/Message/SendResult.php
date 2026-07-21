@@ -14,13 +14,16 @@ class SendResult
 
     private array $debug;
 
-    private function __construct(bool $accepted, bool $ok, ?string $code, ?string $error, array $debug)
+    private ?string $messageId;
+
+    private function __construct(bool $accepted, bool $ok, ?string $code, ?string $error, array $debug, ?string $messageId = null)
     {
-        $this->accepted = $accepted;
-        $this->ok       = $ok;
-        $this->code     = $code;
-        $this->error    = $error;
-        $this->debug    = $debug;
+        $this->accepted  = $accepted;
+        $this->ok        = $ok;
+        $this->code      = $code;
+        $this->error     = $error;
+        $this->debug     = $debug;
+        $this->messageId = $messageId;
     }
 
     public static function success(array $debug = []): self
@@ -70,5 +73,19 @@ class SendResult
     public function getDebug(): array
     {
         return $this->debug;
+    }
+
+    public function getMessageId(): ?string
+    {
+        return $this->messageId;
+    }
+
+    /**
+     * Immutable copy carrying the provider's message-id (captured post-send for delivery-webhook
+     * correlation); preserves every other dimension.
+     */
+    public function withMessageId(?string $messageId): self
+    {
+        return new self($this->accepted, $this->ok, $this->code, $this->error, $this->debug, $messageId);
     }
 }

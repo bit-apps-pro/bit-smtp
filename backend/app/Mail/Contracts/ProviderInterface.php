@@ -31,4 +31,10 @@ interface ProviderInterface
      * HTTP auth descriptor for AuthorizationResolver: ['type' => string, 'params' => array].
      */
     public function authConfig(): array;
+
+    /**
+     * How this provider carries a delivery-webhook correlation token on send:
+     * ['channel' => 'metadata'|'header', 'key' => string], or [] when it can't round-trip one.
+     */
+    public function tracking(): array;
 }

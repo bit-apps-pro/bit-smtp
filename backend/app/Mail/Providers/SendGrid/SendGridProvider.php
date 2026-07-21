@@ -56,6 +56,11 @@ class SendGridProvider implements ProviderInterface
         return ['type' => 'bearer', 'params' => ['credentialKey' => 'api_key']];
     }
 
+    public function tracking(): array
+    {
+        return [];
+    }
+
     public function fields(): array
     {
         return [

@@ -87,19 +87,31 @@ abstract class AbstractApiTransport implements TransportInterface
 
     protected function toSendResult(ApiResponse $response): SendResult
     {
-        $status = $response->getStatus();
-        $body   = $response->getBody();
-        $debug  = ['status' => $status, 'body' => $body];
+        $status    = $response->getStatus();
+        $body      = $response->getBody();
+        $debug     = ['status' => $status, 'body' => $body];
+        $messageId = $this->messageIdFrom($status, $body);
 
         if ($this->successFrom($status, $body)) {
-            return SendResult::success($debug);
+            return SendResult::success($debug)->withMessageId($messageId);
         }
 
         if ($this->acceptedFrom($status, $body)) {
-            return SendResult::acceptedWithError($this->errorFrom($status, $body), (string) $status, $debug);
+            return SendResult::acceptedWithError($this->errorFrom($status, $body), (string) $status, $debug)->withMessageId($messageId);
         }
 
         return SendResult::failure($this->errorFrom($status, $body), (string) $status, $debug);
+    }
+
+    /**
+     * The provider's message-id from a hand-off response, for delivery-webhook correlation.
+     * Default: none (only descriptor-backed transports that declare a messageIdPath return one).
+     *
+     * @param array|string $body
+     */
+    protected function messageIdFrom(int $status, $body): ?string
+    {
+        return null;
     }
 
     private function sendViaStrategy(MailMessage $message, Connection $connection): SendResult

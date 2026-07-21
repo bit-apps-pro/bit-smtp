@@ -123,11 +123,21 @@ class Connection
     }
 
     /**
+     * @param null|mixed $default
+     *
      * @return mixed
      */
     public function setting(string $key, $default = null)
     {
         return $this->settings[$key] ?? $default;
+    }
+
+    /**
+     * Delivery-webhook tracking is API-only and defaults ON; SMTP connections can never webhook.
+     */
+    public function isWebhookEnabled(): bool
+    {
+        return $this->kind === 'api' && (bool) $this->setting('webhook_enabled', true);
     }
 
     public function toArray(): array

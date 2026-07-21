@@ -91,6 +91,15 @@ class DescriptorProvider implements ProviderInterface
     }
 
     /**
+     * How this provider carries a delivery-webhook correlation token on send:
+     * ['channel' => 'metadata'|'header', 'key' => string], or [] when unsupported.
+     */
+    public function tracking(): array
+    {
+        return $this->descriptor->tracking();
+    }
+
+    /**
      * @return array<int,array<string,mixed>>
      */
     private function requiredFields(): array

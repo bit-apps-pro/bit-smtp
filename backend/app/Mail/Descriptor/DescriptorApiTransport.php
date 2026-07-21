@@ -91,6 +91,8 @@ final class DescriptorApiTransport extends AbstractApiTransport
 
         $this->applyBody($body, $payload, $message);
         $this->applyAttachments($body, $payload, $message);
+        $this->applyMapped($body, $payload, 'metadata', $message->getMetadata());
+        $this->applyMapped($body, $payload, 'headers', $message->getHeaders());
 
         $envelope = $payload['envelope'] ?? null;
         if ($envelope !== null && $envelope !== '') {
@@ -132,6 +134,19 @@ final class DescriptorApiTransport extends AbstractApiTransport
     protected function errorFrom(int $status, $body): string
     {
         return $this->errorFormatter->extract($body, $this->descriptor->errorPaths(), $status, $this->descriptor->label());
+    }
+
+    /**
+     * @param array|string $body
+     */
+    protected function messageIdFrom(int $status, $body): ?string
+    {
+        $path = $this->descriptor->messageIdPath();
+        if ($path === '' || !\is_array($body) || !isset($body[$path]) || !\is_scalar($body[$path])) {
+            return null;
+        }
+
+        return (string) $body[$path];
     }
 
     /**
@@ -213,6 +228,21 @@ final class DescriptorApiTransport extends AbstractApiTransport
         $body[$spec['key']] = $shape === 'files'
             ? $attachments
             : $this->attachmentBuilder->build($attachments, $shape);
+    }
+
+    /**
+     * Emit a message-carried map (metadata, headers) under the provider's declared body key — only
+     * when the descriptor declares that key and the message actually carries values.
+     *
+     * @param array<string,mixed> $values
+     */
+    private function applyMapped(array &$body, array $payload, string $key, array $values): void
+    {
+        if (empty($payload[$key]) || $values === []) {
+            return;
+        }
+
+        $body[$payload[$key]] = $values;
     }
 
     private function resolveHost(array $endpoint, Connection $connection): string

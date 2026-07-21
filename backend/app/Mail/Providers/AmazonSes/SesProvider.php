@@ -56,6 +56,11 @@ class SesProvider implements ProviderInterface
         return ['type' => 'aws_sigv4', 'params' => ['service' => 'ses']];
     }
 
+    public function tracking(): array
+    {
+        return [];
+    }
+
     public function fields(): array
     {
         return [

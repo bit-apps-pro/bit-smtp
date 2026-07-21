@@ -42,9 +42,12 @@ final class BrevoProvider extends DescriptorProvider
                 'subject'     => 'subject',
                 'body'        => ['html' => 'htmlContent', 'text' => 'textContent'],
                 'attachments' => ['key' => 'attachment', 'shape' => 'brevo'],
+                'headers'     => 'headers',
             ],
-            'success'    => [201],
-            'errorPaths' => ['message'],
+            'success'       => [201],
+            'errorPaths'    => ['message'],
+            'messageIdPath' => 'messageId',
+            'tracking'      => ['channel' => 'header', 'key' => 'X-Mailin-custom'],
         ]);
     }
 }

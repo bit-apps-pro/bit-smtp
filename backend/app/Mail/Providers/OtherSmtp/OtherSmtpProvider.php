@@ -60,6 +60,11 @@ class OtherSmtpProvider implements ProviderInterface
         return ['type' => 'smtp', 'params' => []];
     }
 
+    public function tracking(): array
+    {
+        return [];
+    }
+
     public function fields(): array
     {
         $dependsOnAuth = ['field' => 'auth', 'value' => true];

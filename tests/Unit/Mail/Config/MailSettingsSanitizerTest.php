@@ -6,6 +6,7 @@ namespace BitApps\SMTP\Tests\Unit\Mail\Config;
 
 use BitApps\SMTP\Mail\Config\MailSettingsSanitizer;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
@@ -483,6 +484,77 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
             ['source' => 'database', 'value' => 'raw'],
             $result['connections'][0]['credentials']['password']
         );
+    }
+
+    /**
+     * @param mixed $rawValue
+     */
+    #[DataProvider('falsyWebhookEnabledProvider')]
+    public function testWebhookEnabledCoercedToStrictFalse($rawValue): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_enabled' => $rawValue]);
+
+        $this->assertFalse($settings['webhook_enabled']);
+        $this->assertIsBool($settings['webhook_enabled']);
+    }
+
+    /**
+     * @return array<string,array{0:mixed}>
+     */
+    public static function falsyWebhookEnabledProvider(): array
+    {
+        return [
+            'bool false'   => [false],
+            'string zero'  => ['0'],
+            'empty string' => [''],
+        ];
+    }
+
+    /**
+     * @param mixed $rawValue
+     */
+    #[DataProvider('truthyWebhookEnabledProvider')]
+    public function testWebhookEnabledCoercedToStrictTrue($rawValue): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_enabled' => $rawValue]);
+
+        $this->assertTrue($settings['webhook_enabled']);
+        $this->assertIsBool($settings['webhook_enabled']);
+    }
+
+    /**
+     * @return array<string,array{0:mixed}>
+     */
+    public static function truthyWebhookEnabledProvider(): array
+    {
+        return [
+            'bool true'  => [true],
+            'string one' => ['1'],
+        ];
+    }
+
+    /**
+     * Sanitize a single API connection's settings through the public entry point and return them.
+     */
+    private function sanitizeConnectionSettings(array $settings): array
+    {
+        $input                = $this->baseV2();
+        $input['connections'] = [
+            [
+                'id'           => 'conn_1',
+                'provider'     => 'postmark',
+                'kind'         => 'api',
+                'name'         => 'Postmark',
+                'enabled'      => true,
+                'fromEmail'    => '',
+                'fromName'     => '',
+                'replyToEmail' => '',
+                'settings'     => $settings,
+                'credentials'  => [],
+            ],
+        ];
+
+        return MailSettingsSanitizer::sanitize($input)['connections'][0]['settings'];
     }
 
     /**

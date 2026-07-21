@@ -42,9 +42,12 @@ final class PostmarkProvider extends DescriptorProvider
                 'subject'     => 'Subject',
                 'body'        => ['html' => 'HtmlBody', 'text' => 'TextBody'],
                 'attachments' => ['key' => 'Attachments', 'shape' => 'postmark'],
+                'metadata'    => 'Metadata',
             ],
-            'success'    => [200],
-            'errorPaths' => ['Message'],
+            'success'       => [200],
+            'errorPaths'    => ['Message'],
+            'messageIdPath' => 'MessageID',
+            'tracking'      => ['channel' => 'metadata', 'key' => 'bit_tracking_id'],
         ]);
     }
 }

@@ -163,6 +163,12 @@ final class MailSettingsSanitizer
             $sanitized['token_expires_at'] = \intval($settings['token_expires_at']);
         }
 
+        // Keep the delivery-webhook toggle a real bool; the generic pass-through would stringify
+        // false to "" and defeat the enabled check.
+        if (isset($settings['webhook_enabled'])) {
+            $sanitized['webhook_enabled'] = (bool) filter_var($settings['webhook_enabled'], FILTER_VALIDATE_BOOLEAN);
+        }
+
         foreach ($settings as $key => $value) {
             if (\array_key_exists($key, $sanitized) || !\is_scalar($value)) {
                 continue;

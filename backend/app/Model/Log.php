@@ -14,6 +14,8 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
  * @property array  $debug_info
  * @property int    $retry_count
  * @property string $connection
+ * @property string $message_id
+ * @property string $tracking_id
  * @property string $created_at
  * @property string $updated_at
  */
@@ -31,6 +33,8 @@ class Log extends Model
         'debug_info'      => 'array',
         'retry_count'     => 'int',
         'connection'      => 'string',
+        'message_id'      => 'string',
+        'tracking_id'     => 'string',
         'created_at'      => 'string',
         'updated_at'      => 'string',
     ];
@@ -41,5 +45,7 @@ class Log extends Model
         'details',
         'retry_count',
         'connection',
+        'message_id',
+        'tracking_id',
     ];
 }

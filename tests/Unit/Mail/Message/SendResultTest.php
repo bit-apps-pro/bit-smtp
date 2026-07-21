@@ -86,4 +86,49 @@ class SendResultTest extends BaseUnitTestCase
         $this->assertNull($result->getCode());
         $this->assertSame([], $result->getDebug());
     }
+
+    public function testMessageIdDefaultsToNull(): void
+    {
+        $this->assertNull(SendResult::success()->getMessageId());
+    }
+
+    public function testWithMessageIdCarriesTheMessageId(): void
+    {
+        $this->assertSame('m1', SendResult::success()->withMessageId('m1')->getMessageId());
+    }
+
+    public function testWithMessageIdIsImmutableAndLeavesTheOriginalUntouched(): void
+    {
+        $original = SendResult::success();
+        $stamped  = $original->withMessageId('m1');
+
+        $this->assertNotSame($original, $stamped);
+        $this->assertNull($original->getMessageId());
+    }
+
+    public function testWithMessageIdPreservesEveryFailureDimension(): void
+    {
+        $debugInfo = ['d' => 1];
+        $stamped   = SendResult::failure('e', '500', $debugInfo)->withMessageId('m1');
+
+        $this->assertSame('m1', $stamped->getMessageId());
+        $this->assertFalse($stamped->isAccepted());
+        $this->assertFalse($stamped->isOk());
+        $this->assertSame('500', $stamped->getCode());
+        $this->assertSame('e', $stamped->getError());
+        $this->assertSame($debugInfo, $stamped->getDebug());
+    }
+
+    public function testWithMessageIdPreservesEverySuccessDimension(): void
+    {
+        $debugInfo = ['x' => 1];
+        $stamped   = SendResult::success($debugInfo)->withMessageId('m1');
+
+        $this->assertSame('m1', $stamped->getMessageId());
+        $this->assertTrue($stamped->isAccepted());
+        $this->assertTrue($stamped->isOk());
+        $this->assertNull($stamped->getCode());
+        $this->assertNull($stamped->getError());
+        $this->assertSame($debugInfo, $stamped->getDebug());
+    }
 }
