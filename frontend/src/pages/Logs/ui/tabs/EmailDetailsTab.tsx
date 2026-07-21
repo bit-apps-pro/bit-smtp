@@ -23,6 +23,9 @@ export default function EmailDetailsTab({ log, isLoading }: EmailDetailsTabProps
       <Text strong>Sent At: </Text>
       <Text>{localSentAt}</Text>
       <br />
+      <Text strong>Connection: </Text>
+      <Text>{log.connection || '—'}</Text>
+      <br />
       <Text strong>From: </Text>
       <br />
       <Text strong>To: </Text>

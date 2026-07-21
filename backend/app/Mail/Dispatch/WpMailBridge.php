@@ -209,18 +209,20 @@ class WpMailBridge
         $this->dispatching = true;
 
         try {
-            $isRetry    = $this->context->isRetrying();
-            $succeeded  = false;
-            $lastResult = null;
+            $isRetry        = $this->context->isRetrying();
+            $succeeded      = false;
+            $lastResult     = null;
+            $lastConnection = null;
 
             foreach ($connections as $connection) {
-                $lastResult = $this->sendVia($connection, $message);
+                $lastResult     = $this->sendVia($connection, $message);
+                $lastConnection = $connection;
                 $this->appendDebug($lastResult);
 
                 // A resend updates its originating log once with the final outcome (below); a fresh
                 // send records every attempt so the fallback history is visible.
                 if (!$isRetry) {
-                    $this->logAttempt($lastResult, $mailData);
+                    $this->logAttempt($lastResult, $mailData, $connection);
                 }
 
                 if ($lastResult->isOk()) {
@@ -233,7 +235,7 @@ class WpMailBridge
             $this->context->setFailed(!$succeeded);
 
             if ($isRetry) {
-                $this->logOutcome($succeeded, $lastResult, $mailData);
+                $this->logOutcome($succeeded, $lastResult, $mailData, $lastConnection);
             }
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
@@ -353,37 +355,49 @@ class WpMailBridge
     /**
      * @param array<string,mixed> $mailData
      */
-    private function logAttempt(SendResult $result, array $mailData): void
+    private function logAttempt(SendResult $result, array $mailData, Connection $connection): void
     {
         if (!$this->loggingEnabled) {
             return;
         }
 
+        $connectionLabel = $this->connectionLabel($connection);
+
         if ($result->isOk()) {
-            $this->eventLogger->logMailSuccess($mailData, $this->context);
+            $this->eventLogger->logMailSuccess($mailData, $this->context, $connectionLabel);
 
             return;
         }
 
-        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context);
+        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel);
     }
 
     /**
      * @param array<string,mixed> $mailData
      */
-    private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData): void
+    private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection): void
     {
         if (!$this->loggingEnabled) {
             return;
         }
 
+        $connectionLabel = $connection !== null ? $this->connectionLabel($connection) : null;
+
         if ($succeeded) {
-            $this->eventLogger->logMailSuccess($mailData, $this->context);
+            $this->eventLogger->logMailSuccess($mailData, $this->context, $connectionLabel);
 
             return;
         }
 
-        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context);
+        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel);
+    }
+
+    /**
+     * The label shown in the Logs UI to identify which connection handled (or attempted) a send.
+     */
+    private function connectionLabel(Connection $connection): string
+    {
+        return $connection->getName() !== '' ? $connection->getName() : $connection->getProvider();
     }
 
     /**

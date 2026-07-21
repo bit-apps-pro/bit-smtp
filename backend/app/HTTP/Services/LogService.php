@@ -49,14 +49,14 @@ class LogService
         return compact('count', 'logs', 'pages', 'current');
     }
 
-    public function success(array $mailData)
+    public function success(array $mailData, ?string $connection = null)
     {
-        $this->save(Log::SUCCESS, $mailData);
+        $this->save(Log::SUCCESS, $mailData, null, $connection);
     }
 
-    public function error(WP_Error $error)
+    public function error(WP_Error $error, ?string $connection = null)
     {
-        $this->save(Log::ERROR, $error->get_error_data(), $error->get_error_messages());
+        $this->save(Log::ERROR, $error->get_error_data(), $error->get_error_messages(), $connection);
     }
 
     public function get(int $id): ?Log
@@ -69,7 +69,7 @@ class LogService
         return Log::where('id', $ids)->get();
     }
 
-    public function save($status, $details, $message = null)
+    public function save($status, $details, $message = null, ?string $connection = null)
     {
         $log             = new Log();
 
@@ -80,6 +80,7 @@ class LogService
 
         $log->subject      = Arr::get($details, 'subject', '');
         $log->to_addr      = Arr::get($details, 'to', '[]');
+        $log->connection   = $connection;
 
         unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
         $log->details    = $details;
@@ -87,7 +88,7 @@ class LogService
         return $log->save();
     }
 
-    public function update($id, $status, $details, $message = null)
+    public function update($id, $status, $details, $message = null, ?string $connection = null)
     {
         $log = $this->get($id);
         if (!$log) {
@@ -96,6 +97,7 @@ class LogService
 
         $log->retry_count = $log->retry_count + 1;
         $log->status      = $status;
+        $log->connection  = $connection;
 
         if (isset($message)) {
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
@@ -207,6 +209,7 @@ class LogService
             $record = [
                 'status'      => $log['status'],
                 'retry_count' => 0,
+                'connection'  => $log['connection'] ?? null,
             ];
 
             if ($log['status'] === Log::ERROR && $log['data'] instanceof WP_Error) {

@@ -31,6 +31,12 @@ const columns: TableColumnsType<LogType> = [
     key: 'status',
     render: status => <Badge status={status ? 'success' : 'error'} text={status ? 'Sent' : 'Failed'} />
   },
+  {
+    title: __('Connection'),
+    dataIndex: 'connection',
+    key: 'connection',
+    render: connection => connection || '—'
+  },
   { title: __('Subject'), dataIndex: 'subject', key: 'subject' },
   { title: __('To'), dataIndex: 'to_addr', key: 'to_addr' },
   { title: __('Retry'), dataIndex: 'retry_count', key: 'retry_count' },

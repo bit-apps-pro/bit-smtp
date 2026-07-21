@@ -20,6 +20,7 @@ export type LogType = {
   details: LogDetail
   debug_info: Array<string>
   retry_count: number
+  connection: string | null
   created_at: string
   updated_at: string
 }

@@ -11,6 +11,11 @@ use Brain\Monkey\Functions;
 use Mockery;
 use WP_Error;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class MailEventLoggerTest extends BaseUnitTestCase
 {
     private $logger;
@@ -34,7 +39,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::SUCCESS, 'data' => $mailData]]);
+            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => null]]);
 
         $this->eventLogger->logMailSuccess($mailData, $this->context);
 
@@ -47,11 +52,33 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::ERROR, 'data' => $error]]);
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => null]]);
 
         $this->eventLogger->logMailFailed($error, $this->context);
 
         $this->assertTrue($this->context->isFailed());
+    }
+
+    public function testSuccessQueuedCarriesTheConnectionLabelWhenProvided(): void
+    {
+        $mailData = ['subject' => 'Hi', 'to' => ['a@example.org']];
+
+        $this->logger->shouldReceive('bulkInsert')
+            ->once()
+            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => 'Primary SMTP']]);
+
+        $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
+    }
+
+    public function testFailureQueuedCarriesTheConnectionLabelWhenProvided(): void
+    {
+        $error = new WP_Error('wp_mail_failed', 'boom', ['phpmailer_exception_code' => 0]);
+
+        $this->logger->shouldReceive('bulkInsert')
+            ->once()
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'brevo']]);
+
+        $this->eventLogger->logMailFailed($error, $this->context, 'brevo');
     }
 
     public function testRetrySuccessUpdatesLogInsteadOfQueueing(): void
@@ -61,10 +88,10 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('update')
             ->once()
-            ->with(99, Log::SUCCESS, $mailData);
+            ->with(99, Log::SUCCESS, $mailData, null, 'Primary SMTP');
         $this->logger->shouldNotReceive('bulkInsert');
 
-        $this->eventLogger->logMailSuccess($mailData, $this->context);
+        $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
 
         // Retry flag is consumed after the send.
         $this->assertFalse($this->context->isRetrying());
@@ -78,10 +105,10 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('update')
             ->once()
-            ->with(77, Log::ERROR, $data, ['boom']);
+            ->with(77, Log::ERROR, $data, ['boom'], 'brevo');
         $this->logger->shouldNotReceive('bulkInsert');
 
-        $this->eventLogger->logMailFailed($error, $this->context);
+        $this->eventLogger->logMailFailed($error, $this->context, 'brevo');
 
         $this->assertTrue($this->context->isFailed());
         $this->assertFalse($this->context->isRetrying());
@@ -105,8 +132,8 @@ class MailEventLoggerTest extends BaseUnitTestCase
             $this->logger->shouldReceive('bulkInsert')
                 ->once()
                 ->with([
-                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'one']],
-                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'two']],
+                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'one'], 'connection' => null],
+                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'two'], 'connection' => null],
                 ]);
 
             $this->eventLogger->flushPendingLogs();
@@ -126,7 +153,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
         try {
             $this->logger->shouldReceive('bulkInsert')
                 ->once()
-                ->with([['status' => Log::SUCCESS, 'data' => ['subject' => 'flush-me']]]);
+                ->with([['status' => Log::SUCCESS, 'data' => ['subject' => 'flush-me'], 'connection' => null]]);
 
             $this->eventLogger->logMailSuccess(['subject' => 'flush-me'], $this->context);
         } finally {

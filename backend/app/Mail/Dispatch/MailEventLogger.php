@@ -27,19 +27,19 @@ class MailEventLogger
         $this->logger = $logger;
     }
 
-    public function logMailSuccess(array $mailData, SendContext $context): void
+    public function logMailSuccess(array $mailData, SendContext $context, ?string $connection = null): void
     {
         if ($context->isRetrying() && $context->getRetryLogId() > 0) {
-            $this->logger->update($context->getRetryLogId(), Log::SUCCESS, $mailData);
+            $this->logger->update($context->getRetryLogId(), Log::SUCCESS, $mailData, null, $connection);
         } else {
-            $this->queue(Log::SUCCESS, $mailData, $context);
+            $this->queue(Log::SUCCESS, $mailData, $context, $connection);
         }
 
         $context->setFailed(false);
         $context->setRetrying(false);
     }
 
-    public function logMailFailed(WP_Error $error, SendContext $context): void
+    public function logMailFailed(WP_Error $error, SendContext $context, ?string $connection = null): void
     {
         if ($context->isDebug() && $error->get_error_data()['phpmailer_exception_code'] == PHPMailer::STOP_CRITICAL) {
             $message = __('SMTP configuration is not correct. PHPMailer could not connect to the SMTP server', 'bit-smtp');
@@ -48,9 +48,9 @@ class MailEventLogger
         }
 
         if ($context->isRetrying() && $context->getRetryLogId() > 0) {
-            $this->logger->update($context->getRetryLogId(), Log::ERROR, $error->get_error_data(), $error->get_error_messages());
+            $this->logger->update($context->getRetryLogId(), Log::ERROR, $error->get_error_data(), $error->get_error_messages(), $connection);
         } else {
-            $this->queue(Log::ERROR, $error, $context);
+            $this->queue(Log::ERROR, $error, $context, $connection);
         }
 
         $context->setFailed(true);
@@ -73,11 +73,12 @@ class MailEventLogger
     /**
      * @param array|WP_Error $data
      */
-    private function queue(int $status, $data, SendContext $context): void
+    private function queue(int $status, $data, SendContext $context, ?string $connection): void
     {
         $this->pendingLogs[] = [
-            'status' => $status,
-            'data'   => $data,
+            'status'     => $status,
+            'data'       => $data,
+            'connection' => $connection,
         ];
 
         if ($this->shouldFlushLogs($context)) {

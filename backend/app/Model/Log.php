@@ -13,6 +13,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
  * @property array  $details
  * @property array  $debug_info
  * @property int    $retry_count
+ * @property string $connection
  * @property string $created_at
  * @property string $updated_at
  */
@@ -29,6 +30,7 @@ class Log extends Model
         'details'         => 'array',
         'debug_info'      => 'array',
         'retry_count'     => 'int',
+        'connection'      => 'string',
         'created_at'      => 'string',
         'updated_at'      => 'string',
     ];
@@ -38,5 +40,6 @@ class Log extends Model
         'message',
         'details',
         'retry_count',
+        'connection',
     ];
 }

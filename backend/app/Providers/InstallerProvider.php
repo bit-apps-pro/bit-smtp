@@ -74,10 +74,12 @@ class InstallerProvider
 
     public static function migration()
     {
+        // Schema/data migrations run first; the db_version bump runs LAST so a failed schema
+        // migration leaves the version gate open to retry (each migration is idempotent).
         $migrations = [
-            'BitSmtpPluginOptions',
             'BitSmtpLogsTableMigration',
             'BitSmtpEncryptSecrets',
+            'BitSmtpPluginOptions',
         ];
 
         return [
