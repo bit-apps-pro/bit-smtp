@@ -48,6 +48,32 @@ describe('useTestConnection', () => {
     expect(result.current.data).toEqual({
       ok: true,
       debug: ['Connected', 'Message sent'],
+      delivery: null,
+      error: undefined
+    })
+  })
+
+  it('surfaces the delivery status and debug object from the new response shape', async () => {
+    ;(request as Mock).mockResolvedValue({
+      status: 'success',
+      code: 'SUCCESS',
+      message: undefined,
+      data: {
+        debug: { status: 201, body: { messageId: 'abc' } },
+        delivery: { state: 'delivered', detail: '' }
+      }
+    })
+
+    const { result } = renderHook(() => useTestConnection(), { wrapper })
+
+    result.current.mutate({ connection, to: 'test@example.com' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(result.current.data).toEqual({
+      ok: true,
+      debug: { status: 201, body: { messageId: 'abc' } },
+      delivery: { state: 'delivered', detail: '' },
       error: undefined
     })
   })
@@ -69,6 +95,7 @@ describe('useTestConnection', () => {
     expect(result.current.data).toEqual({
       ok: false,
       debug: ['SMTP connect() failed'],
+      delivery: null,
       error: 'Connection test failed'
     })
   })

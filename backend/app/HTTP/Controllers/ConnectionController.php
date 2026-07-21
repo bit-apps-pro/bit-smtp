@@ -9,14 +9,22 @@ use BitApps\SMTP\HTTP\Requests\ConnectionSaveRequest;
 use BitApps\SMTP\HTTP\Requests\ConnectionTestRequest;
 use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Contracts\MessageStatusCheckerInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 use BitApps\SMTP\Mail\Message\MailMessage;
+use BitApps\SMTP\Mail\Message\SendResult;
+use BitApps\SMTP\Mail\Status\DeliveryStatus;
+use BitApps\SMTP\Mail\Status\StatusCheckerRegistry;
 use BitApps\SMTP\Mail\Validation\RequiredFieldsValidator;
 use BitApps\SMTP\Plugin;
 use Throwable;
 
 class ConnectionController
 {
+    private const DELIVERY_POLL_ATTEMPTS = 3;
+
+    private const DELIVERY_POLL_INTERVAL = 2;
+
     public function save(ConnectionSaveRequest $request)
     {
         $data     = $request->validated();
@@ -102,7 +110,7 @@ class ConnectionController
             $result = $transport->send($message, $connection);
 
             if ($result->isOk()) {
-                return Response::success($result->getDebug());
+                return $this->successResponse($provider, $connection, $result);
             }
 
             return Response::message(__('Connection test failed', 'bit-smtp'))
@@ -110,6 +118,93 @@ class ConnectionController
         } catch (Throwable $e) {
             return Response::message($e->getMessage())->error([$e->getMessage()]);
         }
+    }
+
+    /**
+     * Best-effort poll of the provider's real outcome, isolated so a checker/poll failure degrades
+     * to null (today's plain-success behaviour) instead of failing the already-successful send.
+     */
+    protected function resolveDelivery(?MessageStatusCheckerInterface $checker, ?string $messageId, Connection $connection): ?DeliveryStatus
+    {
+        if ($checker === null || $messageId === null) {
+            return null;
+        }
+
+        try {
+            return $this->pollDelivery($checker, $messageId, $connection);
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * A negative outcome (deferred/blocked/bounced/spam) flips the result to an error so the caller
+     * learns the API's 2xx did not mean the mail actually landed; otherwise it stays a success.
+     */
+    protected function deliveryResponse(SendResult $result, ?DeliveryStatus $delivery): Response
+    {
+        if ($delivery !== null && $delivery->isNegative()) {
+            return Response::message($delivery->detail() ?: __('Message not delivered', 'bit-smtp'))
+                ->error(['debug' => $result->getDebug(), 'delivery' => $this->deliveryPayload($delivery)]);
+        }
+
+        return Response::success([
+            'debug'    => $result->getDebug(),
+            'delivery' => $delivery === null ? null : $this->deliveryPayload($delivery),
+        ]);
+    }
+
+    /**
+     * Build the response for an accepted send, upgrading it with the provider's real delivery
+     * outcome when available. Obtaining the registry (Plugin singleton) is guarded here too, so
+     * even that failing degrades to plain success rather than failing an already-successful send.
+     */
+    private function successResponse(string $provider, Connection $connection, SendResult $result): Response
+    {
+        $delivery = null;
+
+        try {
+            $registry = new StatusCheckerRegistry(Plugin::instance()->apiClient());
+            $delivery = $this->resolveDelivery(
+                $registry->checkerFor($provider),
+                $registry->messageIdFrom($provider, $result->getDebug()),
+                $connection
+            );
+        } catch (Throwable $e) {
+            $delivery = null;
+        }
+
+        return $this->deliveryResponse($result, $delivery);
+    }
+
+    /**
+     * Poll a few times because Brevo's event feed lags the send, stopping as soon as a terminal
+     * outcome lands and never discarding an earlier non-null result to a later null.
+     */
+    private function pollDelivery(MessageStatusCheckerInterface $checker, string $messageId, Connection $connection): ?DeliveryStatus
+    {
+        $delivery = null;
+        for ($attempt = 0; $attempt < self::DELIVERY_POLL_ATTEMPTS; $attempt++) {
+            if ($attempt > 0) {
+                sleep(self::DELIVERY_POLL_INTERVAL);
+            }
+
+            $current = $checker->check($messageId, $connection);
+            if ($current !== null) {
+                $delivery = $current;
+            }
+
+            if ($delivery !== null && ($delivery->state() === DeliveryStatus::DELIVERED || $delivery->isNegative())) {
+                break;
+            }
+        }
+
+        return $delivery;
+    }
+
+    private function deliveryPayload(DeliveryStatus $delivery): array
+    {
+        return ['state' => $delivery->state(), 'detail' => $delivery->detail()];
     }
 
     /**

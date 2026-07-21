@@ -193,6 +193,15 @@ final class Plugin
         return $this->_container['mailConfigService'];
     }
 
+    public function apiClient(): ApiClient
+    {
+        if (!isset($this->_container['apiClient'])) {
+            $this->_container['apiClient'] = new ApiClient(new HttpClient());
+        }
+
+        return $this->_container['apiClient'];
+    }
+
     /**
      * Plugin action links.
      *
