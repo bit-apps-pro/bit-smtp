@@ -221,18 +221,21 @@ export default function ConnectionEditor({
 
         <Flex
           gap="small"
-          justify="flex-end"
+          justify="space-between"
+          align="center"
           style={{
             position: 'sticky',
             bottom: 0,
             backgroundColor: token.colorBgContainer,
             borderTop: `1px solid ${token.colorBorderSecondary}`,
-            padding: '12px 0',
-            zIndex: 1
+            boxShadow: token.boxShadowSecondary,
+            padding: `${token.paddingSM}px ${token.padding}px`,
+            marginTop: token.margin,
+            zIndex: 10
           }}
         >
           <ConnectionTestButton getConnection={buildPayload} to={fromEmail} />
-          <Button type="primary" htmlType="submit" loading={isPending}>
+          <Button type="primary" htmlType="submit" size="large" loading={isPending}>
             {__('Save')}
           </Button>
         </Flex>
