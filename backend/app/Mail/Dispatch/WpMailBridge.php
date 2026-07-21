@@ -225,8 +225,11 @@ class WpMailBridge
                     $this->logAttempt($lastResult, $mailData, $connection);
                 }
 
-                if ($lastResult->isOk()) {
-                    $succeeded = true;
+                // Fall back only when NOT accepted: an accepted-but-partial send (e.g. a 2xx with a
+                // per-message error) was already handed off, so retrying via the next connection
+                // would duplicate-deliver to the recipients the first provider already accepted.
+                if ($lastResult->isAccepted()) {
+                    $succeeded = $lastResult->isOk();
 
                     break;
                 }

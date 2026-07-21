@@ -114,8 +114,16 @@ final class DescriptorApiTransport extends AbstractApiTransport
      */
     protected function successFrom(int $status, $body): bool
     {
-        return \in_array($status, $this->descriptor->success(), true)
+        return $this->acceptedFrom($status, $body)
             && !$this->errorFormatter->hasError($body, $this->descriptor->errorDetectPaths());
+    }
+
+    /**
+     * @param array|string $body
+     */
+    protected function acceptedFrom(int $status, $body): bool
+    {
+        return \in_array($status, $this->descriptor->success(), true);
     }
 
     /**

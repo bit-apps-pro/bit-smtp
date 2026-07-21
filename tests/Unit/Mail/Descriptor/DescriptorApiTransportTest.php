@@ -190,6 +190,51 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
         $this->assertSame('200', $result->getCode());
     }
 
+    public function testSuccessStatusWithProviderErrorBodyIsAcceptedButNotOkSoNoFallback(): void
+    {
+        // The 2xx-with-body-error case (Mailjet-style): the provider DID accept/hand off the
+        // message, so the dispatch fallback must not re-send it to the next connection.
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'errors' => [['message' => 'Recipient rejected']],
+        ]));
+
+        $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
+            'errorDetectPaths' => ['errors.0.message', 'message'],
+        ]));
+
+        $result = $this->transportWith($descriptor)->send($this->message(), $this->connection());
+
+        $this->assertTrue($result->isAccepted());
+        $this->assertFalse($result->isOk());
+    }
+
+    public function testNonSuccessStatusIsNotAcceptedSoFallbackCanRun(): void
+    {
+        // A 4xx was never handed off by the provider, so the dispatch fallback must be allowed to
+        // try the next connection.
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(400, [
+            'errors' => [['message' => 'Recipient rejected']],
+        ]));
+
+        $result = $this->transport()->send($this->message(), $this->connection());
+
+        $this->assertFalse($result->isAccepted());
+        $this->assertFalse($result->isOk());
+    }
+
+    public function testCleanSuccessStatusIsAccepted(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, ['id' => 'msg_1']));
+
+        $result = $this->transport()->send($this->message(), $this->connection());
+
+        $this->assertTrue($result->isAccepted());
+        $this->assertTrue($result->isOk());
+    }
+
     public function testSuccessStatusWithBenignBodyKeyIsNotAFalseFailureWhenErrorDetectPathsIsEmpty(): void
     {
         // The default descriptor sets no errorDetectPaths (→ []), so a benign top-level `message`

@@ -74,6 +74,14 @@ class FakeOAuth2Transport extends AbstractOAuth2Transport
     /**
      * @param array|string $body
      */
+    protected function acceptedFrom(int $status, $body): bool
+    {
+        return $status >= 200 && $status < 300;
+    }
+
+    /**
+     * @param array|string $body
+     */
     protected function errorFrom(int $status, $body): string
     {
         return 'error';

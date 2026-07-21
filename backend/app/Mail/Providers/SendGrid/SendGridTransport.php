@@ -88,6 +88,16 @@ class SendGridTransport extends AbstractApiTransport
     }
 
     /**
+     * SendGrid has no 2xx-with-error-body case: accepted and successful are the same status check.
+     *
+     * @param array|string $body
+     */
+    protected function acceptedFrom(int $status, $body): bool
+    {
+        return $status === 202;
+    }
+
+    /**
      * @param array|string $body
      */
     protected function errorFrom(int $status, $body): string

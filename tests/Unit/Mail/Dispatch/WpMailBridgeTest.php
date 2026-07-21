@@ -108,6 +108,57 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertTrue($succeeded);
     }
 
+    public function testAcceptedWithErrorStopsTheFallbackAndReportsTheSendAsFailed(): void
+    {
+        // The regression this guards: a provider that ACCEPTED the message but reported a
+        // partial/soft error (2xx-with-error body) must never trigger a fallback re-send —
+        // that would duplicate-deliver to the recipients the first provider already accepted.
+        $transport = new ScriptedTransport([
+            SendResult::acceptedWithError('Recipient rejected', '200'),
+        ]);
+        $bridge = $this->dispatchableBridge($transport);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertFalse($succeeded);
+        $this->assertSame(1, $transport->callCount, 'the second connection must never be tried');
+    }
+
+    public function testNotAcceptedFailureFallsBackToTheNextConnection(): void
+    {
+        // A genuine non-acceptance (connection refused, 4xx, etc.) is the real fallback case.
+        $transport = new ScriptedTransport([
+            SendResult::failure('Connection refused'),
+            SendResult::success(),
+        ]);
+        $bridge = $this->dispatchableBridge($transport);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertTrue($succeeded);
+        $this->assertSame(2, $transport->callCount, 'the second connection must be tried as fallback');
+    }
+
+    public function testSuccessDoesNotFallBackToTheNextConnection(): void
+    {
+        $transport = new ScriptedTransport([SendResult::success()]);
+        $bridge    = $this->dispatchableBridge($transport);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertTrue($succeeded);
+        $this->assertSame(1, $transport->callCount, 'a full success must never try the next connection');
+    }
+
     public function testNativeMailSucceededLogsWithoutAConnection(): void
     {
         $bridge = $this->bridgeWithTransport(new SpyTransport());
@@ -162,6 +213,19 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('loggingEnabled');
         $property->setAccessible(true);
         $property->setValue($bridge, $enabled);
+    }
+
+    /**
+     * A bridge wired to also run dispatch() (not just sendVia()): dispatch touches $context and
+     * $loggingEnabled, which bridgeWithTransport() leaves uninitialized.
+     */
+    private function dispatchableBridge(TransportInterface $transport): WpMailBridge
+    {
+        $bridge = $this->bridgeWithTransport($transport);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, false);
+
+        return $bridge;
     }
 
     private function bridgeWithTransport(TransportInterface $transport): WpMailBridge
@@ -220,6 +284,33 @@ final class SpyTransport implements TransportInterface
         $this->received = $message;
 
         return SendResult::success();
+    }
+}
+
+/**
+ * Returns the queued SendResult for each successive send() call, so a test can assert both the
+ * dispatch outcome and how many connections were actually attempted.
+ */
+final class ScriptedTransport implements TransportInterface
+{
+    public int $callCount = 0;
+
+    /**
+     * @var SendResult[]
+     */
+    private array $results;
+
+    /**
+     * @param SendResult[] $results
+     */
+    public function __construct(array $results)
+    {
+        $this->results = $results;
+    }
+
+    public function send(MailMessage $message, Connection $connection): SendResult
+    {
+        return $this->results[$this->callCount++];
     }
 }
 

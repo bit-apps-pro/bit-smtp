@@ -161,6 +161,14 @@ class FakeApiTransport extends AbstractApiTransport
     /**
      * @param array|string $body
      */
+    protected function acceptedFrom(int $status, $body): bool
+    {
+        return $status >= 200 && $status < 300;
+    }
+
+    /**
+     * @param array|string $body
+     */
     protected function errorFrom(int $status, $body): string
     {
         return \is_array($body) && isset($body['message']) ? $body['message'] : 'Unknown error';
@@ -200,6 +208,14 @@ class OptInApiTransport extends AbstractApiTransport
      * @param array|string $body
      */
     protected function successFrom(int $status, $body): bool
+    {
+        return $status >= 200 && $status < 300;
+    }
+
+    /**
+     * @param array|string $body
+     */
+    protected function acceptedFrom(int $status, $body): bool
     {
         return $status >= 200 && $status < 300;
     }

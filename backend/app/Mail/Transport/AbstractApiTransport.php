@@ -72,6 +72,15 @@ abstract class AbstractApiTransport implements TransportInterface
     abstract protected function successFrom(int $status, $body): bool;
 
     /**
+     * Whether the provider handed off / accepted the message (status-only, e.g. HTTP 2xx) even if
+     * successFrom() went on to find a per-message error in the body. Drives dispatch fallback:
+     * only a genuinely non-accepted response (this false) is eligible to fall back.
+     *
+     * @param array|string $body
+     */
+    abstract protected function acceptedFrom(int $status, $body): bool;
+
+    /**
      * @param array|string $body
      */
     abstract protected function errorFrom(int $status, $body): string;
@@ -84,6 +93,10 @@ abstract class AbstractApiTransport implements TransportInterface
 
         if ($this->successFrom($status, $body)) {
             return SendResult::success($debug);
+        }
+
+        if ($this->acceptedFrom($status, $body)) {
+            return SendResult::acceptedWithError($this->errorFrom($status, $body), (string) $status, $debug);
         }
 
         return SendResult::failure($this->errorFrom($status, $body), (string) $status, $debug);
