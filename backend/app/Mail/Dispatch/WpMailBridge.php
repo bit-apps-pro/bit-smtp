@@ -257,7 +257,26 @@ class WpMailBridge
             return SendResult::failure($e->getMessage());
         }
 
-        return $transport->send($message, $connection);
+        return $transport->send($this->applyConnectionFrom($connection, $message), $connection);
+    }
+
+    /**
+     * Force the connection's configured From onto the outgoing message so every transport (API,
+     * MIME, SMTP) sends from the verified sender the connection is configured with, rather than
+     * whatever From the message carried in (e.g. wp_mail()'s wordpress@<site> default) — matching
+     * SmtpTransport's own from-forcing for consistency across all transports.
+     */
+    private function applyConnectionFrom(Connection $connection, MailMessage $message): MailMessage
+    {
+        $fromEmail = $connection->getFromEmail();
+        if ($fromEmail === '') {
+            return $message;
+        }
+
+        return MailMessage::fromArray(array_merge($message->toArray(), [
+            'from'     => $fromEmail,
+            'fromName' => $connection->getFromName(),
+        ]));
     }
 
     /**
