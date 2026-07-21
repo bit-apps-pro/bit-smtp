@@ -59,6 +59,24 @@ class MailEventLoggerTest extends BaseUnitTestCase
         $this->assertTrue($this->context->isFailed());
     }
 
+    public function testDebugFailureFromApiProviderDoesNotFatalOnUnloadedPhpMailer(): void
+    {
+        // Regression: on the pre_wp_mail API-provider path PHPMailer is never loaded, so touching
+        // PHPMailer::STOP_CRITICAL in debug mode fataled ("Class not found"), killing the dispatch
+        // (and the fallback chain) before any log row was written. The error must queue unchanged.
+        $this->context->setDebug(true);
+        $error = new WP_Error('wp_mail_failed', 'Unauthorized', ['phpmailer_exception_code' => 401]);
+
+        $this->logger->shouldReceive('bulkInsert')
+            ->once()
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'postmark']]);
+
+        $this->eventLogger->logMailFailed($error, $this->context, 'postmark');
+
+        $this->assertTrue($this->context->isFailed());
+        $this->assertSame(['Unauthorized'], $error->get_error_messages());
+    }
+
     public function testSuccessQueuedCarriesTheConnectionLabelWhenProvided(): void
     {
         $mailData = ['subject' => 'Hi', 'to' => ['a@example.org']];

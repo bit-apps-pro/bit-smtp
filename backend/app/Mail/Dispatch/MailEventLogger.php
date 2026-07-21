@@ -41,7 +41,7 @@ class MailEventLogger
 
     public function logMailFailed(WP_Error $error, SendContext $context, ?string $connection = null): void
     {
-        if ($context->isDebug() && $error->get_error_data()['phpmailer_exception_code'] == PHPMailer::STOP_CRITICAL) {
+        if ($context->isDebug() && $this->isSmtpConnectionFailure($error)) {
             $message = __('SMTP configuration is not correct. PHPMailer could not connect to the SMTP server', 'bit-smtp');
             $error->add('wp_mail_failed', $message, $error->get_error_data());
             $context->appendDebug($message . "\n");
@@ -68,6 +68,22 @@ class MailEventLogger
 
         $this->logger->bulkInsert($this->pendingLogs);
         $this->pendingLogs = [];
+    }
+
+    /**
+     * True only for a PHPMailer connection-level failure. API providers short-circuit pre_wp_mail
+     * before WordPress lazy-loads PHPMailer, so the class guard keeps the constant access from
+     * fataling on their failure path (their code carries an HTTP status, never STOP_CRITICAL).
+     */
+    private function isSmtpConnectionFailure(WP_Error $error): bool
+    {
+        $data = $error->get_error_data();
+        if (!\is_array($data) || !isset($data['phpmailer_exception_code'])) {
+            return false;
+        }
+
+        return class_exists(PHPMailer::class, false)
+            && $data['phpmailer_exception_code'] == PHPMailer::STOP_CRITICAL;
     }
 
     /**
