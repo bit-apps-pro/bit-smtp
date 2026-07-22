@@ -210,6 +210,65 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->invokeDispatch($bridge, [$connection], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
     }
 
+    public function testAcceptDeliveryProviderStampsDeliveryStatusOnSuccess(): void
+    {
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), 'delivered');
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return $logs[0]['delivery_status'] === 'delivered'
+                    && $logs[0]['delivery_updated_at'] !== null;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $succeeded = $this->invokeDispatch($bridge, [$this->connection()], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
+
+        $this->assertTrue($succeeded);
+    }
+
+    public function testProviderWithoutAcceptDeliveryStampsNoStatus(): void
+    {
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]));
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return $logs[0]['delivery_status']     === null
+                    && $logs[0]['delivery_updated_at'] === null;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $this->invokeDispatch($bridge, [$this->connection()], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
+    }
+
+    public function testAcceptedWithErrorNeverStampsDeliveryStatus(): void
+    {
+        // An accepted-but-partial send (2xx carrying a per-message error) is a failure row, so a
+        // provider's send-accept delivery status must not be stamped onto it.
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::acceptedWithError('Recipient rejected', '200')]), 'delivered');
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return $logs[0]['delivery_status'] === null;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $succeeded = $this->invokeDispatch($bridge, [$this->connection()], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
+
+        $this->assertFalse($succeeded);
+    }
+
     public function testNativeMailSucceededLogsWithoutAConnection(): void
     {
         $bridge = $this->bridgeWithTransport(new SpyTransport());
@@ -279,10 +338,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         return $bridge;
     }
 
-    private function bridgeWithTransport(TransportInterface $transport): WpMailBridge
+    private function bridgeWithTransport(TransportInterface $transport, ?string $deliveryStatusOnAccept = null): WpMailBridge
     {
         $registry = new ProviderRegistry();
-        $registry->register(new FakeProvider($transport));
+        $registry->register(new FakeProvider($transport, $deliveryStatusOnAccept));
 
         $refClass = new ReflectionClass(WpMailBridge::class);
         $bridge   = $refClass->newInstanceWithoutConstructor();
@@ -377,9 +436,12 @@ final class FakeProvider implements ProviderInterface
 {
     private TransportInterface $transport;
 
-    public function __construct(TransportInterface $transport)
+    private ?string $deliveryStatusOnAccept;
+
+    public function __construct(TransportInterface $transport, ?string $deliveryStatusOnAccept = null)
     {
-        $this->transport = $transport;
+        $this->transport              = $transport;
+        $this->deliveryStatusOnAccept = $deliveryStatusOnAccept;
     }
 
     public function key(): string
@@ -430,5 +492,10 @@ final class FakeProvider implements ProviderInterface
     public function tracking(): array
     {
         return ['channel' => 'metadata', 'key' => 'bit_tracking_id'];
+    }
+
+    public function deliveryStatusOnAccept(): ?string
+    {
+        return $this->deliveryStatusOnAccept;
     }
 }

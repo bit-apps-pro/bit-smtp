@@ -213,12 +213,13 @@ class WpMailBridge
         $this->dispatching = true;
 
         try {
-            $succeeded         = false;
-            $lastResult        = null;
-            $lastConnection    = null;
-            $attempts          = [];
-            $winningMessageId  = null;
-            $winningTrackingId = null;
+            $succeeded             = false;
+            $lastResult            = null;
+            $lastConnection        = null;
+            $attempts              = [];
+            $winningMessageId      = null;
+            $winningTrackingId     = null;
+            $winningDeliveryStatus = null;
 
             foreach ($connections as $connection) {
                 $provider       = $this->resolveProvider($connection);
@@ -239,6 +240,9 @@ class WpMailBridge
                     // neither key, so the log never shows a delivery status it can't receive.
                     $winningTrackingId = $trackingId;
                     $winningMessageId  = $trackingId !== null ? $lastResult->getMessageId() : null;
+                    // A fully-ok send over a provider with no async delivery feed stamps its delivery
+                    // status straight from the hand-off (an accepted-but-partial send is a failure row).
+                    $winningDeliveryStatus = $succeeded && $provider !== null ? $provider->deliveryStatusOnAccept() : null;
 
                     break;
                 }
@@ -249,7 +253,7 @@ class WpMailBridge
             // One log row per message: the final outcome on the winning (or last-tried) connection,
             // carrying the whole attempt trail so the fallback chain (failed -> failed -> sent) is
             // visible in the log detail rather than split across a row per attempt.
-            $this->logOutcome($succeeded, $lastResult, $this->withAttempts($mailData, $attempts), $lastConnection, $winningMessageId, $winningTrackingId);
+            $this->logOutcome($succeeded, $lastResult, $this->withAttempts($mailData, $attempts), $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus);
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
 
@@ -419,7 +423,7 @@ class WpMailBridge
     /**
      * @param array<string,mixed> $mailData
      */
-    private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection, ?string $messageId = null, ?string $trackingId = null): void
+    private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection, ?string $messageId = null, ?string $trackingId = null, ?string $deliveryStatus = null): void
     {
         if (!$this->loggingEnabled) {
             return;
@@ -431,7 +435,7 @@ class WpMailBridge
         $connectionId    = $connection !== null ? $connection->getId() : null;
 
         if ($succeeded) {
-            $this->eventLogger->logMailSuccess($mailData, $this->context, $connectionLabel, $messageId, $trackingId, $connectionId);
+            $this->eventLogger->logMailSuccess($mailData, $this->context, $connectionLabel, $messageId, $trackingId, $connectionId, $deliveryStatus);
 
             return;
         }

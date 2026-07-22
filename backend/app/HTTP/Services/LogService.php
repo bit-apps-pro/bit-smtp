@@ -93,7 +93,7 @@ class LogService
         return $log->save();
     }
 
-    public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null)
+    public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null)
     {
         $log = $this->get($id);
         if (!$log) {
@@ -113,6 +113,12 @@ class LogService
         // ...and its delivery outcome is superseded: clear the prior send's rollup + child events so
         // stale webhook status can't linger against this row.
         $this->resetDelivery($log);
+
+        // A resend over a provider with no async delivery feed re-stamps its send-derived status.
+        if ($deliveryStatus !== null) {
+            $log->delivery_status     = $deliveryStatus;
+            $log->delivery_updated_at = gmdate('Y-m-d H:i:s');
+        }
 
         if (isset($message)) {
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
@@ -341,12 +347,14 @@ class LogService
             }
 
             $record = [
-                'status'        => $log['status'],
-                'retry_count'   => 0,
-                'connection'    => $log['connection']    ?? null,
-                'connection_id' => $log['connection_id'] ?? null,
-                'message_id'    => $log['message_id']    ?? null,
-                'tracking_id'   => $log['tracking_id']   ?? null,
+                'status'              => $log['status'],
+                'retry_count'         => 0,
+                'connection'          => $log['connection']          ?? null,
+                'connection_id'       => $log['connection_id']       ?? null,
+                'message_id'          => $log['message_id']          ?? null,
+                'tracking_id'         => $log['tracking_id']         ?? null,
+                'delivery_status'     => $log['delivery_status']     ?? null,
+                'delivery_updated_at' => $log['delivery_updated_at'] ?? null,
             ];
 
             if ($log['status'] === Log::ERROR && $log['data'] instanceof WP_Error) {

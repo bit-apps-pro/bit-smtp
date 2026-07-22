@@ -100,6 +100,15 @@ class DescriptorProvider implements ProviderInterface
     }
 
     /**
+     * Descriptor providers get their real delivery status from webhooks, so a bare send-accept
+     * implies nothing about delivery.
+     */
+    public function deliveryStatusOnAccept(): ?string
+    {
+        return null;
+    }
+
+    /**
      * @return array<int,array<string,mixed>>
      */
     private function requiredFields(): array

@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Mail\Providers\AmazonSes;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
+use BitApps\SMTP\Mail\Status\DeliveryStatus;
 
 class SesProvider implements ProviderInterface
 {
@@ -59,6 +60,16 @@ class SesProvider implements ProviderInterface
     public function tracking(): array
     {
         return [];
+    }
+
+    /**
+     * SES has no delivery webhook wired here (its delivery events arrive via SNS, not built), so a
+     * successful send-accept is the strongest delivery signal available. Switch to
+     * DeliveryStatus::ACCEPTED to distinguish "handed off to SES" from recipient-confirmed delivery.
+     */
+    public function deliveryStatusOnAccept(): ?string
+    {
+        return DeliveryStatus::DELIVERED;
     }
 
     public function fields(): array

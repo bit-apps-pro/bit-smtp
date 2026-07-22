@@ -151,6 +151,13 @@ final class LogController
      */
     private function isDeliveryVerified(Log $log, array $verifiedMap): bool
     {
+        // A status stamped at send time (a provider with no async delivery feed) is authoritative on
+        // its own; otherwise a row's status is trustworthy only when its connection is webhook-verified
+        // AND it carries a key the receiver can correlate provider events against.
+        if ($log->delivery_status !== null && $log->delivery_status !== '') {
+            return true;
+        }
+
         $connectionVerified = $verifiedMap[(string) $log->connection_id] ?? false;
 
         return $connectionVerified && $this->hasCorrelationKey($log);

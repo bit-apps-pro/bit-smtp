@@ -27,12 +27,12 @@ class MailEventLogger
         $this->logger = $logger;
     }
 
-    public function logMailSuccess(array $mailData, SendContext $context, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null): void
+    public function logMailSuccess(array $mailData, SendContext $context, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null): void
     {
         if ($context->isRetrying() && $context->getRetryLogId() > 0) {
-            $this->logger->update($context->getRetryLogId(), Log::SUCCESS, $mailData, null, $connection, $messageId, $trackingId, $connectionId);
+            $this->logger->update($context->getRetryLogId(), Log::SUCCESS, $mailData, null, $connection, $messageId, $trackingId, $connectionId, $deliveryStatus);
         } else {
-            $this->queue(Log::SUCCESS, $mailData, $context, $connection, $messageId, $trackingId, $connectionId);
+            $this->queue(Log::SUCCESS, $mailData, $context, $connection, $messageId, $trackingId, $connectionId, $deliveryStatus);
         }
 
         $context->setFailed(false);
@@ -89,15 +89,17 @@ class MailEventLogger
     /**
      * @param array|WP_Error $data
      */
-    private function queue(int $status, $data, SendContext $context, ?string $connection, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null): void
+    private function queue(int $status, $data, SendContext $context, ?string $connection, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null): void
     {
         $this->pendingLogs[] = [
-            'status'        => $status,
-            'data'          => $data,
-            'connection'    => $connection,
-            'connection_id' => $connectionId,
-            'message_id'    => $messageId,
-            'tracking_id'   => $trackingId,
+            'status'              => $status,
+            'data'                => $data,
+            'connection'          => $connection,
+            'connection_id'       => $connectionId,
+            'message_id'          => $messageId,
+            'tracking_id'         => $trackingId,
+            'delivery_status'     => $deliveryStatus,
+            'delivery_updated_at' => $deliveryStatus !== null ? gmdate('Y-m-d H:i:s') : null,
         ];
 
         if ($this->shouldFlushLogs($context)) {

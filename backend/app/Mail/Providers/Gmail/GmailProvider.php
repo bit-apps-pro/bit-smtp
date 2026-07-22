@@ -61,6 +61,11 @@ class GmailProvider implements ProviderInterface
         return [];
     }
 
+    public function deliveryStatusOnAccept(): ?string
+    {
+        return null;
+    }
+
     /**
      * refresh_token is deliberately absent here — it's not a user-entered field, it's set by
      * the OAuth consent flow and stored as a credential. The `oauth` entry is a render-only

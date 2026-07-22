@@ -37,4 +37,11 @@ interface ProviderInterface
      * ['channel' => 'metadata'|'header', 'key' => string], or [] when it can't round-trip one.
      */
     public function tracking(): array;
+
+    /**
+     * The delivery status a successful send-accept implies for a provider that has no async delivery
+     * feed wired (no webhook), as a DeliveryStatus value; null when this provider's real delivery
+     * status only arrives out-of-band (webhook/SNS) and must not be inferred from the hand-off.
+     */
+    public function deliveryStatusOnAccept(): ?string;
 }

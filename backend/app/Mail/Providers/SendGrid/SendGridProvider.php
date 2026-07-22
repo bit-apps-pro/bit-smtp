@@ -61,6 +61,11 @@ class SendGridProvider implements ProviderInterface
         return [];
     }
 
+    public function deliveryStatusOnAccept(): ?string
+    {
+        return null;
+    }
+
     public function fields(): array
     {
         return [
