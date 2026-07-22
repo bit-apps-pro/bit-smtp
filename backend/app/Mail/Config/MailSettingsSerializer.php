@@ -69,6 +69,16 @@ class MailSettingsSerializer
         $data = $s->toArray();
 
         foreach ($data['connections'] as &$conn) {
+            // Derived, read-only display field: the full webhook URL to paste into the provider
+            // dashboard. Lives at the connection top level (not settings) so a save round-trip drops
+            // it — sanitizeConnection only keeps whitelisted top-level keys, never persisting this.
+            if (($conn['kind'] ?? '') === 'api') {
+                $secret              = $conn['settings']['webhook_secret'] ?? '';
+                $conn['webhook_url'] = $secret !== ''
+                    ? home_url('/bit-smtp/' . $conn['id'] . '/' . $secret)
+                    : '';
+            }
+
             if (!isset($conn['credentials']) || !\is_array($conn['credentials'])) {
                 continue;
             }

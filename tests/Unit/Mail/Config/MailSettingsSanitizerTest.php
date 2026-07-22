@@ -534,6 +534,84 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
     }
 
     /**
+     * @param mixed $rawValue
+     */
+    #[DataProvider('falsyWebhookVerifiedProvider')]
+    public function testWebhookVerifiedCoercedToStrictFalse($rawValue): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_verified' => $rawValue]);
+
+        $this->assertFalse($settings['webhook_verified']);
+        $this->assertIsBool($settings['webhook_verified']);
+    }
+
+    /**
+     * @return array<string,array{0:mixed}>
+     */
+    public static function falsyWebhookVerifiedProvider(): array
+    {
+        return [
+            'bool false'   => [false],
+            'string zero'  => ['0'],
+            'empty string' => [''],
+        ];
+    }
+
+    /**
+     * @param mixed $rawValue
+     */
+    #[DataProvider('truthyWebhookVerifiedProvider')]
+    public function testWebhookVerifiedCoercedToStrictTrue($rawValue): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_verified' => $rawValue]);
+
+        $this->assertTrue($settings['webhook_verified']);
+        $this->assertIsBool($settings['webhook_verified']);
+    }
+
+    /**
+     * @return array<string,array{0:mixed}>
+     */
+    public static function truthyWebhookVerifiedProvider(): array
+    {
+        return [
+            'bool true'   => [true],
+            'string one'  => ['1'],
+            'string true' => ['true'],
+        ];
+    }
+
+    public function testWebhookSecretPassesThroughAsTrimmedString(): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_secret' => '  sek_abc123xyz  ']);
+
+        $this->assertSame('sek_abc123xyz', $settings['webhook_secret']);
+        $this->assertIsString($settings['webhook_secret']);
+    }
+
+    public function testWebhookSecretAbsentOmittedFromSanitized(): void
+    {
+        $settings = $this->sanitizeConnectionSettings([]);
+
+        $this->assertArrayNotHasKey('webhook_secret', $settings);
+    }
+
+    public function testWebhookLastEventAtPassesThroughAsTrimmedString(): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_last_event_at' => '  2024-01-15 10:30:00  ']);
+
+        $this->assertSame('2024-01-15 10:30:00', $settings['webhook_last_event_at']);
+        $this->assertIsString($settings['webhook_last_event_at']);
+    }
+
+    public function testWebhookLastEventAtAbsentOmittedFromSanitized(): void
+    {
+        $settings = $this->sanitizeConnectionSettings([]);
+
+        $this->assertArrayNotHasKey('webhook_last_event_at', $settings);
+    }
+
+    /**
      * Sanitize a single API connection's settings through the public entry point and return them.
      */
     private function sanitizeConnectionSettings(array $settings): array

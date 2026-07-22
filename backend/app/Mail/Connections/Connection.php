@@ -92,6 +92,16 @@ class Connection
         return $this->name;
     }
 
+    /**
+     * The identifier stored on a mail-log row's `connection` column and shown in the Logs UI:
+     * the connection name, or its provider slug when unnamed. Delivery-webhook correlation scopes
+     * on this same value, so both paths must derive it here (never drift).
+     */
+    public function label(): string
+    {
+        return $this->name !== '' ? $this->name : $this->provider;
+    }
+
     public function isEnabled(): bool
     {
         return $this->enabled;
@@ -138,6 +148,30 @@ class Connection
     public function isWebhookEnabled(): bool
     {
         return $this->kind === 'api' && (bool) $this->setting('webhook_enabled', true);
+    }
+
+    /**
+     * Server-minted, immutable per-connection secret forming the webhook URL path segment.
+     */
+    public function getWebhookSecret(): string
+    {
+        return (string) $this->setting('webhook_secret', '');
+    }
+
+    /**
+     * True once the receiver has accepted at least one correlated event for this connection,
+     * proving the provider is actually posting. Gates whether delivery status is shown at all.
+     */
+    public function isWebhookVerified(): bool
+    {
+        return (bool) $this->setting('webhook_verified', false);
+    }
+
+    public function getWebhookLastEventAt(): ?string
+    {
+        $value = $this->setting('webhook_last_event_at', null);
+
+        return $value !== null && $value !== '' ? (string) $value : null;
     }
 
     public function toArray(): array

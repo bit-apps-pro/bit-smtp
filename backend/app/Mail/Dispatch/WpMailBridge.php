@@ -441,7 +441,7 @@ class WpMailBridge
      */
     private function connectionLabel(Connection $connection): string
     {
-        return $connection->getName() !== '' ? $connection->getName() : $connection->getProvider();
+        return $connection->label();
     }
 
     /**

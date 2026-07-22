@@ -169,6 +169,12 @@ final class MailSettingsSanitizer
             $sanitized['webhook_enabled'] = (bool) filter_var($settings['webhook_enabled'], FILTER_VALIDATE_BOOLEAN);
         }
 
+        // Server-managed verification flag — same bool treatment. webhook_secret and
+        // webhook_last_event_at are strings and ride the generic scalar pass-through below.
+        if (isset($settings['webhook_verified'])) {
+            $sanitized['webhook_verified'] = (bool) filter_var($settings['webhook_verified'], FILTER_VALIDATE_BOOLEAN);
+        }
+
         foreach ($settings as $key => $value) {
             if (\array_key_exists($key, $sanitized) || !\is_scalar($value)) {
                 continue;

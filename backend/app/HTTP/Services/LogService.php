@@ -6,7 +6,9 @@ use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Deps\BitApps\WPKit\Helpers\Arr;
+use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
+use BitApps\SMTP\Model\LogDeliveryEvent;
 use DateTime;
 use Throwable;
 use WP_Error;
@@ -106,6 +108,10 @@ class LogService
         $log->message_id  = $messageId;
         $log->tracking_id = $trackingId;
 
+        // ...and its delivery outcome is superseded: clear the prior send's rollup + child events so
+        // stale webhook status can't linger against this row.
+        $this->resetDelivery((int) $id);
+
         if (isset($message)) {
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
         }
@@ -118,6 +124,150 @@ class LogService
         }
 
         $log->save();
+    }
+
+    /**
+     * Locate the log a delivery event belongs to, scoped to the sending connection. An empty key
+     * never matches: a NULL-keyed row must not be correlated by an absent identifier.
+     */
+    public function findForCorrelation(string $connectionId, ?string $messageId, ?string $trackingId): ?Log
+    {
+        if ($connectionId === '') {
+            return null;
+        }
+
+        if ($messageId !== null && $messageId !== '') {
+            $byMessageId = Log::where('connection', $connectionId)->where('message_id', $messageId)->first();
+            if ($byMessageId instanceof Log) {
+                return $byMessageId;
+            }
+        }
+
+        if ($trackingId !== null && $trackingId !== '') {
+            $byTrackingId = Log::where('connection', $connectionId)->where('tracking_id', $trackingId)->first();
+            if ($byTrackingId instanceof Log) {
+                return $byTrackingId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Append a provider delivery event as a child row. The event_hash UNIQUE key makes this
+     * idempotent; INSERT IGNORE drops a replayed event without erroring.
+     *
+     * @return bool true when a new row was written, false when the event was a duplicate
+     */
+    public function recordDeliveryEvent(int $logId, DeliveryEvent $event, string $hash): bool
+    {
+        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'log_delivery_events';
+
+        // Nullable columns must land as SQL NULL, not '' — wpdb::prepare would coerce a null %s to an
+        // empty string, which a DATETIME column rejects. So emit a NULL literal for absent values.
+        $columns = [
+            'log_id'      => ['%d', $logId],
+            'recipient'   => ['%s', $event->recipient()],
+            'status'      => ['%s', $event->status()],
+            'terminal'    => ['%d', $event->isTerminal() ? 1 : 0],
+            'detail'      => ['%s', $event->detail()],
+            'occurred_at' => ['%s', $event->occurredAt()],
+            'event_hash'  => ['%s', $hash],
+            'created_at'  => ['%s', gmdate('Y-m-d H:i:s')],
+        ];
+
+        $names        = [];
+        $placeholders = [];
+        $args         = [];
+        foreach ($columns as $name => $spec) {
+            $names[] = '`' . $name . '`';
+            if ($spec[1] === null) {
+                $placeholders[] = 'NULL';
+
+                continue;
+            }
+
+            $placeholders[] = $spec[0];
+            $args[]         = $spec[1];
+        }
+
+        $sql = Connection::prepare(
+            'INSERT IGNORE INTO `' . $table . '` (' . implode(', ', $names) . ') VALUES (' . implode(', ', $placeholders) . ')',
+            $args
+        );
+
+        return (int) Connection::query($sql) > 0;
+    }
+
+    /**
+     * Child delivery-event rows for a log as plain arrays, shaped for DeliveryRollup::compute().
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function deliveryRows(int $logId): array
+    {
+        $events = LogDeliveryEvent::where('log_id', $logId)->get();
+        if (!\is_array($events)) {
+            return [];
+        }
+
+        return array_map(static function (LogDeliveryEvent $event) {
+            return [
+                'recipient'   => $event->recipient,
+                'status'      => $event->status,
+                'terminal'    => (int) $event->terminal,
+                'occurred_at' => $event->occurred_at,
+                'created_at'  => $event->created_at,
+            ];
+        }, $events);
+    }
+
+    /**
+     * Per-recipient delivery events for a log, ordered oldest-first, shaped for the delivery-status UI.
+     *
+     * @return array<int,array{recipient:string,status:string,terminal:int,occurred_at:string}>
+     */
+    public function deliveryEvents(int $logId): array
+    {
+        $events = LogDeliveryEvent::where('log_id', $logId)->orderBy('occurred_at')->get();
+        if (!\is_array($events)) {
+            return [];
+        }
+
+        return array_map(static function (LogDeliveryEvent $event) {
+            return [
+                'recipient'   => $event->recipient,
+                'status'      => $event->status,
+                'terminal'    => (int) $event->terminal,
+                'occurred_at' => $event->occurred_at,
+            ];
+        }, $events);
+    }
+
+    public function updateDeliveryRollup(int $logId, ?string $status, ?string $updatedAt): void
+    {
+        $log = $this->get($logId);
+        if (!$log instanceof Log) {
+            return;
+        }
+
+        $log->delivery_status     = $status;
+        $log->delivery_updated_at = $updatedAt;
+        $log->save();
+    }
+
+    /**
+     * Clear a log's delivery outcome and drop its child events, so a superseding resend cannot
+     * inherit stale webhook status from the previous send.
+     */
+    public function resetDelivery(int $logId): void
+    {
+        $this->updateDeliveryRollup($logId, null, null);
+
+        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'log_delivery_events';
+        Connection::query(
+            Connection::prepare('DELETE FROM `' . $table . '` WHERE `log_id` = %d', [$logId])
+        );
     }
 
     public function delete(array $ids)

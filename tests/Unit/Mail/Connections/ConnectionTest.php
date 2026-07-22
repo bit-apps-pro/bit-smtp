@@ -135,6 +135,83 @@ class ConnectionTest extends BaseUnitTestCase
         $this->assertFalse($connection->isWebhookEnabled());
     }
 
+    public function testGetWebhookSecretReturnsSecretWhenPresent(): void
+    {
+        $connection = Connection::fromArray([
+            'id'       => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+            'settings' => ['webhook_secret' => 'sek_abc123xyz'],
+        ]);
+
+        $this->assertSame('sek_abc123xyz', $connection->getWebhookSecret());
+    }
+
+    public function testGetWebhookSecretReturnsEmptyStringWhenAbsent(): void
+    {
+        $connection = Connection::fromArray([
+            'id' => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+        ]);
+
+        $this->assertSame('', $connection->getWebhookSecret());
+    }
+
+    public function testIsWebhookVerifiedReturnsTrueWhenSet(): void
+    {
+        $connection = Connection::fromArray([
+            'id'       => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+            'settings' => ['webhook_verified' => true],
+        ]);
+
+        $this->assertTrue($connection->isWebhookVerified());
+    }
+
+    public function testIsWebhookVerifiedReturnsFalseWhenSetToFalse(): void
+    {
+        $connection = Connection::fromArray([
+            'id'       => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+            'settings' => ['webhook_verified' => false],
+        ]);
+
+        $this->assertFalse($connection->isWebhookVerified());
+    }
+
+    public function testIsWebhookVerifiedReturnsFalseWhenAbsent(): void
+    {
+        $connection = Connection::fromArray([
+            'id' => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+        ]);
+
+        $this->assertFalse($connection->isWebhookVerified());
+    }
+
+    public function testGetWebhookLastEventAtReturnsStringWhenPresent(): void
+    {
+        $connection = Connection::fromArray([
+            'id'       => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+            'settings' => ['webhook_last_event_at' => '2024-01-15 10:30:00'],
+        ]);
+
+        $this->assertSame('2024-01-15 10:30:00', $connection->getWebhookLastEventAt());
+    }
+
+    public function testGetWebhookLastEventAtReturnsNullWhenAbsent(): void
+    {
+        $connection = Connection::fromArray([
+            'id' => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+        ]);
+
+        $this->assertNull($connection->getWebhookLastEventAt());
+    }
+
+    public function testGetWebhookLastEventAtReturnsNullWhenEmptyString(): void
+    {
+        $connection = Connection::fromArray([
+            'id'       => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+            'settings' => ['webhook_last_event_at' => ''],
+        ]);
+
+        $this->assertNull($connection->getWebhookLastEventAt());
+    }
+
     private function sampleData(): array
     {
         return [

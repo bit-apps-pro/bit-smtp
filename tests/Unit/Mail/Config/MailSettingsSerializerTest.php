@@ -8,46 +8,20 @@ use BitApps\SMTP\Mail\Config\MailSettings;
 use BitApps\SMTP\Mail\Config\MailSettingsSerializer;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class MailSettingsSerializerTest extends BaseUnitTestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
         \Brain\Monkey\Functions\when('wp_generate_uuid4')->justReturn('test-uuid-1234');
-    }
-
-    private function v2Array(): array
-    {
-        return [
-            'schema_version'          => 2,
-            'enabled'                 => true,
-            'default_connection_id'   => 'conn_abc',
-            'fallback_connection_ids' => [],
-            'connections'             => [
-                [
-                    'id'           => 'conn_abc',
-                    'provider'     => 'other_smtp',
-                    'kind'         => 'smtp',
-                    'name'         => 'Primary SMTP',
-                    'enabled'      => true,
-                    'fromEmail'    => 'from@example.com',
-                    'fromName'     => 'Sender',
-                    'replyToEmail' => 'reply@example.com',
-                    'settings'     => [
-                        'host'       => 'smtp.example.com',
-                        'port'       => 587,
-                        'encryption' => 'tls',
-                        'auth'       => true,
-                        'username'   => 'user@example.com',
-                        'smtp_debug' => false,
-                    ],
-                    'credentials'  => [
-                        'password' => ['source' => 'database', 'value' => 'secret123'],
-                    ],
-                ],
-            ],
-            'features' => [],
-        ];
+        \Brain\Monkey\Functions\when('home_url')->alias(function ($path) {
+            return 'https://site.test' . $path;
+        });
     }
 
     public function testToLegacyShapeFlattensDefaultConnection(): void
@@ -90,10 +64,10 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
 
     public function testToLegacyShapeWhenNoDefaultConnectionReturnsEmptyShape(): void
     {
-        $data                         = $this->v2Array();
+        $data                          = $this->v2Array();
         $data['default_connection_id'] = 'nonexistent';
-        $settings                     = MailSettings::fromArray($data);
-        $result                       = MailSettingsSerializer::toLegacyShape($settings);
+        $settings                      = MailSettings::fromArray($data);
+        $result                        = MailSettingsSerializer::toLegacyShape($settings);
 
         $this->assertArrayHasKey('status',             $result);
         $this->assertArrayHasKey('from_email_address', $result);
@@ -185,9 +159,9 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
 
     public function testLegacyRoundTrip(): void
     {
-        $original = MailSettings::fromArray($this->v2Array());
-        $legacy   = MailSettingsSerializer::toLegacyShape($original);
-        $v2Again  = MailSettingsSerializer::fromLegacyShape($legacy, $original);
+        $original  = MailSettings::fromArray($this->v2Array());
+        $legacy    = MailSettingsSerializer::toLegacyShape($original);
+        $v2Again   = MailSettingsSerializer::fromLegacyShape($legacy, $original);
         $settings2 = MailSettings::fromArray($v2Again);
         $conn2     = $settings2->defaultConnection();
 
@@ -222,7 +196,7 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
 
     public function testToApiShapeWithMultipleConnections(): void
     {
-        $data = $this->v2Array();
+        $data                  = $this->v2Array();
         $data['connections'][] = [
             'id'           => 'conn_def',
             'provider'     => 'other_smtp',
@@ -256,7 +230,7 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
 
     public function testToApiShapeConnectionsWithoutCredentialsUnaffected(): void
     {
-        $data = $this->v2Array();
+        $data                                  = $this->v2Array();
         $data['connections'][0]['credentials'] = [];
 
         $settings = MailSettings::fromArray($data);
@@ -267,7 +241,7 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
 
     public function testToApiShapeMasksScalarCredential(): void
     {
-        $data = $this->v2Array();
+        $data                                  = $this->v2Array();
         $data['connections'][0]['credentials'] = [
             'api_key' => 'raw-api-key-value',
         ];
@@ -280,7 +254,7 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
 
     public function testToApiShapeMasksNestedValueAtAnyDepth(): void
     {
-        $data = $this->v2Array();
+        $data                                  = $this->v2Array();
         $data['connections'][0]['credentials'] = [
             'token' => [
                 'meta' => [
@@ -297,7 +271,7 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
 
     public function testToApiShapePreservesNonValueKeysInNestedCredential(): void
     {
-        $data = $this->v2Array();
+        $data                                  = $this->v2Array();
         $data['connections'][0]['credentials'] = [
             'password' => [
                 'source' => 'database',
@@ -312,5 +286,92 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
         $this->assertSame('database', $result['connections'][0]['credentials']['password']['source']);
         $this->assertSame('My Password', $result['connections'][0]['credentials']['password']['label']);
         $this->assertSame('********', $result['connections'][0]['credentials']['password']['value']);
+    }
+
+    public function testToApiShapeAddsWebhookUrlForApiConnectionWithSecret(): void
+    {
+        $data                                                 = $this->v2Array();
+        $data['connections'][0]['kind']                       = 'api';
+        $data['connections'][0]['provider']                   = 'postmark';
+        $data['connections'][0]['settings']['webhook_secret'] = 'sek_abc123xyz';
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertArrayHasKey('webhook_url', $result['connections'][0]);
+        $this->assertSame('https://site.test/bit-smtp/conn_abc/sek_abc123xyz', $result['connections'][0]['webhook_url']);
+    }
+
+    public function testToApiShapeEmptyWebhookUrlForApiConnectionWithoutSecret(): void
+    {
+        $data                               = $this->v2Array();
+        $data['connections'][0]['kind']     = 'api';
+        $data['connections'][0]['provider'] = 'postmark';
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertArrayHasKey('webhook_url', $result['connections'][0]);
+        $this->assertSame('', $result['connections'][0]['webhook_url']);
+    }
+
+    public function testToApiShapeEmptyWebhookUrlForApiConnectionWithEmptySecret(): void
+    {
+        $data                                                 = $this->v2Array();
+        $data['connections'][0]['kind']                       = 'api';
+        $data['connections'][0]['provider']                   = 'postmark';
+        $data['connections'][0]['settings']['webhook_secret'] = '';
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertArrayHasKey('webhook_url', $result['connections'][0]);
+        $this->assertSame('', $result['connections'][0]['webhook_url']);
+    }
+
+    public function testToApiShapeOmitsWebhookUrlForSmtpConnection(): void
+    {
+        $data                                                 = $this->v2Array();
+        $data['connections'][0]['kind']                       = 'smtp';
+        $data['connections'][0]['settings']['webhook_secret'] = 'sek_abc123xyz';
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertArrayNotHasKey('webhook_url', $result['connections'][0]);
+    }
+
+    private function v2Array(): array
+    {
+        return [
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_abc',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                [
+                    'id'           => 'conn_abc',
+                    'provider'     => 'other_smtp',
+                    'kind'         => 'smtp',
+                    'name'         => 'Primary SMTP',
+                    'enabled'      => true,
+                    'fromEmail'    => 'from@example.com',
+                    'fromName'     => 'Sender',
+                    'replyToEmail' => 'reply@example.com',
+                    'settings'     => [
+                        'host'       => 'smtp.example.com',
+                        'port'       => 587,
+                        'encryption' => 'tls',
+                        'auth'       => true,
+                        'username'   => 'user@example.com',
+                        'smtp_debug' => false,
+                    ],
+                    'credentials'  => [
+                        'password' => ['source' => 'database', 'value' => 'secret123'],
+                    ],
+                ],
+            ],
+            'features' => [],
+        ];
     }
 }

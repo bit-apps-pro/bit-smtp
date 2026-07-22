@@ -27,6 +27,8 @@ final class BitSmtpLogsTableMigration extends Migration
                 $table->varchar('connection', 191)->nullable();
                 $table->varchar('message_id', 191)->nullable();
                 $table->varchar('tracking_id', 64)->nullable();
+                $table->varchar('delivery_status', 32)->nullable();
+                $table->datetime('delivery_updated_at')->nullable();
 
                 $table->timestamps();
             }
@@ -38,10 +40,13 @@ final class BitSmtpLogsTableMigration extends Migration
         // upgrade) can't fail on a duplicate column or index.
         $this->addConnectionColumnIfMissing();
         $this->addWebhookCorrelationColumnsIfMissing();
+        $this->addDeliveryColumnsIfMissing();
+        $this->createDeliveryEventsTableIfMissing();
     }
 
     public function down()
     {
+        Schema::drop('log_delivery_events');
         Schema::drop('logs');
     }
 
@@ -60,6 +65,35 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addColumnIfMissing($table, 'tracking_id', 'ADD COLUMN `tracking_id` VARCHAR(64) NULL');
         $this->addIndexIfMissing($table, 'idx_message_id', 'ADD INDEX `idx_message_id` (`message_id`)');
         $this->addIndexIfMissing($table, 'idx_tracking_id', 'ADD INDEX `idx_tracking_id` (`tracking_id`)');
+    }
+
+    private function addDeliveryColumnsIfMissing()
+    {
+        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
+
+        $this->addColumnIfMissing($table, 'delivery_status', 'ADD COLUMN `delivery_status` VARCHAR(32) NULL');
+        $this->addColumnIfMissing($table, 'delivery_updated_at', 'ADD COLUMN `delivery_updated_at` DATETIME NULL');
+    }
+
+    private function createDeliveryEventsTableIfMissing()
+    {
+        Schema::withPrefix(Connection::wpPrefix() . Config::VAR_PREFIX)->create(
+            'log_delivery_events',
+            function (Blueprint $table) {
+                $table->id();
+                $table->bigInt('log_id')->index();
+                $table->varchar('recipient', 191);
+                $table->varchar('status', 32);
+                $table->tinyint('terminal')->defaultValue(0);
+                $table->text('detail')->nullable();
+                $table->datetime('occurred_at')->nullable();
+                // Dedup key is one NOT-NULL hash, not a composite over nullable columns: MySQL treats
+                // NULLs as distinct in a unique index, which would let provider retries insert duplicates.
+                $table->char('event_hash', 64)->unique();
+
+                $table->timestamps();
+            }
+        );
     }
 
     private function addColumnIfMissing($table, $column, $alter)

@@ -104,9 +104,11 @@ class MailConfigService
      */
     public function saveSettings(array $v2): bool
     {
-        $resolved  = MaskedSecretResolver::apply($v2, $this->load());
-        $sanitized = MailSettingsSanitizer::sanitize($resolved);
-        $stored    = $this->store(MailSettings::fromArray($sanitized));
+        $prior                   = $this->load();
+        $resolved                = MaskedSecretResolver::apply($v2, $prior);
+        $resolved['connections'] = $this->withPreservedWebhookFields($resolved['connections'] ?? [], $prior);
+        $sanitized               = MailSettingsSanitizer::sanitize($resolved);
+        $stored                  = $this->store(MailSettings::fromArray($sanitized));
         $this->reload();
 
         return $stored;
@@ -172,7 +174,7 @@ class MailConfigService
             $data['default_connection_id'] = $targetId;
         }
 
-        $data['connections'] = $connections;
+        $data['connections'] = $this->withPreservedWebhookFields($connections, $current);
 
         $sanitized = MailSettingsSanitizer::sanitize($data);
         $stored    = $this->store(MailSettings::fromArray($sanitized));
@@ -227,6 +229,78 @@ class MailConfigService
     public function connectionById(string $id): ?Connection
     {
         return $this->load()->getConnections()->byId($id);
+    }
+
+    /**
+     * Receiver-side: record that a connection's webhook is live. Write-once — returns without
+     * touching the shared, all-connections options blob once already verified, so concurrent
+     * events can't race the read-modify-write nor churn re-encryption on every delivery.
+     */
+    public function markWebhookVerified(string $connId, ?string $eventTime): void
+    {
+        $current    = $this->load();
+        $connection = $current->getConnections()->byId($connId);
+        if ($connection === null || $connection->isWebhookVerified()) {
+            return;
+        }
+
+        $data = $current->toArray();
+        foreach ($data['connections'] as $i => $conn) {
+            if (($conn['id'] ?? '') !== $connId) {
+                continue;
+            }
+
+            $data['connections'][$i]['settings']['webhook_verified']      = true;
+            $data['connections'][$i]['settings']['webhook_last_event_at'] = $eventTime !== null && $eventTime !== ''
+                ? $eventTime
+                : gmdate('Y-m-d H:i:s');
+
+            break;
+        }
+
+        $this->store(MailSettings::fromArray(MailSettingsSanitizer::sanitize($data)));
+        $this->reload();
+    }
+
+    /**
+     * Mint + preserve the server-managed webhook fields on every save. The incoming payload carries
+     * only user-editable settings, so without this an edit would wipe the secret (breaking the URL)
+     * and reset webhook_verified (hiding the delivery badge). The secret is minted once for an API
+     * connection and thereafter carried forward from the stored connection; SMTP connections get none.
+     *
+     * @param array<int,array<string,mixed>> $connections
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function withPreservedWebhookFields(array $connections, MailSettings $prior): array
+    {
+        foreach ($connections as $i => $connection) {
+            if (($connection['kind'] ?? '') !== 'api') {
+                continue;
+            }
+
+            $settings      = isset($connection['settings']) && \is_array($connection['settings'])
+                ? $connection['settings']
+                : [];
+            $priorConn     = $prior->getConnections()->byId($connection['id'] ?? '');
+            $priorSettings = $priorConn !== null ? $priorConn->getSettings() : [];
+
+            foreach (['webhook_verified', 'webhook_last_event_at'] as $managed) {
+                if (!\array_key_exists($managed, $settings) && \array_key_exists($managed, $priorSettings)) {
+                    $settings[$managed] = $priorSettings[$managed];
+                }
+            }
+
+            $secret = $settings['webhook_secret'] ?? ($priorSettings['webhook_secret'] ?? '');
+            if ($secret === '') {
+                $secret = wp_generate_password(40, false);
+            }
+            $settings['webhook_secret'] = $secret;
+
+            $connections[$i]['settings'] = $settings;
+        }
+
+        return $connections;
     }
 
     /**

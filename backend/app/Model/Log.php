@@ -16,6 +16,8 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
  * @property string $connection
  * @property string $message_id
  * @property string $tracking_id
+ * @property string $delivery_status
+ * @property string $delivery_updated_at
  * @property string $created_at
  * @property string $updated_at
  */
@@ -26,17 +28,19 @@ class Log extends Model
     public const ERROR   = 0;
 
     public $casts = [
-        'status'          => 'int',
-        'subject'         => 'string',
-        'to_addr'         => 'array',
-        'details'         => 'array',
-        'debug_info'      => 'array',
-        'retry_count'     => 'int',
-        'connection'      => 'string',
-        'message_id'      => 'string',
-        'tracking_id'     => 'string',
-        'created_at'      => 'string',
-        'updated_at'      => 'string',
+        'status'              => 'int',
+        'subject'             => 'string',
+        'to_addr'             => 'array',
+        'details'             => 'array',
+        'debug_info'          => 'array',
+        'retry_count'         => 'int',
+        'connection'          => 'string',
+        'message_id'          => 'string',
+        'tracking_id'         => 'string',
+        'delivery_status'     => 'string',
+        'delivery_updated_at' => 'string',
+        'created_at'          => 'string',
+        'updated_at'          => 'string',
     ];
 
     protected $fillable = [
@@ -47,5 +51,7 @@ class Log extends Model
         'connection',
         'message_id',
         'tracking_id',
+        'delivery_status',
+        'delivery_updated_at',
     ];
 }

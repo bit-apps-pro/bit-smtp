@@ -5,15 +5,23 @@ namespace BitApps\SMTP\HTTP\Controllers;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Requests\DeleteLogRequest;
+use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 
 final class LogController
 {
     private $logger;
 
+    /**
+     * @var MailConfigService
+     */
+    private $mailConfig;
+
     public function __construct()
     {
-        $this->logger = Plugin::instance()->logger();
+        $this->logger     = Plugin::instance()->logger();
+        $this->mailConfig = Plugin::instance()->mailConfigService();
     }
 
     public function all(Request $request)
@@ -26,14 +34,26 @@ final class LogController
             $filters['to_addr'] = sanitize_text_field($request->to_addr);
         }
 
-        return Response::success($this->logger->all((($pageNo - 1) * $limit), $limit, $filters));
+        $result         = $this->logger->all((($pageNo - 1) * $limit), $limit, $filters);
+        $result['logs'] = $this->enrichLogs($result['logs']);
+
+        return Response::success($result);
     }
 
     public function details(Request $request)
     {
         $logId = \intval($request->id);
+        $log   = $this->logger->get($logId);
 
-        return Response::success($this->logger->get($logId));
+        if (!$log instanceof Log) {
+            return Response::success($log);
+        }
+
+        $data                      = $log->jsonSerialize();
+        $data['delivery_verified'] = $this->isDeliveryVerified($log, $this->verifiedConnectionMap());
+        $data['delivery_events']   = $this->logger->deliveryEvents($logId);
+
+        return Response::success($data);
     }
 
     public function delete(DeleteLogRequest $request)
@@ -76,5 +96,69 @@ final class LogController
         }
 
         return Response::error([])->message(__('Failed to update logging setting', 'bit-smtp'));
+    }
+
+    /**
+     * Serialize each log to its array shape plus a derived `delivery_verified` flag, leaving every
+     * existing field the frontend consumes intact.
+     *
+     * @param mixed $logs Log|array<int,Log>|false as returned by the query builder
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function enrichLogs($logs): array
+    {
+        if ($logs instanceof Log) {
+            $logs = [$logs];
+        }
+
+        if (!\is_array($logs)) {
+            return [];
+        }
+
+        $verifiedMap = $this->verifiedConnectionMap();
+
+        return array_map(function (Log $log) use ($verifiedMap) {
+            $data                      = $log->jsonSerialize();
+            $data['delivery_verified'] = $this->isDeliveryVerified($log, $verifiedMap);
+
+            return $data;
+        }, $logs);
+    }
+
+    /**
+     * Build a [connectionLabel => webhookVerified] map once per request so a row's delivery status is
+     * only ever surfaced for a connection whose webhook is proven live. Keyed on the connection label
+     * (name, else provider) because that is what a log row's `connection` column stores, not the id.
+     *
+     * @return array<string,bool>
+     */
+    private function verifiedConnectionMap(): array
+    {
+        $map = [];
+        foreach ($this->mailConfig->load()->getConnections() as $connection) {
+            $map[$connection->label()] = $connection->isWebhookVerified();
+        }
+
+        return $map;
+    }
+
+    /**
+     * A log carries real delivery status only when its sending connection is webhook-verified AND it
+     * holds a correlation key the receiver can match provider events against.
+     *
+     * @param array<string,bool> $verifiedMap
+     */
+    private function isDeliveryVerified(Log $log, array $verifiedMap): bool
+    {
+        $connectionVerified = $verifiedMap[(string) $log->connection] ?? false;
+
+        return $connectionVerified && $this->hasCorrelationKey($log);
+    }
+
+    private function hasCorrelationKey(Log $log): bool
+    {
+        return ($log->message_id !== null && $log->message_id !== '')
+            || ($log->tracking_id !== null && $log->tracking_id !== '');
     }
 }
