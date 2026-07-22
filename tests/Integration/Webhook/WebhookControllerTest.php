@@ -54,16 +54,16 @@ final class WebhookControllerTest extends IntegrationTestCase
         $this->assertSame(404, $this->controller()->handle('conn_pm', 'wrong-secret', $request));
     }
 
-    public function testKillSwitchedBrevoProviderReturns404(): void
+    public function testProviderWithoutAWebhookAdapterReturns404(): void
     {
-        $this->saveApiConnection('conn_bv', 'brevo', self::KNOWN_SECRET, true);
+        $this->saveApiConnection('conn_sg', 'sendgrid', self::KNOWN_SECRET, true);
 
-        // Correct secret + enabled webhook, but the brevo adapter is kill-switched → no adapter → 404.
+        // Correct secret + enabled webhook, but SendGrid has no live webhook adapter → 404.
         $request = WebhookRequest::fromRaw(
             (string) wp_json_encode(['event' => 'delivered', 'message-id' => 'm1', 'email' => 'r@example.com'])
         );
 
-        $this->assertSame(404, $this->controller()->handle('conn_bv', self::KNOWN_SECRET, $request));
+        $this->assertSame(404, $this->controller()->handle('conn_sg', self::KNOWN_SECRET, $request));
     }
 
     public function testValidPostmarkDeliveryRecordsAndVerifies(): void

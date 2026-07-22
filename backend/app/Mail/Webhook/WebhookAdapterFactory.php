@@ -13,9 +13,9 @@ use BitApps\SMTP\Mail\Webhook\Contracts\WebhookAdapterInterface;
  */
 final class WebhookAdapterFactory
 {
-    // Brevo webhook correlation is UNVERIFIED (does message-id == send messageId? does
-    // X-Mailin-custom round-trip?). Kill-switch stays off until proven live (Plan B Task 9).
-    public const BREVO_WEBHOOK_ENABLED = false;
+    // Brevo webhook correlation verified live: the webhook `message-id` equals the send `messageId`
+    // and `X-Mailin-custom` round-trips the stamped tracking id, both matched against real payloads.
+    public const BREVO_WEBHOOK_ENABLED = true;
 
     public function forProvider(string $provider): ?WebhookAdapterInterface
     {
