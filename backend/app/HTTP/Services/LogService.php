@@ -71,7 +71,7 @@ class LogService
         return Log::where('id', $ids)->get();
     }
 
-    public function save($status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null)
+    public function save($status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null)
     {
         $log             = new Log();
 
@@ -80,11 +80,12 @@ class LogService
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
         }
 
-        $log->subject      = Arr::get($details, 'subject', '');
-        $log->to_addr      = Arr::get($details, 'to', '[]');
-        $log->connection   = $connection;
-        $log->message_id   = $messageId;
-        $log->tracking_id  = $trackingId;
+        $log->subject       = Arr::get($details, 'subject', '');
+        $log->to_addr       = Arr::get($details, 'to', '[]');
+        $log->connection    = $connection;
+        $log->connection_id = $connectionId;
+        $log->message_id    = $messageId;
+        $log->tracking_id   = $trackingId;
 
         unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
         $log->details    = $details;
@@ -92,16 +93,17 @@ class LogService
         return $log->save();
     }
 
-    public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null)
+    public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null)
     {
         $log = $this->get($id);
         if (!$log) {
             return false;
         }
 
-        $log->retry_count = $log->retry_count + 1;
-        $log->status      = $status;
-        $log->connection  = $connection;
+        $log->retry_count   = $log->retry_count + 1;
+        $log->status        = $status;
+        $log->connection    = $connection;
+        $log->connection_id = $connectionId;
 
         // A resend gets a fresh provider message-id + tracking token; overwrite so delivery webhooks
         // correlate to this resend, not the original send.
@@ -110,7 +112,7 @@ class LogService
 
         // ...and its delivery outcome is superseded: clear the prior send's rollup + child events so
         // stale webhook status can't linger against this row.
-        $this->resetDelivery((int) $id);
+        $this->resetDelivery($log);
 
         if (isset($message)) {
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
@@ -127,8 +129,9 @@ class LogService
     }
 
     /**
-     * Locate the log a delivery event belongs to, scoped to the sending connection. An empty key
-     * never matches: a NULL-keyed row must not be correlated by an absent identifier.
+     * Locate the log a delivery event belongs to, scoped to the sending connection's stable id (not
+     * its mutable label). An empty key never matches: a NULL-keyed row must not be correlated by an
+     * absent identifier.
      */
     public function findForCorrelation(string $connectionId, ?string $messageId, ?string $trackingId): ?Log
     {
@@ -137,14 +140,14 @@ class LogService
         }
 
         if ($messageId !== null && $messageId !== '') {
-            $byMessageId = Log::where('connection', $connectionId)->where('message_id', $messageId)->first();
+            $byMessageId = Log::where('connection_id', $connectionId)->where('message_id', $messageId)->first();
             if ($byMessageId instanceof Log) {
                 return $byMessageId;
             }
         }
 
         if ($trackingId !== null && $trackingId !== '') {
-            $byTrackingId = Log::where('connection', $connectionId)->where('tracking_id', $trackingId)->first();
+            $byTrackingId = Log::where('connection_id', $connectionId)->where('tracking_id', $trackingId)->first();
             if ($byTrackingId instanceof Log) {
                 return $byTrackingId;
             }
@@ -161,7 +164,7 @@ class LogService
      */
     public function recordDeliveryEvent(int $logId, DeliveryEvent $event, string $hash): bool
     {
-        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'log_delivery_events';
+        $table = (new LogDeliveryEvent())->getTable();
 
         // Nullable columns must land as SQL NULL, not '' — wpdb::prepare would coerce a null %s to an
         // empty string, which a DATETIME column rejects. So emit a NULL literal for absent values.
@@ -200,13 +203,14 @@ class LogService
     }
 
     /**
-     * Child delivery-event rows for a log as plain arrays, shaped for DeliveryRollup::compute().
+     * A log's delivery-event child rows, ordered oldest-first (occurred_at then id). Shaped for both
+     * DeliveryRollup::compute() (needs created_at for its recency fallback) and the delivery-status UI.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array<int,array{recipient:string,status:string,terminal:int,occurred_at:string,created_at:string}>
      */
-    public function deliveryRows(int $logId): array
+    public function deliveryEvents(int $logId): array
     {
-        $events = LogDeliveryEvent::where('log_id', $logId)->get();
+        $events = LogDeliveryEvent::where('log_id', $logId)->orderBy('occurred_at')->orderBy('id')->get();
         if (!\is_array($events)) {
             return [];
         }
@@ -222,35 +226,8 @@ class LogService
         }, $events);
     }
 
-    /**
-     * Per-recipient delivery events for a log, ordered oldest-first, shaped for the delivery-status UI.
-     *
-     * @return array<int,array{recipient:string,status:string,terminal:int,occurred_at:string}>
-     */
-    public function deliveryEvents(int $logId): array
+    public function updateDeliveryRollup(Log $log, ?string $status, ?string $updatedAt): void
     {
-        $events = LogDeliveryEvent::where('log_id', $logId)->orderBy('occurred_at')->get();
-        if (!\is_array($events)) {
-            return [];
-        }
-
-        return array_map(static function (LogDeliveryEvent $event) {
-            return [
-                'recipient'   => $event->recipient,
-                'status'      => $event->status,
-                'terminal'    => (int) $event->terminal,
-                'occurred_at' => $event->occurred_at,
-            ];
-        }, $events);
-    }
-
-    public function updateDeliveryRollup(int $logId, ?string $status, ?string $updatedAt): void
-    {
-        $log = $this->get($logId);
-        if (!$log instanceof Log) {
-            return;
-        }
-
         $log->delivery_status     = $status;
         $log->delivery_updated_at = $updatedAt;
         $log->save();
@@ -260,13 +237,13 @@ class LogService
      * Clear a log's delivery outcome and drop its child events, so a superseding resend cannot
      * inherit stale webhook status from the previous send.
      */
-    public function resetDelivery(int $logId): void
+    public function resetDelivery(Log $log): void
     {
-        $this->updateDeliveryRollup($logId, null, null);
+        $this->updateDeliveryRollup($log, null, null);
 
-        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'log_delivery_events';
+        $table = (new LogDeliveryEvent())->getTable();
         Connection::query(
-            Connection::prepare('DELETE FROM `' . $table . '` WHERE `log_id` = %d', [$logId])
+            Connection::prepare('DELETE FROM `' . $table . '` WHERE `log_id` = %d', [(int) $log->id])
         );
     }
 
@@ -364,11 +341,12 @@ class LogService
             }
 
             $record = [
-                'status'      => $log['status'],
-                'retry_count' => 0,
-                'connection'  => $log['connection']  ?? null,
-                'message_id'  => $log['message_id']  ?? null,
-                'tracking_id' => $log['tracking_id'] ?? null,
+                'status'        => $log['status'],
+                'retry_count'   => 0,
+                'connection'    => $log['connection']    ?? null,
+                'connection_id' => $log['connection_id'] ?? null,
+                'message_id'    => $log['message_id']    ?? null,
+                'tracking_id'   => $log['tracking_id']   ?? null,
             ];
 
             if ($log['status'] === Log::ERROR && $log['data'] instanceof WP_Error) {

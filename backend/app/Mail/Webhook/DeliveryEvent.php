@@ -44,8 +44,10 @@ class DeliveryEvent
     {
         $messageId  = $data['message_id']  ?? null;
         $trackingId = $data['tracking_id'] ?? null;
-        $recipient  = $data['recipient']   ?? '';
-        $status     = $data['status']      ?? '';
+        // Cast defensively: a malformed payload may carry a non-string where a string is expected,
+        // and the adapter contract requires parsing never to throw (a TypeError is not an Exception).
+        $recipient  = (string) ($data['recipient'] ?? '');
+        $status     = (string) ($data['status']    ?? '');
         $terminal   = (bool) ($data['terminal'] ?? false);
         $detail     = $data['detail'] ?? null;
         $occurredAt = self::normalizeOccurredAt($data['occurred_at'] ?? null);
@@ -98,13 +100,20 @@ class DeliveryEvent
 
     public function hash(int $logId): string
     {
-        $hashData = $logId . '|' . $this->recipient . '|' . $this->status . '|' . ($this->occurredAt ?? '');
+        // Include terminal + detail so two genuinely-distinct no-timestamp events don't collide,
+        // while an identical replay still hashes equal and dedups.
+        $hashData = $logId . '|' . $this->recipient . '|' . $this->status . '|' . ($this->occurredAt ?? '')
+            . '|' . ($this->terminal ? '1' : '0') . '|' . ($this->detail ?? '');
 
         return hash('sha256', $hashData);
     }
 
     private static function normalizeOccurredAt($raw): ?string
     {
+        if (!\is_string($raw)) {
+            return null;
+        }
+
         if (empty($raw)) {
             return null;
         }

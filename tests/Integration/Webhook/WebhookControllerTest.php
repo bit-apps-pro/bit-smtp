@@ -60,8 +60,7 @@ final class WebhookControllerTest extends IntegrationTestCase
 
         // Correct secret + enabled webhook, but the brevo adapter is kill-switched → no adapter → 404.
         $request = WebhookRequest::fromRaw(
-            (string) wp_json_encode(['event' => 'delivered', 'message-id' => 'm1', 'email' => 'r@example.com']),
-            ['Content-Type' => 'application/json']
+            (string) wp_json_encode(['event' => 'delivered', 'message-id' => 'm1', 'email' => 'r@example.com'])
         );
 
         $this->assertSame(404, $this->controller()->handle('conn_bv', self::KNOWN_SECRET, $request));
@@ -120,9 +119,7 @@ final class WebhookControllerTest extends IntegrationTestCase
                 'id'           => $id,
                 'provider'     => $provider,
                 'kind'         => 'api',
-                // name === id so label() equals the value createLog() stores on the log's
-                // `connection` column, which is what delivery correlation scopes on.
-                'name'         => $id,
+                'name'         => 'Connection ' . $id,
                 'enabled'      => true,
                 'fromEmail'    => 'from@example.com',
                 'fromName'     => 'From',
@@ -140,15 +137,16 @@ final class WebhookControllerTest extends IntegrationTestCase
     /**
      * @return int inserted log id
      */
-    private function createLog(string $connection, string $messageId): int
+    private function createLog(string $connectionId, string $messageId): int
     {
-        $log              = new Log();
-        $log->status      = Log::SUCCESS;
-        $log->subject     = 'Subject';
-        $log->to_addr     = ['recipient@example.com'];
-        $log->connection  = $connection;
-        $log->message_id  = $messageId;
-        $log->tracking_id = null;
+        $log                = new Log();
+        $log->status        = Log::SUCCESS;
+        $log->subject       = 'Subject';
+        $log->to_addr       = ['recipient@example.com'];
+        $log->connection    = 'Connection ' . $connectionId;
+        $log->connection_id = $connectionId;
+        $log->message_id    = $messageId;
+        $log->tracking_id   = null;
         $log->save();
 
         return (int) $log->id;
@@ -165,8 +163,7 @@ final class WebhookControllerTest extends IntegrationTestCase
         ];
 
         return WebhookRequest::fromRaw(
-            (string) wp_json_encode($payload),
-            ['Content-Type' => 'application/json']
+            (string) wp_json_encode($payload)
         );
     }
 

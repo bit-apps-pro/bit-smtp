@@ -13,18 +13,6 @@ use BitApps\SMTP\Mail\Status\DeliveryStatus;
 final class DeliveryRollup
 {
     /**
-     * Higher rank = worse outcome; drives both recency tie-breaks and parent selection.
-     */
-    private const SEVERITY = [
-        DeliveryStatus::BLOCKED   => 6,
-        DeliveryStatus::BOUNCED   => 5,
-        DeliveryStatus::SPAM      => 4,
-        DeliveryStatus::DELIVERED => 3,
-        DeliveryStatus::DEFERRED  => 2,
-        DeliveryStatus::ACCEPTED  => 1,
-    ];
-
-    /**
      * @param array<int,array<string,mixed>> $childRows
      *
      * @return array{status: ?string, updated_at: ?string}
@@ -164,6 +152,6 @@ final class DeliveryRollup
 
     private static function severity(string $status): int
     {
-        return self::SEVERITY[$status] ?? 0;
+        return DeliveryStatus::severity($status);
     }
 }

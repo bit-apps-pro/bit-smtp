@@ -111,15 +111,16 @@ final class DeliveryEventRecorderTest extends IntegrationTestCase
     /**
      * @return int inserted log id
      */
-    private function createLog(string $connection, ?string $messageId, ?string $trackingId): int
+    private function createLog(string $connectionId, ?string $messageId, ?string $trackingId): int
     {
-        $log              = new Log();
-        $log->status      = Log::SUCCESS;
-        $log->subject     = 'Subject';
-        $log->to_addr     = ['recipient@example.com'];
-        $log->connection  = $connection;
-        $log->message_id  = $messageId;
-        $log->tracking_id = $trackingId;
+        $log                = new Log();
+        $log->status        = Log::SUCCESS;
+        $log->subject       = 'Subject';
+        $log->to_addr       = ['recipient@example.com'];
+        $log->connection    = $connectionId;
+        $log->connection_id = $connectionId;
+        $log->message_id    = $messageId;
+        $log->tracking_id   = $trackingId;
         $log->save();
 
         return (int) $log->id;
@@ -139,9 +140,8 @@ final class DeliveryEventRecorderTest extends IntegrationTestCase
 
     private function connection(string $id): Connection
     {
-        // name === id so label() (name, else provider) equals the value stored on the log's
-        // `connection` column — correlation scopes on that label, and conn_a/conn_b stay distinct.
-        return Connection::fromArray(['id' => $id, 'provider' => 'postmark', 'kind' => 'api', 'name' => $id]);
+        // Correlation scopes on the connection id, so conn_a/conn_b stay distinct via getId() alone.
+        return Connection::fromArray(['id' => $id, 'provider' => 'postmark', 'kind' => 'api']);
     }
 
     private function reloadLog(int $logId): Log

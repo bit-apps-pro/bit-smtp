@@ -175,7 +175,9 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $logService->shouldReceive('bulkInsert')
             ->once()
             ->with(Mockery::on(function (array $logs): bool {
-                return $logs[0]['message_id'] === 'pm-1' && $logs[0]['tracking_id'] === 'track-uuid';
+                return $logs[0]['message_id']    === 'pm-1'
+                    && $logs[0]['tracking_id']   === 'track-uuid'
+                    && $logs[0]['connection_id'] === 'conn_1';
             }));
         $this->setEventLogger($bridge, $logService);
         $this->setContext($bridge, new SendContext());

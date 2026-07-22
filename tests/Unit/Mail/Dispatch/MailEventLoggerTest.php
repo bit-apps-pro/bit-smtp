@@ -39,7 +39,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => null, 'message_id' => null, 'tracking_id' => null]]);
+            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null]]);
 
         $this->eventLogger->logMailSuccess($mailData, $this->context);
 
@@ -52,7 +52,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => null, 'message_id' => null, 'tracking_id' => null]]);
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null]]);
 
         $this->eventLogger->logMailFailed($error, $this->context);
 
@@ -69,7 +69,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'postmark', 'message_id' => null, 'tracking_id' => null]]);
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'postmark', 'connection_id' => null, 'message_id' => null, 'tracking_id' => null]]);
 
         $this->eventLogger->logMailFailed($error, $this->context, 'postmark');
 
@@ -83,7 +83,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => 'Primary SMTP', 'message_id' => null, 'tracking_id' => null]]);
+            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => 'Primary SMTP', 'connection_id' => null, 'message_id' => null, 'tracking_id' => null]]);
 
         $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
     }
@@ -94,7 +94,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'brevo', 'message_id' => null, 'tracking_id' => null]]);
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'brevo', 'connection_id' => null, 'message_id' => null, 'tracking_id' => null]]);
 
         $this->eventLogger->logMailFailed($error, $this->context, 'brevo');
     }
@@ -106,7 +106,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('update')
             ->once()
-            ->with(99, Log::SUCCESS, $mailData, null, 'Primary SMTP', null, null);
+            ->with(99, Log::SUCCESS, $mailData, null, 'Primary SMTP', null, null, null);
         $this->logger->shouldNotReceive('bulkInsert');
 
         $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
@@ -123,7 +123,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('update')
             ->once()
-            ->with(77, Log::ERROR, $data, ['boom'], 'brevo', null, null);
+            ->with(77, Log::ERROR, $data, ['boom'], 'brevo', null, null, null);
         $this->logger->shouldNotReceive('bulkInsert');
 
         $this->eventLogger->logMailFailed($error, $this->context, 'brevo');
@@ -150,8 +150,8 @@ class MailEventLoggerTest extends BaseUnitTestCase
             $this->logger->shouldReceive('bulkInsert')
                 ->once()
                 ->with([
-                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'one'], 'connection' => null, 'message_id' => null, 'tracking_id' => null],
-                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'two'], 'connection' => null, 'message_id' => null, 'tracking_id' => null],
+                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'one'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null],
+                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'two'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null],
                 ]);
 
             $this->eventLogger->flushPendingLogs();
@@ -171,7 +171,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
         try {
             $this->logger->shouldReceive('bulkInsert')
                 ->once()
-                ->with([['status' => Log::SUCCESS, 'data' => ['subject' => 'flush-me'], 'connection' => null, 'message_id' => null, 'tracking_id' => null]]);
+                ->with([['status' => Log::SUCCESS, 'data' => ['subject' => 'flush-me'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null]]);
 
             $this->eventLogger->logMailSuccess(['subject' => 'flush-me'], $this->context);
         } finally {

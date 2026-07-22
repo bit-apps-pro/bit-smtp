@@ -25,6 +25,7 @@ final class BitSmtpLogsTableMigration extends Migration
                 $table->text('debug_info')->nullable();
                 $table->tinyint('retry_count')->defaultValue(0);
                 $table->varchar('connection', 191)->nullable();
+                $table->varchar('connection_id', 191)->nullable();
                 $table->varchar('message_id', 191)->nullable();
                 $table->varchar('tracking_id', 64)->nullable();
                 $table->varchar('delivery_status', 32)->nullable();
@@ -61,8 +62,10 @@ final class BitSmtpLogsTableMigration extends Migration
     {
         $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
 
+        $this->addColumnIfMissing($table, 'connection_id', 'ADD COLUMN `connection_id` VARCHAR(191) NULL');
         $this->addColumnIfMissing($table, 'message_id', 'ADD COLUMN `message_id` VARCHAR(191) NULL');
         $this->addColumnIfMissing($table, 'tracking_id', 'ADD COLUMN `tracking_id` VARCHAR(64) NULL');
+        $this->addIndexIfMissing($table, 'idx_connection_id', 'ADD INDEX `idx_connection_id` (`connection_id`)');
         $this->addIndexIfMissing($table, 'idx_message_id', 'ADD INDEX `idx_message_id` (`message_id`)');
         $this->addIndexIfMissing($table, 'idx_tracking_id', 'ADD INDEX `idx_tracking_id` (`tracking_id`)');
     }
@@ -82,7 +85,7 @@ final class BitSmtpLogsTableMigration extends Migration
             function (Blueprint $table) {
                 $table->id();
                 $table->bigInt('log_id')->index();
-                $table->varchar('recipient', 191);
+                $table->varchar('recipient', 254);
                 $table->varchar('status', 32);
                 $table->tinyint('terminal')->defaultValue(0);
                 $table->text('detail')->nullable();

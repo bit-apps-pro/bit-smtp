@@ -425,15 +425,18 @@ class WpMailBridge
             return;
         }
 
+        // Store the label for the Logs UI, but correlate delivery webhooks on the stable connection id
+        // so a rename (or two unnamed same-provider connections) can't break/mis-attribute status.
         $connectionLabel = $connection !== null ? $this->connectionLabel($connection) : null;
+        $connectionId    = $connection !== null ? $connection->getId() : null;
 
         if ($succeeded) {
-            $this->eventLogger->logMailSuccess($mailData, $this->context, $connectionLabel, $messageId, $trackingId);
+            $this->eventLogger->logMailSuccess($mailData, $this->context, $connectionLabel, $messageId, $trackingId, $connectionId);
 
             return;
         }
 
-        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel, $messageId, $trackingId);
+        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel, $messageId, $trackingId, $connectionId);
     }
 
     /**

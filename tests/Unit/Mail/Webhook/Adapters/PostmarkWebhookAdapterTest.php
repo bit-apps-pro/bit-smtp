@@ -95,6 +95,6 @@ class PostmarkWebhookAdapterTest extends BaseUnitTestCase
      */
     private function parse(string $body): array
     {
-        return $this->adapter->parseEvents(WebhookRequest::fromRaw($body, []));
+        return $this->adapter->parseEvents(WebhookRequest::fromRaw($body));
     }
 }

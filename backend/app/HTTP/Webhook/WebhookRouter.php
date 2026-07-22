@@ -85,35 +85,11 @@ final class WebhookRouter
             exit;
         }
 
-        $request = WebhookRequest::fromRaw($raw, $this->requestHeaders());
+        $request = WebhookRequest::fromRaw($raw);
         $code    = (new WebhookController())->handle($matched['id'], $matched['secret'], $request);
 
         status_header($code);
 
         exit;
-    }
-
-    /**
-     * Reconstruct inbound headers from $_SERVER, since getallheaders() is unavailable off Apache.
-     * WebhookRequest lower-cases the keys, so the HTTP_* de-prefixing here is case-insensitive.
-     *
-     * @return array<string, string>
-     */
-    private function requestHeaders(): array
-    {
-        $headers = [];
-        foreach ($_SERVER as $key => $value) {
-            $key = (string) $key;
-            if (strpos($key, 'HTTP_') === 0) {
-                $name           = str_replace('_', '-', substr($key, 5));
-                $headers[$name] = (string) $value;
-            }
-        }
-
-        if (isset($_SERVER['CONTENT_TYPE'])) {
-            $headers['CONTENT-TYPE'] = (string) $_SERVER['CONTENT_TYPE'];
-        }
-
-        return $headers;
     }
 }

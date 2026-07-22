@@ -219,4 +219,38 @@ class DeliveryEventTest extends BaseUnitTestCase
 
         $this->assertNotSame($event->hash(42), $event->hash(43));
     }
+
+    public function testHashVariesByTerminal(): void
+    {
+        $transient = DeliveryEvent::fromArray([
+            'recipient' => 'user@example.com',
+            'status'    => 'deferred',
+            'terminal'  => false,
+        ]);
+
+        $terminal = DeliveryEvent::fromArray([
+            'recipient' => 'user@example.com',
+            'status'    => 'deferred',
+            'terminal'  => true,
+        ]);
+
+        $this->assertNotSame($transient->hash(42), $terminal->hash(42));
+    }
+
+    public function testHashVariesByDetail(): void
+    {
+        $event1 = DeliveryEvent::fromArray([
+            'recipient' => 'user@example.com',
+            'status'    => 'bounced',
+            'detail'    => 'mailbox full',
+        ]);
+
+        $event2 = DeliveryEvent::fromArray([
+            'recipient' => 'user@example.com',
+            'status'    => 'bounced',
+            'detail'    => 'user unknown',
+        ]);
+
+        $this->assertNotSame($event1->hash(42), $event2->hash(42));
+    }
 }

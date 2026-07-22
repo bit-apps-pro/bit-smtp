@@ -9,6 +9,7 @@ use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Webhook\DeliveryEventRecorder;
 use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
 use BitApps\SMTP\Mail\Webhook\WebhookRequest;
+use Throwable;
 
 /**
  * Authenticates an inbound provider webhook by connection secret, records the correlated delivery
@@ -52,9 +53,18 @@ final class WebhookController
             return 404;
         }
 
+        // The adapter contract says parseEvents never throws, but a malformed authenticated payload
+        // can still raise a TypeError (an Error, not an Exception). Swallow it so we record nothing
+        // and still return 200 rather than surfacing a 500 to the provider.
+        try {
+            $events = $adapter->parseEvents($request);
+        } catch (Throwable $e) {
+            $events = [];
+        }
+
         $correlated = 0;
         $latest     = null;
-        foreach ($adapter->parseEvents($request) as $event) {
+        foreach ($events as $event) {
             if (!$this->recorder->record($event, $connection)) {
                 continue;
             }

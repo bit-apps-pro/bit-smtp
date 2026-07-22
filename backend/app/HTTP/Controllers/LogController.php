@@ -127,9 +127,9 @@ final class LogController
     }
 
     /**
-     * Build a [connectionLabel => webhookVerified] map once per request so a row's delivery status is
-     * only ever surfaced for a connection whose webhook is proven live. Keyed on the connection label
-     * (name, else provider) because that is what a log row's `connection` column stores, not the id.
+     * Build a [connectionId => webhookVerified] map once per request so a row's delivery status is
+     * only ever surfaced for a connection whose webhook is proven live. Keyed on the stable connection
+     * id — the same value a log row's `connection_id` column stores, not the mutable label.
      *
      * @return array<string,bool>
      */
@@ -137,7 +137,7 @@ final class LogController
     {
         $map = [];
         foreach ($this->mailConfig->load()->getConnections() as $connection) {
-            $map[$connection->label()] = $connection->isWebhookVerified();
+            $map[$connection->getId()] = $connection->isWebhookVerified();
         }
 
         return $map;
@@ -151,7 +151,7 @@ final class LogController
      */
     private function isDeliveryVerified(Log $log, array $verifiedMap): bool
     {
-        $connectionVerified = $verifiedMap[(string) $log->connection] ?? false;
+        $connectionVerified = $verifiedMap[(string) $log->connection_id] ?? false;
 
         return $connectionVerified && $this->hasCorrelationKey($log);
     }

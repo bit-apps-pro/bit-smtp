@@ -26,10 +26,10 @@ final class DeliveryEventRecorder
     public function record(DeliveryEvent $event, Connection $connection): bool
     {
         $keys = $event->correlationKeys();
-        // Scope on the connection's stored label (name, or provider when unnamed) — the mail-log
-        // `connection` column holds that label, not the connection id.
+        // Scope on the connection's stable id — the mail-log `connection_id` column — so a renamed or
+        // unnamed same-provider connection can't break or mis-attribute correlation.
         $log = $this->logService->findForCorrelation(
-            $connection->label(),
+            $connection->getId(),
             $keys['message_id'],
             $keys['tracking_id']
         );
@@ -41,8 +41,8 @@ final class DeliveryEventRecorder
         $logId = (int) $log->id;
         $this->logService->recordDeliveryEvent($logId, $event, $event->hash($logId));
 
-        $rollup = DeliveryRollup::compute($this->logService->deliveryRows($logId));
-        $this->logService->updateDeliveryRollup($logId, $rollup['status'], $rollup['updated_at']);
+        $rollup = DeliveryRollup::compute($this->logService->deliveryEvents($logId));
+        $this->logService->updateDeliveryRollup($log, $rollup['status'], $rollup['updated_at']);
 
         return true;
     }

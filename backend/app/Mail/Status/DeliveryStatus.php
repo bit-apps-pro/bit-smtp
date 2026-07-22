@@ -25,6 +25,19 @@ final class DeliveryStatus
 
     private const NEGATIVE_STATES = [self::DEFERRED, self::BLOCKED, self::BOUNCED, self::SPAM];
 
+    /**
+     * Worst-outcome ranking (higher = worse). Hard negatives dominate; a confirmed delivery outranks
+     * a merely transient deferral, so a feed carrying both resolves to delivered, not a false failure.
+     */
+    private const SEVERITY = [
+        self::BLOCKED   => 6,
+        self::BOUNCED   => 5,
+        self::SPAM      => 4,
+        self::DELIVERED => 3,
+        self::DEFERRED  => 2,
+        self::ACCEPTED  => 1,
+    ];
+
     private string $state;
 
     private string $detail;
@@ -33,6 +46,14 @@ final class DeliveryStatus
     {
         $this->state  = $state;
         $this->detail = $detail;
+    }
+
+    /**
+     * Severity rank for a delivery state; 0 for unknown/unranked states.
+     */
+    public static function severity(string $state): int
+    {
+        return self::SEVERITY[$state] ?? 0;
     }
 
     public function state(): string

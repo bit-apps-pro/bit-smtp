@@ -285,13 +285,21 @@ class MailConfigService
             $priorConn     = $prior->getConnections()->byId($connection['id'] ?? '');
             $priorSettings = $priorConn !== null ? $priorConn->getSettings() : [];
 
+            // webhook_verified / webhook_last_event_at are server-managed: never trust an incoming
+            // value, always restore whatever the stored connection holds (or drop it for a new one).
             foreach (['webhook_verified', 'webhook_last_event_at'] as $managed) {
-                if (!\array_key_exists($managed, $settings) && \array_key_exists($managed, $priorSettings)) {
+                unset($settings[$managed]);
+                if (\array_key_exists($managed, $priorSettings)) {
                     $settings[$managed] = $priorSettings[$managed];
                 }
             }
 
-            $secret = $settings['webhook_secret'] ?? ($priorSettings['webhook_secret'] ?? '');
+            // Treat an explicit '' as absent so re-saving a connection can't rotate a live webhook URL:
+            // carry the stored secret forward, minting one only when neither incoming nor stored exists.
+            $secret = $settings['webhook_secret'] ?? '';
+            if ($secret === '') {
+                $secret = $priorSettings['webhook_secret'] ?? '';
+            }
             if ($secret === '') {
                 $secret = wp_generate_password(40, false);
             }

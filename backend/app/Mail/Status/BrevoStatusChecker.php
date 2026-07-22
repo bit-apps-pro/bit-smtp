@@ -26,17 +26,6 @@ final class BrevoStatusChecker implements MessageStatusCheckerInterface
         'request'    => DeliveryStatus::ACCEPTED,
     ];
 
-    // Hard negatives dominate; a confirmed delivery then outranks a merely transient deferral, so a
-    // feed carrying both delivered and deferred resolves to delivered (not a false failure).
-    private const STATE_SEVERITY = [
-        DeliveryStatus::BLOCKED   => 6,
-        DeliveryStatus::BOUNCED   => 5,
-        DeliveryStatus::SPAM      => 4,
-        DeliveryStatus::DELIVERED => 3,
-        DeliveryStatus::DEFERRED  => 2,
-        DeliveryStatus::ACCEPTED  => 1,
-    ];
-
     private ApiClient $client;
 
     public function __construct(ApiClient $client)
@@ -100,7 +89,7 @@ final class BrevoStatusChecker implements MessageStatusCheckerInterface
                 continue;
             }
 
-            if ($winner === null || self::STATE_SEVERITY[$state] > self::STATE_SEVERITY[$winner]) {
+            if ($winner === null || DeliveryStatus::severity($state) > DeliveryStatus::severity($winner)) {
                 $winner = $state;
                 $detail = $this->reasonFor($event);
             }
