@@ -290,7 +290,7 @@ describe('ConnectionEditor', () => {
 
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({
-        settings: { region: 'global' },
+        settings: { region: 'global', webhook_enabled: true },
         credentials: { api_key: { source: 'database', value: '********' } }
       })
     )

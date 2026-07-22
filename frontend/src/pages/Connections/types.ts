@@ -46,6 +46,9 @@ export interface Connection {
   replyToEmail: string
   settings: Record<string, unknown>
   credentials: Record<string, ConnectionCredential>
+  // Derived, read-only: the full delivery-webhook URL to paste into the provider dashboard. Present
+  // only for API connections in the API read shape; never persisted back.
+  webhook_url?: string
 }
 
 export interface MailSettings {

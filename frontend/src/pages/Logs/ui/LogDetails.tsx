@@ -7,6 +7,7 @@ import useResendLog from '@pages/Logs/data/useResendLog'
 import { Button, Card, Space, Tabs, Typography, notification } from 'antd'
 import DebugOutputTab from './tabs/DebugOutputTab'
 import DeliveryAttemptsTab from './tabs/DeliveryAttemptsTab'
+import DeliveryStatusTab from './tabs/DeliveryStatusTab'
 import EmailDetailsTab from './tabs/EmailDetailsTab'
 import MailBodyTab from './tabs/MailBodyTab'
 
@@ -110,6 +111,15 @@ export default function LogDetails() {
                     key: '2',
                     label: __('Delivery Attempts'),
                     children: <DeliveryAttemptsTab log={log} />
+                  }
+                ]
+              : []),
+            ...(log.delivery_verified
+              ? [
+                  {
+                    key: '5',
+                    label: __('Delivery'),
+                    children: <DeliveryStatusTab log={log} />
                   }
                 ]
               : []),

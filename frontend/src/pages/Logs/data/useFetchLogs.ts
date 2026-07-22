@@ -19,6 +19,16 @@ export type LogDetail = {
   attachments: Array<string>
   attempts?: Array<LogAttempt>
 }
+
+export type DeliveryStatusValue = 'delivered' | 'bounced' | 'spam' | 'blocked' | 'deferred' | 'accepted'
+
+export type DeliveryEvent = {
+  recipient: string
+  status: string
+  terminal: number
+  occurred_at: string | null
+}
+
 export type LogType = {
   id: number
   status: string
@@ -28,6 +38,13 @@ export type LogType = {
   debug_info: Array<string>
   retry_count: number
   connection: string | null
+  message_id?: string | null
+  tracking_id?: string | null
+  // Real provider delivery status, only trustworthy when `delivery_verified` is true.
+  delivery_status?: DeliveryStatusValue | string | null
+  delivery_updated_at?: string | null
+  delivery_verified?: boolean
+  delivery_events?: Array<DeliveryEvent>
   created_at: string
   updated_at: string
 }

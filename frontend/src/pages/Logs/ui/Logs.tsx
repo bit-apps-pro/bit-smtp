@@ -17,6 +17,7 @@ import {
   notification,
   theme
 } from 'antd'
+import DeliveryStatusTag from './DeliveryStatusTag'
 import LogRetentionSettings from './LogRetentionSettings'
 import LogToggle from './LogToggle'
 
@@ -35,6 +36,13 @@ const columns: TableColumnsType<LogType> = [
     dataIndex: 'status',
     key: 'status',
     render: status => <Badge status={status ? 'success' : 'error'} text={status ? 'Sent' : 'Failed'} />
+  },
+  {
+    // Real provider delivery status, shown only for proven-live webhook connections; blank otherwise.
+    title: __('Delivery'),
+    key: 'delivery',
+    render: (_, record) =>
+      record.delivery_verified ? <DeliveryStatusTag status={record.delivery_status} /> : null
   },
   {
     title: __('Connection'),

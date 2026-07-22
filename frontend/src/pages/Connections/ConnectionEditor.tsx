@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
+import config from '@config/config'
 import { type Connection, type ProviderMeta } from '@pages/Connections/types'
 import { Button, Flex, Form, Input, Switch, Typography, theme } from 'antd'
 import ConnectionTestButton from './ConnectionTestButton'
@@ -9,7 +10,7 @@ import ProviderFields from './ProviderFields'
 import useSaveConnection from './data/useSaveConnection'
 import { getProviderVisual } from './providerVisuals'
 
-const { Text } = Typography
+const { Text, Paragraph } = Typography
 
 const PROVIDER_BADGE_SIZE = 48
 
@@ -143,6 +144,47 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
   )
 }
 
+function WebhookPanel({ connection, provider }: { connection: Connection; provider: ProviderMeta }) {
+  const { token } = theme.useToken()
+  const secret = (connection.settings?.webhook_secret as string | undefined) ?? ''
+  // Prefer the server-composed URL; fall back to composing it locally only if the API omitted it.
+  const webhookUrl =
+    connection.webhook_url || (secret ? `${config.ROOT_URL}/bit-smtp/${connection.id}/${secret}` : '')
+  const verified = Boolean(connection.settings?.webhook_verified)
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadius,
+        padding: 12,
+        marginTop: 12
+      }}
+    >
+      <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
+        {__('Paste this into %s → Settings → Webhooks.').replace('%s', provider.label)}
+      </Text>
+      {webhookUrl ? (
+        <Paragraph copyable={{ text: webhookUrl }} style={{ marginBottom: 8, wordBreak: 'break-all' }}>
+          {webhookUrl}
+        </Paragraph>
+      ) : (
+        <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+          {__('Save this connection to generate its webhook URL.')}
+        </Text>
+      )}
+      <Text style={{ color: verified ? token.colorSuccess : token.colorWarning }}>
+        {verified ? __('✓ Verified — receiving events') : __('Waiting for first event')}
+      </Text>
+      <div>
+        <Text type="secondary" style={{ fontSize: '0.85em' }}>
+          {__('A provider’s “send test” won’t flip this — only a real tracked send does.')}
+        </Text>
+      </div>
+    </div>
+  )
+}
+
 export default function ConnectionEditor({
   connection,
   provider,
@@ -173,6 +215,10 @@ export default function ConnectionEditor({
   }
 
   const fromEmail = Form.useWatch('fromEmail', form) ?? connection.fromEmail
+  const webhookEnabled =
+    (Form.useWatch('webhook_enabled', form) as boolean | undefined) ??
+    (connection.settings?.webhook_enabled as boolean | undefined) ??
+    true
   const oauthField = provider.fields.find(field => field.type === 'oauth')
   const inputFields = provider.fields.filter(field => field.type !== 'oauth')
 
@@ -235,6 +281,9 @@ export default function ConnectionEditor({
             >
               <Switch />
             </Form.Item>
+          ) : null}
+          {provider.kind === 'api' && webhookEnabled ? (
+            <WebhookPanel connection={connection} provider={provider} />
           ) : null}
         </FormSection>
 
