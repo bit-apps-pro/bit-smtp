@@ -68,7 +68,8 @@ export interface FailureAlertSettings {
 }
 
 export interface MailFeatures extends Record<string, unknown> {
-  alerts?: FailureAlertSettings
+  // Backend sanitizer emits `[]` (PHP's empty-array sentinel) until alerts are configured, then the full shape.
+  alerts?: FailureAlertSettings | never[]
 }
 
 export interface MailSettings {

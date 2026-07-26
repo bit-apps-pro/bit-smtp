@@ -21,7 +21,8 @@ interface NotificationFormValues {
 }
 
 function readAlerts(settings: MailSettings): FailureAlertSettings {
-  const { alerts } = settings.features
+  const raw = settings.features.alerts
+  const alerts = Array.isArray(raw) ? undefined : raw
 
   return {
     enabled: alerts?.enabled ?? false,

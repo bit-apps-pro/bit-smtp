@@ -1,0 +1,549 @@
+[
+  {
+    "key": "other_smtp",
+    "label": "Other SMTP",
+    "kind": "smtp",
+    "supports_webhook": false,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "host",
+        "label": "SMTP Host",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "smtp.example.com",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "port",
+        "label": "SMTP Port",
+        "type": "number",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": 587,
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "encryption",
+        "label": "Encryption",
+        "type": "select",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": "tls",
+        "options": [
+          {
+            "value": "none",
+            "label": "None"
+          },
+          {
+            "value": "ssl",
+            "label": "SSL"
+          },
+          {
+            "value": "tls",
+            "label": "TLS"
+          }
+        ],
+        "dependsOn": null
+      },
+      {
+        "key": "auth",
+        "label": "Authentication",
+        "type": "switch",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": true,
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "username",
+        "label": "Username",
+        "type": "text",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": {
+          "field": "auth",
+          "value": true
+        }
+      },
+      {
+        "key": "password",
+        "label": "Password",
+        "type": "password",
+        "required": false,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": {
+          "field": "auth",
+          "value": true
+        }
+      }
+    ]
+  },
+  {
+    "key": "php_sendmail",
+    "label": "PHP Sendmail",
+    "kind": "local",
+    "supports_webhook": false,
+    "supports_webhook_provisioning": false,
+    "fields": []
+  },
+  {
+    "key": "sendgrid",
+    "label": "SendGrid",
+    "kind": "api",
+    "supports_webhook": true,
+    "supports_webhook_provisioning": true,
+    "fields": [
+      {
+        "key": "api_key",
+        "label": "API Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "gmail",
+    "label": "Gmail / Google Workspace",
+    "kind": "api",
+    "supports_webhook": false,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "client_id",
+        "label": "Client ID",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "client_secret",
+        "label": "Client Secret",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "oauth",
+        "label": "Google / Google Workspace account",
+        "type": "oauth",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "amazon_ses",
+    "label": "Amazon SES",
+    "kind": "api",
+    "supports_webhook": false,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "access_key",
+        "label": "Access Key ID",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "secret_key",
+        "label": "Secret Access Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "region",
+        "label": "Region",
+        "type": "select",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": "us-east-1",
+        "options": [
+          {
+            "value": "us-east-1",
+            "label": "US East (N. Virginia)"
+          },
+          {
+            "value": "us-east-2",
+            "label": "US East (Ohio)"
+          },
+          {
+            "value": "us-west-2",
+            "label": "US West (Oregon)"
+          },
+          {
+            "value": "eu-west-1",
+            "label": "EU (Ireland)"
+          },
+          {
+            "value": "eu-central-1",
+            "label": "EU (Frankfurt)"
+          },
+          {
+            "value": "ap-south-1",
+            "label": "Asia Pacific (Mumbai)"
+          },
+          {
+            "value": "ap-southeast-2",
+            "label": "Asia Pacific (Sydney)"
+          }
+        ],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "postmark",
+    "label": "Postmark",
+    "kind": "api",
+    "supports_webhook": true,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "api_key",
+        "label": "Server API Token",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "brevo",
+    "label": "Brevo",
+    "kind": "api",
+    "supports_webhook": true,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "api_key",
+        "label": "API Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "resend",
+    "label": "Resend",
+    "kind": "api",
+    "supports_webhook": true,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "api_key",
+        "label": "API Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "webhook_signing_secret",
+        "label": "Webhook Signing Secret",
+        "type": "password",
+        "required": false,
+        "secret": true,
+        "placeholder": "whsec_...",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "mailjet",
+    "label": "Mailjet",
+    "kind": "api",
+    "supports_webhook": true,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "api_key",
+        "label": "API Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "secret_key",
+        "label": "Secret Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "zeptomail",
+    "label": "ZeptoMail",
+    "kind": "api",
+    "supports_webhook": true,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "api_key",
+        "label": "Send Mail Token",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "webhook_auth_key",
+        "label": "Webhook Authentication Key",
+        "type": "password",
+        "required": false,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "data_center",
+        "label": "Data Center",
+        "type": "select",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": "us",
+        "options": [
+          {
+            "value": "us",
+            "label": "US"
+          },
+          {
+            "value": "eu",
+            "label": "EU"
+          },
+          {
+            "value": "in",
+            "label": "India"
+          }
+        ],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "mailgun",
+    "label": "Mailgun",
+    "kind": "api",
+    "supports_webhook": true,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "api_key",
+        "label": "API Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "webhook_signing_key",
+        "label": "Webhook Signing Key",
+        "type": "password",
+        "required": false,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "domain",
+        "label": "Domain",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "mg.example.com",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "region",
+        "label": "Region",
+        "type": "select",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": "us",
+        "options": [
+          {
+            "value": "us",
+            "label": "US"
+          },
+          {
+            "value": "eu",
+            "label": "EU"
+          }
+        ],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "sparkpost",
+    "label": "SparkPost",
+    "kind": "api",
+    "supports_webhook": true,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "api_key",
+        "label": "API Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "region",
+        "label": "Region",
+        "type": "select",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": "us",
+        "options": [
+          {
+            "value": "us",
+            "label": "US"
+          },
+          {
+            "value": "eu",
+            "label": "EU"
+          }
+        ],
+        "dependsOn": null
+      }
+    ]
+  },
+  {
+    "key": "microsoft365",
+    "label": "Microsoft 365 / Outlook",
+    "kind": "api",
+    "supports_webhook": false,
+    "supports_webhook_provisioning": false,
+    "fields": [
+      {
+        "key": "client_id",
+        "label": "Application (client) ID",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "client_secret",
+        "label": "Client Secret",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "tenant",
+        "label": "Directory (tenant) ID",
+        "type": "text",
+        "required": false,
+        "secret": false,
+        "placeholder": "common",
+        "default": "common",
+        "options": [],
+        "dependsOn": null
+      },
+      {
+        "key": "oauth",
+        "label": "Microsoft account",
+        "type": "oauth",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+      }
+    ]
+  }
+]
