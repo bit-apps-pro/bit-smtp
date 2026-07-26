@@ -1,0 +1,42 @@
+{
+    "schema_version": 2,
+    "enabled": true,
+    "default_connection_id": "conn_golden_1",
+    "fallback_connection_ids": [],
+    "connections": [
+        {
+            "id": "conn_golden_1",
+            "provider": "sendgrid",
+            "kind": "api",
+            "name": "Golden SendGrid",
+            "enabled": true,
+            "fromEmail": "golden@example.org",
+            "fromName": "Golden Sender",
+            "replyToEmail": "",
+            "settings": {
+                "host": "",
+                "port": 0,
+                "encryption": "none",
+                "auth": false,
+                "username": "",
+                "smtp_debug": false,
+                "webhook_enabled": true,
+                "webhook_secret": "golden-webhook-secret-fixed-000000"
+            },
+            "credentials": {
+                "api_key": {
+                    "source": "database",
+                    "value": "********"
+                }
+            },
+            "webhook_url": "http://example.org/bit-smtp/conn_golden_1/golden-webhook-secret-fixed-000000"
+        }
+    ],
+    "features": {
+        "logging": [],
+        "alerts": [],
+        "routing": [],
+        "tracking": [],
+        "email_controls": []
+    }
+}

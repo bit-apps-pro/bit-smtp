@@ -1,0 +1,12 @@
+{
+    "body": {
+        "status": "success",
+        "message": "Webhook created.",
+        "code": "SUCCESS",
+        "data": {
+            "created": true,
+            "id": "sg_wh_golden"
+        }
+    },
+    "http_status": 200
+}

@@ -1,0 +1,8 @@
+{
+    "body": {
+        "status": "success",
+        "code": "SUCCESS",
+        "data": "Connection saved"
+    },
+    "http_status": 200
+}
