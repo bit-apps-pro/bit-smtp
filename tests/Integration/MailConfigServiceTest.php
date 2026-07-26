@@ -257,6 +257,62 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('legacy-secret', $legacy['smtp_password']);
     }
 
+    public function testFailureWebhookSecretsAreEncryptedMaskedAndPreservedOnSave(): void
+    {
+        $data                       = $this->v2SettingsArray('conn_1', 'smtp-secret');
+        $data['features']['alerts'] = [
+            'enabled' => true,
+            'email'   => ['enabled' => false, 'recipients' => []],
+            'webhook' => [
+                'enabled'        => true,
+                'url'            => 'https://hooks.example.com/private-token',
+                'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            ],
+        ];
+
+        $this->freshService()->saveSettings($data);
+
+        $raw = Config::getOption('options');
+        $this->assertStringStartsWith(
+            'bsenc:v1:',
+            $raw['features']['alerts']['webhook']['url']
+        );
+        $this->assertStringStartsWith(
+            'bsenc:v1:',
+            $raw['features']['alerts']['webhook']['signing_secret']
+        );
+
+        $loaded = $this->freshService()->load();
+        $this->assertSame(
+            'https://hooks.example.com/private-token',
+            $loaded->getFeatures()['alerts']['webhook']['url']
+        );
+        $this->assertSame(
+            'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            $loaded->getFeatures()['alerts']['webhook']['signing_secret']
+        );
+        $this->assertSame(
+            '********',
+            $this->freshService()->apiSettings()['features']['alerts']['webhook']['url']
+        );
+        $this->assertSame(
+            '********',
+            $this->freshService()->apiSettings()['features']['alerts']['webhook']['signing_secret']
+        );
+
+        $data['features']['alerts']['webhook']['url']            = '********';
+        $data['features']['alerts']['webhook']['signing_secret'] = '********';
+        $this->freshService()->saveSettings($data);
+        $this->assertSame(
+            'https://hooks.example.com/private-token',
+            $this->freshService()->load()->getFeatures()['alerts']['webhook']['url']
+        );
+        $this->assertSame(
+            'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            $this->freshService()->load()->getFeatures()['alerts']['webhook']['signing_secret']
+        );
+    }
+
     public function testEncryptSecretsMigrationEncryptsExistingPlaintextInstall(): void
     {
         // Seed the raw option exactly as a pre-encryption install would have it: v2 shape, but the

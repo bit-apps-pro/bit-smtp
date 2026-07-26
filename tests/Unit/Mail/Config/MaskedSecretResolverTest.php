@@ -114,6 +114,29 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
         );
     }
 
+    public function testOmittedOAuthCredentialsArePreservedAlongsideEditableSecret(): void
+    {
+        $current = $this->currentSettings([
+            'client_secret' => ['source' => 'database', 'value' => 'stored-client-secret'],
+            'access_token'  => ['source' => 'database', 'value' => 'stored-access-token'],
+            'refresh_token' => ['source' => 'database', 'value' => 'stored-refresh-token'],
+        ]);
+        $incoming = $this->incomingV2([
+            'client_secret' => ['source' => 'database', 'value' => self::SENTINEL],
+        ]);
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            [
+                'client_secret' => ['source' => 'database', 'value' => 'stored-client-secret'],
+                'access_token'  => ['source' => 'database', 'value' => 'stored-access-token'],
+                'refresh_token' => ['source' => 'database', 'value' => 'stored-refresh-token'],
+            ],
+            $result['connections'][0]['credentials']
+        );
+    }
+
     public function testNestedSentinelAtAnyDepthIsPreserved(): void
     {
         $current = $this->currentSettings([
@@ -230,6 +253,86 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
             'B',
             $result['connections'][0]['credentials']['password']['value'],
             'Sentinel must resolve to the secret for conn_B (by id), not conn_A (by position).'
+        );
+    }
+
+    public function testFailureWebhookSentinelsRestoreStoredSecretsWithoutConnections(): void
+    {
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'webhook' => [
+                        'enabled'        => true,
+                        'url'            => 'https://hooks.example.com/secret',
+                        'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+                    ],
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'webhook' => [
+                        'enabled'        => true,
+                        'url'            => self::SENTINEL,
+                        'signing_secret' => self::SENTINEL,
+                    ],
+                ],
+            ],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            'https://hooks.example.com/secret',
+            $result['features']['alerts']['webhook']['url']
+        );
+        $this->assertSame(
+            'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            $result['features']['alerts']['webhook']['signing_secret']
+        );
+    }
+
+    public function testOmittedFailureWebhookUrlPreservesStoredUrl(): void
+    {
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'webhook' => [
+                        'enabled'        => true,
+                        'url'            => 'https://hooks.example.com/secret',
+                        'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+                    ],
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'webhook' => ['enabled' => false],
+                ],
+            ],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            'https://hooks.example.com/secret',
+            $result['features']['alerts']['webhook']['url']
+        );
+        $this->assertSame(
+            'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            $result['features']['alerts']['webhook']['signing_secret']
         );
     }
 

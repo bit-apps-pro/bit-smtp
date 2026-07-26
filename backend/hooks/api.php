@@ -34,6 +34,7 @@ Route::group(function () {
     Route::post('mail/settings/save', [MailSettingsController::class, 'save']);
     Route::get('mail/providers', [ProviderController::class, 'index']);
     Route::post('mail/connections/save', [ConnectionController::class, 'save']);
+    Route::post('mail/connections/webhook/create', [ConnectionController::class, 'createWebhook']);
     Route::post('mail/connections/delete', [ConnectionController::class, 'delete']);
     Route::post('mail/connections/test', [ConnectionController::class, 'test']);
     Route::get('mail/oauth/authorize', [OAuthController::class, 'authorize']);

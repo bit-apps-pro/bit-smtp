@@ -341,6 +341,43 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
         $this->assertArrayNotHasKey('webhook_url', $result['connections'][0]);
     }
 
+    public function testToApiShapeOmitsWebhookUrlForApiProviderWithoutReceiver(): void
+    {
+        $data                                                 = $this->v2Array();
+        $data['connections'][0]['kind']                       = 'api';
+        $data['connections'][0]['provider']                   = 'gmail';
+        $data['connections'][0]['settings']['webhook_secret'] = 'unused-secret';
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertArrayNotHasKey('webhook_url', $result['connections'][0]);
+    }
+
+    public function testToApiShapeMasksFailureWebhookSecrets(): void
+    {
+        $data                       = $this->v2Array();
+        $data['features']['alerts'] = [
+            'enabled' => true,
+            'webhook' => [
+                'enabled'        => true,
+                'url'            => 'https://hooks.example.com/secret',
+                'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            ],
+        ];
+
+        $result = MailSettingsSerializer::toApiShape(MailSettings::fromArray($data));
+
+        $this->assertSame(
+            MailSettingsSerializer::MASK_SENTINEL,
+            $result['features']['alerts']['webhook']['url']
+        );
+        $this->assertSame(
+            MailSettingsSerializer::MASK_SENTINEL,
+            $result['features']['alerts']['webhook']['signing_secret']
+        );
+    }
+
     private function v2Array(): array
     {
         return [

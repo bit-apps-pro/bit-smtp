@@ -7,6 +7,7 @@ namespace BitApps\SMTP\Mail\Providers\Zepto;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
+use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
 
 /**
@@ -28,6 +29,7 @@ final class ZeptoProvider extends DescriptorProvider
             'kind'   => 'api',
             'fields' => [
                 ['key' => 'api_key',     'label' => 'Send Mail Token', 'type' => 'password', 'required' => true,  'secret' => true,  'placeholder' => '', 'default' => '',   'options' => [], 'dependsOn' => null],
+                ['key' => 'webhook_auth_key', 'label' => 'Webhook Authentication Key', 'type' => 'password', 'required' => false, 'secret' => true, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
                 ['key' => 'data_center', 'label' => 'Data Center',     'type' => 'select',   'required' => false, 'secret' => false, 'placeholder' => '', 'default' => 'us', 'options' => [
                     ['value' => 'us', 'label' => 'US'],
                     ['value' => 'eu', 'label' => 'EU'],
@@ -53,9 +55,11 @@ final class ZeptoProvider extends DescriptorProvider
                 'subject'     => 'subject',
                 'body'        => ['html' => 'htmlbody', 'text' => 'textbody'],
                 'attachments' => ['key' => 'attachments', 'shape' => 'zepto'],
+                'metadata'    => ['key' => 'client_reference', 'value' => TrackingIdStamper::METADATA_KEY],
             ],
             'success'    => [201],
             'errorPaths' => ['error.details.0.message', 'error.message'],
+            'tracking'   => ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY],
         ]);
     }
 }

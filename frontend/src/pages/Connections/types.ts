@@ -27,6 +27,9 @@ export interface ProviderMeta {
   key: string
   label: string
   kind: string
+  supports_webhook?: boolean
+  // Provider can create its own webhook via API (drives the "Create webhook" button).
+  supports_webhook_provisioning?: boolean
   fields: FieldMeta[]
 }
 
@@ -47,8 +50,25 @@ export interface Connection {
   settings: Record<string, unknown>
   credentials: Record<string, ConnectionCredential>
   // Derived, read-only: the full delivery-webhook URL to paste into the provider dashboard. Present
-  // only for API connections in the API read shape; never persisted back.
+  // only for providers with a live webhook receiver; never persisted back.
   webhook_url?: string
+}
+
+export interface FailureAlertSettings {
+  enabled: boolean
+  email: {
+    enabled: boolean
+    recipients: string[]
+  }
+  webhook: {
+    enabled: boolean
+    url: string
+    signing_secret: string
+  }
+}
+
+export interface MailFeatures extends Record<string, unknown> {
+  alerts?: FailureAlertSettings
 }
 
 export interface MailSettings {
@@ -57,5 +77,5 @@ export interface MailSettings {
   default_connection_id: string
   fallback_connection_ids: string[]
   connections: Connection[]
-  features: Record<string, unknown>
+  features: MailFeatures
 }

@@ -193,10 +193,73 @@ final class MailSettingsSanitizer
         foreach (self::ALLOWED_FEATURE_KEYS as $key) {
             $value = isset($features[$key]) && \is_array($features[$key]) ? $features[$key] : [];
 
-            $out[$key] = $key === 'routing' ? self::sanitizeRoutingRules($value) : $value;
+            if ($key === 'routing') {
+                $out[$key] = self::sanitizeRoutingRules($value);
+            } elseif ($key === 'alerts') {
+                $out[$key] = $value === [] ? [] : self::sanitizeAlerts($value);
+            } else {
+                $out[$key] = $value;
+            }
         }
 
         return $out;
+    }
+
+    /**
+     * @return array{enabled:bool,email:array{enabled:bool,recipients:string[]},webhook:array{enabled:bool,url:string,signing_secret:string}}
+     */
+    private static function sanitizeAlerts(array $alerts): array
+    {
+        $email   = isset($alerts['email'])   && \is_array($alerts['email']) ? $alerts['email'] : [];
+        $webhook = isset($alerts['webhook']) && \is_array($alerts['webhook']) ? $alerts['webhook'] : [];
+
+        $recipients = [];
+        foreach ((array) ($email['recipients'] ?? []) as $recipient) {
+            if (!\is_scalar($recipient)) {
+                continue;
+            }
+
+            $recipient = trim((string) $recipient);
+            if (filter_var($recipient, FILTER_VALIDATE_EMAIL) !== false) {
+                $recipients[] = $recipient;
+            }
+        }
+
+        $url    = isset($webhook['url']) && \is_scalar($webhook['url']) ? trim((string) $webhook['url']) : '';
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if ($url !== '' && (
+            \strlen($url) > 2048
+            || filter_var($url, FILTER_VALIDATE_URL) === false
+            || !\in_array($scheme, ['http', 'https'], true)
+        )) {
+            $url = '';
+        }
+
+        $signingSecret = isset($webhook['signing_secret']) && \is_scalar($webhook['signing_secret'])
+            ? trim((string) $webhook['signing_secret'])
+            : '';
+        if ($signingSecret !== '' && preg_match('/^whsec_[A-Za-z0-9_-]{32,128}$/', $signingSecret) !== 1) {
+            $signingSecret = '';
+        }
+
+        return [
+            'enabled' => isset($alerts['enabled'])
+                ? (bool) filter_var($alerts['enabled'], FILTER_VALIDATE_BOOLEAN)
+                : false,
+            'email' => [
+                'enabled' => isset($email['enabled'])
+                    ? (bool) filter_var($email['enabled'], FILTER_VALIDATE_BOOLEAN)
+                    : false,
+                'recipients' => \array_slice(array_values(array_unique($recipients)), 0, 20),
+            ],
+            'webhook' => [
+                'enabled' => isset($webhook['enabled'])
+                    ? (bool) filter_var($webhook['enabled'], FILTER_VALIDATE_BOOLEAN)
+                    : false,
+                'url'            => $url,
+                'signing_secret' => $signingSecret,
+            ],
+        ];
     }
 
     /**

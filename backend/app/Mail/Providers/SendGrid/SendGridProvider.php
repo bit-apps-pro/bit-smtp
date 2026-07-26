@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Mail\Providers\SendGrid;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
+use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 
 class SendGridProvider implements ProviderInterface
 {
@@ -58,7 +59,7 @@ class SendGridProvider implements ProviderInterface
 
     public function tracking(): array
     {
-        return [];
+        return ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY];
     }
 
     public function deliveryStatusOnAccept(): ?string

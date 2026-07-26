@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import notify from '@components/Toaster/Toaster'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -8,6 +9,9 @@ import { MAIL_SETTINGS_QUERY_KEY } from './data/useMailSettings'
 import useOAuthAuthorize from './data/useOAuthAuthorize'
 
 vi.mock('./data/useOAuthAuthorize', () => ({ default: vi.fn() }))
+vi.mock('@components/Toaster/Toaster', () => ({
+  default: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
+}))
 
 function renderWithClient(ui: React.ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -70,17 +74,33 @@ describe('OAuthConnectButton', () => {
 
   it('invalidates mail-settings when a matching oauth postMessage arrives', () => {
     const { invalidateQueries } = renderWithClient(
-      <OAuthConnectButton connectionId="conn_1" provider="gmail" connected={false} />
+      <OAuthConnectButton connectionId="conn_1" provider="microsoft365" connected={false} />
     )
 
     postOAuthMessage({
       type: 'bit-smtp-oauth',
       status: 'success',
       connectionId: 'conn_1',
-      provider: 'gmail'
+      provider: 'microsoft365'
     })
 
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: MAIL_SETTINGS_QUERY_KEY })
+    expect(notify.success).toHaveBeenCalledWith('OAuth account connected')
+  })
+
+  it('shows a provider-neutral error for a failed Microsoft OAuth callback', () => {
+    renderWithClient(
+      <OAuthConnectButton connectionId="conn_1" provider="microsoft365" connected={false} />
+    )
+
+    postOAuthMessage({
+      type: 'bit-smtp-oauth',
+      status: 'error',
+      connectionId: 'conn_1',
+      provider: 'microsoft365'
+    })
+
+    expect(notify.error).toHaveBeenCalledWith('Failed to connect OAuth account')
   })
 
   it('ignores a postMessage for a different connection', () => {

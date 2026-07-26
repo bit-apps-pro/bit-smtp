@@ -171,8 +171,8 @@ final class ProviderDescriptor
     }
 
     /**
-     * Top-level key in the send response holding the provider's message-id (e.g. Postmark
-     * 'MessageID', Brevo 'messageId'); '' when the provider exposes none.
+     * Dot-path in the send response holding the provider's message-id (e.g. Postmark
+     * 'MessageID', SparkPost 'results.id'); '' when the provider exposes none.
      */
     public function messageIdPath(): string
     {

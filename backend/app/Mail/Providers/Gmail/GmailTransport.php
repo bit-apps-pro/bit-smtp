@@ -81,6 +81,20 @@ class GmailTransport extends AbstractOAuth2Transport
     /**
      * @param array|string $body
      */
+    protected function messageIdFrom(int $status, $body): ?string
+    {
+        if ($status !== 200 || !\is_array($body) || !isset($body['id'])) {
+            return null;
+        }
+
+        $messageId = trim((string) $body['id']);
+
+        return $messageId !== '' ? $messageId : null;
+    }
+
+    /**
+     * @param array|string $body
+     */
     protected function errorFrom(int $status, $body): string
     {
         if (\is_array($body) && isset($body['error']['message'])) {

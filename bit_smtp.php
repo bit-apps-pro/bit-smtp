@@ -11,7 +11,7 @@ if (! \defined('ABSPATH')) {
  * Author:      Bit Apps
  * Author URI:  https://bitapps.pro
  * Text Domain: bit-smtp
- * Requires PHP: 7.4
+ * Requires PHP: 8.0
  * Requires WP: 5.0
  * Domain Path: /languages
  * License: GPLv2 or later

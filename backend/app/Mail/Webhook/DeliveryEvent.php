@@ -110,12 +110,18 @@ class DeliveryEvent
 
     private static function normalizeOccurredAt($raw): ?string
     {
-        if (!\is_string($raw)) {
+        // A bare unix timestamp (int, float, or all-digit string) is not a parseable date string;
+        // render it to UTC directly so adapters can hand us the raw provider value unmodified.
+        if (\is_int($raw) || \is_float($raw)) {
+            return gmdate('Y-m-d H:i:s', (int) $raw);
+        }
+
+        if (!\is_string($raw) || $raw === '') {
             return null;
         }
 
-        if (empty($raw)) {
-            return null;
+        if (ctype_digit($raw)) {
+            return gmdate('Y-m-d H:i:s', (int) $raw);
         }
 
         try {

@@ -11,6 +11,7 @@ use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Mail\Exceptions\CredentialCipherException;
+use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
 
 /**
  * Facade over the v2 mail-settings domain. Reads migrate legacy config in memory only (never
@@ -32,7 +33,7 @@ class MailConfigService
     {
         if ($this->settings === null) {
             $migrated       = MailSettingsMigrator::migrate(Config::getOption(self::OPTION, []));
-            $this->settings = MailSettings::fromArray($this->decryptCredentials($migrated));
+            $this->settings = MailSettings::fromArray($this->decryptSecrets($migrated));
         }
 
         return $this->settings;
@@ -53,7 +54,7 @@ class MailConfigService
     {
         $this->backupLegacyOnce();
 
-        $encrypted = $this->encryptCredentials($settings->toArray());
+        $encrypted = $this->encryptSecrets($settings->toArray());
         $stored    = (bool) Config::updateOption(self::OPTION, $encrypted);
 
         $this->settings = $settings;
@@ -136,13 +137,9 @@ class MailConfigService
                     ['connections' => [$connection]],
                     $current
                 );
-                $resolvedConn = $resolved['connections'][0];
-                // MaskedSecretResolver only resolves credential keys present in the incoming
-                // payload; an edit that omits a key (e.g. OAuth tokens absent from a re-save)
-                // must not drop it, so union-merge in whatever the stored connection still has.
-                $resolvedConn['credentials'] = ($resolvedConn['credentials'] ?? []) + ($existing['credentials'] ?? []);
-                $connections[$i]             = $resolvedConn;
-                $isNew                       = false;
+                $resolvedConn    = $resolved['connections'][0];
+                $connections[$i] = $resolvedConn;
+                $isNew           = false;
 
                 break;
             }
@@ -262,6 +259,28 @@ class MailConfigService
         $this->reload();
     }
 
+    public function updateConnectionSettings(string $connId, array $updates): bool
+    {
+        $current = $this->load();
+        if ($current->getConnections()->byId($connId) === null) {
+            return false;
+        }
+
+        $data = $current->toArray();
+        foreach ($data['connections'] as $i => $connection) {
+            if (($connection['id'] ?? '') === $connId) {
+                $data['connections'][$i]['settings'] = array_merge($connection['settings'] ?? [], $updates);
+
+                break;
+            }
+        }
+
+        $stored = $this->store(MailSettings::fromArray(MailSettingsSanitizer::sanitize($data)));
+        $this->reload();
+
+        return $stored;
+    }
+
     /**
      * Mint + preserve the server-managed webhook fields on every save. The incoming payload carries
      * only user-editable settings, so without this an edit would wipe the secret (breaking the URL)
@@ -275,7 +294,7 @@ class MailConfigService
     private function withPreservedWebhookFields(array $connections, MailSettings $prior): array
     {
         foreach ($connections as $i => $connection) {
-            if (($connection['kind'] ?? '') !== 'api') {
+            if (!WebhookAdapterFactory::supportsProvider((string) ($connection['provider'] ?? ''))) {
                 continue;
             }
 
@@ -287,7 +306,7 @@ class MailConfigService
 
             // webhook_verified / webhook_last_event_at are server-managed: never trust an incoming
             // value, always restore whatever the stored connection holds (or drop it for a new one).
-            foreach (['webhook_verified', 'webhook_last_event_at'] as $managed) {
+            foreach (['webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key'] as $managed) {
                 unset($settings[$managed]);
                 if (\array_key_exists($managed, $priorSettings)) {
                     $settings[$managed] = $priorSettings[$managed];
@@ -324,38 +343,38 @@ class MailConfigService
     }
 
     /**
-     * Encrypt every credential value before it is written to the options table. The in-memory
-     * MailSettings object built from $data stays plaintext; only the persisted copy is ciphertext.
+     * Encrypt every secret before it is written to the options table. The in-memory MailSettings
+     * object built from $data stays plaintext; only the persisted copy is ciphertext.
      *
      * @param array<string,mixed> $data
      *
      * @return array<string,mixed>
      */
-    private function encryptCredentials(array $data): array
+    private function encryptSecrets(array $data): array
     {
-        return $this->walkCredentialValues($data, static function (string $value): string {
+        return $this->walkSecretValues($data, static function (string $value): string {
             return CredentialCipher::encrypt($value);
         });
     }
 
     /**
-     * Decrypt every credential value read back from the options table, so every other consumer of
-     * load() (masking, legacy shape, sending) keeps working against plaintext unchanged.
+     * Decrypt every secret read from the options table, so every other consumer of load() keeps
+     * working against plaintext unchanged.
      *
      * @param array<string,mixed> $data
      *
      * @return array<string,mixed>
      */
-    private function decryptCredentials(array $data): array
+    private function decryptSecrets(array $data): array
     {
-        return $this->walkCredentialValues($data, [$this, 'decryptCredentialValue']);
+        return $this->walkSecretValues($data, [$this, 'decryptSecretValue']);
     }
 
     /**
-     * A rotated wp_salt (or any other CredentialCipherException) makes a stored credential
+     * A rotated wp_salt (or any other CredentialCipherException) makes a stored secret
      * permanently unrecoverable; degrade that single value to '' rather than fatal the admin screen.
      */
-    private function decryptCredentialValue(string $value): string
+    private function decryptSecretValue(string $value): string
     {
         try {
             return CredentialCipher::decrypt($value);
@@ -368,30 +387,39 @@ class MailConfigService
     }
 
     /**
-     * Walk connections[].credentials[].value defensively, applying $transform to every value found.
-     * Tolerates missing connections/credentials/value keys and an empty credentials array.
+     * Walk connection credential values and failure-webhook secrets, applying $transform to every
+     * value. Tolerates missing or malformed sections.
      *
      * @param array<string,mixed> $data
      *
      * @return array<string,mixed>
      */
-    private function walkCredentialValues(array $data, callable $transform): array
+    private function walkSecretValues(array $data, callable $transform): array
     {
-        if (!isset($data['connections']) || !\is_array($data['connections'])) {
-            return $data;
-        }
-
-        foreach ($data['connections'] as $i => $connection) {
-            if (!\is_array($connection) || !isset($connection['credentials']) || !\is_array($connection['credentials'])) {
-                continue;
-            }
-
-            foreach ($connection['credentials'] as $key => $credential) {
-                if (!\is_array($credential) || !isset($credential['value'])) {
+        if (isset($data['connections']) && \is_array($data['connections'])) {
+            foreach ($data['connections'] as $i => $connection) {
+                if (!\is_array($connection) || !isset($connection['credentials']) || !\is_array($connection['credentials'])) {
                     continue;
                 }
 
-                $data['connections'][$i]['credentials'][$key]['value'] = $transform((string) $credential['value']);
+                foreach ($connection['credentials'] as $key => $credential) {
+                    if (!\is_array($credential) || !isset($credential['value'])) {
+                        continue;
+                    }
+
+                    $data['connections'][$i]['credentials'][$key]['value'] = $transform((string) $credential['value']);
+                }
+            }
+        }
+
+        foreach (MailSettingsSerializer::ALERT_WEBHOOK_SECRET_KEYS as $secretKey) {
+            if (
+                isset($data['features']['alerts']['webhook'][$secretKey])
+                && \is_scalar($data['features']['alerts']['webhook'][$secretKey])
+            ) {
+                $data['features']['alerts']['webhook'][$secretKey] = $transform(
+                    (string) $data['features']['alerts']['webhook'][$secretKey]
+                );
             }
         }
 

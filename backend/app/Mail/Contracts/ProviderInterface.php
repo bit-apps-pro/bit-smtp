@@ -12,7 +12,7 @@ interface ProviderInterface
     public function label(): string;
 
     /**
-     * 'smtp' or 'api'.
+     * 'smtp', 'api', or 'local'.
      */
     public function kind(): string;
 

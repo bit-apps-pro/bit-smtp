@@ -100,6 +100,36 @@ class MailjetProviderTest extends BaseUnitTestCase
         $this->assertIsArray($captured['Messages'][0]);
     }
 
+    public function testTrackingUsesTheDedicatedCustomIdProperty(): void
+    {
+        $captured = [];
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with(Mockery::any(), Mockery::on(function (string $json) use (&$captured) {
+                $captured = json_decode($json, true);
+
+                return true;
+            }))
+            ->andReturn(new ApiResponse(200, []));
+
+        $message = $this->message(['metadata' => ['bit_tracking_id' => 'tracking-1']]);
+        $result  = $this->provider()->transport()->send($message, $this->connection());
+
+        $this->assertTrue($result->isOk());
+        $this->assertSame('tracking-1', $captured['Messages'][0]['CustomID']);
+        $this->assertArrayNotHasKey('CustomCampaign', $captured['Messages'][0]);
+        $this->assertArrayNotHasKey('Headers', $captured['Messages'][0]);
+    }
+
+    public function testTrackingStampsInternalMetadataForCustomIdMapping(): void
+    {
+        $this->assertSame(
+            ['channel' => 'metadata', 'key' => 'bit_tracking_id'],
+            $this->provider()->tracking()
+        );
+    }
+
     public function testFromWithADisplayNameRendersAsASingleCapitalizedObject(): void
     {
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();

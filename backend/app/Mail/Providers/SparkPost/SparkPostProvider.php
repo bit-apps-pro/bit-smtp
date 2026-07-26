@@ -7,6 +7,7 @@ namespace BitApps\SMTP\Mail\Providers\SparkPost;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
+use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
 
 /**
@@ -41,10 +42,13 @@ final class SparkPostProvider extends DescriptorProvider
                 'defaultRegion' => 'us',
                 'path'          => '/api/v1/transmissions',
             ],
-            'encoder'        => 'json',
-            'success'        => [200],
-            'errorPaths'     => ['errors.0.message'],
-            'payloadBuilder' => [new SparkPostPayloadBuilder(), 'build'],
+            'encoder'          => 'json',
+            'success'          => [200],
+            'errorPaths'       => ['errors.0.message'],
+            'errorDetectPaths' => ['errors.0.message'],
+            'messageIdPath'    => 'results.id',
+            'payloadBuilder'   => [new SparkPostPayloadBuilder(), 'build'],
+            'tracking'         => ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY],
         ]);
     }
 }

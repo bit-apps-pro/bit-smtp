@@ -611,6 +611,68 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         $this->assertArrayNotHasKey('webhook_last_event_at', $settings);
     }
 
+    public function testFailureAlertsAreWhitelistedAndNormalized(): void
+    {
+        $input                       = $this->baseV2();
+        $input['features']['alerts'] = [
+            'enabled' => '1',
+            'email'   => [
+                'enabled'    => true,
+                'recipients' => [' ops@example.com ', 'invalid', 'ops@example.com'],
+                'ignored'    => 'value',
+            ],
+            'webhook' => [
+                'enabled'        => 'true',
+                'url'            => ' https://hooks.example.com/mail-failed ',
+                'signing_secret' => ' whsec_abcdefghijklmnopqrstuvwxyz012345 ',
+                'ignored'        => 'value',
+            ],
+            'ignored' => 'value',
+        ];
+
+        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+
+        $this->assertSame([
+            'enabled' => true,
+            'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
+            'webhook' => [
+                'enabled'        => true,
+                'url'            => 'https://hooks.example.com/mail-failed',
+                'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            ],
+        ], $alerts);
+    }
+
+    public function testFailureAlertsRejectNonHttpWebhookUrls(): void
+    {
+        $input                       = $this->baseV2();
+        $input['features']['alerts'] = [
+            'enabled' => true,
+            'webhook' => ['enabled' => true, 'url' => 'file:///etc/passwd'],
+        ];
+
+        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+
+        $this->assertSame('', $alerts['webhook']['url']);
+    }
+
+    public function testFailureAlertsRejectMalformedWebhookSigningSecret(): void
+    {
+        $input                       = $this->baseV2();
+        $input['features']['alerts'] = [
+            'enabled' => true,
+            'webhook' => [
+                'enabled'        => true,
+                'url'            => 'https://hooks.example.com/failure',
+                'signing_secret' => 'not-a-whsec',
+            ],
+        ];
+
+        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+
+        $this->assertSame('', $alerts['webhook']['signing_secret']);
+    }
+
     /**
      * Sanitize a single API connection's settings through the public entry point and return them.
      */

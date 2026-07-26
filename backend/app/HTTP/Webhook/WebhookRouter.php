@@ -85,11 +85,33 @@ final class WebhookRouter
             exit;
         }
 
-        $request = WebhookRequest::fromRaw($raw);
+        $request = WebhookRequest::fromRaw($raw, $this->headers());
         $code    = (new WebhookController())->handle($matched['id'], $matched['secret'], $request);
 
         status_header($code);
 
         exit;
+    }
+
+    private function headers(): array
+    {
+        if (\function_exists('getallheaders')) {
+            $headers = getallheaders();
+            if (\is_array($headers) && $headers !== []) {
+                return $headers;
+            }
+        }
+
+        // Fallback for SAPIs without getallheaders(): reconstruct from $_SERVER's HTTP_* entries.
+        $headers = [];
+        foreach ($_SERVER as $key => $value) {
+            if (strncmp($key, 'HTTP_', 5) !== 0 || !\is_string($value)) {
+                continue;
+            }
+            $name           = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
+            $headers[$name] = $value;
+        }
+
+        return $headers;
     }
 }

@@ -157,6 +157,37 @@ class ResendProviderTest extends BaseUnitTestCase
         $this->assertArrayNotHasKey('text', $captured);
     }
 
+    public function testTrackingMetadataRendersAsTagsAndReturnsTheProviderMessageId(): void
+    {
+        $captured = [];
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with('https://api.resend.com/emails', Mockery::on(function (string $json) use (&$captured) {
+                $captured = json_decode($json, true);
+
+                return true;
+            }))
+            ->andReturn(new ApiResponse(200, ['id' => 'resend-email-1']));
+
+        $provider = $this->provider();
+        $result   = $provider->transport()->send(
+            $this->message(['metadata' => ['bit_tracking_id' => 'tracking-1']]),
+            $this->connection()
+        );
+
+        $this->assertSame(
+            [['name' => 'bit_tracking_id', 'value' => 'tracking-1']],
+            $captured['tags']
+        );
+        $this->assertSame(
+            ['channel' => 'metadata', 'key' => 'bit_tracking_id'],
+            $provider->tracking()
+        );
+        $this->assertSame('resend-email-1', $result->getMessageId());
+        $this->assertTrue($result->isOk());
+    }
+
     public function testAttachmentRendersAsAResendShapedEntryUnderTheAttachmentsKey(): void
     {
         Functions\when('wp_check_filetype')->justReturn(['ext' => 'txt', 'type' => 'text/plain']);

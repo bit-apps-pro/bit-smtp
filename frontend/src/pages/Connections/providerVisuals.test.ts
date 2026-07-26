@@ -20,4 +20,10 @@ describe('getProviderVisual', () => {
     const v = getProviderVisual('zoho')
     expect(v.initial).toBe('Z')
   })
+  it('uses a local-transport visual for PHP Sendmail', () => {
+    const v = getProviderVisual('php_sendmail', 'PHP Sendmail')
+    expect(v.logo).toBeNull()
+    expect(v.initial).toBe('P')
+    expect(v.blurb).toBe('PHP mail() / server sendmail')
+  })
 })

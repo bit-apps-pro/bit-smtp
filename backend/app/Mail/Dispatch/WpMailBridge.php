@@ -11,6 +11,8 @@ use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Mail\Message\SendResult;
+use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotifierInterface;
+use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingContext;
@@ -45,7 +47,9 @@ class WpMailBridge
 
     private MailSourceDetector $sourceDetector;
 
-    private bool $loggingEnabled;
+    private bool $loggingEnabled = false;
+
+    private ?FailureNotifierInterface $failureNotifier = null;
 
     /**
      * True while our dispatch loop is running, so the native-path log listeners skip our own sends.
@@ -57,13 +61,15 @@ class WpMailBridge
         ConnectionResolver $connectionResolver,
         MailMessageFactory $messageFactory,
         RoutingResolver $routingResolver,
-        MailSourceDetector $sourceDetector
+        MailSourceDetector $sourceDetector,
+        ?FailureNotifierInterface $failureNotifier = null
     ) {
         $this->registry           = $registry;
         $this->connectionResolver = $connectionResolver;
         $this->messageFactory     = $messageFactory;
         $this->routingResolver    = $routingResolver;
         $this->sourceDetector     = $sourceDetector;
+        $this->failureNotifier    = $failureNotifier;
         $this->context            = new SendContext();
         $this->eventLogger        = new MailEventLogger(Plugin::instance()->logger());
         $this->loggingEnabled     = Plugin::instance()->logger()->isEnabled();
@@ -71,12 +77,10 @@ class WpMailBridge
 
         Hooks::addFilter('pre_wp_mail', [$this, 'onPreWpMail'], 10, 2);
 
-        if ($this->loggingEnabled) {
-            // Sends we defer to native wp_mail (routing disabled / mid-setup) still fire these core
-            // actions; keep logging them as before. Our own dispatch is skipped via $dispatching.
-            Hooks::addAction('wp_mail_succeeded', [$this, 'onNativeMailSucceeded']);
-            Hooks::addAction('wp_mail_failed', [$this, 'onNativeMailFailed']);
-        }
+        // Sends deferred to native wp_mail still need outcome logging and failure notifications.
+        // Our own dispatch and nested notification email are skipped via $dispatching.
+        Hooks::addAction('wp_mail_succeeded', [$this, 'onNativeMailSucceeded']);
+        Hooks::addAction('wp_mail_failed', [$this, 'onNativeMailFailed']);
     }
 
     /**
@@ -144,6 +148,10 @@ class WpMailBridge
             return $return;
         }
 
+        if ($this->dispatching || NotificationDispatchGuard::isActive()) {
+            return;
+        }
+
         // Clear stale per-send output up front so a deferred (native) send's read-back is not
         // polluted by a prior dispatch; the native log listeners record that send's outcome.
         $this->context->resetForSend();
@@ -183,11 +191,16 @@ class WpMailBridge
      */
     public function onNativeMailSucceeded($mailData): void
     {
-        if ($this->dispatching) {
+        if ($this->dispatching || NotificationDispatchGuard::isActive()) {
             return;
         }
 
-        $this->eventLogger->logMailSuccess((array) $mailData, $this->context);
+        if ($this->loggingEnabled) {
+            $this->eventLogger->logMailSuccess((array) $mailData, $this->context);
+        }
+        if ($this->failureNotifier !== null) {
+            $this->failureNotifier->notifySuccess();
+        }
     }
 
     /**
@@ -195,11 +208,16 @@ class WpMailBridge
      */
     public function onNativeMailFailed(WP_Error $error): void
     {
-        if ($this->dispatching) {
+        if ($this->dispatching || NotificationDispatchGuard::isActive()) {
             return;
         }
 
-        $this->eventLogger->logMailFailed($error, $this->context);
+        if ($this->loggingEnabled) {
+            $this->eventLogger->logMailFailed($error, $this->context);
+        }
+        if ($this->failureNotifier !== null) {
+            $this->failureNotifier->notifyFailure($error);
+        }
     }
 
     /**
@@ -235,11 +253,11 @@ class WpMailBridge
                 // would duplicate-deliver to the recipients the first provider already accepted.
                 if ($lastResult->isAccepted()) {
                     $succeeded = $lastResult->isOk();
-                    // Correlate delivery webhooks against the connection that accepted the message,
-                    // but only when tracking is on for it (trackingId set) — an untracked send stores
-                    // neither key, so the log never shows a delivery status it can't receive.
+                    // Retain the provider's accepted-message id even when asynchronous delivery
+                    // tracking is unavailable. Delivery visibility is gated independently by a
+                    // verified webhook or an authoritative status stamped at hand-off.
                     $winningTrackingId = $trackingId;
-                    $winningMessageId  = $trackingId !== null ? $lastResult->getMessageId() : null;
+                    $winningMessageId  = $lastResult->getMessageId();
                     // A fully-ok send over a provider with no async delivery feed stamps its delivery
                     // status straight from the hand-off (an accepted-but-partial send is a failure row).
                     $winningDeliveryStatus = $succeeded && $provider !== null ? $provider->deliveryStatusOnAccept() : null;
@@ -253,7 +271,9 @@ class WpMailBridge
             // One log row per message: the final outcome on the winning (or last-tried) connection,
             // carrying the whole attempt trail so the fallback chain (failed -> failed -> sent) is
             // visible in the log detail rather than split across a row per attempt.
-            $this->logOutcome($succeeded, $lastResult, $this->withAttempts($mailData, $attempts), $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus);
+            $outcomeMailData = $this->withAttempts($mailData, $attempts);
+            $this->logOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus);
+            $this->notifyOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection);
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
 
@@ -441,6 +461,24 @@ class WpMailBridge
         }
 
         $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel, $messageId, $trackingId, $connectionId);
+    }
+
+    /**
+     * @param array<string,mixed> $mailData
+     */
+    private function notifyOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection): void
+    {
+        if ($this->failureNotifier === null) {
+            return;
+        }
+
+        if ($succeeded) {
+            $this->failureNotifier->notifySuccess();
+
+            return;
+        }
+
+        $this->failureNotifier->notifyFailure($this->toError($result, $mailData), $connection);
     }
 
     /**

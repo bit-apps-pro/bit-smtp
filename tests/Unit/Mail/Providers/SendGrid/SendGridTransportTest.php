@@ -122,6 +122,34 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->transport->send($this->message(), $this->connection());
     }
 
+    public function testBuildBodyMapsOnlyTrackingMetadataToPersonalizationCustomArgs(): void
+    {
+        $message = MailMessage::fromArray([
+            'to'       => ['to@example.com'],
+            'subject'  => 'Subject',
+            'body'     => 'Body text',
+            'metadata' => [
+                'bit_tracking_id' => 'track-1',
+                'attempt'         => 2,
+                'nested'          => ['not-supported'],
+            ],
+        ]);
+
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with(Mockery::any(), Mockery::on(function (string $bodyJson) {
+                $body = $this->decodeBody($bodyJson);
+
+                return $body['personalizations'][0]['custom_args'] === [
+                    'bit_tracking_id' => 'track-1',
+                ];
+            }))
+            ->andReturn(new ApiResponse(202, []));
+
+        $this->transport->send($message, $this->connection());
+    }
+
     public function testBuildBodyMessageFromOverridesConnectionFrom(): void
     {
         $message = MailMessage::fromArray([
@@ -283,6 +311,19 @@ class SendGridTransportTest extends BaseUnitTestCase
         $result = $this->transport->send($this->message(), $this->connection());
 
         $this->assertFalse($result->isOk());
+    }
+
+    public function testAcceptedResponseCapturesXMessageIdHeader(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(
+            new ApiResponse(202, [], ['x-message-id' => 'sg-response-id'])
+        );
+
+        $result = $this->transport->send($this->message(), $this->connection());
+
+        $this->assertTrue($result->isOk());
+        $this->assertSame('sg-response-id', $result->getMessageId());
     }
 
     public function testErrorFromParsesFirstErrorMessageFromErrorsArray(): void

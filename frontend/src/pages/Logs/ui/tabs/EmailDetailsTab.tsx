@@ -33,6 +33,13 @@ export default function EmailDetailsTab({ log, isLoading }: EmailDetailsTabProps
       <br />
       <Text strong>Subject: </Text>
       <Text>{log.subject}</Text>
+      {log.message_id ? (
+        <>
+          <br />
+          <Text strong>Provider Message ID: </Text>
+          <Text copyable>{log.message_id}</Text>
+        </>
+      ) : null}
     </div>
   )
 }

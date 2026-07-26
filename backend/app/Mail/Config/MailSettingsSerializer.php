@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Config;
 
+use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
+
 class MailSettingsSerializer
 {
     public const MASK_SENTINEL = '********';
+
+    /**
+     * Alert-webhook fields that are encrypted at rest and masked on read — kept in sync across the mask/resolve/encrypt walks.
+     */
+    public const ALERT_WEBHOOK_SECRET_KEYS = ['url', 'signing_secret'];
 
     public static function toLegacyShape(MailSettings $s): array
     {
@@ -68,11 +75,17 @@ class MailSettingsSerializer
     {
         $data = $s->toArray();
 
+        foreach (self::ALERT_WEBHOOK_SECRET_KEYS as $secretKey) {
+            if (!empty($data['features']['alerts']['webhook'][$secretKey])) {
+                $data['features']['alerts']['webhook'][$secretKey] = self::MASK_SENTINEL;
+            }
+        }
+
         foreach ($data['connections'] as &$conn) {
             // Derived, read-only display field: the full webhook URL to paste into the provider
             // dashboard. Lives at the connection top level (not settings) so a save round-trip drops
             // it — sanitizeConnection only keeps whitelisted top-level keys, never persisting this.
-            if (($conn['kind'] ?? '') === 'api') {
+            if (WebhookAdapterFactory::supportsProvider((string) ($conn['provider'] ?? ''))) {
                 $secret              = $conn['settings']['webhook_secret'] ?? '';
                 $conn['webhook_url'] = $secret !== ''
                     ? home_url('/bit-smtp/' . $conn['id'] . '/' . $secret)

@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Mail\Webhook\Adapters;
 
+use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Mail\Webhook\Contracts\WebhookAdapterInterface;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
@@ -83,10 +84,10 @@ class PostmarkWebhookAdapter implements WebhookAdapterInterface
     private function trackingId(array $payload): ?string
     {
         $metadata = $payload['Metadata'] ?? null;
-        if (!\is_array($metadata) || !isset($metadata['bit_tracking_id'])) {
+        if (!\is_array($metadata) || !isset($metadata[TrackingIdStamper::METADATA_KEY])) {
             return null;
         }
 
-        return (string) $metadata['bit_tracking_id'];
+        return (string) $metadata[TrackingIdStamper::METADATA_KEY];
     }
 }

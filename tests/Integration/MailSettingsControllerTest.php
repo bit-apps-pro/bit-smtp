@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Controllers\ConnectionController;
 use BitApps\SMTP\HTTP\Controllers\MailSettingsController;
 use BitApps\SMTP\HTTP\Controllers\ProviderController;
@@ -9,11 +10,15 @@ use BitApps\SMTP\HTTP\Requests\ConnectionDeleteRequest;
 use BitApps\SMTP\HTTP\Requests\ConnectionSaveRequest;
 use BitApps\SMTP\HTTP\Requests\ConnectionTestRequest;
 use BitApps\SMTP\HTTP\Requests\MailSettingsSaveRequest;
-use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Plugin;
 use Mockery;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 final class MailSettingsControllerTest extends IntegrationTestCase
 {
     protected function setUp(): void
@@ -31,16 +36,17 @@ final class MailSettingsControllerTest extends IntegrationTestCase
 
     // --- ProviderController ---
 
-    public function test_provider_index_returns_other_smtp_in_metadata(): void
+    public function testProviderIndexReturnsOtherSmtpInMetadata(): void
     {
         (new ProviderController())->index();
         $data = $this->responseData();
 
         $keys = array_column($data['providers'], 'key');
         $this->assertContains('other_smtp', $keys);
+        $this->assertContains('php_sendmail', $keys);
     }
 
-    public function test_provider_index_other_smtp_field_metadata_supports_form_rendering(): void
+    public function testProviderIndexOtherSmtpFieldMetadataSupportsFormRendering(): void
     {
         (new ProviderController())->index();
         $data = $this->responseData();
@@ -61,7 +67,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
 
     // --- MailSettingsController ---
 
-    public function test_settings_index_returns_masked_password(): void
+    public function testSettingsIndexReturnsMaskedPassword(): void
     {
         $service = new MailConfigService();
         $service->saveSettings($this->v2Settings('conn_1', 'super-secret'));
@@ -73,7 +79,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertSame('********', $data['settings']['connections'][0]['credentials']['password']['value']);
     }
 
-    public function test_settings_save_with_sentinel_preserves_stored_secret(): void
+    public function testSettingsSaveWithSentinelPreservesStoredSecret(): void
     {
         $service = new MailConfigService();
         $service->saveSettings($this->v2Settings('conn_1', 'keep-me'));
@@ -90,7 +96,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
 
     // --- ConnectionController::save ---
 
-    public function test_connection_save_assigns_id_and_sets_default(): void
+    public function testConnectionSaveAssignsIdAndSetsDefault(): void
     {
         $payload = [
             'id'           => '',
@@ -116,7 +122,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertSame($conn->getId(), $loaded->getDefaultConnectionId());
     }
 
-    public function test_connection_save_unknown_provider_returns_error(): void
+    public function testConnectionSaveUnknownProviderReturnsError(): void
     {
         $request  = $this->mockRequest(ConnectionSaveRequest::class, [
             'id'          => '',
@@ -134,7 +140,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
 
     // --- ConnectionController::delete ---
 
-    public function test_connection_delete_removes_and_repoints_default(): void
+    public function testConnectionDeleteRemovesAndRepointsDefault(): void
     {
         $data                  = $this->v2Settings('conn_1', 'pass1');
         $data['connections'][] = [
@@ -164,7 +170,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
 
     // --- ConnectionController::test ---
 
-    public function test_connection_test_delivers_to_mailpit(): void
+    public function testConnectionTestDeliversToMailpit(): void
     {
         require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
         require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
@@ -198,7 +204,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertSame('Connection Test', $delivered['Subject'], 'Subject must match');
     }
 
-    public function test_connection_test_unreachable_host_returns_error(): void
+    public function testConnectionTestUnreachableHostReturnsError(): void
     {
         require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
         require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
@@ -224,7 +230,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertResponseError();
     }
 
-    public function test_connection_test_with_sentinel_password_uses_stored_secret(): void
+    public function testConnectionTestWithSentinelPasswordUsesStoredSecret(): void
     {
         require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
         require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
@@ -276,7 +282,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
 
     // --- Route registration smoke test ---
 
-    public function test_all_six_new_routes_are_registered(): void
+    public function testAllSixNewRoutesAreRegistered(): void
     {
         // loadApi() is gated on REST_REQUEST; define it to unlock route registration in this test.
         if (!\defined('REST_REQUEST')) {
@@ -295,6 +301,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
             $prefix . '/mail/settings/save',
             $prefix . '/mail/providers',
             $prefix . '/mail/connections/save',
+            $prefix . '/mail/connections/webhook/create',
             $prefix . '/mail/connections/delete',
             $prefix . '/mail/connections/test',
         ];
@@ -306,7 +313,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
 
     // --- Request validation regression guards ---
 
-    public function test_connection_save_request_validated_preserves_sender_identity_fields(): void
+    public function testConnectionSaveRequestValidatedPreservesSenderIdentityFields(): void
     {
         $payload = [
             'id'           => 'conn_1',
@@ -332,7 +339,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertSame('reply@example.com', $result['replyToEmail']);
     }
 
-    public function test_mail_settings_save_request_validated_preserves_features_and_fallback_ids(): void
+    public function testMailSettingsSaveRequestValidatedPreservesFeaturesAndFallbackIds(): void
     {
         $payload = [
             'enabled'                 => true,

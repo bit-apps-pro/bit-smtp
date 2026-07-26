@@ -116,6 +116,7 @@ const gmailMeta: ProviderMeta = {
   key: 'gmail',
   label: 'Gmail / Google Workspace',
   kind: 'api',
+  supports_webhook: false,
   fields: [
     {
       key: 'client_id',
@@ -170,6 +171,7 @@ const sendGridMeta: ProviderMeta = {
   key: 'sendgrid',
   label: 'SendGrid',
   kind: 'api',
+  supports_webhook: true,
   fields: [
     {
       key: 'region',
@@ -210,6 +212,26 @@ const sendGridConnection: Connection = {
   replyToEmail: '',
   settings: { region: 'global' },
   credentials: { api_key: { source: 'database', value: '********' } }
+}
+
+const phpSendmailMeta: ProviderMeta = {
+  key: 'php_sendmail',
+  label: 'PHP Sendmail',
+  kind: 'local',
+  fields: []
+}
+
+const phpSendmailConnection: Connection = {
+  id: 'conn_php_sendmail',
+  provider: 'php_sendmail',
+  kind: 'local',
+  name: 'Server mail',
+  enabled: true,
+  fromEmail: 'sender@example.org',
+  fromName: 'Sender',
+  replyToEmail: '',
+  settings: {},
+  credentials: {}
 }
 
 describe('ConnectionEditor', () => {
@@ -328,6 +350,18 @@ describe('ConnectionEditor', () => {
     expect(screen.queryByLabelText('Google account')).not.toBeInTheDocument()
   })
 
+  it('does not offer delivery webhooks for Gmail', () => {
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
+    )
+
+    expect(screen.queryByLabelText('Enable delivery webhook')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Settings → Webhooks/)).not.toBeInTheDocument()
+  })
+
   it('shows Reconnect and a Connected tag when a refresh_token credential is present', () => {
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
     const connectedGmail: Connection = {
@@ -369,5 +403,30 @@ describe('ConnectionEditor', () => {
     expect(save).toHaveBeenCalled()
     const [payload] = save.mock.calls[0] as [Connection]
     expect(payload.settings).not.toHaveProperty('oauth')
+  })
+
+  it('saves PHP Sendmail without rendering an empty provider settings section', async () => {
+    const save = vi.fn().mockResolvedValue({})
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+
+    render(
+      <ConnectionEditor
+        connection={phpSendmailConnection}
+        provider={phpSendmailMeta}
+        onSaved={() => {}}
+      />
+    )
+
+    expect(screen.queryByText('Credentials & settings')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'php_sendmail',
+        kind: 'local',
+        settings: {},
+        credentials: {}
+      })
+    )
   })
 })

@@ -3,7 +3,7 @@ import { DownOutlined, UpOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
 import DebugOutput from '@components/DebugOutput/DebugOutput'
 import config from '@config/config'
-import { Button, Card, Flex, Form, Input, Space, theme } from 'antd'
+import { Alert, Button, Card, Flex, Form, Input, Space, theme } from 'antd'
 import useTestMailSend from './data/useTestMailSend'
 
 const { TextArea } = Input
@@ -11,7 +11,8 @@ const { TextArea } = Input
 export default function MailSendTest() {
   const [form] = Form.useForm()
   const [isMessageExpanded, setIsMessageExpanded] = useState(false)
-  const { mutate: sendTestMail, isPending, data: { data: debugInfo } = {} } = useTestMailSend()
+  const { mutate: sendTestMail, isPending, data: response } = useTestMailSend()
+  const debugInfo = response?.data
   const { token } = theme.useToken()
 
   const onFinish = (values: Record<string, string>) => {
@@ -100,6 +101,19 @@ export default function MailSendTest() {
             )}
           </Space>
         </Form>
+        {response ? (
+          <Alert
+            showIcon
+            type={response.code === 'SUCCESS' ? 'success' : 'error'}
+            message={
+              response.message ||
+              (response.code === 'SUCCESS'
+                ? __('Test mail sent successfully')
+                : __('Mail send testing failed'))
+            }
+            style={{ marginTop: token.marginMD }}
+          />
+        ) : null}
         {debugInfo?.length ? <DebugOutput log={debugInfo} /> : ''}
       </Card>
     </Flex>

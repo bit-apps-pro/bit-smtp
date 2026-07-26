@@ -32,7 +32,7 @@ export type DeliveryEvent = {
 export type LogType = {
   id: number
   status: string
-  subject: number
+  subject: string
   to_addr: Array<string>
   details: LogDetail
   debug_info: Array<string>

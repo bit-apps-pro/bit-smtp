@@ -7,12 +7,14 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
 use BitApps\SMTP\HTTP\Requests\ConnectionDeleteRequest;
 use BitApps\SMTP\HTTP\Requests\ConnectionSaveRequest;
 use BitApps\SMTP\HTTP\Requests\ConnectionTestRequest;
+use BitApps\SMTP\HTTP\Requests\ConnectionWebhookCreateRequest;
 use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Contracts\MessageStatusCheckerInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\SendResult;
+use BitApps\SMTP\Mail\Providers\WebhookProvisionerFactory;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Mail\Status\StatusCheckerRegistry;
 use BitApps\SMTP\Mail\Validation\RequiredFieldsValidator;
@@ -63,6 +65,41 @@ class ConnectionController
         }
 
         return Response::success(__('Connection deleted', 'bit-smtp'));
+    }
+
+    public function createWebhook(ConnectionWebhookCreateRequest $request)
+    {
+        try {
+            $connection = Plugin::instance()->mailConfigService()->connectionById($request->validated()['id']);
+            if ($connection === null) {
+                return Response::error(__('A saved connection is required.', 'bit-smtp'));
+            }
+
+            $provisioner = (new WebhookProvisionerFactory())
+                ->forProvider($connection->getProvider(), Plugin::instance()->apiClient());
+            if ($provisioner === null) {
+                return Response::error(__('This provider does not support automatic webhook creation.', 'bit-smtp'));
+            }
+
+            $result = $provisioner->ensure($connection);
+
+            // Persist provider-supplied signature material so inbound webhooks can be verified.
+            if (isset($result['public_key'])) {
+                Plugin::instance()->mailConfigService()->updateConnectionSettings($connection->getId(), [
+                    'webhook_signature_enabled' => true,
+                    'webhook_public_key'        => $result['public_key'],
+                ]);
+                unset($result['public_key']);
+            }
+
+            return Response::success($result)->message(
+                !empty($result['created'])
+                    ? __('Webhook created.', 'bit-smtp')
+                    : __('Existing webhook reused.', 'bit-smtp')
+            );
+        } catch (Throwable $e) {
+            return Response::error([])->message($e->getMessage());
+        }
     }
 
     public function test(ConnectionTestRequest $request)

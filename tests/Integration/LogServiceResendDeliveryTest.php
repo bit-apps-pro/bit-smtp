@@ -73,6 +73,20 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertCount(0, LogDeliveryEvent::where('log_id', $logId)->get());
     }
 
+    public function testCollectionResultsPreserveTheArrayServiceContract(): void
+    {
+        $logId = $this->deliveredLogWithChildEvent();
+
+        $result = $this->service->all(0, 20);
+        $this->assertIsArray($result['logs']);
+        $this->assertCount(1, $result['logs']);
+
+        $logs = $this->service->getBulk([$logId]);
+        $this->assertIsArray($logs);
+        $this->assertCount(1, $logs);
+        $this->assertSame($logId, (int) $logs[0]->id);
+    }
+
     /**
      * A prior send that already carried a delivery status plus a per-recipient child row, so a resend
      * must be seen to both clear the old outcome and re-stamp (or not) the new one.

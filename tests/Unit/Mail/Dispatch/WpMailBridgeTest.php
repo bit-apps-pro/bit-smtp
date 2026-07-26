@@ -13,12 +13,15 @@ use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\SendResult;
+use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotifierInterface;
+use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
 use ReflectionClass;
 use ReflectionMethod;
+use WP_Error;
 
 /**
  * @internal
@@ -153,6 +156,53 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertSame(2, $transport->callCount, 'the second connection must be tried as fallback');
     }
 
+    public function testFinalFailureNotifiesOnceAfterAllFallbacksFail(): void
+    {
+        $transport = new ScriptedTransport([
+            SendResult::failure('Primary unavailable'),
+            SendResult::failure('Fallback unavailable'),
+        ]);
+        $bridge   = $this->dispatchableBridge($transport);
+        $notifier = Mockery::mock(FailureNotifierInterface::class);
+        $notifier->shouldReceive('notifyFailure')
+            ->once()
+            ->with(
+                Mockery::on(static fn (WP_Error $error): bool => $error->get_error_messages() === ['Fallback unavailable']),
+                Mockery::on(static fn (Connection $connection): bool => $connection->getId() === 'conn_2')
+            );
+        $notifier->shouldNotReceive('notifySuccess');
+        $this->setFailureNotifier($bridge, $notifier);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertFalse($succeeded);
+        $this->assertSame(2, $transport->callCount);
+    }
+
+    public function testFallbackSuccessResetsFailureNotificationEligibility(): void
+    {
+        $transport = new ScriptedTransport([
+            SendResult::failure('Primary unavailable'),
+            SendResult::success(),
+        ]);
+        $bridge   = $this->dispatchableBridge($transport);
+        $notifier = Mockery::mock(FailureNotifierInterface::class);
+        $notifier->shouldReceive('notifySuccess')->once();
+        $notifier->shouldNotReceive('notifyFailure');
+        $this->setFailureNotifier($bridge, $notifier);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertTrue($succeeded);
+        $this->assertSame(2, $transport->callCount);
+    }
+
     public function testSuccessDoesNotFallBackToTheNextConnection(): void
     {
         $transport = new ScriptedTransport([SendResult::success()]);
@@ -191,7 +241,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertTrue($succeeded);
     }
 
-    public function testWebhookDisabledSendStoresNullCorrelationIds(): void
+    public function testWebhookDisabledSendStoresProviderMessageIdWithoutTrackingId(): void
     {
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()->withMessageId('pm-1')]));
 
@@ -199,7 +249,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $logService->shouldReceive('bulkInsert')
             ->once()
             ->with(Mockery::on(function (array $logs): bool {
-                return $logs[0]['message_id'] === null && $logs[0]['tracking_id'] === null;
+                return $logs[0]['message_id'] === 'pm-1' && $logs[0]['tracking_id'] === null;
             }));
         $this->setEventLogger($bridge, $logService);
         $this->setContext($bridge, new SendContext());
@@ -281,8 +331,42 @@ class WpMailBridgeTest extends BaseUnitTestCase
             }));
         $this->setEventLogger($bridge, $logService);
         $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
 
         $bridge->onNativeMailSucceeded(['subject' => 'Hi', 'to' => ['a@example.org']]);
+    }
+
+    public function testNativeMailFailureIsForwardedToTheNotifier(): void
+    {
+        $bridge   = $this->bridgeWithTransport(new SpyTransport());
+        $notifier = Mockery::mock(FailureNotifierInterface::class);
+        $error    = new WP_Error('wp_mail_failed', 'Native mail failed');
+        $notifier->shouldReceive('notifyFailure')->once()->with($error);
+        $notifier->shouldNotReceive('notifySuccess');
+        $this->setFailureNotifier($bridge, $notifier);
+
+        $bridge->onNativeMailFailed($error);
+    }
+
+    public function testNotificationEmailBypassesDispatchAndNativeOutcomeHandling(): void
+    {
+        $bridge   = $this->bridgeWithTransport(new SpyTransport());
+        $notifier = Mockery::mock(FailureNotifierInterface::class);
+        $notifier->shouldNotReceive('notifyFailure');
+        $notifier->shouldNotReceive('notifySuccess');
+        $this->setFailureNotifier($bridge, $notifier);
+
+        NotificationDispatchGuard::run(static function () use ($bridge): void {
+            $thisResult = $bridge->onPreWpMail(null, [
+                'to'      => ['ops@example.org'],
+                'subject' => 'Failure notification',
+                'message' => 'Body',
+            ]);
+            self::assertNull($thisResult);
+
+            $bridge->onNativeMailSucceeded([]);
+            $bridge->onNativeMailFailed(new WP_Error('wp_mail_failed', 'Notification mail failed'));
+        });
     }
 
     private function invokeConnectionLabel(WpMailBridge $bridge, Connection $connection): string
@@ -323,6 +407,13 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('loggingEnabled');
         $property->setAccessible(true);
         $property->setValue($bridge, $enabled);
+    }
+
+    private function setFailureNotifier(WpMailBridge $bridge, FailureNotifierInterface $notifier): void
+    {
+        $property = (new ReflectionClass(WpMailBridge::class))->getProperty('failureNotifier');
+        $property->setAccessible(true);
+        $property->setValue($bridge, $notifier);
     }
 
     /**

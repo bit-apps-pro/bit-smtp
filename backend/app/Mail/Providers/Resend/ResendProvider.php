@@ -7,6 +7,7 @@ namespace BitApps\SMTP\Mail\Providers\Resend;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
+use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
 
 /**
@@ -27,6 +28,7 @@ final class ResendProvider extends DescriptorProvider
             'kind'   => 'api',
             'fields' => [
                 ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'secret' => true, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
+                ['key' => 'webhook_signing_secret', 'label' => 'Webhook Signing Secret', 'type' => 'password', 'required' => false, 'secret' => true, 'placeholder' => 'whsec_...', 'default' => '', 'options' => [], 'dependsOn' => null],
             ],
             'auth'     => ['type' => 'bearer', 'params' => ['credentialKey' => 'api_key']],
             'endpoint' => ['host' => 'api.resend.com', 'path' => '/emails'],
@@ -42,9 +44,12 @@ final class ResendProvider extends DescriptorProvider
                 'subject'     => 'subject',
                 'body'        => ['html' => 'html', 'text' => 'text'],
                 'attachments' => ['key' => 'attachments', 'shape' => 'resend'],
+                'metadata'    => ['key' => 'tags', 'shape' => 'name_value_list'],
             ],
-            'success'    => [200],
-            'errorPaths' => ['message'],
+            'success'       => [200],
+            'errorPaths'    => ['message'],
+            'messageIdPath' => 'id',
+            'tracking'      => ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY],
         ]);
     }
 }

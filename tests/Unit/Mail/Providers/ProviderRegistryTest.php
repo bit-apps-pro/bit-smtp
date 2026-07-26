@@ -9,6 +9,11 @@ use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Mockery;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class ProviderRegistryTest extends BaseUnitTestCase
 {
     public function testRegisterThenHasReturnsTrue(): void
@@ -34,7 +39,7 @@ class ProviderRegistryTest extends BaseUnitTestCase
 
     public function testAllReturnsAllRegisteredProviders(): void
     {
-        $registry = new ProviderRegistry();
+        $registry  = new ProviderRegistry();
         $provider1 = $this->makeProvider('key1');
         $provider2 = $this->makeProvider('key2');
 
@@ -50,7 +55,7 @@ class ProviderRegistryTest extends BaseUnitTestCase
 
     public function testDuplicateKeyThrowsDuplicateProviderException(): void
     {
-        $registry = new ProviderRegistry();
+        $registry  = new ProviderRegistry();
         $provider1 = $this->makeProvider('duplicate_key');
         $provider2 = $this->makeProvider('duplicate_key');
 
@@ -88,10 +93,14 @@ class ProviderRegistryTest extends BaseUnitTestCase
         $this->assertArrayHasKey('key', $metadata[0]);
         $this->assertArrayHasKey('label', $metadata[0]);
         $this->assertArrayHasKey('kind', $metadata[0]);
+        $this->assertArrayHasKey('supports_webhook', $metadata[0]);
+        $this->assertArrayHasKey('supports_webhook_provisioning', $metadata[0]);
         $this->assertArrayHasKey('fields', $metadata[0]);
         $this->assertSame('test_provider', $metadata[0]['key']);
         $this->assertSame('Test Provider', $metadata[0]['label']);
         $this->assertSame('smtp', $metadata[0]['kind']);
+        $this->assertFalse($metadata[0]['supports_webhook']);
+        $this->assertFalse($metadata[0]['supports_webhook_provisioning']);
     }
 
     private function makeProvider(string $key, string $label = 'Test', string $kind = 'smtp'): ProviderInterface

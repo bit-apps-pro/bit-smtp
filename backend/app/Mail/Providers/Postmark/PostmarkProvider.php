@@ -7,6 +7,7 @@ namespace BitApps\SMTP\Mail\Providers\Postmark;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
+use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
 
 /**
@@ -47,7 +48,7 @@ final class PostmarkProvider extends DescriptorProvider
             'success'       => [200],
             'errorPaths'    => ['Message'],
             'messageIdPath' => 'MessageID',
-            'tracking'      => ['channel' => 'metadata', 'key' => 'bit_tracking_id'],
+            'tracking'      => ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY],
         ]);
     }
 }

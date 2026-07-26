@@ -7,6 +7,7 @@ namespace BitApps\SMTP\Mail\Providers\Mailgun;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
+use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
 
 /**
@@ -30,6 +31,7 @@ final class MailgunProvider extends DescriptorProvider
             'kind'   => 'api',
             'fields' => [
                 ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true,  'secret' => true,  'placeholder' => '', 'default' => '',   'options' => [], 'dependsOn' => null],
+                ['key' => 'webhook_signing_key', 'label' => 'Webhook Signing Key', 'type' => 'password', 'required' => false, 'secret' => true, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
                 ['key' => 'domain',  'label' => 'Domain',  'type' => 'text',     'required' => true,  'secret' => false, 'placeholder' => 'mg.example.com', 'default' => '', 'options' => [], 'dependsOn' => null],
                 ['key' => 'region',  'label' => 'Region',  'type' => 'select',   'required' => false, 'secret' => false, 'placeholder' => '', 'default' => 'us', 'options' => [
                     ['value' => 'us', 'label' => 'US'],
@@ -55,9 +57,12 @@ final class MailgunProvider extends DescriptorProvider
                 'subject'     => 'subject',
                 'body'        => ['html' => 'html', 'text' => 'text'],
                 'attachments' => ['key' => 'attachment', 'shape' => 'files'],
+                'metadata'    => ['key' => 'v:' . TrackingIdStamper::METADATA_KEY, 'value' => TrackingIdStamper::METADATA_KEY],
             ],
-            'success'    => [200],
-            'errorPaths' => ['message'],
+            'success'       => [200],
+            'errorPaths'    => ['message'],
+            'messageIdPath' => 'id',
+            'tracking'      => ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY],
         ]);
     }
 }

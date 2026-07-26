@@ -27,6 +27,10 @@ use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
+use BitApps\SMTP\Mail\Notifications\Channels\EmailFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\Channels\WebhookFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\FailureNotificationGate;
+use BitApps\SMTP\Mail\Notifications\FailureNotifier;
 use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
@@ -38,6 +42,7 @@ use BitApps\SMTP\Mail\Providers\Mailjet\MailjetProvider;
 use BitApps\SMTP\Mail\Providers\Microsoft365\Microsoft365Provider;
 use BitApps\SMTP\Mail\Providers\Microsoft365\Microsoft365Transport;
 use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
+use BitApps\SMTP\Mail\Providers\PhpSendmail\PhpSendmailProvider;
 use BitApps\SMTP\Mail\Providers\Postmark\PostmarkProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Providers\Resend\ResendProvider;
@@ -47,6 +52,7 @@ use BitApps\SMTP\Mail\Providers\SparkPost\SparkPostProvider;
 use BitApps\SMTP\Mail\Providers\Zepto\ZeptoProvider;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
+use BitApps\SMTP\Mail\Transport\PhpSendmailTransport;
 use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Providers\HookProvider;
 use BitApps\SMTP\Providers\InstallerProvider;
@@ -138,6 +144,7 @@ final class Plugin
 
         $registry = new ProviderRegistry();
         $registry->register(new OtherSmtpProvider(new SmtpTransport(new DatabaseCredentialResolver())));
+        $registry->register(new PhpSendmailProvider(new PhpSendmailTransport()));
         $registry->register(new SendGridProvider(new SendGridTransport($apiClient)));
         $registry->register(new GmailProvider(new GmailTransport($apiClient, $tokenProvider, $mimeBuilder)));
         $registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
@@ -156,7 +163,15 @@ final class Plugin
             new ConnectionResolver(),
             new MailMessageFactory(),
             new RoutingResolver(),
-            new MailSourceDetector()
+            new MailSourceDetector(),
+            new FailureNotifier(
+                $this->mailConfigService(),
+                new FailureNotificationGate(),
+                [
+                    new EmailFailureNotificationChannel(),
+                    new WebhookFailureNotificationChannel(),
+                ]
+            )
         );
     }
 

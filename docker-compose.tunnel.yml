@@ -1,0 +1,16 @@
+name: bit-smtp-tunnel
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --loglevel
+      - info
+      - --url
+      - http://host.docker.internal
+      - --http-host-header
+      - wp-dev.io
+    extra_hosts:
+      - host.docker.internal:host-gateway

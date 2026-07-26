@@ -31,6 +31,11 @@ const providers: Record<string, ProviderEntry> = {
     accent: '#64748b',
     blurb: 'Any SMTP server'
   },
+  php_sendmail: {
+    logo: null,
+    accent: '#475569',
+    blurb: 'PHP mail() / server sendmail'
+  },
   sendgrid: {
     logo: sendgridLogo,
     accent: '#1A82E2',

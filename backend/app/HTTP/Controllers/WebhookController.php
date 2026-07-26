@@ -7,6 +7,7 @@ namespace BitApps\SMTP\HTTP\Controllers;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Webhook\DeliveryEventRecorder;
+use BitApps\SMTP\Mail\Webhook\Signatures\WebhookSignatureVerifierFactory;
 use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
 use BitApps\SMTP\Mail\Webhook\WebhookRequest;
 use Throwable;
@@ -22,16 +23,20 @@ final class WebhookController
 
     private WebhookAdapterFactory $factory;
 
+    private WebhookSignatureVerifierFactory $verifierFactory;
+
     private DeliveryEventRecorder $recorder;
 
     public function __construct(
         ?MailConfigService $config = null,
         ?WebhookAdapterFactory $factory = null,
-        ?DeliveryEventRecorder $recorder = null
+        ?DeliveryEventRecorder $recorder = null,
+        ?WebhookSignatureVerifierFactory $verifierFactory = null
     ) {
-        $this->config   = $config   ?? new MailConfigService();
-        $this->factory  = $factory  ?? new WebhookAdapterFactory();
-        $this->recorder = $recorder ?? new DeliveryEventRecorder(new LogService());
+        $this->config          = $config          ?? new MailConfigService();
+        $this->factory         = $factory         ?? new WebhookAdapterFactory();
+        $this->recorder        = $recorder        ?? new DeliveryEventRecorder(new LogService());
+        $this->verifierFactory = $verifierFactory ?? new WebhookSignatureVerifierFactory();
     }
 
     public function handle(string $connId, string $secret, WebhookRequest $request): int
@@ -46,6 +51,13 @@ final class WebhookController
         $stored = $connection->getWebhookSecret();
         if ($stored === '' || !hash_equals($stored, $secret)) {
             return 404;
+        }
+
+        // Providers with no signed webhook resolve to null and skip the check; a signed provider
+        // whose signature fails to validate is rejected as unauthenticated.
+        $verifier = $this->verifierFactory->forProvider($connection->getProvider());
+        if ($verifier !== null && !$verifier->verify($request, $connection)) {
+            return 401;
         }
 
         $adapter = $this->factory->forProvider($connection->getProvider());

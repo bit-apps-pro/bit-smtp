@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 
@@ -69,9 +70,14 @@ final class WpMailRoutingTest extends IntegrationTestCase
         $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
 
         $logs = $this->logs();
-        $this->assertCount(2, $logs, 'the default order must be used: the unreachable default is tried before mailpit');
-        $this->assertSame(Log::SUCCESS, $logs[0]->status, 'newest log is the successful mailpit fallback');
-        $this->assertSame(Log::ERROR, $logs[1]->status, 'older log is the failed unreachable default');
+        $this->assertCount(1, $logs, 'one row records the final outcome and the full default-order trail');
+        $this->assertSame(Log::SUCCESS, $logs[0]->status);
+        $this->assertSame('conn_mailpit', $logs[0]->connection);
+
+        $attempts = $logs[0]->details['attempts'] ?? [];
+        $this->assertCount(2, $attempts, 'the unreachable default must be tried before mailpit');
+        $this->assertSame(['conn_default', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
+        $this->assertSame(['conn_mailpit', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
     }
 
     /**
@@ -134,7 +140,9 @@ final class WpMailRoutingTest extends IntegrationTestCase
      */
     private function logs(): array
     {
-        return Log::desc()->get();
+        $logs = Log::desc()->get();
+
+        return $logs instanceof Collection ? $logs->all() : $logs;
     }
 
     private function clearLogs(): void

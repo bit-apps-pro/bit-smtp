@@ -4,8 +4,11 @@ namespace BitApps\SMTP\Mail\Providers\SendGrid;
 
 use BitApps\SMTP\Mail\Auth\BearerTokenStrategy;
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\Http\ApiResponse;
 use BitApps\SMTP\Mail\Message\MailMessage;
+use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Support\JsonEncoder;
 use BitApps\SMTP\Mail\Transport\AbstractApiTransport;
 use RuntimeException;
@@ -87,6 +90,12 @@ class SendGridTransport extends AbstractApiTransport
         return $status === 202;
     }
 
+    protected function toSendResult(ApiResponse $response): SendResult
+    {
+        return parent::toSendResult($response)
+            ->withMessageId($response->getHeader('X-Message-Id'));
+    }
+
     /**
      * SendGrid has no 2xx-with-error-body case: accepted and successful are the same status check.
      *
@@ -123,7 +132,22 @@ class SendGridTransport extends AbstractApiTransport
             $personalization['bcc'] = $bcc;
         }
 
+        $customArgs = $this->customArgs($message->getMetadata());
+        if (!empty($customArgs)) {
+            $personalization['custom_args'] = $customArgs;
+        }
+
         return $personalization;
+    }
+
+    private function customArgs(array $metadata): array
+    {
+        $trackingId = $metadata[TrackingIdStamper::METADATA_KEY] ?? null;
+        if (!\is_scalar($trackingId) || (string) $trackingId === '') {
+            return [];
+        }
+
+        return [TrackingIdStamper::METADATA_KEY => (string) $trackingId];
     }
 
     private function addresses(array $rawAddresses): array

@@ -142,11 +142,11 @@ final class DescriptorApiTransport extends AbstractApiTransport
     protected function messageIdFrom(int $status, $body): ?string
     {
         $path = $this->descriptor->messageIdPath();
-        if ($path === '' || !\is_array($body) || !isset($body[$path]) || !\is_scalar($body[$path])) {
+        if ($path === '' || !\is_array($body)) {
             return null;
         }
 
-        return (string) $body[$path];
+        return $this->errorFormatter->resolveScalarPath($body, $path);
     }
 
     /**
@@ -239,6 +239,32 @@ final class DescriptorApiTransport extends AbstractApiTransport
     private function applyMapped(array &$body, array $payload, string $key, array $values): void
     {
         if (empty($payload[$key]) || $values === []) {
+            return;
+        }
+
+        if (\is_array($payload[$key])) {
+            $target = (string) ($payload[$key]['key'] ?? '');
+            $shape  = (string) ($payload[$key]['shape'] ?? '');
+            if ($target !== '' && $shape === 'name_value_list') {
+                $body[$target] = [];
+                foreach ($values as $name => $value) {
+                    if (\is_scalar($value)) {
+                        $body[$target][] = ['name' => (string) $name, 'value' => (string) $value];
+                    }
+                }
+
+                if ($body[$target] === []) {
+                    unset($body[$target]);
+                }
+
+                return;
+            }
+
+            $source = (string) ($payload[$key]['value'] ?? '');
+            if ($target !== '' && $source !== '' && isset($values[$source])) {
+                $body[$target] = $values[$source];
+            }
+
             return;
         }
 

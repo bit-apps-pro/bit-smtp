@@ -96,6 +96,26 @@ class MailgunProviderTest extends BaseUnitTestCase
         $this->assertTrue($result->isOk());
     }
 
+    public function testSendsTrackingMetadataAsDocumentedMailgunUserVariable(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with(Mockery::any(), Mockery::on(static function (string $body): bool {
+                parse_str($body, $fields);
+
+                return ($fields['v:bit_tracking_id'] ?? null) === 'tracking-1';
+            }))
+            ->andReturn(new ApiResponse(200, ['id' => '<message-1@example.test>']));
+
+        $result = $this->provider()->transport()->send(
+            $this->message(['metadata' => ['bit_tracking_id' => 'tracking-1']]),
+            $this->connection()
+        );
+
+        $this->assertTrue($result->isOk());
+    }
+
     public function testAnInvalidDomainSettingFailsAndNeverPosts(): void
     {
         $this->apiClient->shouldNotReceive('post');

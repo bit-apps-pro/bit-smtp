@@ -85,6 +85,14 @@ class ApiClient
     /**
      * @param array|string $body
      */
+    public function patch(string $url, $body = []): ApiResponse
+    {
+        return $this->send('patch', $url, $body);
+    }
+
+    /**
+     * @param array|string $body
+     */
     public function delete(string $url, $body = []): ApiResponse
     {
         return $this->send('delete', $url, $body);

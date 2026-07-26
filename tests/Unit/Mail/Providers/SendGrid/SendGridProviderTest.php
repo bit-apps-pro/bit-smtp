@@ -44,6 +44,14 @@ class SendGridProviderTest extends BaseUnitTestCase
         $this->assertSame([], $this->provider->defaults());
     }
 
+    public function testTrackingUsesCustomArgsMetadata(): void
+    {
+        $this->assertSame(
+            ['channel' => 'metadata', 'key' => 'bit_tracking_id'],
+            $this->provider->tracking()
+        );
+    }
+
     public function testFieldsExposesSingleApiKeyField(): void
     {
         $fields = $this->provider->fields();

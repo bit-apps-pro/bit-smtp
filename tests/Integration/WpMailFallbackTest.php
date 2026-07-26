@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 
@@ -304,7 +305,9 @@ final class WpMailFallbackTest extends IntegrationTestCase
      */
     private function logs(): array
     {
-        return Log::desc()->get();
+        $logs = Log::desc()->get();
+
+        return $logs instanceof Collection ? $logs->all() : $logs;
     }
 
     private function clearLogs(): void

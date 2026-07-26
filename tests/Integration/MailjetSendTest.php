@@ -104,6 +104,23 @@ final class MailjetSendTest extends IntegrationTestCase
 
         $this->assertStringContainsString('to@example.org', (string) $captured['body'], 'the recipient must be in the JSON body');
         $this->assertStringContainsString($subject, (string) $captured['body'], 'the subject must be in the JSON body');
+
+        $body    = json_decode((string) $captured['body'], true);
+        $message = $body['Messages'][0] ?? [];
+        $this->assertNotEmpty(
+            $message['CustomID'] ?? '',
+            'webhook tracking must use Mailjet Send API v3.1 CustomID'
+        );
+        $this->assertArrayNotHasKey(
+            'CustomCampaign',
+            $message,
+            'per-message tracking must not be modeled as a Mailjet campaign'
+        );
+        $this->assertArrayNotHasKey(
+            'X-Mailjet-Campaign',
+            $message['Headers'] ?? [],
+            'Mailjet rejects X-Mailjet-Campaign in the generic Headers collection'
+        );
         $this->assertEmpty($this->mailpitMessages(), 'the API send must not deliver through SMTP/mailpit');
     }
 

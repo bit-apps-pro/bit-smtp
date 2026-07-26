@@ -132,6 +132,22 @@ class GmailTransportTest extends BaseUnitTestCase
         $this->assertFalse($result->isOk());
     }
 
+    public function testSuccessfulResponseCarriesGmailMessageId(): void
+    {
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->andReturn('raw-mime');
+        $this->tokenProvider->shouldReceive('accessToken')->once()->andReturn('tok123');
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'id'       => 'gmail-message-123',
+            'threadId' => 'gmail-thread-123',
+        ]));
+
+        $result = $this->transport->send($this->message(), $this->connection());
+
+        $this->assertTrue($result->isOk());
+        $this->assertSame('gmail-message-123', $result->getMessageId());
+    }
+
     public function testErrorFromParsesErrorMessageFromErrorObject(): void
     {
         $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->andReturn('raw-mime');

@@ -48,9 +48,9 @@ export default function OAuthConnectButton({
 
       queryClient.invalidateQueries({ queryKey: MAIL_SETTINGS_QUERY_KEY })
       if (message.status === 'success') {
-        notify.success(__('Google account connected'))
+        notify.success(__('OAuth account connected'))
       } else {
-        notify.error(__('Failed to connect Google account'))
+        notify.error(__('Failed to connect OAuth account'))
       }
     }
 

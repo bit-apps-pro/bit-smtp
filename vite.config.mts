@@ -34,8 +34,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: 'frontend/src',
-    base: isDev ? `/wp-content/plugins/${folderName}/frontend/src/` : '',
-    // base: '',
+    // base: isDev ? `/wp-content/plugins/${folderName}/frontend/src/` : '',
+    base: '',
     assetsDir: 'assets',
     plugins: [
       react({

@@ -87,11 +87,23 @@ describe('ConnectionTestButton', () => {
     expect(notify.error).toHaveBeenCalledWith('spam suspected')
   })
 
-  it('stays silent on success when no delivery status is available', async () => {
+  it('shows a generic success when no delivery status is available', async () => {
     await clickAndDeliver({ ok: true, debug: {}, delivery: null })
 
-    expect(notify.success).not.toHaveBeenCalled()
+    expect(notify.success).toHaveBeenCalledWith('Connection test successful')
     expect(notify.error).not.toHaveBeenCalled()
     expect(notify.warning).not.toHaveBeenCalled()
+  })
+
+  it('renders a persistent generic success result', () => {
+    ;(useTestConnection as Mock).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      data: { ok: true, debug: {}, delivery: null }
+    })
+
+    render(<ConnectionTestButton getConnection={() => connection} to="test@example.com" />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Connection test successful')
   })
 })

@@ -38,7 +38,7 @@ final class SparkPostPayloadBuilder
         $bcc = $message->getBcc();
 
         return [
-            'recipients' => $this->buildRecipients($to, $cc, $bcc),
+            'recipients' => $this->buildRecipients($to, $cc, $bcc, $message->getMetadata()),
             'content'    => $this->buildContent($message, $connection, $cc),
         ];
     }
@@ -48,17 +48,22 @@ final class SparkPostPayloadBuilder
      * @param string[] $cc
      * @param string[] $bcc
      */
-    private function buildRecipients(array $to, array $cc, array $bcc): array
+    private function buildRecipients(array $to, array $cc, array $bcc, array $metadata = []): array
     {
         $headerTo = $this->joinRfc822($to);
 
-        return array_map(function (string $address) use ($headerTo): array {
-            return [
+        return array_map(function (string $address) use ($headerTo, $metadata): array {
+            $recipient = [
                 'address' => [
                     'email'     => $this->bareEmail($address),
                     'header_to' => $headerTo,
                 ],
             ];
+            if ($metadata !== []) {
+                $recipient['metadata'] = $metadata;
+            }
+
+            return $recipient;
         }, array_merge($to, $cc, $bcc));
     }
 

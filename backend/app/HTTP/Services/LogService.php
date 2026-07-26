@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\HTTP\Services;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Deps\BitApps\WPKit\Helpers\Arr;
@@ -39,7 +40,7 @@ class LogService
             if (isset($filters['to_addr']) && !empty($filters['to_addr'])) {
                 $logsQuery->where('to_addr', 'LIKE', '%' . Connection::esc_like($filters['to_addr']) . '%');
             }
-            $logs  = $logsQuery->get();
+            $logs  = $this->toRows($logsQuery->get());
             $count = Log::count();
         } catch (Throwable $th) {
             // throw $th;
@@ -66,9 +67,12 @@ class LogService
         return Log::where('id', $id)->first();
     }
 
-    public function getBulk(array $ids)
+    /**
+     * @return array<int,Log>
+     */
+    public function getBulk(array $ids): array
     {
-        return Log::where('id', $ids)->get();
+        return $this->toRows(Log::where('id', $ids)->get());
     }
 
     public function save($status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null)
@@ -216,10 +220,7 @@ class LogService
      */
     public function deliveryEvents(int $logId): array
     {
-        $events = LogDeliveryEvent::where('log_id', $logId)->orderBy('occurred_at')->orderBy('id')->get();
-        if (!\is_array($events)) {
-            return [];
-        }
+        $events = $this->toRows(LogDeliveryEvent::where('log_id', $logId)->orderBy('occurred_at')->orderBy('id')->get());
 
         return array_map(static function (LogDeliveryEvent $event) {
             return [
@@ -387,5 +388,22 @@ class LogService
         } catch (Throwable $e) {
             return false;
         }
+    }
+
+    /**
+     * Normalize a QueryBuilder get() result to a plain array: WPDatabase returns a Collection on
+     * newer versions and a plain array on older ones.
+     *
+     * @param mixed $result
+     *
+     * @return array
+     */
+    private function toRows($result): array
+    {
+        if ($result instanceof Collection) {
+            return $result->all();
+        }
+
+        return \is_array($result) ? $result : [];
     }
 }

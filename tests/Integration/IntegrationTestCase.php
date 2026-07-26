@@ -22,6 +22,7 @@ abstract class IntegrationTestCase extends TestCase
     {
         parent::setUp();
         Config::deleteOption('options');
+        Config::deleteOption('failure_notification_active');
         $this->clearMailpit();
     }
 

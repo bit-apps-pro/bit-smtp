@@ -11,6 +11,13 @@ use BitApps\SMTP\Mail\Message\MailMessage;
  */
 class TrackingIdStamper
 {
+    /**
+     * The message-metadata key that carries our delivery-webhook correlation token. Declared by every
+     * metadata-channel provider on send and read back by its webhook adapter on receive — one literal,
+     * so the two sides can never drift. (Brevo correlates over a header, not this key.)
+     */
+    public const METADATA_KEY = 'bit_tracking_id';
+
     public function generate(): string
     {
         return wp_generate_uuid4();

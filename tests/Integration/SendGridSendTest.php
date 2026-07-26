@@ -4,6 +4,7 @@ namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Mail\Credentials\CredentialCipher;
+use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 
 /**
@@ -71,6 +72,33 @@ final class SendGridSendTest extends IntegrationTestCase
         $this->assertSendGridRequestCarriedTheApiKey($sent, $captured, $apiKey, 'Legacy Plaintext SendGrid Send');
     }
 
+    public function testWebhookEnabledSendStoresSendGridCorrelationKeys(): void
+    {
+        $captured = [];
+        $filter   = $this->interceptSendGridRequest($captured);
+        $subject  = 'Tracked SendGrid Send';
+
+        add_filter('pre_http_request', $filter, 10, 3);
+
+        try {
+            Plugin::instance()->mailConfigService()->saveSettings($this->v2('SG.tracked-key', true));
+            $sent = wp_mail('to@example.org', $subject, 'Body');
+        } finally {
+            remove_filter('pre_http_request', $filter, 10);
+        }
+
+        $this->assertTrue($sent);
+        $body       = json_decode((string) $captured['body'], true);
+        $trackingId = $body['personalizations'][0]['custom_args']['bit_tracking_id'] ?? null;
+        $this->assertNotEmpty($trackingId);
+
+        $log = Log::where('subject', $subject)->first();
+        $this->assertInstanceOf(Log::class, $log);
+        $this->assertSame($trackingId, $log->tracking_id);
+        $this->assertSame('sg-response-id', $log->message_id);
+        $this->assertNull($log->delivery_status);
+    }
+
     /**
      * @param array<string,mixed> $captured
      */
@@ -91,7 +119,7 @@ final class SendGridSendTest extends IntegrationTestCase
     /**
      * @return array<string,mixed>
      */
-    private function v2(string $apiKey): array
+    private function v2(string $apiKey, bool $webhookEnabled = false): array
     {
         return [
             'schema_version'          => 2,
@@ -108,7 +136,10 @@ final class SendGridSendTest extends IntegrationTestCase
                     'fromEmail'    => 'from@example.org',
                     'fromName'     => 'From',
                     'replyToEmail' => '',
-                    'settings'     => [],
+                    'settings'     => [
+                        'webhook_enabled' => $webhookEnabled,
+                        'webhook_secret'  => $webhookEnabled ? 'known-webhook-secret' : '',
+                    ],
                     'credentials'  => ['api_key' => ['source' => 'database', 'value' => $apiKey]],
                 ],
             ],
@@ -131,7 +162,7 @@ final class SendGridSendTest extends IntegrationTestCase
             $captured['body']    = $args['body']    ?? '';
 
             return [
-                'headers'  => [],
+                'headers'  => ['x-message-id' => 'sg-response-id'],
                 'body'     => '',
                 'response' => ['code' => 202, 'message' => 'Accepted'],
                 'cookies'  => [],

@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Integration\Webhook;
 
+use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\HTTP\Controllers\WebhookController;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Webhook\WebhookRequest;
@@ -11,8 +12,8 @@ use BitApps\SMTP\Tests\Integration\IntegrationTestCase;
 
 /**
  * Drives WebhookController::handle() against the real test DB: authentication (unknown/disabled/wrong
- * secret), the brevo kill-switch, a correlated Postmark delivery (records a child row + marks the
- * connection verified), and the well-formed-but-uncorrelated post that must still return 200.
+ * secret), correlated SendGrid/Postmark events (record a child row + mark the connection verified),
+ * and the well-formed-but-uncorrelated post that must still return 200.
  *
  * @internal
  *
@@ -54,16 +55,31 @@ final class WebhookControllerTest extends IntegrationTestCase
         $this->assertSame(404, $this->controller()->handle('conn_pm', 'wrong-secret', $request));
     }
 
-    public function testProviderWithoutAWebhookAdapterReturns404(): void
+    public function testValidSendGridBlockedEventRecordsAndVerifies(): void
     {
         $this->saveApiConnection('conn_sg', 'sendgrid', self::KNOWN_SECRET, true);
+        $logId = $this->createLog('conn_sg', 'sg-response-id', 'track-1');
 
-        // Correct secret + enabled webhook, but SendGrid has no live webhook adapter → 404.
         $request = WebhookRequest::fromRaw(
-            (string) wp_json_encode(['event' => 'delivered', 'message-id' => 'm1', 'email' => 'r@example.com'])
+            (string) wp_json_encode([[
+                'event'           => 'bounce',
+                'type'            => 'blocked',
+                'email'           => 'recipient@example.com',
+                'sg_message_id'   => 'sg-response-id.recvd-suffix',
+                'bit_tracking_id' => 'track-1',
+                'timestamp'       => 1704103201,
+                'reason'          => '554 5.7.7 Email policy violation detected',
+            ]])
         );
 
-        $this->assertSame(404, $this->controller()->handle('conn_sg', self::KNOWN_SECRET, $request));
+        $this->assertSame(200, $this->controller()->handle('conn_sg', self::KNOWN_SECRET, $request));
+        $this->assertCount(1, $this->childRows($logId));
+        $this->assertSame('blocked', $this->reloadLog($logId)->delivery_status);
+        $this->assertSame(Log::SUCCESS, $this->reloadLog($logId)->status);
+
+        $connection = (new MailConfigService())->connectionById('conn_sg');
+        $this->assertNotNull($connection);
+        $this->assertTrue($connection->isWebhookVerified());
     }
 
     public function testValidPostmarkDeliveryRecordsAndVerifies(): void
@@ -137,7 +153,7 @@ final class WebhookControllerTest extends IntegrationTestCase
     /**
      * @return int inserted log id
      */
-    private function createLog(string $connectionId, string $messageId): int
+    private function createLog(string $connectionId, string $messageId, ?string $trackingId = null): int
     {
         $log                = new Log();
         $log->status        = Log::SUCCESS;
@@ -146,7 +162,7 @@ final class WebhookControllerTest extends IntegrationTestCase
         $log->connection    = 'Connection ' . $connectionId;
         $log->connection_id = $connectionId;
         $log->message_id    = $messageId;
-        $log->tracking_id   = null;
+        $log->tracking_id   = $trackingId;
         $log->save();
 
         return (int) $log->id;
@@ -178,6 +194,10 @@ final class WebhookControllerTest extends IntegrationTestCase
     private function childRows(int $logId): array
     {
         $rows = LogDeliveryEvent::where('log_id', $logId)->get();
+
+        if ($rows instanceof Collection) {
+            return $rows->all();
+        }
 
         return \is_array($rows) ? $rows : [];
     }

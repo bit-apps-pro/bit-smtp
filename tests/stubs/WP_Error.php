@@ -7,14 +7,25 @@
 if (!class_exists('WP_Error')) {
     class WP_Error
     {
-        /** @var array<int,string> */
+        /**
+         * @var array<int,string>
+         */
         private $messages = [];
 
-        /** @var mixed */
+        /**
+         * @var mixed
+         */
         private $data;
+
+        /**
+         * @var string
+         */
+        private $code = '';
 
         public function __construct($code = '', $message = '', $data = null)
         {
+            $this->code = (string) $code;
+
             if ($message !== '') {
                 $this->messages[] = $message;
             }
@@ -39,6 +50,11 @@ if (!class_exists('WP_Error')) {
         public function get_error_messages(): array
         {
             return $this->messages;
+        }
+
+        public function get_error_code(): string
+        {
+            return $this->code;
         }
 
         /**

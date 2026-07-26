@@ -73,11 +73,12 @@ class SparkPostProviderTest extends BaseUnitTestCase
                     && $body['content']['text']                   === 'Body text'
                     && $body['recipients'][0]['address']['email'] === 'to@example.com';
             }))
-            ->andReturn(new ApiResponse(200, []));
+            ->andReturn(new ApiResponse(200, ['results' => ['id' => 'sparkpost-transmission-1']]));
 
         $result = $this->provider()->transport()->send($this->message(), $this->connection());
 
         $this->assertTrue($result->isOk());
+        $this->assertSame('sparkpost-transmission-1', $result->getMessageId());
     }
 
     public function testSendsToTheEuHostWhenRegionConfigured(): void
@@ -282,6 +283,26 @@ class SparkPostProviderTest extends BaseUnitTestCase
         $this->assertFalse($result->isOk());
         $this->assertSame('bad', $result->getError());
         $this->assertSame('400', $result->getCode());
+    }
+
+    public function testHttp200WithPartialRecipientErrorsIsAcceptedButSurfacesTheProviderError(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'errors'  => [['message' => 'transmission created, but with validation errors']],
+            'results' => [
+                'id'                        => 'sparkpost-transmission-1',
+                'total_accepted_recipients' => 1,
+                'total_rejected_recipients' => 1,
+            ],
+        ]));
+
+        $result = $this->provider()->transport()->send($this->message(), $this->connection());
+
+        $this->assertTrue($result->isAccepted());
+        $this->assertFalse($result->isOk());
+        $this->assertSame('transmission created, but with validation errors', $result->getError());
+        $this->assertSame('sparkpost-transmission-1', $result->getMessageId());
     }
 
     public function testStatusOutsideTheDeclaredSuccessListMapsToFailure(): void

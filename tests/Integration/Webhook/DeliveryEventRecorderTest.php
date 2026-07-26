@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Integration\Webhook;
 
+use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
@@ -155,6 +156,10 @@ final class DeliveryEventRecorderTest extends IntegrationTestCase
     private function childRows(int $logId): array
     {
         $rows = LogDeliveryEvent::where('log_id', $logId)->get();
+
+        if ($rows instanceof Collection) {
+            return $rows->all();
+        }
 
         return \is_array($rows) ? $rows : [];
     }

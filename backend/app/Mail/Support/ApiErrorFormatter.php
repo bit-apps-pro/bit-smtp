@@ -21,7 +21,7 @@ final class ApiErrorFormatter
 
         if (\is_array($body)) {
             foreach ($errorPaths as $path) {
-                $message = $this->resolvePath($body, $path);
+                $message = $this->resolveScalarPath($body, $path);
 
                 if ($message !== null) {
                     return $message;
@@ -46,7 +46,7 @@ final class ApiErrorFormatter
         }
 
         foreach ($errorPaths as $path) {
-            if ($this->resolvePath($body, $path) !== null) {
+            if ($this->resolveScalarPath($body, $path) !== null) {
                 return true;
             }
         }
@@ -55,9 +55,11 @@ final class ApiErrorFormatter
     }
 
     /**
-     * @return null|string the resolved message, or null when the path misses or resolves to an empty value
+     * Walk a dot-path (e.g. "id" or "errors.0.message") to a non-empty scalar leaf.
+     *
+     * @return null|string the resolved value as a string, or null when the path misses or is empty/non-scalar
      */
-    private function resolvePath(array $body, string $path): ?string
+    public function resolveScalarPath(array $body, string $path): ?string
     {
         $node = $body;
 

@@ -7,13 +7,15 @@ namespace BitApps\SMTP\Mail\Config;
 final class MaskedSecretResolver
 {
     /**
-     * Replace any sentinel values in $incomingV2['connections'] credentials
-     * with the stored plaintext from $current, preserving genuine new values.
+     * Replace sentinel values with stored plaintext and preserve stored credential keys omitted
+     * from an existing connection's editable payload, while keeping genuine new values.
      *
      * @param array<string,mixed> $incomingV2
      */
     public static function apply(array $incomingV2, MailSettings $current): array
     {
+        $incomingV2 = self::resolveAlertWebhookSecrets($incomingV2, $current);
+
         if (!isset($incomingV2['connections']) || !\is_array($incomingV2['connections'])) {
             return $incomingV2;
         }
@@ -40,8 +42,39 @@ final class MaskedSecretResolver
                 $cred = self::resolveCredential($cred, $storedValue);
             }
             unset($cred);
+
+            if ($storedConn !== null) {
+                // OAuth access/refresh tokens and other server-managed credentials are not editable
+                // fields, so the browser omits them even though it includes other credentials.
+                $conn['credentials'] += $storedConn->getCredentials();
+            }
         }
         unset($conn);
+
+        return $incomingV2;
+    }
+
+    private static function resolveAlertWebhookSecrets(array $incomingV2, MailSettings $current): array
+    {
+        if (
+            !isset($incomingV2['features']['alerts']['webhook'])
+            || !\is_array($incomingV2['features']['alerts']['webhook'])
+        ) {
+            return $incomingV2;
+        }
+
+        $storedWebhook = $current->getFeatures()['alerts']['webhook'] ?? [];
+
+        foreach (MailSettingsSerializer::ALERT_WEBHOOK_SECRET_KEYS as $secretKey) {
+            $storedValue   = $storedWebhook[$secretKey]                                 ?? '';
+            $incomingValue = $incomingV2['features']['alerts']['webhook'][$secretKey]   ?? null;
+
+            if ($incomingValue === MailSettingsSerializer::MASK_SENTINEL) {
+                $incomingV2['features']['alerts']['webhook'][$secretKey] = (string) $storedValue;
+            } elseif ($incomingValue === null && $storedValue !== '') {
+                $incomingV2['features']['alerts']['webhook'][$secretKey] = (string) $storedValue;
+            }
+        }
 
         return $incomingV2;
     }

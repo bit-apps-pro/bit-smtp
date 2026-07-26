@@ -12,6 +12,8 @@ use BitApps\SMTP\Mail\Webhook\WebhookRequest;
  */
 class BrevoWebhookAdapter implements WebhookAdapterInterface
 {
+    use CastsNullableString;
+
     /**
      * @var array<string, array{status: string, terminal: bool}>
      */
@@ -42,31 +44,7 @@ class BrevoWebhookAdapter implements WebhookAdapterInterface
             'status'      => $mapping['status'],
             'terminal'    => $mapping['terminal'],
             'detail'      => $event,
-            'occurred_at' => $this->occurredAt($payload),
+            'occurred_at' => $payload['date'] ?? $payload['ts_event'] ?? $payload['ts'] ?? null,
         ])];
-    }
-
-    private function occurredAt(array $payload): ?string
-    {
-        if (isset($payload['date'])) {
-            return (string) $payload['date'];
-        }
-
-        $ts = $payload['ts_event'] ?? ($payload['ts'] ?? null);
-        if ($ts === null) {
-            return null;
-        }
-
-        // A bare unix timestamp is not a parseable date string; render it to UTC first.
-        if (\is_int($ts) || ctype_digit((string) $ts)) {
-            return gmdate('Y-m-d H:i:s', (int) $ts);
-        }
-
-        return (string) $ts;
-    }
-
-    private function stringOrNull($value): ?string
-    {
-        return $value === null ? null : (string) $value;
     }
 }

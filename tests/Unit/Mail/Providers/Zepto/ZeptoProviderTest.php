@@ -70,6 +70,26 @@ class ZeptoProviderTest extends BaseUnitTestCase
         $this->assertTrue($result->isOk());
     }
 
+    public function testSendsTrackingMetadataAsDocumentedClientReference(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with(Mockery::any(), Mockery::on(static function (string $json): bool {
+                $body = json_decode($json, true);
+
+                return ($body['client_reference'] ?? null) === 'tracking-1';
+            }))
+            ->andReturn(new ApiResponse(201, []));
+
+        $result = $this->provider()->transport()->send(
+            $this->message(['metadata' => ['bit_tracking_id' => 'tracking-1']]),
+            $this->connection()
+        );
+
+        $this->assertTrue($result->isOk());
+    }
+
     public function testSendsToTheEuDataCenterHostWhenConfigured(): void
     {
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
