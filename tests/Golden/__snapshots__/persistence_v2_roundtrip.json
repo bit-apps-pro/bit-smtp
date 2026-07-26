@@ -1,0 +1,41 @@
+{
+    "schema_version": 2,
+    "enabled": true,
+    "default_connection_id": "conn_default",
+    "fallback_connection_ids": [],
+    "connections": [
+        {
+            "id": "conn_default",
+            "provider": "other_smtp",
+            "kind": "smtp",
+            "name": "Primary SMTP",
+            "enabled": true,
+            "fromEmail": "a@example.test",
+            "fromName": "Sender",
+            "replyToEmail": "reply@example.test",
+            "settings": {
+                "host": "smtp.example.test",
+                "port": 587,
+                "encryption": "tls",
+                "auth": true,
+                "username": "user",
+                "smtp_debug": false,
+                "webhook_signature_enabled": true,
+                "some_future_provider_key": "keepme"
+            },
+            "credentials": {
+                "password": {
+                    "source": "database",
+                    "value": "secret"
+                }
+            }
+        }
+    ],
+    "features": {
+        "logging": [],
+        "alerts": [],
+        "routing": [],
+        "tracking": [],
+        "email_controls": []
+    }
+}

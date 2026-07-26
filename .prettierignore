@@ -5,3 +5,6 @@ coverage
 yarn.lock
 package-lock.json
 pnpm-lock.yaml
+
+# PHP-generated golden snapshots: byte-exact frozen output from json_encode(), not JS source.
+tests/Golden/__snapshots__
