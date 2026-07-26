@@ -3,7 +3,7 @@ Contributors: bitpressadmin, akaioum
 Tags: email logs, smtp, email, gmail smtp, wp mail smtp
 Requires at least: 5.7
 Tested up to: 6.9
-Requires PHP: 8.0
+Requires PHP: 8.1
 Stable tag: 1.2.4
 License: GPLv2 or later
 
@@ -230,6 +230,9 @@ Wp-Telemetry DOES NOT IMMEDIATELY start gathering data; rather, it will gather b
 5. Preview of email log
 
 == Changelog ==
+
+= 1.3.0 (26 Jul, 2026) =
+* Requires PHP 8.1 or newer (was 8.0). Installs on older PHP show an admin notice and stay inactive.
 
 = 1.2.4 (11 May, 2026) =
 * fix: short description issue in readme.txt 

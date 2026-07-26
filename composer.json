@@ -3,7 +3,7 @@
   "description": "SMTP Configuration plugin by Bit Apps",
   "license": "gpl-2",
   "require": {
-    "php": ">=8.0",
+    "php": ">=8.1",
     "bitapps/wp-validator": "^1.2.1",
     "bitapps/wp-kit": "^2.1",
     "bitapps/wp-database": "^2.0.1",
