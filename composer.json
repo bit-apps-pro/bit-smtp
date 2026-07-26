@@ -28,6 +28,7 @@
     "compat:gate": "./vendor/bin/phpcs -p ./bit_smtp.php ./backend/bootstrap.php --standard=PHPCompatibilityWP --runtime-set testVersion 8.0-",
     "test:unit": "./vendor/bin/phpunit -c phpunit.xml.dist",
     "test:integration": "./vendor/bin/phpunit -c phpunit.integration.xml",
+    "analyse": "./vendor/bin/phpstan analyse --memory-limit=512M",
     "clean": "rm -rf ./vendor && rm composer.lock"
   },
   "require-dev": {
@@ -38,7 +39,9 @@
     "brain/monkey": "^2.6",
     "mockery/mockery": "^1.6",
     "wp-phpunit/wp-phpunit": "^7.0",
-    "yoast/phpunit-polyfills": "^4"
+    "yoast/phpunit-polyfills": "^4",
+    "phpstan/phpstan": "^2.0",
+    "szepeviktor/phpstan-wordpress": "^2.0"
   },
   "config": {
     "allow-plugins": {
