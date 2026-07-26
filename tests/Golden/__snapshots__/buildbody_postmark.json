@@ -1,0 +1,9 @@
+{
+    "From": "Example Sender <sender@example.test>",
+    "To": "rcpt@example.test",
+    "Subject": "Subj",
+    "HtmlBody": "<p>Hi</p>",
+    "Metadata": {
+        "bit_tracking_id": "TRACK123"
+    }
+}

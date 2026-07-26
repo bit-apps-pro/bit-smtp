@@ -1,0 +1,18 @@
+{
+    "Messages": [
+        {
+            "From": {
+                "Email": "sender@example.test",
+                "Name": "Example Sender"
+            },
+            "To": [
+                {
+                    "Email": "rcpt@example.test"
+                }
+            ],
+            "Subject": "Subj",
+            "HTMLPart": "<p>Hi</p>",
+            "CustomID": "TRACK123"
+        }
+    ]
+}

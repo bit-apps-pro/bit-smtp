@@ -1,0 +1,13 @@
+{
+    "sender": {
+        "email": "sender@example.test",
+        "name": "Example Sender"
+    },
+    "to": [
+        {
+            "email": "rcpt@example.test"
+        }
+    ],
+    "subject": "Subj",
+    "htmlContent": "<p>Hi</p>"
+}

@@ -1,0 +1,18 @@
+{
+    "recipients": [
+        {
+            "address": {
+                "email": "rcpt@example.test",
+                "header_to": "rcpt@example.test"
+            },
+            "metadata": {
+                "bit_tracking_id": "TRACK123"
+            }
+        }
+    ],
+    "content": {
+        "from": "Example Sender <sender@example.test>",
+        "subject": "Subj",
+        "html": "<p>Hi</p>"
+    }
+}
