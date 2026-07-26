@@ -37,6 +37,8 @@ github-actions:
       run: pnpm lint:css
     lint-php:
       run: composer lint
+    lint-bootstrap:
+      run: composer lint:bootstrap
     php-compatibility-check:
       run: composer compat
     php-compatibility-gate:
