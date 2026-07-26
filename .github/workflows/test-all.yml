@@ -78,7 +78,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.0', '8.1']
+        php: ['8.0', '8.1', '8.3']
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 1 }
@@ -87,15 +87,19 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           tools: composer:v2
-      - name: Install deps (ignore platform for the 8.0 gate job)
-        run: composer install --prefer-dist --no-progress ${{ matrix.php == '8.0' && '--ignore-platform-req=php' || '' }}
-      - name: Gate smoke (both versions)
+      # phpunit 12 requires PHP >= 8.3, so 8.0/8.1 install with the platform check ignored and skip test:unit/analyse.
+      - name: Install deps (ignore platform for the 8.0/8.1 gate legs)
+        run: composer install --prefer-dist --no-progress ${{ matrix.php != '8.3' && '--ignore-platform-req=php' || '' }}
+      - name: Gate smoke (all versions)
         run: php tests/gate/gate-smoke.php
       - name: Bootstrap-chain 8.0 compat
         run: composer compat:gate
-      - name: Full PHP unit suite (8.1 only)
-        if: matrix.php == '8.1'
-        run: composer test:unit
-      - name: Backend 8.1 compat (8.1 only)
-        if: matrix.php == '8.1'
+      - name: Backend 8.1 compat (8.1 and 8.3)
+        if: matrix.php != '8.0'
         run: composer compat
+      - name: Full PHP unit suite incl. golden (8.3 only)
+        if: matrix.php == '8.3'
+        run: composer test:unit
+      - name: PHPStan (8.3 only)
+        if: matrix.php == '8.3'
+        run: composer analyse
