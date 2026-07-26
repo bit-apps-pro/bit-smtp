@@ -1,0 +1,24 @@
+[
+    {
+        "key": "api_key",
+        "label": "API Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "webhook_signing_secret",
+        "label": "Webhook Signing Secret",
+        "type": "password",
+        "required": false,
+        "secret": true,
+        "placeholder": "whsec_...",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    }
+]
