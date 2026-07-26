@@ -39,6 +39,8 @@ github-actions:
       run: composer lint
     php-compatibility-check:
       run: composer compat
+    php-compatibility-gate:
+      run: composer compat:gate
     prettier:
       run: pnpm pretty:fix
     # test-js:
