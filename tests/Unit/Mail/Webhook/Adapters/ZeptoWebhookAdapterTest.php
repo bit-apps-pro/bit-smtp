@@ -38,4 +38,31 @@ final class ZeptoWebhookAdapterTest extends BaseUnitTestCase
         $this->assertSame('user@example.test', $events[0]->recipient());
         $this->assertSame('bad-mailbox', $events[0]->detail());
     }
+
+    /**
+     * Regression: event_name and event_message are both attacker-sized arrays, so the parser must not
+     * cross-product them (that is quadratic → DoS). The emitted count is bounded by
+     * messages × DISTINCT recognised names; duplicate and unknown names never multiply the work.
+     */
+    public function testBoundsEventCountToMessagesTimesDistinctRecognisedNames(): void
+    {
+        $names = array_merge(
+            array_fill(0, 5000, 'hardbounce'),   // duplicates must collapse to one
+            array_fill(0, 5000, 'not-an-event'), // unknown names must be dropped
+            ['delivered']
+        );
+        $message = [
+            'email_info' => ['email_reference' => 'm', 'to' => [['email_address' => ['address' => 'u@example.test']]]],
+            'request_id' => 'r',
+        ];
+        $payload = ['event_name' => $names, 'event_message' => [$message, $message]];
+        $request = WebhookRequest::fromRaw(http_build_query(['data' => json_encode($payload)]));
+
+        $events = (new ZeptoWebhookAdapter())->parseEvents($request);
+
+        // 2 messages × 2 distinct recognised names (hardbounce, delivered) — NOT 2 × 10001.
+        $this->assertCount(4, $events);
+        $statuses = array_map(static fn ($e) => $e->status(), $events);
+        $this->assertSame(['bounced', 'delivered', 'bounced', 'delivered'], $statuses);
+    }
 }
