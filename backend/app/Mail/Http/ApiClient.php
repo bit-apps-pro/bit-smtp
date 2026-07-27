@@ -103,7 +103,11 @@ class ApiClient
      */
     private function send(string $method, string $url, $body): ApiResponse
     {
-        $result = $this->http->request($url, $method, $this->prepareBody($body), $this->headers);
+        // Never auto-follow redirects: plain wp_remote_* follows up to 5 by default, so a compromised
+        // or MITM'd provider could 30x us to an internal host (169.254.169.254, localhost) and have WP
+        // replay the Authorization/api-key header there. Every provider endpoint answers directly, so
+        // pinning redirection to 0 costs nothing and closes the upstream-driven SSRF vector.
+        $result = $this->http->request($url, $method, $this->prepareBody($body), $this->headers, ['redirection' => 0]);
 
         if (is_wp_error($result)) {
             return new ApiResponse(0, implode(', ', $result->get_error_messages()), []);
