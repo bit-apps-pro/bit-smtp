@@ -40,7 +40,7 @@ final class OAuthCallbackRouter
         $hasRequestUri = \array_key_exists('REQUEST_URI', $_SERVER);
         $requestUri    = $_SERVER['REQUEST_URI'] ?? null;
 
-        $_SERVER['REQUEST_URI'] = self::pathOnlyUri(\is_string($requestUri) ? $requestUri : null);
+        $_SERVER['REQUEST_URI'] = self::staticRouterUri(\is_string($requestUri) ? $requestUri : null);
 
         try {
             $this->staticRouter->handleRequest();
@@ -62,5 +62,26 @@ final class OAuthCallbackRouter
         $path = parse_url($requestUri, PHP_URL_PATH);
 
         return \is_string($path) ? $path : '';
+    }
+
+    private static function staticRouterUri(?string $requestUri): string
+    {
+        $path     = self::pathOnlyUri($requestUri);
+        $homePath = rtrim(self::pathOnlyUri(home_url('/')), '/');
+
+        if ($homePath === '') {
+            return $path;
+        }
+
+        if ($path === $homePath) {
+            return '/';
+        }
+
+        $homePrefix = $homePath . '/';
+        if (strncmp($path, $homePrefix, \strlen($homePrefix)) !== 0) {
+            return $path;
+        }
+
+        return (string) substr($path, \strlen($homePath));
     }
 }

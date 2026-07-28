@@ -4,15 +4,16 @@ namespace BitApps\SMTP\Tests\Unit\HTTP\OAuth;
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\StaticRouter;
 use BitApps\SMTP\HTTP\OAuth\OAuthCallbackRouter;
+use BitApps\SMTP\Tests\BaseUnitTestCase;
+use Brain\Monkey\Functions;
 use Closure;
-use PHPUnit\Framework\TestCase;
 
 /**
  * @internal
  *
  * @coversNothing
  */
-final class OAuthCallbackRouterTest extends TestCase
+final class OAuthCallbackRouterTest extends BaseUnitTestCase
 {
     public function testPathOnlyUriRemovesTheQueryString(): void
     {
@@ -44,6 +45,7 @@ final class OAuthCallbackRouterTest extends TestCase
     public function testDispatchTemporarilyExposesOnlyThePathToTheStaticRouter(): void
     {
         $this->assertAdapterExists();
+        Functions\when('home_url')->justReturn('https://example.test/');
 
         $originalServer  = $_SERVER;
         $originalGet     = $_GET;
@@ -78,6 +80,53 @@ final class OAuthCallbackRouterTest extends TestCase
 
             $this->assertSame(
                 '/bit-smtp/oauth/callback?code=abc&state=xyz',
+                $_SERVER['REQUEST_URI']
+            );
+        } finally {
+            $_SERVER  = $originalServer;
+            $_GET     = $originalGet;
+            $_REQUEST = $originalRequest;
+        }
+    }
+
+    public function testDispatchNormalizesASubdirectoryInstallPathForTheStaticRouter(): void
+    {
+        $this->assertAdapterExists();
+        Functions\when('home_url')->justReturn('https://example.test/wordpress/');
+
+        $originalServer  = $_SERVER;
+        $originalGet     = $_GET;
+        $originalRequest = $_REQUEST;
+
+        $_SERVER['REQUEST_URI'] = '/wordpress/bit-smtp/oauth/callback?code=abc&state=xyz';
+        $_GET                   = ['code' => 'abc', 'state' => 'xyz'];
+        $_REQUEST               = ['code' => 'abc', 'state' => 'xyz'];
+
+        $staticRouter = new class(function (): void {
+            self::assertSame('/bit-smtp/oauth/callback', $_SERVER['REQUEST_URI']);
+            self::assertSame('abc', $_GET['code']);
+            self::assertSame('xyz', $_GET['state']);
+            self::assertSame('abc', $_REQUEST['code']);
+            self::assertSame('xyz', $_REQUEST['state']);
+        }) extends StaticRouter {
+            private Closure $assertRequest;
+
+            public function __construct(Closure $assertRequest)
+            {
+                $this->assertRequest = $assertRequest;
+            }
+
+            public function handleRequest()
+            {
+                ($this->assertRequest)();
+            }
+        };
+
+        try {
+            (new OAuthCallbackRouter($staticRouter))->dispatch();
+
+            $this->assertSame(
+                '/wordpress/bit-smtp/oauth/callback?code=abc&state=xyz',
                 $_SERVER['REQUEST_URI']
             );
         } finally {
