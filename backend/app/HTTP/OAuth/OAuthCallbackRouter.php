@@ -7,19 +7,29 @@ namespace BitApps\SMTP\HTTP\OAuth;
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Router;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\StaticRouter;
+use UnexpectedValueException;
 
 final class OAuthCallbackRouter
 {
+    private const CALLBACK_PATH = '/bit-smtp/oauth/callback';
+
     private StaticRouter $staticRouter;
+
+    private string $activationHook;
+
+    private string $deactivationHook;
 
     public function __construct(?StaticRouter $staticRouter = null)
     {
+        $this->activationHook   = self::hookName(Config::withPrefix('activate'));
+        $this->deactivationHook = self::hookName(Config::withPrefix('deactivate'));
+
         if ($staticRouter === null) {
             new Router('static', Config::SLUG, '');
             $staticRouter = new StaticRouter(
                 Config::SLUG,
-                Config::withPrefix('activate'),
-                Config::withPrefix('deactivate')
+                $this->activationHook,
+                $this->deactivationHook
             );
             $staticRouter->loadRoutesFromFile(
                 Config::get('BACKEND_PATH') . DIRECTORY_SEPARATOR . 'hooks' . DIRECTORY_SEPARATOR . 'static.php'
@@ -31,7 +41,11 @@ final class OAuthCallbackRouter
 
     public function register(): void
     {
-        remove_action('template_redirect', [$this->staticRouter, 'handleRequest']);
+        remove_action($this->activationHook, [$this->staticRouter, 'flushOnDeactivate'], 10);
+        remove_action($this->deactivationHook, [$this->staticRouter, 'flushOnActivate'], 10);
+        remove_action('template_redirect', [$this->staticRouter, 'handleRequest'], 10);
+        add_action($this->activationHook, [$this->staticRouter, 'flushOnActivate'], 10);
+        add_action($this->deactivationHook, [$this->staticRouter, 'flushOnDeactivate'], 10);
         add_action('template_redirect', [$this, 'dispatch'], 10);
     }
 
@@ -39,8 +53,20 @@ final class OAuthCallbackRouter
     {
         $hasRequestUri = \array_key_exists('REQUEST_URI', $_SERVER);
         $requestUri    = $_SERVER['REQUEST_URI'] ?? null;
+        $routerUri     = self::staticRouterUri(\is_string($requestUri) ? $requestUri : null);
 
-        $_SERVER['REQUEST_URI'] = self::staticRouterUri(\is_string($requestUri) ? $requestUri : null);
+        if (!self::isCallbackPath($routerUri)) {
+            return;
+        }
+
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+            status_header(405);
+
+            return;
+        }
+
+        status_header(200);
+        $_SERVER['REQUEST_URI'] = $routerUri;
 
         try {
             $this->staticRouter->handleRequest();
@@ -83,5 +109,19 @@ final class OAuthCallbackRouter
         }
 
         return (string) substr($path, \strlen($homePath));
+    }
+
+    private static function isCallbackPath(string $path): bool
+    {
+        return $path === self::CALLBACK_PATH || $path === self::CALLBACK_PATH . '/';
+    }
+
+    private static function hookName(mixed $hook): string
+    {
+        if (!\is_string($hook)) {
+            throw new UnexpectedValueException('OAuth callback hook name must be a string.');
+        }
+
+        return $hook;
     }
 }

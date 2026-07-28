@@ -2,7 +2,6 @@
 
 namespace BitApps\SMTP\HTTP\Controllers;
 
-use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Client\HttpClient;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
@@ -11,6 +10,7 @@ use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Contracts\OAuth2ProviderInterface;
 use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\OAuth\OAuthCallbackUrl;
 use BitApps\SMTP\Mail\OAuth\OAuthStateCodec;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Plugin;
@@ -25,8 +25,6 @@ use Throwable;
  */
 class OAuthController
 {
-    private const CALLBACK_PATH = 'mail/oauth/callback';
-
     /**
      * @var null|ApiClient
      */
@@ -89,7 +87,7 @@ class OAuthController
 
         $queryParams = array_merge([
             'client_id'     => $clientId,
-            'redirect_uri'  => $this->callbackUrl(),
+            'redirect_uri'  => OAuthCallbackUrl::get(),
             'response_type' => 'code',
             'scope'         => implode(' ', $transport->scopes()),
             'state'         => OAuthStateCodec::encode($connectionId, $provider),
@@ -165,7 +163,7 @@ class OAuthController
             'code'          => $code,
             'client_id'     => $clientId,
             'client_secret' => $clientSecret,
-            'redirect_uri'  => $this->callbackUrl(),
+            'redirect_uri'  => OAuthCallbackUrl::get(),
         ]);
 
         $body = $response->getBody();
@@ -213,11 +211,6 @@ class OAuthController
         }
 
         return $transport;
-    }
-
-    private function callbackUrl(): string
-    {
-        return rest_url(Config::SLUG . '/v' . Config::API_VERSION . '/' . self::CALLBACK_PATH);
     }
 
     private function successPage(string $connectionId, string $provider): string

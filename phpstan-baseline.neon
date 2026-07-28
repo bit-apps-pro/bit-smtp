@@ -2713,12 +2713,6 @@ parameters:
 			path: backend/app/Views/EmailTemplate.php
 
 		-
-			message: '#^Argument of an invalid type BitApps\\SMTP\\Deps\\BitApps\\WPKit\\Hooks\\HooksWrapper supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: backend/app/Views/Layout.php
-
-		-
 			message: '#^Method BitApps\\SMTP\\Views\\Layout\:\:RemoveAdminNotices\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1

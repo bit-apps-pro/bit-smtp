@@ -87,6 +87,23 @@ final class OAuthRouteTest extends IntegrationTestCase
         $this->assertSame([], $this->callbacksFor('parse_request', WebhookRouter::class, 'match'));
     }
 
+    public function testStaticRouterLifecycleHooksUseTheCorrectCallbacks(): void
+    {
+        $callbacks = $this->callbacksFor('template_redirect', OAuthCallbackRouter::class, 'dispatch');
+
+        $this->assertCount(1, $callbacks);
+
+        $property       = new ReflectionProperty(OAuthCallbackRouter::class, 'staticRouter');
+        $staticRouter   = $property->getValue($callbacks[0][0]);
+        $activateHook   = Config::withPrefix('activate');
+        $deactivateHook = Config::withPrefix('deactivate');
+
+        $this->assertSame(10, has_action($activateHook, [$staticRouter, 'flushOnActivate']));
+        $this->assertFalse(has_action($activateHook, [$staticRouter, 'flushOnDeactivate']));
+        $this->assertSame(10, has_action($deactivateHook, [$staticRouter, 'flushOnDeactivate']));
+        $this->assertFalse(has_action($deactivateHook, [$staticRouter, 'flushOnActivate']));
+    }
+
     /**
      * Guards the OAuth flow's persistence contract: the consent handshake is worthless if the
      * connection's client_id and the stored token expiry do not survive a save round-trip.

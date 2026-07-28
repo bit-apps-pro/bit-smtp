@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Mail\Providers;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Exceptions\DuplicateProviderException;
 use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
+use BitApps\SMTP\Mail\OAuth\OAuthCallbackUrl;
 use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
 
 class ProviderRegistry
@@ -48,12 +49,12 @@ class ProviderRegistry
     }
 
     /**
-     * @return array<int, array{key: string, label: string, kind: string, supports_webhook: bool, supports_webhook_provisioning: bool, fields: array}>
+     * @return array<int, array{key: string, label: string, kind: string, supports_webhook: bool, supports_webhook_provisioning: bool, oauth_redirect_url?: string, fields: array}>
      */
     public function metadata(): array
     {
         return array_values(array_map(static function (ProviderInterface $provider): array {
-            return [
+            $metadata = [
                 'key'                           => $provider->key(),
                 'label'                         => $provider->label(),
                 'kind'                          => $provider->kind(),
@@ -61,6 +62,12 @@ class ProviderRegistry
                 'supports_webhook_provisioning' => WebhookProvisionerFactory::supportsProvider($provider->key()),
                 'fields'                        => $provider->fields(),
             ];
+
+            if (($provider->authConfig()['type'] ?? null) === 'oauth2') {
+                $metadata['oauth_redirect_url'] = OAuthCallbackUrl::get();
+            }
+
+            return $metadata;
         }, $this->providers));
     }
 }
