@@ -39,7 +39,3 @@ Route::group(function () {
     Route::post('mail/connections/test', [ConnectionController::class, 'test']);
     Route::get('mail/oauth/authorize', [OAuthController::class, 'authorize']);
 })->middleware('cap:admin');
-
-// Public: the OAuth provider redirects the browser here. No nonce is possible on a cross-site
-// redirect, so it is secured by the signed `state` verified inside the controller.
-Route::get('mail/oauth/callback', [OAuthController::class, 'callback']);

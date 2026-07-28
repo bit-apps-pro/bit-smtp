@@ -4,11 +4,16 @@ namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Router;
+use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\StaticRouter;
+use BitApps\SMTP\HTTP\Controllers\OAuthController;
+use BitApps\SMTP\HTTP\OAuth\OAuthCallbackRouter;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\HTTP\Webhook\WebhookRouter;
+use ReflectionProperty;
 
 /**
- * Verifies the OAuth routes are wired with the right protection: `authorize` inside the
- * `cap:admin` group, `callback` public (state-gated) outside it.
+ * Verifies OAuth authorization remains protected by REST while the public callback uses the exact
+ * static route ahead of dynamic webhook dispatch.
  *
  * @internal
  *
@@ -43,7 +48,7 @@ final class OAuthRouteTest extends IntegrationTestCase
         $prefix = '/' . Config::SLUG . '/v' . Config::API_VERSION;
 
         $this->assertArrayHasKey($prefix . '/mail/oauth/authorize', $routes);
-        $this->assertArrayHasKey($prefix . '/mail/oauth/callback', $routes);
+        $this->assertArrayNotHasKey($prefix . '/mail/oauth/callback', $routes);
     }
 
     public function testAuthorizeIsBehindCapAdminMiddleware(): void
@@ -52,11 +57,34 @@ final class OAuthRouteTest extends IntegrationTestCase
         $this->assertContains('cap:admin', $this->routesByPath['mail/oauth/authorize']->getMiddleware());
     }
 
-    public function testCallbackIsPublicWithoutCapMiddleware(): void
+    public function testCallbackIsRegisteredAsOneExactStaticGetRoute(): void
     {
-        $this->assertArrayHasKey('mail/oauth/callback', $this->routesByPath);
-        $this->assertNotContains('cap:admin', $this->routesByPath['mail/oauth/callback']->getMiddleware());
-        $this->assertEmpty($this->routesByPath['mail/oauth/callback']->getMiddleware());
+        $callbacks = $this->callbacksFor('template_redirect', OAuthCallbackRouter::class, 'dispatch');
+
+        $this->assertCount(1, $callbacks);
+
+        $property     = new ReflectionProperty(OAuthCallbackRouter::class, 'staticRouter');
+        $staticRouter = $property->getValue($callbacks[0][0]);
+        $routes       = $staticRouter->getRouter()->getRoutes();
+
+        $this->assertCount(1, $routes);
+        $this->assertSame(['GET'], $routes[0]->getMethods());
+        $this->assertSame('oauth/callback', $routes[0]->getPath());
+        $this->assertSame([OAuthController::class, 'callback'], $routes[0]->getAction());
+    }
+
+    public function testExactCallbackRunsBeforeDynamicWebhookDispatch(): void
+    {
+        $oauthCallbacks   = $this->callbacksFor('template_redirect', OAuthCallbackRouter::class, 'dispatch');
+        $webhookCallbacks = $this->callbacksFor('template_redirect', WebhookRouter::class, 'match');
+
+        $this->assertCount(1, $oauthCallbacks);
+        $this->assertCount(1, $webhookCallbacks);
+        $this->assertSame(10, has_action('template_redirect', $oauthCallbacks[0]));
+        $this->assertSame(20, has_action('template_redirect', $webhookCallbacks[0]));
+        $this->assertSame([], $this->callbacksFor('template_redirect', StaticRouter::class, 'handleRequest'));
+        $this->assertSame([], $this->callbacksFor('parse_request', OAuthCallbackRouter::class, 'dispatch'));
+        $this->assertSame([], $this->callbacksFor('parse_request', WebhookRouter::class, 'match'));
     }
 
     /**
@@ -85,5 +113,34 @@ final class OAuthRouteTest extends IntegrationTestCase
         $this->assertSame('my-client.apps.googleusercontent.com', $connection->setting('client_id'));
         $this->assertSame(1700000000, $connection->setting('token_expires_at'));
         $this->assertSame('the-refresh-token', $connection->getCredentials()['refresh_token']['value']);
+    }
+
+    /**
+     * @return array<int,array{0: object, 1: string}>
+     */
+    private function callbacksFor(string $hook, string $class, string $method): array
+    {
+        global $wp_filter;
+
+        if (!isset($wp_filter[$hook])) {
+            return [];
+        }
+
+        $callbacks = [];
+        foreach ($wp_filter[$hook]->callbacks as $priorityCallbacks) {
+            foreach ($priorityCallbacks as $registered) {
+                $callback = $registered['function'];
+                if (
+                    \is_array($callback)
+                    && isset($callback[0], $callback[1])
+                    && $callback[0] instanceof $class
+                    && $callback[1] === $method
+                ) {
+                    $callbacks[] = $callback;
+                }
+            }
+        }
+
+        return $callbacks;
     }
 }

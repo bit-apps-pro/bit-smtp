@@ -9,7 +9,8 @@ use BitApps\SMTP\Mail\Webhook\WebhookRequest;
 
 /**
  * Front-end HTTP entry point for the delivery-webhook endpoint (bit-smtp/{id}/{secret}): matches the
- * request on parse_request, enforces method + body-size limits, then delegates to WebhookController.
+ * request on template_redirect, enforces method + body-size limits, then delegates to
+ * WebhookController.
  */
 final class WebhookRouter
 {
@@ -47,12 +48,10 @@ final class WebhookRouter
     }
 
     /**
-     * parse_request glue: on a webhook match, runs the request end-to-end and terminates; otherwise
-     * returns so WordPress keeps handling the request.
-     *
-     * @param mixed $wp WP object passed by parse_request (unused)
+     * template_redirect glue: on a webhook match, runs the request end-to-end and terminates;
+     * otherwise returns so WordPress keeps handling the request.
      */
-    public function match($wp = null): void
+    public function match(): void
     {
         $path     = wp_parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
         $homePath = wp_parse_url(home_url('/', 'relative'), PHP_URL_PATH);
