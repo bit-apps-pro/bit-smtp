@@ -25,7 +25,7 @@ use Mockery;
  */
 class OAuthControllerTest extends BaseUnitTestCase
 {
-    private const CALLBACK_URL = 'https://site.test/wp-json/bit-smtp/v1/mail/oauth/callback';
+    private const CALLBACK_URL = 'https://site.test/bit-smtp/oauth/callback';
 
     private const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 
@@ -61,7 +61,7 @@ class OAuthControllerTest extends BaseUnitTestCase
 
         Functions\when('__')->returnArg(1);
         Functions\when('wp_salt')->justReturn('unit-test-salt');
-        Functions\when('rest_url')->justReturn(self::CALLBACK_URL);
+        Functions\when('home_url')->justReturn(self::CALLBACK_URL);
         Functions\when('current_user_can')->justReturn(true);
 
         $this->apiClient = Mockery::mock(ApiClient::class);

@@ -7,6 +7,7 @@ use BitApps\SMTP\Mail\Exceptions\DuplicateProviderException;
 use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
+use Brain\Monkey\Functions;
 use Mockery;
 
 /**
@@ -103,12 +104,42 @@ class ProviderRegistryTest extends BaseUnitTestCase
         $this->assertFalse($metadata[0]['supports_webhook_provisioning']);
     }
 
-    private function makeProvider(string $key, string $label = 'Test', string $kind = 'smtp'): ProviderInterface
+    public function testMetadataIncludesRedirectUrlForOAuth2Providers(): void
     {
+        Functions\when('home_url')->justReturn('https://site.test/bit-smtp/oauth/callback');
+
+        $registry = new ProviderRegistry();
+        $registry->register($this->makeProvider('oauth_provider', 'OAuth Provider', 'api', 'oauth2'));
+
+        $metadata = $registry->metadata();
+
+        $this->assertSame(
+            'https://site.test/bit-smtp/oauth/callback',
+            $metadata[0]['oauth_redirect_url']
+        );
+    }
+
+    public function testMetadataOmitsRedirectUrlForNonOAuth2Providers(): void
+    {
+        $registry = new ProviderRegistry();
+        $registry->register($this->makeProvider('api_key_provider', 'API Key Provider', 'api', 'bearer'));
+
+        $metadata = $registry->metadata();
+
+        $this->assertArrayNotHasKey('oauth_redirect_url', $metadata[0]);
+    }
+
+    private function makeProvider(
+        string $key,
+        string $label = 'Test',
+        string $kind = 'smtp',
+        string $authType = 'basic'
+    ): ProviderInterface {
         $mock = Mockery::mock(ProviderInterface::class);
         $mock->shouldReceive('key')->andReturn($key);
         $mock->shouldReceive('label')->andReturn($label);
         $mock->shouldReceive('kind')->andReturn($kind);
+        $mock->shouldReceive('authConfig')->andReturn(['type' => $authType, 'params' => []]);
         $mock->shouldReceive('fields')->andReturn([
             ['key' => 'host', 'label' => 'Host', 'type' => 'text', 'required' => true, 'secret' => false],
         ]);

@@ -4,7 +4,7 @@
     "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
     "This file is @generated automatically"
   ],
-  "content-hash": "932e26a7fa13386506a02ed4943dd178",
+  "content-hash": "7da4fa87f511757e891e5f48d88c3033",
   "packages": [
     {
       "name": "bitapps/wp-database",
@@ -59,16 +59,16 @@
     },
     {
       "name": "bitapps/wp-kit",
-      "version": "2.2",
+      "version": "dev-feat/static-router",
       "source": {
         "type": "git",
-        "url": "https://github.com/Bit-Apps-Pro/wp-kit.git",
-        "reference": "6052fcfd1b94ccb452d2cb4ecfd93e63617503e3"
+        "url": "https://github.com/bit-apps-pro/wp-kit.git",
+        "reference": "f27a354f423984e9a61dd960acbcc4cc939298e8"
       },
       "dist": {
         "type": "zip",
-        "url": "https://api.github.com/repos/Bit-Apps-Pro/wp-kit/zipball/6052fcfd1b94ccb452d2cb4ecfd93e63617503e3",
-        "reference": "6052fcfd1b94ccb452d2cb4ecfd93e63617503e3",
+        "url": "https://api.github.com/repos/bit-apps-pro/wp-kit/zipball/f27a354f423984e9a61dd960acbcc4cc939298e8",
+        "reference": "f27a354f423984e9a61dd960acbcc4cc939298e8",
         "shasum": ""
       },
       "require": {
@@ -96,10 +96,10 @@
       "description": "A simple plugin framework",
       "keywords": ["framework", "wordpress", "wp"],
       "support": {
-        "issues": "https://github.com/Bit-Apps-Pro/wp-kit/issues",
-        "source": "https://github.com/Bit-Apps-Pro/wp-kit/tree/2.2"
+        "issues": "https://github.com/bit-apps-pro/wp-kit/issues",
+        "source": "https://github.com/bit-apps-pro/wp-kit/tree/feat/static-router"
       },
-      "time": "2025-11-25T05:45:21+00:00"
+      "time": "2026-07-25T08:56:52+00:00"
     },
     {
       "name": "bitapps/wp-telemetry",
@@ -149,16 +149,16 @@
     },
     {
       "name": "bitapps/wp-validator",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "source": {
         "type": "git",
-        "url": "https://github.com/Bit-Apps-Pro/wp-validator.git",
-        "reference": "856b3685c6e6673af4e3f7fea5083500ce011b99"
+        "url": "https://github.com/bit-apps-pro/wp-validator.git",
+        "reference": "43a6f68414f5c580122f136cda45624e9fcaf837"
       },
       "dist": {
         "type": "zip",
-        "url": "https://api.github.com/repos/Bit-Apps-Pro/wp-validator/zipball/856b3685c6e6673af4e3f7fea5083500ce011b99",
-        "reference": "856b3685c6e6673af4e3f7fea5083500ce011b99",
+        "url": "https://api.github.com/repos/bit-apps-pro/wp-validator/zipball/43a6f68414f5c580122f136cda45624e9fcaf837",
+        "reference": "43a6f68414f5c580122f136cda45624e9fcaf837",
         "shasum": ""
       },
       "require": {
@@ -202,7 +202,7 @@
         "issues": "https://github.com/Bit-Apps-Pro/wp-validator/issues",
         "source": "https://github.com/Bit-Apps-Pro/wp-validator"
       },
-      "time": "2026-02-02T07:09:21+00:00"
+      "time": "2026-03-31T05:04:09+00:00"
     },
     {
       "name": "typisttech/imposter",
@@ -5062,7 +5062,9 @@
   ],
   "aliases": [],
   "minimum-stability": "stable",
-  "stability-flags": {},
+  "stability-flags": {
+    "bitapps/wp-kit": 20
+  },
   "prefer-stable": false,
   "prefer-lowest": false,
   "platform": {
