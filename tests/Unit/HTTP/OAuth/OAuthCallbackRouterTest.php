@@ -7,6 +7,7 @@ use BitApps\SMTP\HTTP\OAuth\OAuthCallbackRouter;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Closure;
+use RuntimeException;
 
 /**
  * @internal
@@ -140,26 +141,50 @@ final class OAuthCallbackRouterTest extends BaseUnitTestCase
         }
     }
 
-    public function testDispatchRejectsPostOnExactCallbackWithoutCallingStaticRouter(): void
+    public function testDispatchRejectsPostAndTerminatesBeforeLaterHandlers(): void
     {
         Functions\when('home_url')->justReturn('https://example.test/');
-        Functions\expect('status_header')->once()->with(405);
+
+        $status = null;
+        Functions\when('status_header')->alias(static function (int $code) use (&$status): void {
+            $status = $code;
+        });
 
         $originalServer            = $_SERVER;
         $_SERVER['REQUEST_METHOD'] = 'POST';
         $_SERVER['REQUEST_URI']    = '/bit-smtp/oauth/callback?code=abc&state=xyz';
         $staticRouter              = new OAuthCallbackStaticRouterSpy();
         $terminateCalls            = 0;
+        $laterHandlerCalled        = false;
 
         try {
-            (new OAuthCallbackRouter(
+            $adapter = new OAuthCallbackRouter(
                 $staticRouter,
-                static function () use (&$terminateCalls): void {
+                static function () use (&$terminateCalls, &$status): void {
                     ++$terminateCalls;
+                    self::assertSame(405, $status);
+
+                    throw new RuntimeException('Request terminated.');
                 }
-            ))->dispatch();
+            );
+
+            try {
+                $templateRedirectHandlers = [
+                    10 => [$adapter, 'dispatch'],
+                    20 => static function () use (&$laterHandlerCalled): void {
+                        $laterHandlerCalled = true;
+                    },
+                ];
+
+                foreach ($templateRedirectHandlers as $handler) {
+                    $handler();
+                }
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Request terminated.', $exception->getMessage());
+            }
 
             $this->assertSame(1, $terminateCalls);
+            $this->assertFalse($laterHandlerCalled);
             $this->assertSame(0, $staticRouter->handleRequestCalls);
             $this->assertSame(
                 '/bit-smtp/oauth/callback?code=abc&state=xyz',
