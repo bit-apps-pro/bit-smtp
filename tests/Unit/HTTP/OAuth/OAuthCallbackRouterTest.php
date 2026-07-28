@@ -149,10 +149,17 @@ final class OAuthCallbackRouterTest extends BaseUnitTestCase
         $_SERVER['REQUEST_METHOD'] = 'POST';
         $_SERVER['REQUEST_URI']    = '/bit-smtp/oauth/callback?code=abc&state=xyz';
         $staticRouter              = new OAuthCallbackStaticRouterSpy();
+        $terminateCalls            = 0;
 
         try {
-            (new OAuthCallbackRouter($staticRouter))->dispatch();
+            (new OAuthCallbackRouter(
+                $staticRouter,
+                static function () use (&$terminateCalls): void {
+                    ++$terminateCalls;
+                }
+            ))->dispatch();
 
+            $this->assertSame(1, $terminateCalls);
             $this->assertSame(0, $staticRouter->handleRequestCalls);
             $this->assertSame(
                 '/bit-smtp/oauth/callback?code=abc&state=xyz',

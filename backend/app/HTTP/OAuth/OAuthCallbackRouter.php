@@ -7,6 +7,7 @@ namespace BitApps\SMTP\HTTP\OAuth;
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Router;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\StaticRouter;
+use Closure;
 use UnexpectedValueException;
 
 final class OAuthCallbackRouter
@@ -19,10 +20,15 @@ final class OAuthCallbackRouter
 
     private string $deactivationHook;
 
-    public function __construct(?StaticRouter $staticRouter = null)
+    private Closure $terminate;
+
+    public function __construct(?StaticRouter $staticRouter = null, ?Closure $terminate = null)
     {
         $this->activationHook   = self::hookName(Config::withPrefix('activate'));
         $this->deactivationHook = self::hookName(Config::withPrefix('deactivate'));
+        $this->terminate        = $terminate ?? static function (): void {
+            exit;
+        };
 
         if ($staticRouter === null) {
             new Router('static', Config::SLUG, '');
@@ -61,6 +67,7 @@ final class OAuthCallbackRouter
 
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
             status_header(405);
+            ($this->terminate)();
 
             return;
         }
