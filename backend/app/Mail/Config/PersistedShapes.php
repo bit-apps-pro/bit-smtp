@@ -24,6 +24,7 @@ namespace BitApps\SMTP\Mail\Config;
  * @phpstan-type ProviderMetadataShape array{
  *   key: string, label: string, kind: string,
  *   supports_webhook: bool, supports_webhook_provisioning: bool,
+ *   oauth_redirect_url?: string,
  *   fields: list<array<string, mixed>>
  * }
  */

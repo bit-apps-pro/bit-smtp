@@ -161,7 +161,8 @@
                 "options": [],
                 "dependsOn": null
             }
-        ]
+        ],
+        "oauth_redirect_url": "http://example.org/bit-smtp/oauth/callback"
     },
     {
         "key": "amazon_ses",
@@ -239,7 +240,7 @@
         "label": "Postmark",
         "kind": "api",
         "supports_webhook": true,
-        "supports_webhook_provisioning": false,
+        "supports_webhook_provisioning": true,
         "fields": [
             {
                 "key": "api_key",
@@ -259,7 +260,7 @@
         "label": "Brevo",
         "kind": "api",
         "supports_webhook": true,
-        "supports_webhook_provisioning": false,
+        "supports_webhook_provisioning": true,
         "fields": [
             {
                 "key": "api_key",
@@ -279,7 +280,7 @@
         "label": "Resend",
         "kind": "api",
         "supports_webhook": true,
-        "supports_webhook_provisioning": false,
+        "supports_webhook_provisioning": true,
         "fields": [
             {
                 "key": "api_key",
@@ -310,7 +311,7 @@
         "label": "Mailjet",
         "kind": "api",
         "supports_webhook": true,
-        "supports_webhook_provisioning": false,
+        "supports_webhook_provisioning": true,
         "fields": [
             {
                 "key": "api_key",
@@ -396,7 +397,7 @@
         "label": "Mailgun",
         "kind": "api",
         "supports_webhook": true,
-        "supports_webhook_provisioning": false,
+        "supports_webhook_provisioning": true,
         "fields": [
             {
                 "key": "api_key",
@@ -458,7 +459,7 @@
         "label": "SparkPost",
         "kind": "api",
         "supports_webhook": true,
-        "supports_webhook_provisioning": false,
+        "supports_webhook_provisioning": true,
         "fields": [
             {
                 "key": "api_key",
@@ -544,6 +545,7 @@
                 "options": [],
                 "dependsOn": null
             }
-        ]
+        ],
+        "oauth_redirect_url": "http://example.org/bit-smtp/oauth/callback"
     }
 ]

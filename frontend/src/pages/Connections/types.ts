@@ -30,6 +30,8 @@ export interface ProviderMeta {
   supports_webhook?: boolean
   // Provider can create its own webhook via API (drives the "Create webhook" button).
   supports_webhook_provisioning?: boolean
+  // Exact callback URL users must register with an OAuth2 provider.
+  oauth_redirect_url?: string
   fields: FieldMeta[]
 }
 

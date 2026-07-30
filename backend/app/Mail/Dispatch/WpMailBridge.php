@@ -18,6 +18,8 @@ use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingContext;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Routing\RoutingRules;
+use BitApps\SMTP\Mail\Status\DeliveryStatus;
+use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
 use BitApps\SMTP\Plugin;
 use InvalidArgumentException;
 use WP_Error;
@@ -258,9 +260,9 @@ class WpMailBridge
                     // verified webhook or an authoritative status stamped at hand-off.
                     $winningTrackingId = $trackingId;
                     $winningMessageId  = $lastResult->getMessageId();
-                    // A fully-ok send over a provider with no async delivery feed stamps its delivery
-                    // status straight from the hand-off (an accepted-but-partial send is a failure row).
-                    $winningDeliveryStatus = $succeeded && $provider !== null ? $provider->deliveryStatusOnAccept() : null;
+                    // A fully-ok send stamps its delivery status straight from the hand-off (an
+                    // accepted-but-partial send is a failure row and stays unstamped).
+                    $winningDeliveryStatus = $this->resolveAcceptedDeliveryStatus($succeeded, $provider, $connection);
 
                     break;
                 }
@@ -295,6 +297,36 @@ class WpMailBridge
         } catch (ProviderNotFoundException $e) {
             return null;
         }
+    }
+
+    /**
+     * Delivery status to stamp on an accepted hand-off. The provider's explicit opinion wins (e.g. SES
+     * reports delivered on accept); otherwise a connection that can never receive a delivery webhook is
+     * marked delivered so its row does not sit "pending" forever, while a webhook-backed connection is
+     * left unstamped for the inbound event to resolve.
+     */
+    private function resolveAcceptedDeliveryStatus(bool $succeeded, ?ProviderInterface $provider, Connection $connection): ?string
+    {
+        if (!$succeeded || $provider === null) {
+            return null;
+        }
+
+        $explicit = $provider->deliveryStatusOnAccept();
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        return $this->deliveryWebhookExpected($connection) ? null : DeliveryStatus::DELIVERED;
+    }
+
+    /**
+     * Whether a delivery webhook can still report an outcome for this connection — true only when the
+     * provider has an inbound adapter AND the connection has the webhook enabled.
+     */
+    private function deliveryWebhookExpected(Connection $connection): bool
+    {
+        return WebhookAdapterFactory::supportsProvider($connection->getProvider())
+            && $connection->isWebhookEnabled();
     }
 
     /**

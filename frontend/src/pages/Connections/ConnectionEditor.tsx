@@ -254,13 +254,24 @@ export default function ConnectionEditor({
   const oauthField = provider.fields.find(field => field.type === 'oauth')
   const inputFields = provider.fields.filter(field => field.type !== 'oauth')
   const supportsWebhook = provider.supports_webhook === true
-  const hasProviderConfiguration = inputFields.length > 0 || oauthField !== undefined || supportsWebhook
+  const hasProviderConfiguration =
+    inputFields.length > 0 ||
+    oauthField !== undefined ||
+    provider.oauth_redirect_url !== undefined ||
+    supportsWebhook
 
   const buildPayload = () => buildConnectionPayload(form.getFieldsValue(true), connection, provider)
 
   const handleFinish = async (values: ConnectionFormValues) => {
-    await mutateAsync(buildConnectionPayload(values, connection, provider))
+    const response = await mutateAsync(buildConnectionPayload(values, connection, provider))
     notify.success(__('Connection saved'))
+
+    const webhook = (response?.data as { webhook?: { status?: string; message?: string } } | undefined)
+      ?.webhook
+    if (webhook?.status === 'warning' && webhook.message) {
+      notify.warning(webhook.message)
+    }
+
     onSaved()
   }
 
@@ -293,6 +304,16 @@ export default function ConnectionEditor({
 
         {hasProviderConfiguration ? (
           <FormSection title={__('Credentials & settings')}>
+            {provider.oauth_redirect_url ? (
+              <Form.Item label={__('Redirect URI')}>
+                <Paragraph
+                  copyable={{ text: provider.oauth_redirect_url }}
+                  style={{ marginBottom: 0, wordBreak: 'break-all' }}
+                >
+                  {provider.oauth_redirect_url}
+                </Paragraph>
+              </Form.Item>
+            ) : null}
             <ProviderFields fields={inputFields} />
             {oauthField ? (
               <Form.Item label={oauthField.label}>

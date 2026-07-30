@@ -20,6 +20,11 @@ describe('REST contract → frontend types', () => {
 
     const sendgrid = providers.find(p => p.key === 'sendgrid')
     expect(sendgrid?.supports_webhook_provisioning).toBe(true)
+
+    const oauthRedirectUrl = 'http://example.org/bit-smtp/oauth/callback'
+    expect(providers.find(p => p.key === 'gmail')?.oauth_redirect_url).toBe(oauthRedirectUrl)
+    expect(providers.find(p => p.key === 'microsoft365')?.oauth_redirect_url).toBe(oauthRedirectUrl)
+    expect(sendgrid).not.toHaveProperty('oauth_redirect_url')
   })
 
   it('settings fixture satisfies MailSettings and preserves credential/settings maps', () => {

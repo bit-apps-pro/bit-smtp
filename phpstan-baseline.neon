@@ -2053,12 +2053,6 @@ parameters:
 			path: backend/app/Mail/Providers/SendGrid/SendGridValidator.php
 
 		-
-			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridWebhookService\:\:findWebhookId\(\) has parameter \$body with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: backend/app/Mail/Providers/SendGrid/SendGridWebhookService.php
-
-		-
 			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SparkPost\\SparkPostPayloadBuilder\:\:build\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

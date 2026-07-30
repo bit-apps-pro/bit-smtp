@@ -16,6 +16,8 @@ class ApiClient
 
     private array $headers = [];
 
+    private ?int $timeout = null;
+
     public function __construct(HttpClient $http)
     {
         $this->http = $http;
@@ -26,6 +28,20 @@ class ApiClient
         $this->headers = $headers;
 
         return $this;
+    }
+
+    /**
+     * A clone with a request timeout applied. Left unset, HttpClient's own default applies; callers that
+     * must not hang a foreground request (e.g. webhook provisioning during an admin save) lower it. A
+     * clone (not $this) so a lowered timeout — and the callee's own header mutations — never leak back
+     * onto the shared ApiClient singleton for the rest of the request.
+     */
+    public function withTimeout(?int $seconds): self
+    {
+        $clone          = clone $this;
+        $clone->timeout = $seconds;
+
+        return $clone;
     }
 
     public function addHeader(string $key, string $value): self
@@ -107,7 +123,12 @@ class ApiClient
         // or MITM'd provider could 30x us to an internal host (169.254.169.254, localhost) and have WP
         // replay the Authorization/api-key header there. Every provider endpoint answers directly, so
         // pinning redirection to 0 costs nothing and closes the upstream-driven SSRF vector.
-        $result = $this->http->request($url, $method, $this->prepareBody($body), $this->headers, ['redirection' => 0]);
+        $options = ['redirection' => 0];
+        if ($this->timeout !== null) {
+            $options['timeout'] = $this->timeout;
+        }
+
+        $result = $this->http->request($url, $method, $this->prepareBody($body), $this->headers, $options);
 
         if (is_wp_error($result)) {
             return new ApiResponse(0, implode(', ', $result->get_error_messages()), []);

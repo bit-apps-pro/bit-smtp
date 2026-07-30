@@ -19,6 +19,7 @@ use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\TelemetryConfig;
 use BitApps\SMTP\HTTP\Middleware\CapabilityCheckerMiddleware;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\HTTP\Services\WebhookProvisioningService;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
@@ -49,6 +50,7 @@ use BitApps\SMTP\Mail\Providers\Resend\ResendProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridProvider;
 use BitApps\SMTP\Mail\Providers\SendGrid\SendGridTransport;
 use BitApps\SMTP\Mail\Providers\SparkPost\SparkPostProvider;
+use BitApps\SMTP\Mail\Providers\WebhookProvisionerFactory;
 use BitApps\SMTP\Mail\Providers\Zepto\ZeptoProvider;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
@@ -215,6 +217,37 @@ final class Plugin
         }
 
         return $this->_container['apiClient'];
+    }
+
+    /**
+     * Resolves connection-independent HTTP auth strategies. Built lazily (mirroring apiClient) so it
+     * works even before registerProviders() has run and without assuming container build order.
+     */
+    public function authResolver(): AuthorizationResolver
+    {
+        if (!isset($this->_container['authResolver'])) {
+            $this->_container['authResolver'] = new AuthorizationResolver(
+                new OAuth2TokenProvider($this->apiClient(), $this->mailConfigService()),
+                new SigV4Signer()
+            );
+        }
+
+        return $this->_container['authResolver'];
+    }
+
+    public function webhookProvisioningService(): WebhookProvisioningService
+    {
+        if (!isset($this->_container['webhookProvisioningService'])) {
+            $this->_container['webhookProvisioningService'] = new WebhookProvisioningService(
+                $this->mailConfigService(),
+                $this->providerRegistry(),
+                $this->authResolver(),
+                $this->apiClient(),
+                new WebhookProvisionerFactory()
+            );
+        }
+
+        return $this->_container['webhookProvisioningService'];
     }
 
     /**

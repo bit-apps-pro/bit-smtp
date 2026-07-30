@@ -280,9 +280,31 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertTrue($succeeded);
     }
 
-    public function testProviderWithoutAcceptDeliveryStampsNoStatus(): void
+    public function testNoWebhookProviderStampsDeliveredOnSuccess(): void
     {
+        // A provider with no inbound delivery webhook can never receive a delivery event, so a
+        // successful hand-off is stamped delivered rather than left pending forever.
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]));
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return $logs[0]['delivery_status']     === 'delivered'
+                    && $logs[0]['delivery_updated_at'] !== null;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $this->invokeDispatch($bridge, [$this->connection()], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
+    }
+
+    public function testWebhookBackedProviderLeavesDeliveryPendingOnSuccess(): void
+    {
+        // A provider with an inbound adapter and the webhook enabled reports delivery asynchronously,
+        // so the row is left unstamped for the inbound event to resolve.
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), null, 'postmark');
 
         $logService = Mockery::mock(LogService::class);
         $logService->shouldReceive('bulkInsert')
@@ -295,7 +317,31 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->setContext($bridge, new SendContext());
         $this->setLoggingEnabled($bridge, true);
 
-        $this->invokeDispatch($bridge, [$this->connection()], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
+        $this->invokeDispatch($bridge, [$this->connection(['provider' => 'postmark'])], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
+    }
+
+    public function testWebhookBackedProviderWithWebhookDisabledStampsDelivered(): void
+    {
+        // The adapter exists but the connection disabled the webhook, so nothing will ever report — the
+        // accepted hand-off is the final signal and is stamped delivered.
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), null, 'postmark');
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return $logs[0]['delivery_status'] === 'delivered';
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $this->invokeDispatch(
+            $bridge,
+            [$this->connection(['provider' => 'postmark', 'settings' => ['webhook_enabled' => false]])],
+            $this->message(),
+            ['subject' => 'Hi', 'to' => ['a@example.org']]
+        );
     }
 
     public function testAcceptedWithErrorNeverStampsDeliveryStatus(): void
@@ -429,10 +475,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         return $bridge;
     }
 
-    private function bridgeWithTransport(TransportInterface $transport, ?string $deliveryStatusOnAccept = null): WpMailBridge
+    private function bridgeWithTransport(TransportInterface $transport, ?string $deliveryStatusOnAccept = null, string $providerKey = 'fake'): WpMailBridge
     {
         $registry = new ProviderRegistry();
-        $registry->register(new FakeProvider($transport, $deliveryStatusOnAccept));
+        $registry->register(new FakeProvider($transport, $deliveryStatusOnAccept, $providerKey));
 
         $refClass = new ReflectionClass(WpMailBridge::class);
         $bridge   = $refClass->newInstanceWithoutConstructor();
@@ -529,15 +575,18 @@ final class FakeProvider implements ProviderInterface
 
     private ?string $deliveryStatusOnAccept;
 
-    public function __construct(TransportInterface $transport, ?string $deliveryStatusOnAccept = null)
+    private string $providerKey;
+
+    public function __construct(TransportInterface $transport, ?string $deliveryStatusOnAccept = null, string $providerKey = 'fake')
     {
         $this->transport              = $transport;
         $this->deliveryStatusOnAccept = $deliveryStatusOnAccept;
+        $this->providerKey            = $providerKey;
     }
 
     public function key(): string
     {
-        return 'fake';
+        return $this->providerKey;
     }
 
     public function label(): string

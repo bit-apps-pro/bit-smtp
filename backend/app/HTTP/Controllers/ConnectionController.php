@@ -14,7 +14,6 @@ use BitApps\SMTP\Mail\Contracts\MessageStatusCheckerInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\SendResult;
-use BitApps\SMTP\Mail\Providers\WebhookProvisionerFactory;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Mail\Status\StatusCheckerRegistry;
 use BitApps\SMTP\Mail\Validation\RequiredFieldsValidator;
@@ -49,11 +48,18 @@ class ConnectionController
             return $validationError;
         }
 
-        if (!Plugin::instance()->mailConfigService()->saveConnection($data)) {
+        $connId = Plugin::instance()->mailConfigService()->upsertConnection($data);
+        if ($connId === null) {
             return Response::error(__('Failed to save connection', 'bit-smtp'));
         }
 
-        return Response::success(__('Connection saved', 'bit-smtp'));
+        // Re-load so the minted webhook secret and decrypted credentials the provisioner needs exist.
+        $connection = Plugin::instance()->mailConfigService()->connectionById($connId);
+        $webhook    = $connection !== null
+            ? Plugin::instance()->webhookProvisioningService()->provisionOnSave($connection)
+            : ['status' => 'skipped'];
+
+        return Response::success(['webhook' => $webhook])->message(__('Connection saved', 'bit-smtp'));
     }
 
     public function delete(ConnectionDeleteRequest $request)
@@ -75,22 +81,7 @@ class ConnectionController
                 return Response::error(__('A saved connection is required.', 'bit-smtp'));
             }
 
-            $provisioner = (new WebhookProvisionerFactory())
-                ->forProvider($connection->getProvider(), Plugin::instance()->apiClient());
-            if ($provisioner === null) {
-                return Response::error(__('This provider does not support automatic webhook creation.', 'bit-smtp'));
-            }
-
-            $result = $provisioner->ensure($connection);
-
-            // Persist provider-supplied signature material so inbound webhooks can be verified.
-            if (isset($result['public_key'])) {
-                Plugin::instance()->mailConfigService()->updateConnectionSettings($connection->getId(), [
-                    'webhook_signature_enabled' => true,
-                    'webhook_public_key'        => $result['public_key'],
-                ]);
-                unset($result['public_key']);
-            }
+            $result = Plugin::instance()->webhookProvisioningService()->ensureFor($connection);
 
             return Response::success($result)->message(
                 !empty($result['created'])

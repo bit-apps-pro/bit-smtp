@@ -161,7 +161,8 @@
         "options": [],
         "dependsOn": null
       }
-    ]
+    ],
+    "oauth_redirect_url": "http://example.org/bit-smtp/oauth/callback"
   },
   {
     "key": "amazon_ses",
@@ -544,6 +545,7 @@
         "options": [],
         "dependsOn": null
       }
-    ]
+    ],
+    "oauth_redirect_url": "http://example.org/bit-smtp/oauth/callback"
   }
 ]

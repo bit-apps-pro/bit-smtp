@@ -50,6 +50,14 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         $this->assertSame('api', $byKey['sparkpost']['kind']);
         $this->assertSame('api', $byKey['microsoft365']['kind']);
 
+        $oauthRedirectUrl = 'http://example.org/bit-smtp/oauth/callback';
+        foreach (['gmail', 'microsoft365'] as $key) {
+            $this->assertSame($oauthRedirectUrl, $byKey[$key]['oauth_redirect_url'], "{$key} must expose the exact OAuth callback URL");
+        }
+        foreach (['other_smtp', 'php_sendmail', 'sendgrid', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost'] as $key) {
+            $this->assertArrayNotHasKey('oauth_redirect_url', $byKey[$key], "{$key} must not expose an OAuth callback URL");
+        }
+
         foreach (['sendgrid', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost'] as $key) {
             $this->assertTrue($byKey[$key]['supports_webhook'], "{$key} must expose its live webhook receiver");
         }
@@ -57,9 +65,12 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
             $this->assertFalse($byKey[$key]['supports_webhook'], "{$key} must not advertise an unimplemented webhook");
         }
 
-        // Only SendGrid can create its own webhook via API; every other provider needs a pasted URL.
-        $this->assertTrue($byKey['sendgrid']['supports_webhook_provisioning'], 'sendgrid provisions its own webhook via API');
-        foreach (['other_smtp', 'php_sendmail', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost', 'microsoft365'] as $key) {
+        // Providers with an API to register their own webhook advertise provisioning; ZeptoMail has no
+        // such API and the non-webhook providers have no receiver, so both stay manual/absent.
+        foreach (['sendgrid', 'brevo', 'postmark', 'sparkpost', 'mailgun', 'mailjet', 'resend'] as $key) {
+            $this->assertTrue($byKey[$key]['supports_webhook_provisioning'], "{$key} provisions its own webhook via API");
+        }
+        foreach (['other_smtp', 'php_sendmail', 'gmail', 'amazon_ses', 'zeptomail', 'microsoft365'] as $key) {
             $this->assertFalse($byKey[$key]['supports_webhook_provisioning'], "{$key} must not advertise API webhook provisioning");
         }
 

@@ -7,13 +7,15 @@ Requires PHP: 8.1
 Stable tag: 1.2.4
 License: GPLv2 or later
 
-SMTP plugin for reliable and secure email delivery. Connect with Gmail, Outlook, Sendgrid, Brevo, MailGun, Amazon SES, and more mail SMTP servers.
+SMTP plugin for reliable, secure email delivery. Connect Gmail, Outlook, SendGrid, Brevo, Mailgun, Amazon SES, Postmark, and more via API, OAuth, or SMTP.
 
 == Description ==
 
 ## SMTP Plugin for WordPress for Reliable and Secure Email Delivery | Complete Free SMTP Solution with Detailed Email Logs
 
-**Easily fix WordPress email delivery issues. Connect with Gmail SMTP, SendGrid, Amazon SES, Outlook, Mailgun, and more SMTP services to keep your site communication dependable and secure.**
+**Easily fix WordPress email delivery issues. Connect with Gmail, Outlook/Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, and more — over their fast API, secure OAuth, or classic SMTP — to keep your site communication dependable and secure.**
+
+Add multiple sending connections, set a priority order so delivery automatically **falls back** to the next provider if one fails, track the **real delivery status** (delivered / bounced) of each email, and get **alerts** when sending fails — all free.
 
 ## Is your WordPress not sending emails, or are they going to spam?
 
@@ -33,11 +35,11 @@ Using an SMTP server authenticates your website's emails, proving they are from 
 
 Getting started with Bit SMTP is simple:
 
-1. **Sign up with an email provider:** Choose Gmail, Mailgun, Yahoo, Zoho Mail, or your favorite.
-2. **Get your SMTP details:** Your provider gives you the host, port, and encryption info.
-3. **Add these details in Bit SMTP:** Go to your WordPress dashboard. Add your SMTP details.
-4. **Send a test email:** Make sure emails go out. Now, every message uses a secure SMTP connection.
-5. **Enable email logs:** You will see detailed email logs from the Bit SMTP dashboard.
+1. **Sign up with an email provider:** Choose Gmail, Outlook/Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, or any SMTP server.
+2. **Add a connection:** In the Bit SMTP dashboard click **Add connection** and pick your provider from the grid.
+3. **Enter your credentials:** Paste the provider's API key (or SMTP host/port/username/password). For Gmail and Microsoft 365, click **Connect** to authorize securely over OAuth — no password stored.
+4. **Send a test email:** Run **Test** to confirm delivery. Your credentials are encrypted at rest before they're saved.
+5. **Enable email logs:** View detailed logs — including each email's real delivery status — from the Bit SMTP dashboard.
 
 Your provider handles delivery, ensuring your WordPress emails arrive securely every time.
 
@@ -45,117 +47,74 @@ Your provider handles delivery, ensuring your WordPress emails arrive securely e
 
 [Bit SMTP](https://bitapps.pro/bit-smtp/) gives you all the tools you need to send emails from WordPress safely and reliably.
 
-- **Connect to Any SMTP Server:** Easily integrate with top SMTP Mail services like Gmail, Outlook, Amazon SES, SendGrid, Mailgun, and more.
-- **Secure Mail Delivery:** Send emails with SSL/TLS encryption for secure transmission.
+- **Dedicated Provider Integrations:** Send over each provider's own API — SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost — plus Gmail and Microsoft 365, any SMTP server, and PHP mail().
+- **Secure OAuth for Gmail & Microsoft 365:** Authorize with one click; the plugin stores refresh tokens, never your account password.
+- **Multiple Connections with Automatic Fallback:** Add several connections and set a priority order. If the top provider fails, Bit SMTP automatically retries the next one so your mail still goes out.
+- **Smart Routing:** Route mail to a specific connection by recipient, from address, subject, or the sending plugin.
+- **Real Delivery Tracking:** Provider webhooks report each email's true outcome — Delivered, Bounced, Blocked, Deferred — shown in a separate Delivery column, not just "accepted".
+- **Failure Alerts:** Get notified by email or webhook when a send fails, so a broken provider never goes unnoticed.
+- **Encrypted Credentials at Rest:** API keys and secrets are stored with authenticated AES-256-GCM encryption.
 - **Customizable Reply-To:** Set a custom Reply-To address for managing responses.
-- **Quick Setup:** Get started with simple setup steps and configure your emails within minutes.
-- **Free and Fully Functional:** All features are completely free. No premium plan required
-- **Details Email Logs:** You can view detailed logs of every email sent through your SMTP in the Bit SMTP dashboard. Set how long to keep the logs with a date range. You can also search logs by email address.
+- **Quick Setup:** Pick a provider, paste a key (or click Connect), and send — configured in minutes.
+- **Free and Fully Functional:** All features are completely free. No premium plan required.
+- **Detailed Email Logs:** View a log of every email sent, with delivery status and per-recipient detail. Set a retention period and search logs by email address; resend or delete records.
 - **Dark Mode Interface:** Bit SMTP comes with a clean dark mode that’s easy on the eyes and makes your dashboard look great.
 
 ## Simple Setup for SMTP Configuration in WordPress
 
-Get Bit SMTP running in minutes. Just go to **Bit SMTP ▸ Mail Configuration** in your WordPress dashboard.
+Get Bit SMTP running in minutes. Just go to **Bit SMTP ▸ Configuration** in your WordPress dashboard and click **Add connection**.
 
-What to enter:
+Every connection asks for an identity:
 
-* **Enable Mail:** Select yes
-* **From Email Address:** Set the sender’s email
+* **From Email Address:** Set the sender’s email (must be an address you've verified with the provider)
 * **From Name:** Name to show as sender
 * **Reply-To Email Address:** Add if you want replies somewhere specific
-* **SMTP Host:** The mail server, such as smtp.gmail.com for Gmail SMTP
-* **Type of Encryption:** SSL or TLS, as recommended
-* **SMTP Port:** Use the right port number (usually 465 or 587)
-* **SMTP Authentication:** Yes, and then fill in your username and password
-* **Username and Password:** Use details from your email provider
 
-Once you save, Bit SMTP handles the rest. Now, WordPress Mail SMTP is in action, and your emails are safer.
+Then enter the provider's credentials:
+
+* **API providers** (SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost): paste the API key (SES and Mailgun also take a region/domain).
+* **Gmail / Microsoft 365:** enter the Client ID and Secret, then click **Connect** to authorize over OAuth.
+* **Other SMTP:** enter **SMTP Host**, **Port** (usually 465 or 587), **Encryption** (SSL/TLS), and **Username / Password**.
+
+Save, run **Test**, and you're done. Add more connections and drag them into a priority order for automatic fallback.
 
 ## Supported Email Services and SMTP Providers
 
-Bit SMTP is designed to work with almost all popular SMTP providers. You can connect your site to these SMTP mail services. Most of the SMTP providers offer free plans. This flexibility allows you to choose the best option for your needs and budget.
+Bit SMTP ships **dedicated integrations** for the major email services — using each provider's own fast API or secure OAuth — and also works with **any SMTP server**. Most providers offer a free tier, so you can pick the best option for your needs and budget.
 
-Here is a list of popular providers and their SMTP settings:
+**Dedicated API integrations** (paste an API key):
 
-#### **Mailgun SMTP**
+* **SendGrid** — great deliverability; free tier available.
+* **Amazon SES** — best for large volumes; enter Access Key, Secret, and region.
+* **Mailgun** — enter the sending API key, domain, and region (US/EU).
+* **Postmark** — fast transactional delivery (Server API Token).
+* **Brevo (Sendinblue)** — generous free daily tier.
+* **Resend** — modern developer email API.
+* **Mailjet** — API Key + Secret Key.
+* **ZeptoMail (Zoho)** — transactional mail with a Send Mail Token and data center.
+* **SparkPost** — classic Transmissions API (US/EU).
 
-Get 100 free emails per day.
+**OAuth integrations** (one-click Connect, no password stored):
 
-* **Host:** smtp.mailgun.org
-* **Encryption:** TLS
-* **Port:** 587
+* **Gmail / Google Workspace**
+* **Microsoft 365 / Outlook**
 
-#### **Gmail SMTP**
+**Any SMTP server** — use the **Other SMTP** provider for your host, or for Yahoo, Zoho Mail, or any mailbox. Common settings:
 
-Easy for bloggers and small businesses. Use a Gmail or Google Workspace account for WordPress emails.
+* **Gmail SMTP:** smtp.gmail.com · TLS · 587
+* **Outlook SMTP:** smtp-mail.outlook.com · TLS · 587
+* **Yahoo SMTP:** smtp.mail.yahoo.com · SSL · 465
+* **Zoho Mail SMTP:** smtp.zoho.com · TLS · 587
 
-* **Host:** smtp.gmail.com
-* **Encryption:** TLS
-* **Port:** 587
+You can also use **PHP Sendmail** (the server's local mail()) when no external provider is configured.
 
-#### **Hotmail SMTP**
-
-Works for Hotmail or Outlook.com accounts. Use Microsoft’s server for your mail.
-
-* **Host:** smtp.live.com
-* **Encryption:** TLS
-* **Port:** 587
-
-#### **Yahoo SMTP**
-
-Set up outgoing mail from your Yahoo account.
-
-* **Host:** smtp.mail.yahoo.com
-* **Encryption:** SSL
-* **Port:** 465
-
-#### **Zoho Mail SMTP**
-
-Reliable for secure email delivery.
-
-* **Host:** smtp.zoho.com
-* **Encryption:** TLS
-* **Port:** 587
-
-#### **Amazon SES SMTP**
-
-Best choice for sending large numbers of emails.
-
-* **Host:** email-smtp.us-west-2.amazonaws.com
-* **Encryption:** TLS
-* **Port:** 587
-
-#### **SendGrid SMTP**
-
-Get 100 free emails a day. SendGrid is well-known for great deliverability.
-
-* **Host:** smtp.sendgrid.net
-* **Encryption:** TLS
-* **Port:** 587
-
-#### **Brevo (Sendinblue) SMTP**
-
-Send up to 300 free emails each day with Brevo.
-
-* **Host:** smtp-relay.sendinblue.com
-* **Encryption:** TLS
-* **Port:** 587
-
-#### **Outlook SMTP**
-
-Send business emails with Microsoft 365 or Outlook.com accounts.
-
-* **Host:** smtp-mail.outlook.com
-* **Encryption:** TLS
-* **Port:** 587
-
-## Test Your SMTP Connection
+## Test Your Connection
 
 Bit SMTP includes a tool for this:
 
-1. Visit **Bit SMTP ▸ Testing** in your site dashboard.
+1. Open a connection and click **Test Connection**, or visit **Bit SMTP ▸ Test** for a full test message.
 2. Add the recipient’s address, your subject, and a brief message.
-3. Click "Send Test".
+3. Click **Send**. The plugin sends a real email through that connection and shows success or the provider's error.
 
 If you receive the email, you’re setup is correct. To make things even easier, check out our video tutorial:
 
@@ -222,6 +181,29 @@ Bit SMTP uses [wp-telemetry](https://packagist.org/packages/bitapps/wp-telemetry
 
 Wp-Telemetry DOES NOT IMMEDIATELY start gathering data; rather, it will gather basic telemetry data when a user allows it. We collect the data to ensure a great user experience for all our users.
 
+== Frequently Asked Questions ==
+
+= Which provider should I use? =
+Any of them work. If you already have an SMTP host, use **Other SMTP**. For better deliverability and speed, use a dedicated API provider (SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost) or connect Gmail / Microsoft 365 over OAuth.
+
+= Do I have to enter my Gmail or Microsoft password? =
+No. Gmail and Microsoft 365 use OAuth: you create an app, enter its Client ID and Secret, then click **Connect** to authorize. Bit SMTP stores only the OAuth tokens, never your account password.
+
+= What happens if my email provider goes down? =
+Add more than one connection and drag them into a priority order. If the highest-priority connection fails, Bit SMTP automatically retries the next one, so your mail still goes out.
+
+= Can I see whether an email was actually delivered? =
+Yes. For providers that support delivery webhooks, the Logs screen shows a separate **Delivery** status (Delivered, Bounced, Blocked, Deferred) alongside the send status. Amazon SES marks delivery on a successful send-accept.
+
+= Are my API keys and passwords stored safely? =
+Yes. Credentials are encrypted at rest with authenticated AES-256-GCM before they are written to the database.
+
+= Does it work with my form or WooCommerce emails? =
+Yes. Bit SMTP routes any email sent through WordPress's `wp_mail()`, including form plugins, WooCommerce, and core notifications.
+
+= Will I be notified if sending fails? =
+Yes. Turn on failure alerts (Notifications) to be told by email or webhook when a send fails.
+
 == Screenshots ==
 1. SMTP Configuration
 2. Send test mail to validate SMTP Configuration
@@ -232,6 +214,13 @@ Wp-Telemetry DOES NOT IMMEDIATELY start gathering data; rather, it will gather b
 == Changelog ==
 
 = 1.3.0 (26 Jul, 2026) =
+* Feat: Multi-provider framework — send over dedicated integrations for SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, and SparkPost, plus Gmail and Microsoft 365 via OAuth, any SMTP server, and PHP mail().
+* Feat: Multiple connections with a priority order and automatic fallback to the next connection when a send fails.
+* Feat: Smart routing — send matching mail through a chosen connection by recipient, from address, subject, or source plugin.
+* Feat: Real delivery tracking — provider webhooks record each email's true outcome (Delivered / Bounced / Blocked / Deferred) in a separate Delivery column.
+* Feat: Failure alerts by email or webhook when a send fails.
+* Feat: Credentials encrypted at rest with AES-256-GCM; existing plaintext values are migrated on save.
+* Security: hardened the inbound delivery-webhook and outbound API paths.
 * Requires PHP 8.1 or newer (was 8.0). Installs on older PHP show an admin notice and stay inactive.
 
 = 1.2.4 (11 May, 2026) =

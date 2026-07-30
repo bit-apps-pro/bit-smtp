@@ -123,6 +123,17 @@ class MailConfigService
      */
     public function saveConnection(array $connection): bool
     {
+        return $this->upsertConnection($connection) !== null;
+    }
+
+    /**
+     * Upsert a single connection and return the resulting connection id (the minted id for a new
+     * connection, the incoming id for an update), or null when the store failed.
+     *
+     * @param array<string,mixed> $connection
+     */
+    public function upsertConnection(array $connection): ?string
+    {
         $current     = $this->load();
         $data        = $current->toArray();
         $connections = $data['connections'];
@@ -175,6 +186,82 @@ class MailConfigService
 
         $sanitized = MailSettingsSanitizer::sanitize($data);
         $stored    = $this->store(MailSettings::fromArray($sanitized));
+        $this->reload();
+
+        return $stored ? ($isNew ? $connection['id'] : $incomingId) : null;
+    }
+
+    /**
+     * Write (or overwrite) a single connection credential, persisting through the same encrypt path
+     * as every other secret so the value is stored encrypted and decrypts on load. Used to stash
+     * provider-issued signing material (e.g. an HMAC webhook secret) safely at rest.
+     */
+    public function setConnectionCredential(string $connectionId, string $key, string $value): bool
+    {
+        $data  = $this->load()->toArray();
+        $found = false;
+        foreach ($data['connections'] as $i => $connection) {
+            if (($connection['id'] ?? '') !== $connectionId) {
+                continue;
+            }
+
+            $credentials = isset($connection['credentials']) && \is_array($connection['credentials'])
+                ? $connection['credentials']
+                : [];
+            $credentials[$key]                      = ['source' => 'manual', 'value' => $value];
+            $data['connections'][$i]['credentials'] = $credentials;
+            $found                                  = true;
+
+            break;
+        }
+
+        if (!$found) {
+            return false;
+        }
+
+        $stored = $this->store(MailSettings::fromArray(MailSettingsSanitizer::sanitize($data)));
+        $this->reload();
+
+        return $stored;
+    }
+
+    /**
+     * Persist webhook-provisioning output — provider-issued credentials (each encrypted at rest via the
+     * shared secret path) plus the server-managed settings — onto one connection in a SINGLE atomic
+     * write, so signature material and the auto-provision marker can never diverge from a partial write.
+     * Returns false when the connection is unknown or the store fails.
+     *
+     * @param array<string,string> $credentials plaintext values keyed by credential name, tagged 'provisioned'
+     * @param array<string,mixed>  $settings    values merged onto the connection's settings
+     */
+    public function persistConnectionProvisioning(string $connectionId, array $credentials, array $settings): bool
+    {
+        $data  = $this->load()->toArray();
+        $found = false;
+        foreach ($data['connections'] as $i => $connection) {
+            if (($connection['id'] ?? '') !== $connectionId) {
+                continue;
+            }
+
+            $existing = isset($connection['credentials']) && \is_array($connection['credentials'])
+                ? $connection['credentials']
+                : [];
+            foreach ($credentials as $key => $value) {
+                $existing[$key] = ['source' => 'provisioned', 'value' => (string) $value];
+            }
+
+            $data['connections'][$i]['credentials'] = $existing;
+            $data['connections'][$i]['settings']    = array_merge($connection['settings'] ?? [], $settings);
+            $found                                  = true;
+
+            break;
+        }
+
+        if (!$found) {
+            return false;
+        }
+
+        $stored = $this->store(MailSettings::fromArray(MailSettingsSanitizer::sanitize($data)));
         $this->reload();
 
         return $stored;
@@ -304,9 +391,11 @@ class MailConfigService
             $priorConn     = $prior->getConnections()->byId($connection['id'] ?? '');
             $priorSettings = $priorConn !== null ? $priorConn->getSettings() : [];
 
-            // webhook_verified / webhook_last_event_at are server-managed: never trust an incoming
-            // value, always restore whatever the stored connection holds (or drop it for a new one).
-            foreach (['webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key'] as $managed) {
+            // Server-managed: never trust an incoming value, always restore whatever the stored
+            // connection holds (or drop it for a new one). webhook_provisioned_url is included so a
+            // client can neither wipe the auto-provision short-circuit marker nor forge it to skip
+            // provisioning (which would leave signature verification unconfigured).
+            foreach (['webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key', 'webhook_provisioned_url'] as $managed) {
                 unset($settings[$managed]);
                 if (\array_key_exists($managed, $priorSettings)) {
                     $settings[$managed] = $priorSettings[$managed];

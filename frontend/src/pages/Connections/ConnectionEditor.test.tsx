@@ -350,6 +350,25 @@ describe('ConnectionEditor', () => {
     expect(screen.queryByLabelText('Google account')).not.toBeInTheDocument()
   })
 
+  it('shows the backend-provided OAuth redirect URI as copyable text', () => {
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    const redirectUrl = 'https://site.test/bit-smtp/oauth/callback'
+    const oauthProvider = {
+      ...gmailMeta,
+      oauth_redirect_url: redirectUrl,
+      fields: gmailMeta.fields.filter(field => field.type !== 'oauth')
+    } as ProviderMeta
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={gmailConnection} provider={oauthProvider} onSaved={() => {}} />
+    )
+
+    expect(screen.getByText('Redirect URI')).toBeInTheDocument()
+    expect(screen.getByText(redirectUrl)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument()
+  })
+
   it('does not offer delivery webhooks for Gmail', () => {
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
     ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
