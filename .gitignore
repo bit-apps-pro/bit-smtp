@@ -20,6 +20,7 @@ package-lock.json
 port
 build/
 .superpowers/
+.worktrees/
 docs/
 .phpunit.cache/
 docker-compose.test.override.yml
