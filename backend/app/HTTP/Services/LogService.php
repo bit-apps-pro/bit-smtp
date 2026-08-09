@@ -7,6 +7,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Deps\BitApps\WPKit\Helpers\Arr;
+use BitApps\SMTP\Mail\Analytics\SubjectPatternNormalizer;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
@@ -86,6 +87,8 @@ class LogService
 
         $log->subject            = Arr::get($details, 'subject', '');
         $log->to_addr            = Arr::get($details, 'to', '[]');
+        $log->subject_pattern    = $this->subjectPattern((string) $log->subject);
+        $log->recipient_count    = $this->recipientCount($log->to_addr);
         $log->connection         = $connection;
         $log->connection_id      = $connectionId;
         $log->message_id         = $messageId;
@@ -380,8 +383,10 @@ class LogService
                 $details = $log['data'];
             }
 
-            $record['subject']   = Arr::get($details, 'subject', '');
-            $record['to_addr']   = wp_json_encode(Arr::get($details, 'to', []));
+            $record['subject']         = Arr::get($details, 'subject', '');
+            $record['to_addr']         = wp_json_encode(Arr::get($details, 'to', []));
+            $record['subject_pattern'] = $this->subjectPattern((string) $record['subject']);
+            $record['recipient_count'] = $this->recipientCount(Arr::get($details, 'to', []));
 
             unset(
                 $details['subject'],
@@ -420,5 +425,30 @@ class LogService
         }
 
         return \is_array($result) ? $result : [];
+    }
+
+    /**
+     * @param mixed $recipients
+     */
+    private function recipientCount($recipients): int
+    {
+        if (\is_array($recipients)) {
+            return \count(array_filter($recipients, static function ($recipient): bool {
+                return \is_scalar($recipient) && trim((string) $recipient) !== '';
+            }));
+        }
+
+        if (\is_string($recipients) && trim($recipients) !== '') {
+            return \count(array_filter(str_getcsv($recipients), static function (string $recipient): bool {
+                return trim($recipient) !== '';
+            }));
+        }
+
+        return 0;
+    }
+
+    private function subjectPattern(string $subject): string
+    {
+        return (new SubjectPatternNormalizer())->normalize($subject);
     }
 }

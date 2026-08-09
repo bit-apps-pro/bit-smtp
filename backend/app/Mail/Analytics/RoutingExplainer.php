@@ -101,7 +101,12 @@ final class RoutingExplainer
         foreach ($rules->all() as $index => $rule) {
             $conditions = [];
             foreach ($rule->getConditions() as $condition) {
-                $conditions[] = array_merge($condition->toArray(), ['matches' => $condition->matches($context)]);
+                $conditions[] = [
+                    'field'      => $condition->getField(),
+                    'operator'   => $condition->getOperator(),
+                    'descriptor' => $this->conditionDescriptor($condition->getField()),
+                    'matches'    => $condition->matches($context),
+                ];
             }
             $details[] = [
                 'index'         => $index,
@@ -158,5 +163,25 @@ final class RoutingExplainer
         $rules    = $features['routing'] ?? [];
 
         return \is_array($rules) ? array_values(array_filter($rules, 'is_array')) : [];
+    }
+
+    private function conditionDescriptor(string $field): string
+    {
+        switch ($field) {
+            case 'recipient':
+                return 'configured recipient rule';
+
+            case 'from':
+                return 'configured sender rule';
+
+            case 'subject':
+                return 'configured subject rule';
+
+            case 'source_plugin':
+                return 'configured source plugin';
+
+            default:
+                return 'configured routing condition';
+        }
     }
 }

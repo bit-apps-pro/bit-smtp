@@ -57,6 +57,8 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertNull($row->source_plugin);
         $this->assertNull($row->routing_type);
         $this->assertNull($row->routing_rule_index);
+        $this->assertNull($row->subject_pattern);
+        $this->assertNull($row->recipient_count);
         $this->assertAnalyticsColumnsAreNullable();
         $this->assertAnalyticsIndexesExist();
     }
@@ -67,14 +69,46 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             'source_plugin'      => 'woocommerce',
             'routing_type'       => 'rule',
             'routing_rule_index' => '4',
+            'subject_pattern'    => 'Order <number>',
+            'recipient_count'    => '2',
         ]);
 
         $this->assertSame('woocommerce', $log->source_plugin);
         $this->assertSame('rule', $log->routing_type);
         $this->assertSame(4, $log->routing_rule_index);
+        $this->assertSame('Order <number>', $log->subject_pattern);
+        $this->assertSame(2, $log->recipient_count);
 
         $log->routing_rule_index = null;
         $this->assertNull($log->routing_rule_index);
+        $log->subject_pattern = null;
+        $log->recipient_count = null;
+        $this->assertNull($log->subject_pattern);
+        $this->assertNull($log->recipient_count);
+    }
+
+    public function testConnectionIdRangeQueriesUseTheConnectionIdLeadingCompositeIndex(): void
+    {
+        $this->migrateLogs();
+        global $wpdb;
+
+        $wpdb->insert($this->logsTable, [
+            'status'        => 1,
+            'subject'       => 'Subject',
+            'to_addr'       => '[]',
+            'connection_id' => 'conn_primary',
+            'created_at'    => '2026-03-01 00:00:00',
+            'updated_at'    => '2026-03-01 00:00:00',
+        ]);
+        $plan = $wpdb->get_row($wpdb->prepare(
+            "EXPLAIN SELECT COUNT(*) FROM `{$this->logsTable}` WHERE connection_id = %s AND created_at >= %s AND created_at < %s",
+            'conn_primary',
+            '2026-03-01 00:00:00',
+            '2026-03-02 00:00:00'
+        ));
+
+        $this->assertNotNull($plan);
+        $this->assertSame('idx_connection_id_created', $plan->key);
     }
 
     public function testMaybeMigrateDbUpgradesAOneSixLogsTableAtTheCurrentPluginVersion(): void
@@ -116,7 +150,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
     {
         global $wpdb;
 
-        foreach (['source_plugin', 'routing_type', 'routing_rule_index'] as $column) {
+        foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'subject_pattern', 'recipient_count'] as $column) {
             $definition = $wpdb->get_row(
                 $wpdb->prepare("SHOW COLUMNS FROM `{$this->logsTable}` LIKE %s", $column)
             );
@@ -137,6 +171,8 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertNull($row->source_plugin);
         $this->assertNull($row->routing_type);
         $this->assertNull($row->routing_rule_index);
+        $this->assertNull($row->subject_pattern);
+        $this->assertNull($row->recipient_count);
         $this->assertAnalyticsColumnsAreNullable();
         $this->assertAnalyticsIndexesExist();
     }
@@ -153,9 +189,11 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         }
 
         $expected = [
-            'idx_source_created'     => ['source_plugin', 'created_at'],
-            'idx_connection_created' => ['connection', 'created_at'],
-            'idx_status_created'     => ['status', 'created_at'],
+            'idx_source_created'        => ['source_plugin', 'created_at'],
+            'idx_connection_created'    => ['connection', 'created_at'],
+            'idx_connection_id_created' => ['connection_id', 'created_at'],
+            'idx_created_at'            => ['created_at'],
+            'idx_status_created'        => ['status', 'created_at'],
         ];
 
         foreach ($expected as $index => $columns) {

@@ -8,7 +8,6 @@ use BitApps\SMTP\Config;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
-use Exception;
 use WP_Error;
 
 final class AnalyticsQueryFactory
@@ -84,7 +83,15 @@ final class AnalyticsQueryFactory
         }
         $connectionId = $connectionId === '' ? null : $connectionId;
 
-        return new AnalyticsQuery($start, $end, $this->timezone, $bucket, $plugin, $connectionId);
+        return new AnalyticsQuery(
+            $start,
+            $end,
+            $this->timezone,
+            $bucket,
+            $plugin,
+            $connectionId,
+            $this->now->sub(new DateInterval('P' . $this->retentionDays . 'D'))
+        );
     }
 
     private function siteTimezone(): DateTimeZone
@@ -116,11 +123,17 @@ final class AnalyticsQueryFactory
             return null;
         }
 
-        try {
-            return new DateTimeImmutable($value);
-        } catch (Exception $exception) {
+        $parsed = DateTimeImmutable::createFromFormat(
+            '!Y-m-d\\TH:i:sP',
+            str_ends_with($value, 'Z') ? substr($value, 0, -1) . '+00:00' : $value
+        );
+        $errors = DateTimeImmutable::getLastErrors();
+        if ($parsed === false
+            || (\is_array($errors) && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
             return null;
         }
+
+        return $parsed;
     }
 
     private function defaultBucket(DateTimeImmutable $start, DateTimeImmutable $end): string

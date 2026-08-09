@@ -49,14 +49,20 @@ final class AnalyticsQueryFactoryTest extends BaseUnitTestCase
     {
         $factory = $this->factory('2026-04-01T00:00:00+00:00', 7);
 
-        $malformed = $factory->fromInput(['start' => 'not-a-date']);
-        $tooLong   = $factory->fromInput([
+        $malformed   = $factory->fromInput(['start' => 'not-a-date']);
+        $impossible  = $factory->fromInput(['start' => '2026-02-30T00:00:00+00:00']);
+        $invalidTime = $factory->fromInput(['start' => '2026-03-01T24:00:00+00:00']);
+        $tooLong     = $factory->fromInput([
             'start' => '2026-03-24T00:00:00+00:00',
             'end'   => '2026-04-01T00:00:00+00:00',
         ]);
 
         self::assertInstanceOf(WP_Error::class, $malformed);
         self::assertSame('bit_smtp_invalid_analytics_range', $malformed->get_error_code());
+        self::assertInstanceOf(WP_Error::class, $impossible);
+        self::assertSame('bit_smtp_invalid_analytics_range', $impossible->get_error_code());
+        self::assertInstanceOf(WP_Error::class, $invalidTime);
+        self::assertSame('bit_smtp_invalid_analytics_range', $invalidTime->get_error_code());
         self::assertInstanceOf(WP_Error::class, $tooLong);
         self::assertSame('bit_smtp_invalid_analytics_range', $tooLong->get_error_code());
     }
@@ -79,6 +85,18 @@ final class AnalyticsQueryFactoryTest extends BaseUnitTestCase
         self::assertSame('conn_primary-1', $weekly->connectionId());
         self::assertInstanceOf(WP_Error::class, $invalid);
         self::assertSame('bit_smtp_invalid_analytics_input', $invalid->get_error_code());
+    }
+
+    public function testIdentifiesWhenThePriorEqualPeriodPredatesTheRetainedWindow(): void
+    {
+        $query = $this->factory('2026-04-01T00:00:00+00:00', 7)->fromInput([
+            'start' => '2026-03-25T00:00:00+00:00',
+            'end'   => '2026-04-01T00:00:00+00:00',
+        ]);
+
+        self::assertInstanceOf(AnalyticsQuery::class, $query);
+        self::assertFalse($query->hasCompletePriorCoverage());
+        self::assertSame('2026-03-25T00:00:00+00:00', $query->retainedFrom()->format(DATE_ATOM));
     }
 
     private function factory(string $now, int $retentionDays): AnalyticsQueryFactory

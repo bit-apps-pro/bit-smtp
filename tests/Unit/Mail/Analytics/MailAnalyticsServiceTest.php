@@ -8,7 +8,6 @@ use BitApps\SMTP\Mail\Analytics\AnalyticsQuery;
 use BitApps\SMTP\Mail\Analytics\AnalyticsQueryFactory;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
-use BitApps\SMTP\Mail\Analytics\SubjectPatternNormalizer;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -31,7 +30,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo = Mockery::mock(MailAnalyticsRepository::class);
         $repo->shouldReceive('summary')->once()->with($query)->andReturn($this->summary());
         $repo->shouldReceive('timeSeries')->once()->with($query)->andReturn([
-            ['bucket' => '2026-03-02', 'total' => 3, 'accepted' => 2, 'failed' => 1],
+            ['utc_hour' => '2026-03-02 05:00:00', 'total' => 3, 'accepted' => 2, 'failed' => 1],
         ]);
         $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([
             ['dimension' => 'woocommerce', 'total' => 3],
@@ -40,7 +39,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
             ['dimension' => 'conn_primary', 'total' => 3],
         ]);
 
-        $result = (new MailAnalyticsService($repo, new SubjectPatternNormalizer()))->overview($query);
+        $result = (new MailAnalyticsService($repo))->overview($query);
 
         self::assertSame(3, $result['total']);
         self::assertSame('America/New_York', $result['timezone']);
@@ -72,12 +71,52 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
 
-        $result = (new MailAnalyticsService($repo, new SubjectPatternNormalizer()))->deliverability($query);
+        $result = (new MailAnalyticsService($repo))->deliverability($query);
 
         self::assertSame(10, $result['acceptance']['denominator']);
         self::assertSame(5, $result['delivery']['denominator']);
         self::assertSame(5, $result['delivery']['unknown']);
         self::assertSame(60.0, $result['delivery']['delivered_rate']);
+    }
+
+    public function testDeliverabilityKeepsProviderAcceptanceAndPendingOutOfTheVerifiedDenominator(): void
+    {
+        $query = $this->query([]);
+        $repo  = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->once()->with($query)->andReturn([
+            'total'                => 10,
+            'recipient_count'      => 10,
+            'accepted'             => 8,
+            'failed'               => 2,
+            'unknown_source_count' => 4,
+            'delivered'            => 3,
+            'deferred'             => 1,
+            'bounced'              => 1,
+            'blocked'              => 0,
+            'spam'                 => 0,
+            'accepted_delivery'    => 2,
+            'pending_delivery'     => 1,
+            'verified_delivery'    => 5,
+        ]);
+        $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([]);
+        $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
+
+        $result = (new MailAnalyticsService($repo))->deliverability($query);
+
+        self::assertSame(5, $result['delivery']['denominator']);
+        self::assertSame(2, $result['delivery']['accepted']);
+        self::assertSame(1, $result['delivery']['pending']);
+        self::assertSame(2, $result['delivery']['unknown']);
+        self::assertSame(10, array_sum([
+            $result['delivery']['delivered'],
+            $result['delivery']['delayed'],
+            $result['delivery']['bounced'],
+            $result['delivery']['blocked'],
+            $result['delivery']['spam'],
+            $result['delivery']['accepted'],
+            $result['delivery']['pending'],
+            $result['delivery']['unknown'],
+        ]));
     }
 
     public function testPluginGroupsNormalizedSubjectsAndReturnsAtMostTenPatterns(): void
@@ -89,15 +128,15 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'routing_type', 10)->andReturn([]);
         $repo->shouldReceive('subjectCounts')->once()->with($query)->andReturn(array_map(
-            static fn (int $n): array => ['subject' => "Order {$n}12345 for customer@example.test", 'total' => 1],
+            static fn (int $n): array => ['pattern' => "Receipt pattern {$n}", 'total' => 1],
             range(1, 12)
         ));
 
-        $result = (new MailAnalyticsService($repo, new SubjectPatternNormalizer()))->plugin($query);
+        $result = (new MailAnalyticsService($repo))->plugin($query);
 
-        self::assertCount(1, $result['subject_patterns']);
-        self::assertSame('Order <number> for <email>', $result['subject_patterns'][0]['pattern']);
-        self::assertSame(12, $result['subject_patterns'][0]['total']);
+        self::assertCount(10, $result['subject_patterns']);
+        self::assertSame('Receipt pattern 1', $result['subject_patterns'][0]['pattern']);
+        self::assertArrayNotHasKey('subject', $result['subject_patterns'][0]);
     }
 
     public function testAnomaliesCompareThePriorEqualPeriodAndSuppressRateChangesBelowTwentyMessages(): void
@@ -119,11 +158,81 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldReceive('groups')->with($query, 'connection', 100)->andReturn([['dimension' => 'conn_primary', 'total' => 19, 'failed' => 4]]);
         $repo->shouldReceive('groups')->with(Mockery::type(AnalyticsQuery::class), 'connection', 100)->andReturn([]);
 
-        $result = (new MailAnalyticsService($repo, new SubjectPatternNormalizer()))->anomalies($query);
+        $result = (new MailAnalyticsService($repo))->anomalies($query);
 
         self::assertSame(19, $result['current']['total']);
         self::assertNotEmpty($result['observations']);
         self::assertNotContains('failure_rate_change', array_column($result['observations'], 'type'));
+    }
+
+    public function testAnomaliesSuppressComparisonsWhenThePriorPeriodPredatesRetention(): void
+    {
+        $query = (new AnalyticsQueryFactory(
+            new DateTimeImmutable('2026-04-01T00:00:00+00:00'),
+            new DateTimeZone('America/New_York'),
+            7
+        ))->fromInput([
+            'start' => '2026-03-25T00:00:00+00:00',
+            'end'   => '2026-04-01T00:00:00+00:00',
+        ]);
+        self::assertInstanceOf(AnalyticsQuery::class, $query);
+        $repo = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->twice()->andReturn($this->summary());
+        $repo->shouldNotReceive('groups');
+
+        $result = (new MailAnalyticsService($repo))->anomalies($query);
+
+        self::assertFalse($result['comparison_coverage']['complete']);
+        self::assertSame([], $result['observations']);
+        self::assertSame('2026-03-25T00:00:00+00:00', $result['comparison_coverage']['retained_from']);
+    }
+
+    public function testConvertsUtcHoursInPhpForSpringForwardAndFallBackWithoutMergingRepeatedHours(): void
+    {
+        $query = $this->query([
+            'start'  => '2026-11-01T00:00:00-04:00',
+            'end'    => '2026-11-01T03:00:00-05:00',
+            'bucket' => 'hour',
+        ]);
+        $repo = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->once()->with($query)->andReturn($this->summary());
+        $repo->shouldReceive('timeSeries')->once()->with($query)->andReturn([
+            ['utc_hour' => '2026-11-01 05:00:00', 'total' => 1, 'accepted' => 1, 'failed' => 0],
+            ['utc_hour' => '2026-11-01 06:00:00', 'total' => 2, 'accepted' => 2, 'failed' => 0],
+        ]);
+        $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([]);
+        $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
+
+        $result = (new MailAnalyticsService($repo))->overview($query);
+
+        self::assertSame('2026-11-01T01:00:00-04:00', $result['series'][1]['bucket']);
+        self::assertSame('2026-11-01T01:00:00-05:00', $result['series'][2]['bucket']);
+        self::assertSame('2026-11-01 01:00', $result['series'][1]['label']);
+        self::assertSame('2026-11-01 01:00', $result['series'][2]['label']);
+        self::assertSame(1, $result['series'][1]['total']);
+        self::assertSame(2, $result['series'][2]['total']);
+    }
+
+    public function testSkipsTheNonexistentSpringForwardLocalHourWhenFillingUtcBuckets(): void
+    {
+        $query = $this->query([
+            'start'  => '2026-03-08T00:00:00-05:00',
+            'end'    => '2026-03-08T04:00:00-04:00',
+            'bucket' => 'hour',
+        ]);
+        $repo = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->once()->with($query)->andReturn($this->summary());
+        $repo->shouldReceive('timeSeries')->once()->with($query)->andReturn([
+            ['utc_hour' => '2026-03-08 07:00:00', 'total' => 1, 'accepted' => 1, 'failed' => 0],
+        ]);
+        $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([]);
+        $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
+
+        $result = (new MailAnalyticsService($repo))->overview($query);
+
+        self::assertSame(['2026-03-08 00:00', '2026-03-08 01:00', '2026-03-08 03:00'], array_column($result['series'], 'label'));
+        self::assertSame('2026-03-08T03:00:00-04:00', $result['series'][2]['bucket']);
+        self::assertSame(1, $result['series'][2]['total']);
     }
 
     /**

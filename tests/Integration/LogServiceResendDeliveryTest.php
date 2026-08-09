@@ -106,6 +106,8 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertSame('woocommerce', $saved->source_plugin);
         $this->assertSame('rule', $saved->routing_type);
         $this->assertSame(2, $saved->routing_rule_index);
+        $this->assertSame('Saved', $saved->subject_pattern);
+        $this->assertSame(1, $saved->recipient_count);
 
         $this->service->update(
             (int) $saved->id,
@@ -139,6 +141,27 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertSame('edd', $bulk->source_plugin);
         $this->assertSame('native', $bulk->routing_type);
         $this->assertNull($bulk->routing_rule_index);
+        $this->assertSame('Bulk', $bulk->subject_pattern);
+        $this->assertSame(1, $bulk->recipient_count);
+    }
+
+    public function testPersistenceStoresOnlyTheRedactedSubjectPatternForAnalytics(): void
+    {
+        $this->service->save(
+            Log::SUCCESS,
+            [
+                'subject' => 'Receipt 123456 for Jane Example https://example.test/orders/123456',
+                'to'      => ['jane@example.test', 'john@example.test'],
+            ]
+        );
+
+        $log = Log::where('connection_id', null)->first();
+
+        $this->assertSame('Receipt <number> for <text> <text> <url>', $log->subject_pattern);
+        $this->assertSame(2, $log->recipient_count);
+        $this->assertStringNotContainsString('jane@example.test', $log->subject_pattern);
+        $this->assertStringNotContainsString('Jane', $log->subject_pattern);
+        $this->assertStringNotContainsString('123456', $log->subject_pattern);
     }
 
     /**

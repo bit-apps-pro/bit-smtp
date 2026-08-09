@@ -13,11 +13,16 @@ use WP_Error;
  */
 class MailAnalyticsRepository
 {
-    private const BUCKET_SQL = [
-        'hour' => "DATE_FORMAT(CONVERT_TZ(created_at, '+00:00', %s), '%%Y-%%m-%%d %%H:00:00')",
-        'day'  => "DATE_FORMAT(CONVERT_TZ(created_at, '+00:00', %s), '%%Y-%%m-%%d')",
-        'week' => "YEARWEEK(CONVERT_TZ(created_at, '+00:00', %s), 3)",
-    ];
+    /**
+     * Database timestamps are stored in UTC. Deliberately aggregate only by a UTC hour here:
+     * shared hosts frequently do not load MySQL named timezone tables. The bounded result is
+     * converted and merged into requested local buckets by MailAnalyticsService.
+     */
+    private const UTC_HOUR_SQL = "DATE_FORMAT(created_at, '%%Y-%%m-%%d %%H:00:00')";
+
+    private const VERIFIED_DELIVERY_STATUSES = "'delivered', 'deferred', 'bounced', 'blocked', 'spam'";
+
+    private const PENDING_DELIVERY_STATUS = 'pending';
 
     private const GROUP_SQL = [
         'source'       => "COALESCE(NULLIF(source_plugin, ''), 'unknown')",
@@ -25,7 +30,7 @@ class MailAnalyticsRepository
         'routing_type' => "COALESCE(NULLIF(routing_type, ''), 'unknown')",
     ];
 
-    private const SUBJECT_PATTERN_LIMIT = 200;
+    private const SUBJECT_PATTERN_LIMIT = 10;
 
     private object $database;
 
@@ -50,7 +55,9 @@ class MailAnalyticsRepository
         [$where, $values] = $this->where($query);
         $sql              = "SELECT
             COUNT(*) AS total,
-            COALESCE(SUM(CASE WHEN JSON_VALID(to_addr) THEN JSON_LENGTH(to_addr) ELSE 0 END), 0) AS recipient_count,
+            COALESCE(SUM(recipient_count), 0) AS recipient_count,
+            COALESCE(SUM(CASE WHEN recipient_count IS NULL THEN 1 ELSE 0 END), 0) AS unknown_recipient_count,
+            COALESCE(SUM(CASE WHEN subject_pattern IS NULL OR subject_pattern = '' THEN 1 ELSE 0 END), 0) AS unknown_subject_pattern_count,
             COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS accepted,
             COALESCE(SUM(CASE WHEN status <> 1 THEN 1 ELSE 0 END), 0) AS failed,
             COALESCE(SUM(CASE WHEN source_plugin IS NULL OR source_plugin = '' THEN 1 ELSE 0 END), 0) AS unknown_source_count,
@@ -59,7 +66,9 @@ class MailAnalyticsRepository
             COALESCE(SUM(CASE WHEN delivery_status = 'bounced' THEN 1 ELSE 0 END), 0) AS bounced,
             COALESCE(SUM(CASE WHEN delivery_status = 'blocked' THEN 1 ELSE 0 END), 0) AS blocked,
             COALESCE(SUM(CASE WHEN delivery_status = 'spam' THEN 1 ELSE 0 END), 0) AS spam,
-            COALESCE(SUM(CASE WHEN delivery_status IS NOT NULL AND delivery_status <> '' THEN 1 ELSE 0 END), 0) AS verified_delivery
+            COALESCE(SUM(CASE WHEN delivery_status IN (" . self::VERIFIED_DELIVERY_STATUSES . ") THEN 1 ELSE 0 END), 0) AS verified_delivery,
+            COALESCE(SUM(CASE WHEN delivery_status = 'accepted' THEN 1 ELSE 0 END), 0) AS accepted_delivery,
+            COALESCE(SUM(CASE WHEN delivery_status = '" . self::PENDING_DELIVERY_STATUS . "' THEN 1 ELSE 0 END), 0) AS pending_delivery
             FROM `{$this->table}` WHERE {$where}";
 
         $rows = $this->rows($sql, $values);
@@ -75,25 +84,24 @@ class MailAnalyticsRepository
      */
     public function timeSeries(AnalyticsQuery $query)
     {
-        $bucket           = self::BUCKET_SQL[$query->bucket()];
         [$where, $values] = $this->where($query);
-        $sql              = "SELECT {$bucket} AS bucket,
+        $sql              = 'SELECT ' . self::UTC_HOUR_SQL . " AS utc_hour,
             COUNT(*) AS total,
             COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS accepted,
             COALESCE(SUM(CASE WHEN status <> 1 THEN 1 ELSE 0 END), 0) AS failed,
             COALESCE(SUM(CASE WHEN delivery_status = 'delivered' THEN 1 ELSE 0 END), 0) AS delivered,
-            COALESCE(SUM(CASE WHEN delivery_status IS NOT NULL AND delivery_status <> '' THEN 1 ELSE 0 END), 0) AS verified_delivery
+            COALESCE(SUM(CASE WHEN delivery_status IN (" . self::VERIFIED_DELIVERY_STATUSES . ") THEN 1 ELSE 0 END), 0) AS verified_delivery
             FROM `{$this->table}` WHERE {$where}
-            GROUP BY bucket ORDER BY bucket ASC";
+            GROUP BY utc_hour ORDER BY utc_hour ASC";
 
-        $rows = $this->rows($sql, array_merge([$query->timezone()->getName()], $values));
+        $rows = $this->rows($sql, $values);
         if ($rows instanceof WP_Error) {
             return $rows;
         }
 
         return array_map(function (array $row): array {
-            $integer           = $this->integerRow($row);
-            $integer['bucket'] = (string) ($row['bucket'] ?? '');
+            $integer             = $this->integerRow($row);
+            $integer['utc_hour'] = (string) ($row['utc_hour'] ?? '');
 
             return $integer;
         }, $rows);
@@ -115,7 +123,7 @@ class MailAnalyticsRepository
             COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS accepted,
             COALESCE(SUM(CASE WHEN status <> 1 THEN 1 ELSE 0 END), 0) AS failed,
             COALESCE(SUM(CASE WHEN delivery_status = 'delivered' THEN 1 ELSE 0 END), 0) AS delivered,
-            COALESCE(SUM(CASE WHEN delivery_status IS NOT NULL AND delivery_status <> '' THEN 1 ELSE 0 END), 0) AS verified_delivery
+            COALESCE(SUM(CASE WHEN delivery_status IN (" . self::VERIFIED_DELIVERY_STATUSES . ") THEN 1 ELSE 0 END), 0) AS verified_delivery
             FROM `{$this->table}` WHERE {$where}
             GROUP BY dimension ORDER BY total DESC, dimension ASC LIMIT %d";
         $rows = $this->rows($sql, array_merge($values, [max(1, min(100, $limit))]));
@@ -132,13 +140,14 @@ class MailAnalyticsRepository
     }
 
     /**
-     * @return array<int,array{subject:string,total:int}>|WP_Error
+     * @return array<int,array{pattern:string,total:int}>|WP_Error
      */
     public function subjectCounts(AnalyticsQuery $query)
     {
         [$where, $values] = $this->where($query);
-        $sql              = "SELECT subject, COUNT(*) AS total FROM `{$this->table}` WHERE {$where}
-            GROUP BY subject ORDER BY total DESC, subject ASC LIMIT %d";
+        $sql              = "SELECT subject_pattern AS pattern, COUNT(*) AS total FROM `{$this->table}`
+            WHERE {$where} AND subject_pattern IS NOT NULL AND subject_pattern <> ''
+            GROUP BY subject_pattern ORDER BY total DESC, subject_pattern ASC LIMIT %d";
         $rows = $this->rows($sql, array_merge($values, [self::SUBJECT_PATTERN_LIMIT]));
         if ($rows instanceof WP_Error) {
             return $rows;
@@ -146,7 +155,7 @@ class MailAnalyticsRepository
 
         return array_map(static function (array $row): array {
             return [
-                'subject' => (string) ($row['subject'] ?? ''),
+                'pattern' => (string) ($row['pattern'] ?? ''),
                 'total'   => (int) ($row['total'] ?? 0),
             ];
         }, $rows);
@@ -204,7 +213,7 @@ class MailAnalyticsRepository
     {
         $result = [];
         foreach ($row as $key => $value) {
-            if ($key !== 'bucket' && $key !== 'dimension') {
+            if ($key !== 'bucket' && $key !== 'utc_hour' && $key !== 'dimension') {
                 $result[$key] = (int) $value;
             }
         }

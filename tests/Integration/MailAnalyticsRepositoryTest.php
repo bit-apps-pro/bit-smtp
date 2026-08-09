@@ -8,7 +8,6 @@ use BitApps\SMTP\Mail\Analytics\AnalyticsQuery;
 use BitApps\SMTP\Mail\Analytics\AnalyticsQueryFactory;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
-use BitApps\SMTP\Mail\Analytics\SubjectPatternNormalizer;
 use BitApps\SMTP\Model\Log;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -29,42 +28,107 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
 
     public function testOverviewUsesOnlyBoundedAggregateQueriesAndDoesNotHydrateRawLogRows(): void
     {
-        $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_primary', 'delivered', 'Order 123456');
-        $this->seed('2026-03-03 05:00:00', 0, null, 'conn_primary', null, 'Failed 123456');
+        $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_primary', 'delivered', 'Order <number>', 2);
+        $this->seed('2026-03-03 05:00:00', 0, null, 'conn_primary', null, null, null);
         $database = new RecordingDatabase($GLOBALS['wpdb']);
         $service  = new MailAnalyticsService(
-            new MailAnalyticsRepository($database, (new Log())->getTable()),
-            new SubjectPatternNormalizer()
+            new MailAnalyticsRepository($database, (new Log())->getTable())
         );
 
         $result = $service->overview($this->query());
 
         self::assertSame(2, $result['total']);
+        self::assertSame(2, $result['recipients']);
+        self::assertSame(1, $result['unknown_recipient_count']);
         self::assertCount(4, $database->queries);
         self::assertNotEmpty($database->templates);
         foreach ($database->queries as $sql) {
             self::assertDoesNotMatchRegularExpression('/SELECT\\s+\\*/i', $sql);
+            self::assertStringNotContainsString('CONVERT_TZ', $sql);
+            self::assertStringNotContainsString('JSON_VALID', $sql);
+            self::assertStringNotContainsString('JSON_LENGTH', $sql);
         }
         self::assertStringContainsString('%s', $database->templates[0]);
     }
 
-    public function testDeliverabilityKeepsUnknownOutcomesOutOfTheVerifiedDenominator(): void
+    public function testPluginSubjectsUseOnlyPersistedRedactedPatternsAndIdentifyLegacyUnknowns(): void
     {
-        $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_primary', 'delivered', 'Order 123456');
-        $this->seed('2026-03-02 05:00:00', 1, 'woocommerce', 'conn_primary', null, 'Order 234567');
-        $this->seed('2026-03-03 05:00:00', 0, null, 'conn_primary', 'bounced', 'Failed 345678');
+        $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1);
+        $this->seed('2026-03-02 05:00:00', 1, 'woocommerce', 'conn_primary', null, null, 1);
         $database = new RecordingDatabase($GLOBALS['wpdb']);
         $service  = new MailAnalyticsService(
-            new MailAnalyticsRepository($database, (new Log())->getTable()),
-            new SubjectPatternNormalizer()
+            new MailAnalyticsRepository($database, (new Log())->getTable())
+        );
+        $query = (new AnalyticsQueryFactory(
+            new DateTimeImmutable('2026-03-04T05:00:00+00:00'),
+            new DateTimeZone('America/New_York'),
+            30
+        ))->fromInput([
+            'start'  => '2026-03-01T00:00:00-05:00',
+            'end'    => '2026-03-04T00:00:00-05:00',
+            'bucket' => 'day',
+            'plugin' => 'woocommerce',
+        ]);
+        self::assertInstanceOf(AnalyticsQuery::class, $query);
+
+        $result = $service->plugin($query);
+
+        self::assertSame([['pattern' => 'Order <number>', 'total' => 1]], $result['subject_patterns']);
+        self::assertSame(1, $result['subject_pattern_unknown_count']);
+        foreach ($database->queries as $sql) {
+            self::assertDoesNotMatchRegularExpression('/SELECT\\s+subject(?:\\s|,)/i', $sql);
+        }
+    }
+
+    public function testDeliverabilityKeepsUnknownOutcomesOutOfTheVerifiedDenominator(): void
+    {
+        $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_primary', 'delivered', 'Order <number>', 1);
+        $this->seed('2026-03-02 05:00:00', 1, 'woocommerce', 'conn_primary', 'accepted', 'Order <number>', 1);
+        $this->seed('2026-03-02 06:00:00', 1, 'woocommerce', 'conn_primary', 'pending', 'Order <number>', 1);
+        $this->seed('2026-03-03 05:00:00', 0, null, 'conn_primary', 'bounced', null, null);
+        $this->seed('2026-03-03 06:00:00', 1, 'woocommerce', 'conn_primary', 'unknown', 'Order <number>', 1);
+        $database = new RecordingDatabase($GLOBALS['wpdb']);
+        $service  = new MailAnalyticsService(
+            new MailAnalyticsRepository($database, (new Log())->getTable())
         );
 
         $result = $service->deliverability($this->query());
 
-        self::assertSame(3, $result['acceptance']['denominator']);
+        self::assertSame(5, $result['acceptance']['denominator']);
         self::assertSame(2, $result['delivery']['denominator']);
         self::assertSame(1, $result['delivery']['unknown']);
+        self::assertSame(1, $result['delivery']['accepted']);
+        self::assertSame(1, $result['delivery']['pending']);
         self::assertLessThanOrEqual(3, \count($database->queries));
+    }
+
+    public function testRepositoryReturnsUtcHoursThatTheServiceConvertsWithoutTimezoneTables(): void
+    {
+        $this->seed('2026-11-01 05:00:00', 1, 'woocommerce', 'conn_primary', null, 'Receipt <number>', 1);
+        $this->seed('2026-11-01 06:00:00', 1, 'woocommerce', 'conn_primary', null, 'Receipt <number>', 1);
+        $database = new RecordingDatabase($GLOBALS['wpdb']);
+        $service  = new MailAnalyticsService(
+            new MailAnalyticsRepository($database, (new Log())->getTable())
+        );
+
+        $query = (new AnalyticsQueryFactory(
+            new DateTimeImmutable('2026-11-01T08:00:00+00:00'),
+            new DateTimeZone('America/New_York'),
+            30
+        ))->fromInput([
+            'start'  => '2026-11-01T00:00:00-04:00',
+            'end'    => '2026-11-01T03:00:00-05:00',
+            'bucket' => 'hour',
+        ]);
+        self::assertInstanceOf(AnalyticsQuery::class, $query);
+
+        $result = $service->overview($query);
+
+        self::assertSame('2026-11-01T01:00:00-04:00', $result['series'][1]['bucket']);
+        self::assertSame('2026-11-01T01:00:00-05:00', $result['series'][2]['bucket']);
+        self::assertSame(1, $result['series'][1]['total']);
+        self::assertSame(1, $result['series'][2]['total']);
+        self::assertStringNotContainsString('CONVERT_TZ', $database->queries[1]);
     }
 
     private function query(): AnalyticsQuery
@@ -84,7 +148,7 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         return $query;
     }
 
-    private function seed(string $createdAt, int $status, ?string $source, string $connectionId, ?string $deliveryStatus, string $subject): void
+    private function seed(string $createdAt, int $status, ?string $source, string $connectionId, ?string $deliveryStatus, ?string $subjectPattern, ?int $recipientCount): void
     {
         global $wpdb;
 
@@ -92,16 +156,18 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
             (new Log())->getTable(),
             [
                 'status'          => $status,
-                'subject'         => $subject,
+                'subject'         => 'Retained raw subject must not be selected',
                 'to_addr'         => wp_json_encode(['customer@example.test']),
                 'connection'      => $connectionId,
                 'connection_id'   => $connectionId,
                 'source_plugin'   => $source,
                 'delivery_status' => $deliveryStatus,
+                'subject_pattern' => $subjectPattern,
+                'recipient_count' => $recipientCount,
                 'created_at'      => $createdAt,
                 'updated_at'      => $createdAt,
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']
         );
 
         self::assertSame(1, $inserted);

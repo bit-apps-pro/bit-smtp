@@ -33,6 +33,8 @@ final class BitSmtpLogsTableMigration extends Migration
                 $table->varchar('source_plugin', 191)->nullable();
                 $table->varchar('routing_type', 32)->nullable();
                 $table->integer('routing_rule_index')->nullable();
+                $table->varchar('subject_pattern', 191)->nullable();
+                $table->integer('recipient_count')->nullable();
 
                 $table->timestamps();
             }
@@ -89,8 +91,12 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addColumnIfMissing($table, 'source_plugin', 'ADD COLUMN `source_plugin` VARCHAR(191) NULL');
         $this->addColumnIfMissing($table, 'routing_type', 'ADD COLUMN `routing_type` VARCHAR(32) NULL');
         $this->addColumnIfMissing($table, 'routing_rule_index', 'ADD COLUMN `routing_rule_index` INT NULL');
+        $this->addColumnIfMissing($table, 'subject_pattern', 'ADD COLUMN `subject_pattern` VARCHAR(191) NULL');
+        $this->addColumnIfMissing($table, 'recipient_count', 'ADD COLUMN `recipient_count` INT NULL');
         $this->addIndexIfMissing($table, 'idx_source_created', 'ADD INDEX `idx_source_created` (`source_plugin`, `created_at`)');
         $this->addIndexIfMissing($table, 'idx_connection_created', 'ADD INDEX `idx_connection_created` (`connection`, `created_at`)');
+        $this->addIndexIfMissing($table, 'idx_connection_id_created', 'ADD INDEX `idx_connection_id_created` (`connection_id`, `created_at`)');
+        $this->addIndexIfMissing($table, 'idx_created_at', 'ADD INDEX `idx_created_at` (`created_at`)');
         $this->addIndexIfMissing($table, 'idx_status_created', 'ADD INDEX `idx_status_created` (`status`, `created_at`)');
     }
 

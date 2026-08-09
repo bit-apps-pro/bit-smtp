@@ -75,6 +75,11 @@ final class RoutingExplainerTest extends BaseUnitTestCase
         self::assertSame('conn_rule', $result['selected_connection_id']);
         self::assertTrue($result['rules'][0]['matches']);
         self::assertTrue($result['rules'][0]['conditions'][0]['matches']);
+        self::assertSame('configured source plugin', $result['rules'][0]['conditions'][0]['descriptor']);
+        self::assertArrayNotHasKey('value', $result['rules'][0]['conditions'][0]);
+        self::assertStringNotContainsString('customer.test', json_encode($result['rules']));
+        self::assertStringNotContainsString('billing@example.test', json_encode($result['rules']));
+        self::assertStringNotContainsString('Your order', json_encode($result['rules']));
         self::assertSame(['conn_default', 'conn_fallback'], $result['fallback_candidates']);
     }
 

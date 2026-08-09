@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Analytics;
 
 use DateInterval;
+use DateTimeImmutable;
+use DateTimeZone;
 use WP_Error;
 
 final class MailAnalyticsService
@@ -19,12 +21,9 @@ final class MailAnalyticsService
 
     private MailAnalyticsRepository $repository;
 
-    private SubjectPatternNormalizer $normalizer;
-
-    public function __construct(MailAnalyticsRepository $repository, ?SubjectPatternNormalizer $normalizer = null)
+    public function __construct(MailAnalyticsRepository $repository)
     {
         $this->repository = $repository;
-        $this->normalizer = $normalizer ?? new SubjectPatternNormalizer();
     }
 
     /**
@@ -71,14 +70,15 @@ final class MailAnalyticsService
         }
 
         return array_merge($this->metadata($query, $summary), [
-            'plugin'               => $query->plugin(),
-            'acceptance'           => $this->acceptance($summary),
-            'delivery'             => $this->delivery($summary),
-            'series'               => $this->fillBuckets($query, $series),
-            'connections'          => $connections,
-            'routing_types'        => $routingTypes,
-            'subject_patterns'     => $this->subjectPatterns($subjects),
-            'proxy_interpretation' => 'Plugin activity is derived from retained email notifications and is only a proxy for application activity.',
+            'plugin'                        => $query->plugin(),
+            'acceptance'                    => $this->acceptance($summary),
+            'delivery'                      => $this->delivery($summary),
+            'series'                        => $this->fillBuckets($query, $series),
+            'connections'                   => $connections,
+            'routing_types'                 => $routingTypes,
+            'subject_patterns'              => $this->subjectPatterns($subjects),
+            'subject_pattern_unknown_count' => (int) ($summary['unknown_subject_pattern_count'] ?? 0),
+            'proxy_interpretation'          => 'Plugin activity is derived from retained email notifications and is only a proxy for application activity.',
         ]);
     }
 
@@ -108,38 +108,48 @@ final class MailAnalyticsService
      */
     public function anomalies(AnalyticsQuery $query)
     {
-        $prior              = $query->priorPeriod();
-        $currentSummary     = $this->repository->summary($query);
-        $priorSummary       = $this->repository->summary($prior);
+        $prior          = $query->priorPeriod();
+        $currentSummary = $this->repository->summary($query);
+        $priorSummary   = $this->repository->summary($prior);
+        $error          = $this->firstError([$currentSummary, $priorSummary]);
+        if ($error !== null) {
+            return $error;
+        }
+
+        $response = array_merge($this->metadata($query, $currentSummary), [
+            'current'             => $this->counts($currentSummary),
+            'prior'               => $this->counts($priorSummary),
+            'prior_range'         => $this->range($prior),
+            'comparison_coverage' => [
+                'complete'      => $query->hasCompletePriorCoverage(),
+                'retained_from' => $query->retainedFrom() === null ? null : $query->retainedFrom()->format(DATE_ATOM),
+            ],
+        ]);
+        if (!$query->hasCompletePriorCoverage()) {
+            $response['observations'] = [];
+
+            return $response;
+        }
+
         $currentSources     = $this->repository->groups($query, 'source', self::ANOMALY_GROUP_LIMIT);
         $priorSources       = $this->repository->groups($prior, 'source', self::ANOMALY_GROUP_LIMIT);
         $currentConnections = $this->repository->groups($query, 'connection', self::ANOMALY_GROUP_LIMIT);
         $priorConnections   = $this->repository->groups($prior, 'connection', self::ANOMALY_GROUP_LIMIT);
-        $error              = $this->firstError([
+        $error              = $this->firstError([$currentSources, $priorSources, $currentConnections, $priorConnections]);
+        if ($error !== null) {
+            return $error;
+        }
+
+        $response['observations'] = $this->observations(
             $currentSummary,
             $priorSummary,
             $currentSources,
             $priorSources,
             $currentConnections,
-            $priorConnections,
-        ]);
-        if ($error !== null) {
-            return $error;
-        }
+            $priorConnections
+        );
 
-        return array_merge($this->metadata($query, $currentSummary), [
-            'current'      => $this->counts($currentSummary),
-            'prior'        => $this->counts($priorSummary),
-            'prior_range'  => $this->range($prior),
-            'observations' => $this->observations(
-                $currentSummary,
-                $priorSummary,
-                $currentSources,
-                $priorSources,
-                $currentConnections,
-                $priorConnections
-            ),
-        ]);
+        return $response;
     }
 
     /**
@@ -150,11 +160,12 @@ final class MailAnalyticsService
     private function metadata(AnalyticsQuery $query, array $summary): array
     {
         return [
-            'range'                => $this->range($query),
-            'timezone'             => $query->timezone()->getName(),
-            'total'                => (int) ($summary['total'] ?? 0),
-            'unknown_source_count' => (int) ($summary['unknown_source_count'] ?? 0),
-            'interpretation'       => self::INTERPRETATION,
+            'range'                   => $this->range($query),
+            'timezone'                => $query->timezone()->getName(),
+            'total'                   => (int) ($summary['total'] ?? 0),
+            'unknown_source_count'    => (int) ($summary['unknown_source_count'] ?? 0),
+            'unknown_recipient_count' => (int) ($summary['unknown_recipient_count'] ?? 0),
+            'interpretation'          => self::INTERPRETATION,
         ];
     }
 
@@ -204,7 +215,9 @@ final class MailAnalyticsService
             'bounced'        => (int) ($summary['bounced'] ?? 0),
             'blocked'        => (int) ($summary['blocked'] ?? 0),
             'spam'           => (int) ($summary['spam'] ?? 0),
-            'unknown'        => max(0, $total - $denominator),
+            'accepted'       => (int) ($summary['accepted_delivery'] ?? 0),
+            'pending'        => (int) ($summary['pending_delivery'] ?? 0),
+            'unknown'        => max(0, $total - $denominator - (int) ($summary['accepted_delivery'] ?? 0) - (int) ($summary['pending_delivery'] ?? 0)),
             'denominator'    => $denominator,
             'delivered_rate' => $this->rate($delivered, $denominator),
         ];
@@ -219,14 +232,35 @@ final class MailAnalyticsService
     {
         $byBucket = [];
         foreach ($rows as $row) {
-            $byBucket[(string) ($row['bucket'] ?? '')] = $row;
+            $utcHour = DateTimeImmutable::createFromFormat(
+                '!Y-m-d H:i:s',
+                (string) ($row['utc_hour'] ?? ''),
+                new DateTimeZone('UTC')
+            );
+            if ($utcHour === false) {
+                continue;
+            }
+
+            $bucket = $this->bucketDescriptor($query, $utcHour);
+            $key    = $bucket['bucket'];
+            $byBucket[$key] ??= [
+                'total'             => 0,
+                'accepted'          => 0,
+                'failed'            => 0,
+                'delivered'         => 0,
+                'verified_delivery' => 0,
+            ];
+            foreach (array_keys($byBucket[$key]) as $metric) {
+                $byBucket[$key][$metric] += (int) ($row[$metric] ?? 0);
+            }
         }
 
         $filled = [];
-        foreach ($this->bucketKeys($query) as $bucket) {
-            $row      = $byBucket[$bucket] ?? [];
+        foreach ($this->bucketDescriptors($query) as $bucket) {
+            $row      = $byBucket[$bucket['bucket']] ?? [];
             $filled[] = [
-                'bucket'            => $bucket,
+                'bucket'            => $bucket['bucket'],
+                'label'             => $bucket['label'],
                 'total'             => (int) ($row['total'] ?? 0),
                 'accepted'          => (int) ($row['accepted'] ?? 0),
                 'failed'            => (int) ($row['failed'] ?? 0),
@@ -239,55 +273,60 @@ final class MailAnalyticsService
     }
 
     /**
-     * @return array<int,string>
+     * @return array<int,array{bucket:string,label:string}>
      */
-    private function bucketKeys(AnalyticsQuery $query): array
+    private function bucketDescriptors(AnalyticsQuery $query): array
     {
-        $start = $query->start()->setTimezone($query->timezone());
-        $end   = $query->end()->setTimezone($query->timezone());
-        if ($query->bucket() === 'hour') {
-            $cursor = $start->setTime((int) $start->format('H'), 0, 0);
-            $format = 'Y-m-d H:00:00';
-            $step   = 'PT1H';
-        } elseif ($query->bucket() === 'week') {
-            $cursor = $start->modify('monday this week')->setTime(0, 0, 0);
-            $format = 'oW';
-            $step   = 'P1W';
-        } else {
-            $cursor = $start->setTime(0, 0, 0);
-            $format = 'Y-m-d';
-            $step   = 'P1D';
-        }
-
-        $keys = [];
-        while ($cursor < $end) {
-            $key = $cursor->format($format);
-            if (!\in_array($key, $keys, true)) {
-                $keys[] = $key;
+        $cursor  = $query->start()->setTime((int) $query->start()->format('H'), 0, 0);
+        $buckets = [];
+        while ($cursor < $query->end()) {
+            $bucket = $this->bucketDescriptor($query, $cursor);
+            if (!isset($buckets[$bucket['bucket']])) {
+                $buckets[$bucket['bucket']] = $bucket;
             }
-            $cursor = $cursor->add(new DateInterval($step));
+            $cursor = $cursor->add(new DateInterval('PT1H'));
         }
 
-        return $keys;
+        return array_values($buckets);
     }
 
     /**
-     * @param array<int,array{subject:string,total:int}> $subjects
+     * @return array{bucket:string,label:string}
+     */
+    private function bucketDescriptor(AnalyticsQuery $query, DateTimeImmutable $utcHour): array
+    {
+        $local = $utcHour->setTimezone($query->timezone());
+        if ($query->bucket() === 'hour') {
+            return [
+                'bucket' => $local->format(DATE_ATOM),
+                'label'  => $local->format('Y-m-d H:00'),
+            ];
+        }
+
+        if ($query->bucket() === 'week') {
+            $bucket = $local->format('o-\\WW');
+
+            return ['bucket' => $bucket, 'label' => $bucket];
+        }
+
+        $bucket = $local->format('Y-m-d');
+
+        return ['bucket' => $bucket, 'label' => $bucket];
+    }
+
+    /**
+     * @param array<int,array{pattern:string,total:int}> $subjects
      *
      * @return array<int,array{pattern:string,total:int}>
      */
     private function subjectPatterns(array $subjects): array
     {
-        $patterns = [];
-        foreach ($subjects as $subject) {
-            $pattern            = $this->normalizer->normalize($subject['subject']);
-            $patterns[$pattern] = ($patterns[$pattern] ?? 0) + (int) $subject['total'];
-        }
-
-        arsort($patterns, SORT_NUMERIC);
         $result = [];
-        foreach (\array_slice($patterns, 0, self::TOP_LIMIT, true) as $pattern => $total) {
-            $result[] = ['pattern' => $pattern, 'total' => $total];
+        foreach (\array_slice($subjects, 0, self::TOP_LIMIT) as $subject) {
+            $pattern = (string) ($subject['pattern'] ?? '');
+            if ($pattern !== '') {
+                $result[] = ['pattern' => $pattern, 'total' => (int) $subject['total']];
+            }
         }
 
         return $result;

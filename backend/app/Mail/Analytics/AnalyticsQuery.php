@@ -26,13 +26,16 @@ final class AnalyticsQuery
 
     private ?string $connectionId;
 
+    private ?DateTimeImmutable $retainedFrom;
+
     public function __construct(
         DateTimeImmutable $start,
         DateTimeImmutable $end,
         DateTimeZone $timezone,
         string $bucket,
         ?string $plugin = null,
-        ?string $connectionId = null
+        ?string $connectionId = null,
+        ?DateTimeImmutable $retainedFrom = null
     ) {
         $utc                = new DateTimeZone('UTC');
         $this->start        = $start->setTimezone($utc);
@@ -41,6 +44,7 @@ final class AnalyticsQuery
         $this->bucket       = $bucket;
         $this->plugin       = $plugin;
         $this->connectionId = $connectionId;
+        $this->retainedFrom = $retainedFrom === null ? null : $retainedFrom->setTimezone($utc);
     }
 
     public function start(): DateTimeImmutable
@@ -73,6 +77,16 @@ final class AnalyticsQuery
         return $this->connectionId;
     }
 
+    public function retainedFrom(): ?DateTimeImmutable
+    {
+        return $this->retainedFrom;
+    }
+
+    public function hasCompletePriorCoverage(): bool
+    {
+        return $this->retainedFrom === null || $this->priorPeriod()->start() >= $this->retainedFrom;
+    }
+
     public function startSql(): string
     {
         return $this->start->format('Y-m-d H:i:s');
@@ -94,7 +108,8 @@ final class AnalyticsQuery
             $this->timezone,
             $this->bucket,
             $this->plugin,
-            $this->connectionId
+            $this->connectionId,
+            $this->retainedFrom
         );
     }
 }
