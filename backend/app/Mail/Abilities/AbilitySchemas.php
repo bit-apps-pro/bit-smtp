@@ -70,11 +70,6 @@ final class AbilitySchemas
                 'maxItems'    => 50,
                 'uniqueItems' => true,
             ],
-            'from' => self::string([
-                'format'    => 'email',
-                'maxLength' => 320,
-            ]),
-            'subject'       => self::string(['maxLength' => 500]),
             'source_plugin' => self::string(['pattern' => self::PLUGIN_PATTERN]),
         ], ['to_domains']);
 

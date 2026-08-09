@@ -75,14 +75,16 @@ final class RoutingExplainer
      */
     public function simulate(array $input)
     {
+        if (\array_key_exists('from', $input) || \array_key_exists('subject', $input)) {
+            return new WP_Error(
+                'bit_smtp_routing_simulation_private_input',
+                'Routing simulation accepts recipient domains and source plugin only; sender addresses and subjects are private.'
+            );
+        }
+
         $domains = $this->domains($input['to_domains'] ?? null);
         if ($domains instanceof WP_Error) {
             return $domains;
-        }
-
-        $from = (string) ($input['from'] ?? '');
-        if ($from !== '' && filter_var($from, FILTER_VALIDATE_EMAIL) === false) {
-            return new WP_Error('bit_smtp_invalid_routing_simulation', 'The simulation sender must be a valid email address.');
         }
 
         $source = (string) ($input['source_plugin'] ?? 'unknown');
@@ -90,13 +92,20 @@ final class RoutingExplainer
             return new WP_Error('bit_smtp_invalid_routing_simulation', 'The simulation source plugin is invalid.');
         }
 
+        $rules = RoutingRules::fromArray($this->routingRules());
+        if ($this->requiresPrivateFields($rules)) {
+            return new WP_Error(
+                'bit_smtp_routing_simulation_requires_private_fields',
+                'Routing simulation cannot evaluate the current rules because they require a private sender or subject.'
+            );
+        }
+
         $context = RoutingContext::fromArray([
             'recipients'   => array_map(static fn (string $domain): string => 'domain@' . $domain, $domains),
-            'from'         => $from,
-            'subject'      => substr((string) ($input['subject'] ?? ''), 0, 500),
+            'from'         => '',
+            'subject'      => '',
             'sourcePlugin' => $source,
         ]);
-        $rules   = RoutingRules::fromArray($this->routingRules());
         $details = [];
         foreach ($rules->all() as $index => $rule) {
             $conditions = [];
@@ -163,6 +172,19 @@ final class RoutingExplainer
         $rules    = $features['routing'] ?? [];
 
         return \is_array($rules) ? array_values(array_filter($rules, 'is_array')) : [];
+    }
+
+    private function requiresPrivateFields(RoutingRules $rules): bool
+    {
+        foreach ($rules->all() as $rule) {
+            foreach ($rule->getConditions() as $condition) {
+                if (\in_array($condition->getField(), ['from', 'subject'], true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function conditionDescriptor(string $field): string

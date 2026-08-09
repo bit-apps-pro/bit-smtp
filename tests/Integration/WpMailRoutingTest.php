@@ -146,6 +146,8 @@ final class WpMailRoutingTest extends IntegrationTestCase
 
     public function testDisabledSmtpAndLoggingDoNotDetectRetainedRoutingSource(): void
     {
+        $this->useRealPhpMailer();
+        $nativeMailpit = $this->configureNativeMailpit();
         $this->storeV2(
             [$this->connection('conn_default', self::SMTP_HOST, self::SMTP_PORT)],
             'conn_default',
@@ -162,16 +164,20 @@ final class WpMailRoutingTest extends IntegrationTestCase
 
         try {
             $this->assertTrue(wp_mail('user@routed.test', 'Disabled SMTP', 'Body'));
+            $this->assertNotEmpty($this->mailpitMessages());
             $this->assertCount(0, $this->logs());
         } finally {
             $this->replaceLoggingEnabled($bridge, $originalLogging);
             $this->replaceSourceDetector($bridge, $originalDetector);
+            remove_action('phpmailer_init', $nativeMailpit);
             Mockery::close();
         }
     }
 
     public function testDisabledSmtpWithLoggingCapturesNativeSource(): void
     {
+        $this->useRealPhpMailer();
+        $nativeMailpit = $this->configureNativeMailpit();
         $this->storeV2(
             [$this->connection('conn_default', self::SMTP_HOST, self::SMTP_PORT)],
             'conn_default',
@@ -188,6 +194,7 @@ final class WpMailRoutingTest extends IntegrationTestCase
 
         try {
             $this->assertTrue(wp_mail('user@routed.test', 'Native attribution', 'Body'));
+            $this->assertNotEmpty($this->mailpitMessages());
 
             $logs = $this->logs();
             $this->assertCount(1, $logs);
@@ -196,6 +203,7 @@ final class WpMailRoutingTest extends IntegrationTestCase
         } finally {
             $this->replaceLoggingEnabled($bridge, $originalLogging);
             $this->replaceSourceDetector($bridge, $originalDetector);
+            remove_action('phpmailer_init', $nativeMailpit);
             Mockery::close();
         }
     }
@@ -290,5 +298,20 @@ final class WpMailRoutingTest extends IntegrationTestCase
         $property->setValue($bridge, $enabled);
 
         return $previous;
+    }
+
+    private function configureNativeMailpit(): callable
+    {
+        $configure = static function ($mailer): void {
+            $mailer->isSMTP();
+            $mailer->Host        = self::SMTP_HOST;
+            $mailer->Port        = self::SMTP_PORT;
+            $mailer->SMTPAuth    = false;
+            $mailer->SMTPAutoTLS = false;
+            $mailer->SMTPSecure  = '';
+        };
+        add_action('phpmailer_init', $configure);
+
+        return $configure;
     }
 }

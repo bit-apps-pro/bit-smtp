@@ -305,10 +305,10 @@ class WpMailBridge
     }
 
     /**
-     * Delivery status to stamp on an accepted hand-off. The provider's explicit opinion wins (e.g. SES
-     * reports delivered on accept); otherwise a connection that can never receive a delivery webhook is
-     * marked delivered so its row does not sit "pending" forever, while a webhook-backed connection is
-     * left unstamped for the inbound event to resolve.
+     * Delivery status to stamp on a successful transport hand-off. A hand-off is not recipient
+     * delivery: only an authenticated, correlated webhook may write terminal delivery values. Keep
+     * webhook-backed connections unstamped pending their callback; represent non-webhook hand-offs as
+     * accepted so analytics can keep them out of its verified-delivery denominator.
      */
     private function resolveAcceptedDeliveryStatus(bool $succeeded, ?ProviderInterface $provider, Connection $connection): ?string
     {
@@ -316,12 +316,13 @@ class WpMailBridge
             return null;
         }
 
-        $explicit = $provider->deliveryStatusOnAccept();
-        if ($explicit !== null) {
-            return $explicit;
+        // Providers may only contribute the non-terminal `accepted` state here. Normalize any legacy
+        // terminal value defensively: a provider response alone is never proof of recipient delivery.
+        if ($provider->deliveryStatusOnAccept() === DeliveryStatus::ACCEPTED) {
+            return DeliveryStatus::ACCEPTED;
         }
 
-        return $this->deliveryWebhookExpected($connection) ? null : DeliveryStatus::DELIVERED;
+        return $this->deliveryWebhookExpected($connection) ? null : DeliveryStatus::ACCEPTED;
     }
 
     /**

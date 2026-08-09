@@ -172,7 +172,8 @@ class WpMailBridgeTest extends BaseUnitTestCase
             ->with(Mockery::on(static function (array $logs): bool {
                 return $logs[0]['source_plugin']      === 'woocommerce'
                     && $logs[0]['routing_type']       === 'fallback'
-                    && $logs[0]['routing_rule_index'] === null;
+                    && $logs[0]['routing_rule_index'] === null
+                    && $logs[0]['delivery_status']    === 'accepted';
             }));
         $this->setEventLogger($bridge, $logService);
         $this->setContext($bridge, (new SendContext())->setRoutingDecision(
@@ -290,7 +291,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->invokeDispatch($bridge, [$connection], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
     }
 
-    public function testAcceptDeliveryProviderStampsDeliveryStatusOnSuccess(): void
+    public function testAcceptedSendNeverPromotesAProviderHandoffToDelivered(): void
     {
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), 'delivered');
 
@@ -298,7 +299,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $logService->shouldReceive('bulkInsert')
             ->once()
             ->with(Mockery::on(function (array $logs): bool {
-                return $logs[0]['delivery_status'] === 'delivered'
+                return $logs[0]['delivery_status'] === 'accepted'
                     && $logs[0]['delivery_updated_at'] !== null;
             }));
         $this->setEventLogger($bridge, $logService);
@@ -310,17 +311,17 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertTrue($succeeded);
     }
 
-    public function testNoWebhookProviderStampsDeliveredOnSuccess(): void
+    public function testSmtpAcceptedSendDoesNotEnterAVerifiedDeliveryOutcome(): void
     {
-        // A provider with no inbound delivery webhook can never receive a delivery event, so a
-        // successful hand-off is stamped delivered rather than left pending forever.
+        // SMTP has no provider-verified delivery callback. A successful hand-off is accepted, not
+        // delivered; delivery analytics must therefore exclude it from the verified denominator.
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]));
 
         $logService = Mockery::mock(LogService::class);
         $logService->shouldReceive('bulkInsert')
             ->once()
             ->with(Mockery::on(function (array $logs): bool {
-                return $logs[0]['delivery_status']     === 'delivered'
+                return $logs[0]['delivery_status']     === 'accepted'
                     && $logs[0]['delivery_updated_at'] !== null;
             }));
         $this->setEventLogger($bridge, $logService);
@@ -350,17 +351,17 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->invokeDispatch($bridge, [$this->connection(['provider' => 'postmark'])], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
     }
 
-    public function testWebhookBackedProviderWithWebhookDisabledStampsDelivered(): void
+    public function testWebhookDisabledApiAcceptedSendDoesNotEnterAVerifiedDeliveryOutcome(): void
     {
-        // The adapter exists but the connection disabled the webhook, so nothing will ever report — the
-        // accepted hand-off is the final signal and is stamped delivered.
+        // The adapter exists but this connection disabled callbacks. The API hand-off is still only
+        // accepted; no terminal delivery value may be persisted until a verified callback arrives.
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), null, 'postmark');
 
         $logService = Mockery::mock(LogService::class);
         $logService->shouldReceive('bulkInsert')
             ->once()
             ->with(Mockery::on(function (array $logs): bool {
-                return $logs[0]['delivery_status'] === 'delivered';
+                return $logs[0]['delivery_status'] === 'accepted';
             }));
         $this->setEventLogger($bridge, $logService);
         $this->setContext($bridge, new SendContext());
@@ -403,7 +404,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $logService->shouldReceive('bulkInsert')
             ->once()
             ->with(Mockery::on(function (array $logs): bool {
-                return \array_key_exists('connection', $logs[0]) && $logs[0]['connection'] === null;
+                return \array_key_exists('connection', $logs[0])
+                    && $logs[0]['connection']          === null
+                    && $logs[0]['delivery_status']     === null
+                    && $logs[0]['delivery_updated_at'] === null;
             }));
         $this->setEventLogger($bridge, $logService);
         $this->setContext($bridge, new SendContext());

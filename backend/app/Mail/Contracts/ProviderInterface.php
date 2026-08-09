@@ -39,9 +39,9 @@ interface ProviderInterface
     public function tracking(): array;
 
     /**
-     * The delivery status a successful send-accept implies for a provider that has no async delivery
-     * feed wired (no webhook), as a DeliveryStatus value; null when this provider's real delivery
-     * status only arrives out-of-band (webhook/SNS) and must not be inferred from the hand-off.
+     * The non-terminal status a successful transport hand-off may persist: DeliveryStatus::ACCEPTED
+     * or null. Terminal values always require a verified, correlated webhook event and must never be
+     * inferred from a transport response.
      */
     public function deliveryStatusOnAccept(): ?string;
 }

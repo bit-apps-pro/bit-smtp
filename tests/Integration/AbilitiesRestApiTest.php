@@ -196,6 +196,21 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
         }
     }
 
+    public function testRestRoutingSimulationRejectsRawSenderAndSubjectBeforeTheyReachTheReadonlyCallback(): void
+    {
+        $response = $this->runAbility('bit-smtp/explain-routing', [
+            'to_domains'    => ['customer.test'],
+            'source_plugin' => 'woocommerce',
+            'from'          => 'private.sender@example.test',
+            'subject'       => 'Private receipt 884422',
+        ]);
+
+        self::assertSame(400, $response->get_status());
+        self::assertSame('ability_invalid_input', $response->get_data()['code']);
+        self::assertStringNotContainsString('private.sender@example.test', (string) wp_json_encode($response->get_data()));
+        self::assertStringNotContainsString('Private receipt 884422', (string) wp_json_encode($response->get_data()));
+    }
+
     public function testRestDatabaseFailuresRemainInternalServerErrors(): void
     {
         global $wpdb;

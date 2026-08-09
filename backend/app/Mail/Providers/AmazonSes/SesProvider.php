@@ -63,13 +63,12 @@ class SesProvider implements ProviderInterface
     }
 
     /**
-     * SES has no delivery webhook wired here (its delivery events arrive via SNS, not built), so a
-     * successful send-accept is the strongest delivery signal available. Switch to
-     * DeliveryStatus::ACCEPTED to distinguish "handed off to SES" from recipient-confirmed delivery.
+     * SES send success proves only that SES accepted the message. Delivery events would arrive via
+     * SNS, which this integration does not receive, so this must not imply recipient delivery.
      */
     public function deliveryStatusOnAccept(): ?string
     {
-        return DeliveryStatus::DELIVERED;
+        return DeliveryStatus::ACCEPTED;
     }
 
     public function fields(): array

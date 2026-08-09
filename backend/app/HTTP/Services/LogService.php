@@ -8,6 +8,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Deps\BitApps\WPKit\Helpers\Arr;
 use BitApps\SMTP\Mail\Analytics\SubjectPatternNormalizer;
+use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
@@ -137,9 +138,11 @@ class LogService
         // stale webhook status can't linger against this row.
         $this->resetDelivery($log);
 
-        // A resend over a provider with no async delivery feed re-stamps its send-derived status.
-        if ($deliveryStatus !== null) {
-            $log->delivery_status     = $deliveryStatus;
+        // A resend may record its non-terminal transport hand-off, never a terminal delivery
+        // inference. Terminal statuses are exclusively folded by updateDeliveryRollup() after an
+        // authenticated webhook event has correlated to this new send.
+        if ($deliveryStatus === DeliveryStatus::ACCEPTED) {
+            $log->delivery_status     = DeliveryStatus::ACCEPTED;
             $log->delivery_updated_at = gmdate('Y-m-d H:i:s');
         }
 
@@ -411,8 +414,12 @@ class LogService
                 'connection_id'       => $log['connection_id']       ?? null,
                 'message_id'          => $log['message_id']          ?? null,
                 'tracking_id'         => $log['tracking_id']         ?? null,
-                'delivery_status'     => $log['delivery_status']     ?? null,
-                'delivery_updated_at' => $log['delivery_updated_at'] ?? null,
+                'delivery_status'     => ($log['delivery_status'] ?? null) === DeliveryStatus::ACCEPTED
+                    ? DeliveryStatus::ACCEPTED
+                    : null,
+                'delivery_updated_at' => ($log['delivery_status'] ?? null) === DeliveryStatus::ACCEPTED
+                    ? ($log['delivery_updated_at'] ?? gmdate('Y-m-d H:i:s'))
+                    : null,
                 'created_at_utc'      => gmdate('Y-m-d H:i:s'),
             ];
 

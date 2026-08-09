@@ -63,10 +63,8 @@ final class RoutingExplainerTest extends BaseUnitTestCase
     public function testSimulationReportsEveryConditionAndUsesTheFirstMatchingRule(): void
     {
         $logs   = Mockery::mock(LogService::class);
-        $result = (new RoutingExplainer($logs, $this->settings()))->simulate([
+        $result = (new RoutingExplainer($logs, $this->settings(false)))->simulate([
             'to_domains'    => ['customer.test'],
-            'from'          => 'billing@example.test',
-            'subject'       => 'Your order',
             'source_plugin' => 'woocommerce',
         ]);
 
@@ -78,9 +76,31 @@ final class RoutingExplainerTest extends BaseUnitTestCase
         self::assertSame('configured source plugin', $result['rules'][0]['conditions'][0]['descriptor']);
         self::assertArrayNotHasKey('value', $result['rules'][0]['conditions'][0]);
         self::assertStringNotContainsString('customer.test', json_encode($result['rules']));
-        self::assertStringNotContainsString('billing@example.test', json_encode($result['rules']));
-        self::assertStringNotContainsString('Your order', json_encode($result['rules']));
         self::assertSame(['conn_default', 'conn_fallback'], $result['fallback_candidates']);
+    }
+
+    public function testSimulationRejectsPrivateSenderAndSubjectInputs(): void
+    {
+        $result = (new RoutingExplainer(Mockery::mock(LogService::class), $this->settings(false)))->simulate([
+            'to_domains'    => ['customer.test'],
+            'source_plugin' => 'woocommerce',
+            'from'          => 'billing@example.test',
+            'subject'       => 'Your order',
+        ]);
+
+        self::assertInstanceOf(WP_Error::class, $result);
+        self::assertSame('bit_smtp_routing_simulation_private_input', $result->get_error_code());
+    }
+
+    public function testSimulationReturnsAStableLimitationWhenCurrentRulesNeedPrivateFields(): void
+    {
+        $result = (new RoutingExplainer(Mockery::mock(LogService::class), $this->settings()))->simulate([
+            'to_domains'    => ['customer.test'],
+            'source_plugin' => 'woocommerce',
+        ]);
+
+        self::assertInstanceOf(WP_Error::class, $result);
+        self::assertSame('bit_smtp_routing_simulation_requires_private_fields', $result->get_error_code());
     }
 
     public function testSimulationRejectsRecipientLocalParts(): void
@@ -93,7 +113,7 @@ final class RoutingExplainerTest extends BaseUnitTestCase
         self::assertSame('bit_smtp_invalid_routing_simulation', $result->get_error_code());
     }
 
-    private function settings(): MailSettings
+    private function settings(bool $includesPrivateRule = true): MailSettings
     {
         return MailSettings::fromArray([
             'enabled'                 => true,
@@ -113,12 +133,12 @@ final class RoutingExplainerTest extends BaseUnitTestCase
                             ['field' => 'recipient', 'operator' => 'domain', 'value' => 'customer.test'],
                         ],
                     ],
-                    [
+                    ...($includesPrivateRule ? [[
                         'connectionId' => 'conn_fallback',
                         'conditions'   => [
                             ['field' => 'from', 'operator' => 'domain', 'value' => 'example.test'],
                         ],
-                    ],
+                    ]] : []),
                 ],
             ],
         ]);

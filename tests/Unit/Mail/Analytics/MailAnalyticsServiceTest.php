@@ -360,7 +360,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         )));
     }
 
-    public function testAnomaliesSuppressComparisonsWhenTheActualRetainedStartDoesNotCoverThePriorPeriod(): void
+    public function testAnomaliesCompareSparseHistoryWhenConfiguredRetentionAndContinuityCoverThePriorPeriod(): void
     {
         $query = (new AnalyticsQueryFactory(
             new DateTimeImmutable('2026-04-01T00:00:00+00:00'),
@@ -377,18 +377,24 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
             'earliest' => '2026-03-20 00:00:00',
             'latest'   => '2026-04-01 00:00:00',
         ]);
-        $repo->shouldNotReceive('groups');
-        $repo->shouldNotReceive('timeSeries');
+        $repo->shouldReceive('groups')->twice()->with(Mockery::type(AnalyticsQuery::class), 'source', 100)->andReturn([]);
+        $repo->shouldReceive('groups')->twice()->with(Mockery::type(AnalyticsQuery::class), 'connection', 100)->andReturn([]);
+        $repo->shouldReceive('timeSeries')->twice()->with(Mockery::type(AnalyticsQuery::class))->andReturn([]);
 
         $result = (new MailAnalyticsService($repo))->anomalies($query);
 
-        self::assertFalse($result['comparison_coverage']['complete']);
-        self::assertSame([], $result['observations']);
+        self::assertTrue($result['comparison_coverage']['complete']);
+        self::assertSame([[
+            'type'              => 'volume_change',
+            'current'           => 3,
+            'prior'             => 3,
+            'percentage_change' => 0.0,
+        ]], $result['observations']);
         self::assertSame('2026-03-20T00:00:00+00:00', $result['comparison_coverage']['retained_from']);
         self::assertSame('2026-03-12T00:00:00+00:00', $result['comparison_coverage']['configured_retained_from']);
     }
 
-    public function testAnomaliesMarkEmptyRetainedLogsAsIncompleteCoverage(): void
+    public function testAnomaliesCompareContinuousZeroVolumeWindowsWithoutAnEarliestEvent(): void
     {
         $query = $this->query([
             'start' => '2026-03-10T00:00:00+00:00',
@@ -397,14 +403,20 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo = Mockery::mock(MailAnalyticsRepository::class);
         $repo->shouldReceive('summary')->twice()->andReturn($this->summary());
         $repo->shouldReceive('retainedRecordBounds')->once()->andReturn(['earliest' => null, 'latest' => null]);
-        $repo->shouldNotReceive('groups');
-        $repo->shouldNotReceive('timeSeries');
+        $repo->shouldReceive('groups')->twice()->with(Mockery::type(AnalyticsQuery::class), 'source', 100)->andReturn([]);
+        $repo->shouldReceive('groups')->twice()->with(Mockery::type(AnalyticsQuery::class), 'connection', 100)->andReturn([]);
+        $repo->shouldReceive('timeSeries')->twice()->with(Mockery::type(AnalyticsQuery::class))->andReturn([]);
 
         $result = (new MailAnalyticsService($repo))->anomalies($query);
 
-        self::assertFalse($result['comparison_coverage']['complete']);
+        self::assertTrue($result['comparison_coverage']['complete']);
         self::assertNull($result['comparison_coverage']['retained_from']);
-        self::assertSame([], $result['observations']);
+        self::assertSame([[
+            'type'              => 'volume_change',
+            'current'           => 3,
+            'prior'             => 3,
+            'percentage_change' => 0.0,
+        ]], $result['observations']);
     }
 
     public function testAnomaliesRequireBothQualifiedRetentionAndPostResumeContinuityCoverage(): void

@@ -189,6 +189,23 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         self::assertLessThanOrEqual(3, \count($database->queries));
     }
 
+    public function testAcceptedSmtpAndWebhookDisabledApiHandoffsStayOutOfTheVerifiedDenominator(): void
+    {
+        // SMTP and an API connection with callbacks disabled both prove only transport hand-off.
+        // A delivered webhook result is the sole terminal outcome in this retained set.
+        $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_smtp', 'accepted', 'Order <number>', 1);
+        $this->seed('2026-03-02 05:00:00', 1, 'woocommerce', 'conn_api_no_webhook', 'accepted', 'Order <number>', 1);
+        $this->seed('2026-03-03 05:00:00', 1, 'woocommerce', 'conn_postmark_webhook', 'delivered', 'Order <number>', 1);
+
+        $result = (new MailAnalyticsService(
+            new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable())
+        ))->deliverability($this->query());
+
+        self::assertSame(2, $result['delivery']['accepted']);
+        self::assertSame(1, $result['delivery']['delivered']);
+        self::assertSame(1, $result['delivery']['denominator']);
+    }
+
     public function testRepositoryReturnsUtcHoursThatTheServiceConvertsWithoutTimezoneTables(): void
     {
         $this->seed('2026-11-01 05:00:00', 1, 'woocommerce', 'conn_primary', null, 'Receipt <number>', 1);

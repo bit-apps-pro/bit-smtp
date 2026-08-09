@@ -182,7 +182,7 @@ All five abilities require the WordPress `manage_options` capability. They retur
 * `bit-smtp/get-email-analytics` — overview of volume, recipients counted, send acceptance, verified delivery outcomes, timing, sources, connections, retained-record bounds, and timestamp coverage. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
 * `bit-smtp/analyze-plugin-email` — aggregate timing, outcomes, connections, routes, and bounded normalized subject-pattern groups for one source. Required input: `plugin`; it also accepts `start`, `end`, `bucket`, and `connection_id`.
 * `bit-smtp/analyze-deliverability` — separates send acceptance from provider-confirmed delivery, grouped by source and connection. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
-* `bit-smtp/explain-routing` — either explain a retained decision with `log_id`, or simulate the current rules with `to_domains` and optional `from`, `subject`, and `source_plugin`. Simulation is read-only and never sends email.
+* `bit-smtp/explain-routing` — either explain a retained decision with `log_id`, or simulate current recipient-domain and source-plugin rules with `to_domains` and optional `source_plugin`. Simulation is read-only and never sends email. It does not accept sender addresses or subjects because this read-only ability runs through a URL-visible REST request; when current rules require either private field, it returns a stable insufficient-input result instead of claiming a selected rule.
 * `bit-smtp/detect-email-anomalies` — compares aggregate activity with the preceding equal period. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
 
 `start` and `end` are complete ISO-8601 timestamps. If omitted, the effective range is the 30 days ending now, or the configured retention period when it is shorter. `bucket` is `hour`, `day`, or `week`; Bit SMTP selects a sensible default when it is omitted. A request may not exceed the configured log-retention period, capped at 200 days. Results use the site timezone for display and UTC timestamps for range filtering.
@@ -191,7 +191,7 @@ Every result identifies its effective range and says that it represents retained
 
 Source attribution is collected for new mail activity. Historical rows without that evidence remain `unknown`; Bit SMTP never infers a plugin from a translated or customized subject line. WooCommerce results describe WooCommerce-generated notification activity only, as a proxy for order-related activity. Contact-form results likewise describe notification activity only, as a proxy for contact submissions.
 
-Delivery reporting keeps send acceptance distinct from delivery confirmation. A message is counted as delivered, bounced, blocked, deferred, spam, or another verified outcome only when supported provider webhook data exists. Missing webhook outcomes remain `unknown`; they are never reported as delivered.
+Delivery reporting keeps send acceptance distinct from delivery confirmation. A message is counted as delivered, bounced, blocked, deferred, spam, or another verified outcome only after an authenticated provider webhook correlates to the retained log. SMTP, webhook-disabled API, and other successful hand-offs are counted as `accepted` (or remain unknown), never as delivered.
 
 ### **Explore Our Other Products :**
 
@@ -224,7 +224,7 @@ No. Gmail and Microsoft 365 use OAuth: you create an app, enter its Client ID an
 Add more than one connection and drag them into a priority order. If the highest-priority connection fails, Bit SMTP automatically retries the next one, so your mail still goes out.
 
 = Can I see whether an email was actually delivered? =
-Yes. For providers that support delivery webhooks, the Logs screen shows a separate **Delivery** status (Delivered, Bounced, Blocked, Deferred) alongside the send status. Amazon SES marks delivery on a successful send-accept.
+Yes. For providers that support delivery webhooks, the Logs screen shows a separate **Delivery** status (Delivered, Bounced, Blocked, Deferred) alongside the send status. Amazon SES send success means SES accepted the message; it is not recipient-confirmed delivery.
 
 = Are my API keys and passwords stored safely? =
 Yes. Credentials are encrypted at rest with authenticated AES-256-GCM before they are written to the database.

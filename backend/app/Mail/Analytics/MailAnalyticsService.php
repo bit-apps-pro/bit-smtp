@@ -162,10 +162,15 @@ final class MailAnalyticsService
 
         $actualRetainedFrom = $this->utcTimestamp($bounds['earliest'] ?? null);
         $continuityFrom     = $this->utcTimestamp(\BitApps\SMTP\Config::getOption(\BitApps\SMTP\Config::LOGGING_CONTINUITY_FROM_OPTION, false));
-        $coverageStart      = $this->laterTimestamp($actualRetainedFrom, $continuityFrom);
+        // Retention and continuity define what *could* be compared. The earliest retained event is
+        // observational metadata only: a sparse (or zero-volume) prior period still has complete
+        // coverage when logging was continuous throughout its configured retention window.
+        $configuredRetainedFrom = $query->retainedFrom();
+        $coverageStart          = $this->laterTimestamp(
+            $configuredRetainedFrom === null ? null : $configuredRetainedFrom->format(DATE_ATOM),
+            $continuityFrom
+        );
         $completeCoverage   = $coverageStart !== null
-            && $actualRetainedFrom           !== null
-            && $continuityFrom               !== null
             && $this->utcDate($coverageStart) <= $prior->start();
 
         $response = array_merge($this->metadata($query, $currentSummary), [

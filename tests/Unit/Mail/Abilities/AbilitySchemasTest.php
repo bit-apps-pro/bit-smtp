@@ -54,6 +54,8 @@ final class AbilitySchemasTest extends BaseUnitTestCase
         self::assertSame(['log_id'], $schema['oneOf'][0]['required']);
         self::assertSame(1, $schema['oneOf'][0]['properties']['log_id']['minimum']);
         self::assertSame(['to_domains'], $schema['oneOf'][1]['required']);
+        self::assertArrayNotHasKey('from', $schema['oneOf'][1]['properties']);
+        self::assertArrayNotHasKey('subject', $schema['oneOf'][1]['properties']);
         self::assertSame(1, $schema['oneOf'][1]['properties']['to_domains']['minItems']);
         self::assertSame(50, $schema['oneOf'][1]['properties']['to_domains']['maxItems']);
         self::assertSame(

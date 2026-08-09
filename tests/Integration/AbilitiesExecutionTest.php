@@ -177,6 +177,45 @@ final class AbilitiesExecutionTest extends IntegrationTestCase
         self::assertSame('matches', $result['rules'][0]['conditions'][0]['operator']);
     }
 
+    public function testSafeRoutingSimulationRefusesToClaimADecisionWhenRulesNeedPrivateFields(): void
+    {
+        $this->storeOptions([
+            'enabled'               => true,
+            'default_connection_id' => 'conn_default',
+            'connections'           => [[
+                'id'           => 'conn_default',
+                'provider'     => 'other_smtp',
+                'kind'         => 'smtp',
+                'enabled'      => true,
+                'fromEmail'    => 'from@example.test',
+                'fromName'     => '',
+                'replyToEmail' => '',
+                'settings'     => [],
+                'credentials'  => [],
+            ]],
+            'features' => [
+                'routing' => [[
+                    'connectionId' => 'conn_default',
+                    'conditions'   => [[
+                        'field'    => 'subject',
+                        'operator' => 'contains',
+                        'value'    => 'private invoice',
+                    ]],
+                ]],
+            ],
+        ]);
+        $ability = wp_get_ability('bit-smtp/explain-routing');
+        self::assertNotNull($ability);
+
+        $result = $ability->execute([
+            'to_domains'    => ['customer.test'],
+            'source_plugin' => 'woocommerce',
+        ]);
+
+        self::assertInstanceOf(WP_Error::class, $result);
+        self::assertSame('bit_smtp_routing_simulation_requires_private_fields', $result->get_error_code());
+    }
+
     public function testRoutingExplainerItselfReturnsTheStableMissingLogError(): void
     {
         $result = (new RoutingExplainer())->actual(999999);

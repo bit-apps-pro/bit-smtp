@@ -32,6 +32,8 @@ final class AbilitiesProvider
         'bit_smtp_invalid_log_id',
         'bit_smtp_invalid_routing_mode',
         'bit_smtp_invalid_routing_simulation',
+        'bit_smtp_routing_simulation_private_input',
+        'bit_smtp_routing_simulation_requires_private_fields',
         'bit_smtp_logging_disabled',
         'bit_smtp_missing_analytics_plugin',
     ];
@@ -297,8 +299,8 @@ final class AbilitiesProvider
             $status = 500;
         }
 
-        $data = $result->get_error_data($code);
-        $data = \is_array($data) ? $data : [];
+        $data           = $result->get_error_data($code);
+        $data           = \is_array($data) ? $data : [];
         $data['status'] = $status;
         $result->add_data($data, $code);
 

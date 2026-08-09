@@ -12,8 +12,8 @@ use DateTimeZone;
 
 /**
  * Drives LogService::update() (the resend path) against the real test DB: a resend over a provider
- * with a send-accept delivery status re-stamps the row after resetDelivery clears the prior outcome,
- * and a resend that falls back to a no-capability provider leaves the row's delivery status null.
+ * clears the previous verified outcome before re-stamping only the new hand-off state, never a
+ * terminal result that no verified webhook confirmed.
  *
  * @internal
  *
@@ -31,7 +31,7 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->service = new LogService();
     }
 
-    public function testResendReStampsSendDerivedDeliveryStatusAndDropsStaleChildRows(): void
+    public function testResendRejectsAnUnverifiedTerminalDeliveryStatusAndDropsStaleChildRows(): void
     {
         $logId = $this->deliveredLogWithChildEvent();
 
@@ -48,9 +48,9 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         );
 
         $reloaded = Log::where('id', $logId)->first();
-        $this->assertSame('delivered', $reloaded->delivery_status);
-        $this->assertNotNull($reloaded->delivery_updated_at);
-        // resetDelivery drops the prior send's child events; a send-derived resend adds none back.
+        $this->assertNull($reloaded->delivery_status);
+        $this->assertNull($reloaded->delivery_updated_at);
+        // resetDelivery drops the prior send's child events; an unverified hand-off adds none back.
         $this->assertCount(0, LogDeliveryEvent::where('log_id', $logId)->get());
     }
 
@@ -74,6 +74,22 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertNull($reloaded->delivery_status);
         $this->assertNull($reloaded->delivery_updated_at);
         $this->assertCount(0, LogDeliveryEvent::where('log_id', $logId)->get());
+    }
+
+    public function testBulkLoggingRejectsUnverifiedTerminalDeliveryStatus(): void
+    {
+        $this->assertTrue($this->service->bulkInsert([[
+            'status'              => Log::SUCCESS,
+            'data'                => ['subject' => 'Handoff', 'to' => ['recipient@example.com']],
+            'connection'          => 'Primary SMTP',
+            'connection_id'       => 'conn_smtp',
+            'delivery_status'     => 'delivered',
+            'delivery_updated_at' => '2026-08-10 00:00:00',
+        ]]));
+
+        $log = Log::where('connection_id', 'conn_smtp')->first();
+        $this->assertNull($log->delivery_status);
+        $this->assertNull($log->delivery_updated_at);
     }
 
     public function testCollectionResultsPreserveTheArrayServiceContract(): void
