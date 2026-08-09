@@ -25,6 +25,8 @@ final class FailureNotification
 
     private array $attempts;
 
+    private bool $test;
+
     private function __construct(
         string $siteName,
         string $siteUrl,
@@ -34,7 +36,8 @@ final class FailureNotification
         array $recipients,
         string $subject,
         ?Connection $connection,
-        array $attempts
+        array $attempts,
+        bool $test
     ) {
         $this->siteName   = $siteName;
         $this->siteUrl    = $siteUrl;
@@ -45,6 +48,7 @@ final class FailureNotification
         $this->subject    = $subject;
         $this->connection = $connection;
         $this->attempts   = $attempts;
+        $this->test       = $test;
     }
 
     public static function fromError(WP_Error $error, ?Connection $connection = null): self
@@ -67,8 +71,30 @@ final class FailureNotification
             }, $recipients))),
             (string) ($data['subject'] ?? ''),
             $connection,
-            isset($data['attempts']) && \is_array($data['attempts']) ? $data['attempts'] : []
+            isset($data['attempts']) && \is_array($data['attempts']) ? $data['attempts'] : [],
+            false
         );
+    }
+
+    public static function forTest(): self
+    {
+        return new self(
+            'Example Site',
+            'https://example.test/',
+            '2000-01-01T00:00:00+00:00',
+            'This is a test failure notification.',
+            'test_notification',
+            ['ops@example.test'],
+            'Bit SMTP notification test',
+            null,
+            [],
+            true
+        );
+    }
+
+    public function isTest(): bool
+    {
+        return $this->test;
     }
 
     public function emailSubject(): string
