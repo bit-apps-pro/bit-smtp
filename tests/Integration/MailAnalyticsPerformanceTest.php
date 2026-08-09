@@ -100,6 +100,26 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
         $this->assertRetentionDeletionPlanUsesCreatedAtIndex();
     }
 
+    public function testSelectiveConnectionFilteredRestRequestUsesCompositeUtcIndex(): void
+    {
+        $response = $this->recordAbilityExecution('bit-smtp/get-email-analytics', [
+            'start'         => '2026-05-01T06:00:00+06:00',
+            'end'           => '2026-05-02T06:00:00+06:00',
+            'bucket'        => 'hour',
+            'connection_id' => 'conn_primary',
+        ]);
+
+        self::assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        self::assertIsArray($data);
+        self::assertSame(36, $data['total']);
+        self::assertCount(24, $data['series']);
+        self::assertLessThanOrEqual(self::MAX_RESPONSE_BYTES, \strlen((string) wp_json_encode($data)));
+        $this->assertBoundedAggregateQueries(5);
+        $this->assertRawLogContentIsAbsent($data);
+        $this->assertSelectiveConnectionPlansUseCompositeUtcIndex($this->analyticsQueries);
+    }
+
     public function testPluginDeliverabilityAndAnomalyRequestsRemainBoundedOverMaximumRetention(): void
     {
         $plugin = $this->recordAbilityExecution('bit-smtp/analyze-plugin-email', array_merge($this->maximumRetentionRange(), [
@@ -246,6 +266,37 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
         self::assertCount(1, $plan);
         self::assertSame('idx_created_at', $plan[0]['key']);
         self::assertSame('range', $plan[0]['type']);
+    }
+
+    /**
+     * @param array<int,string> $queries
+     */
+    private function assertSelectiveConnectionPlansUseCompositeUtcIndex(array $queries): void
+    {
+        global $wpdb;
+
+        $connectionQueries = array_values(array_filter($queries, static function (string $query): bool {
+            return str_contains($query, 'connection_id =');
+        }));
+        self::assertCount(4, $connectionQueries, 'Overview must issue four connection-filtered aggregate queries.');
+
+        foreach ($connectionQueries as $query) {
+            $shape = $this->queryContract($query)['shape'];
+            $plan  = $wpdb->get_results('EXPLAIN ' . $query, ARRAY_A);
+
+            self::assertIsArray($plan);
+            self::assertCount(1, $plan, "EXPLAIN must yield one plan for selective {$shape}.");
+            self::assertSame(
+                'idx_connection_id_created_utc',
+                $plan[0]['key'],
+                "Selective connection-filtered {$shape} must use the UTC composite index:\n{$query}"
+            );
+            self::assertSame(
+                'range',
+                $plan[0]['type'],
+                "Selective connection-filtered {$shape} must use range access:\n{$query}"
+            );
+        }
     }
 
     /**
