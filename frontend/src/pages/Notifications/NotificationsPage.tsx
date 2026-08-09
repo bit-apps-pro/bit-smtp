@@ -111,7 +111,11 @@ function isSlackIncomingWebhookUrl(value: string): boolean {
   if (value === MASK_SENTINEL) {
     return true
   }
-  if (!value.startsWith('https://hooks.slack.com/services/')) {
+  if (
+    !value.startsWith('https://hooks.slack.com/services/') ||
+    value.includes('?') ||
+    value.includes('#')
+  ) {
     return false
   }
 

@@ -189,7 +189,9 @@ describe('NotificationsPage', () => {
 
   it.each([
     ['an uppercased Slack host', 'https://HOOKS.SLACK.COM/services/T000/B000/secret'],
-    ['an explicit default HTTPS port', 'https://hooks.slack.com:443/services/T000/B000/secret']
+    ['an explicit default HTTPS port', 'https://hooks.slack.com:443/services/T000/B000/secret'],
+    ['a bare query delimiter', 'https://hooks.slack.com/services/T000/B000/secret?'],
+    ['a bare fragment delimiter', 'https://hooks.slack.com/services/T000/B000/secret#']
   ])('rejects %s to match backend Slack validation', async (_label, slackWebhookUrl) => {
     const user = userEvent.setup()
     render(<NotificationsPage />)
