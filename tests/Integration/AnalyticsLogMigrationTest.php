@@ -161,12 +161,12 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             Plugin::maybeMigrateDB();
 
             $this->assertLegacyAnalyticsUpgrade();
-            $this->assertSame('1.7', Config::getOption('db_version'));
+            $this->assertSame('1.8', Config::getOption('db_version'));
 
             Plugin::maybeMigrateDB();
 
             $this->assertLegacyAnalyticsUpgrade();
-            $this->assertSame('1.7', Config::getOption('db_version'));
+            $this->assertSame('1.8', Config::getOption('db_version'));
         } finally {
             wp_set_current_user(0);
             $this->migrateLogs();
@@ -200,8 +200,89 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
             $this->assertNotFalse($wpdb->query("ALTER TABLE `{$this->logsTable}` MODIFY COLUMN `created_at_utc` DATETIME NULL"));
             Plugin::maybeMigrateDB();
-            self::assertSame('1.7', Config::getOption('db_version'));
+            self::assertSame('1.8', Config::getOption('db_version'));
         } finally {
+            $wpdb->suppress_errors($previousSuppressErrors);
+            wp_set_current_user(0);
+            $this->migrateLogs();
+            Config::updateOption('version', $previousVersion, true);
+            Config::updateOption('db_version', $previousDbVersion, true);
+        }
+    }
+
+    public function testMaybeMigrateDbCleansUpEverySupersededOneSevenIndexAndIsIdempotent(): void
+    {
+        $this->dropLogsTable();
+        $this->createOneSevenLogsTable();
+
+        $previousVersion   = Config::getOption('version');
+        $previousDbVersion = Config::getOption('db_version');
+        Config::updateOption('version', Config::VERSION, true);
+        Config::updateOption('db_version', '1.7', true);
+        wp_set_current_user(1);
+
+        try {
+            Plugin::maybeMigrateDB();
+
+            $this->assertAnalyticsColumnsAreNullable();
+            $this->assertExactOneEightIndexSet();
+            self::assertSame('1.8', Config::getOption('db_version'));
+
+            Plugin::maybeMigrateDB();
+
+            $this->assertExactOneEightIndexSet();
+            self::assertSame('1.8', Config::getOption('db_version'));
+        } finally {
+            wp_set_current_user(0);
+            $this->migrateLogs();
+            Config::updateOption('version', $previousVersion, true);
+            Config::updateOption('db_version', $previousDbVersion, true);
+        }
+    }
+
+    public function testOneSevenIndexCleanupFailureDoesNotAdvanceDbVersionAndCanBeRetried(): void
+    {
+        $this->dropLogsTable();
+        $this->createOneSevenLogsTable();
+        global $wpdb;
+
+        // The child-side FK makes this otherwise obsolete index non-droppable, which injects a
+        // real ALTER TABLE DROP INDEX failure rather than mocking the migration internals.
+        $this->assertNotFalse($wpdb->query(
+            "ALTER TABLE `{$this->logsTable}` ADD CONSTRAINT `bit_smtp_source_created_guard` "
+            . "FOREIGN KEY (`source_plugin`, `created_at`) REFERENCES `{$this->logsTable}` (`source_plugin`, `created_at`)"
+        ));
+
+        $previousVersion   = Config::getOption('version');
+        $previousDbVersion = Config::getOption('db_version');
+        Config::updateOption('version', Config::VERSION, true);
+        Config::updateOption('db_version', '1.7', true);
+        wp_set_current_user(1);
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+
+        try {
+            $exception = null;
+            try {
+                Plugin::maybeMigrateDB();
+            } catch (RuntimeException $caught) {
+                $exception = $caught;
+            }
+            self::assertInstanceOf(RuntimeException::class, $exception, 'A failed obsolete-index drop must propagate from migration.');
+            self::assertStringContainsString('idx_source_created', $exception->getMessage());
+            self::assertSame('1.7', Config::getOption('db_version'));
+            $this->assertExactOneSevenIndexSet();
+
+            $this->assertNotFalse($wpdb->query(
+                "ALTER TABLE `{$this->logsTable}` DROP FOREIGN KEY `bit_smtp_source_created_guard`"
+            ));
+            Plugin::maybeMigrateDB();
+
+            $this->assertExactOneEightIndexSet();
+            self::assertSame('1.8', Config::getOption('db_version'));
+        } finally {
+            $wpdb->query(
+                "ALTER TABLE `{$this->logsTable}` DROP FOREIGN KEY `bit_smtp_source_created_guard`"
+            );
             $wpdb->suppress_errors($previousSuppressErrors);
             wp_set_current_user(0);
             $this->migrateLogs();
@@ -248,14 +329,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     private function assertAnalyticsIndexesExist(): void
     {
-        global $wpdb;
-
-        /** @var array<int,object{Key_name:string,Column_name:string,Seq_in_index:string}> $rows */
-        $rows   = $wpdb->get_results("SHOW INDEX FROM `{$this->logsTable}`");
-        $actual = [];
-        foreach ($rows as $row) {
-            $actual[$row->Key_name][(int) $row->Seq_in_index] = $row->Column_name;
-        }
+        $actual = $this->logIndexes();
 
         $expected = [
             'idx_created_at'                => ['created_at'],
@@ -283,6 +357,70 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         }
     }
 
+    private function assertExactOneSevenIndexSet(): void
+    {
+        $expected = [
+            'PRIMARY'                         => ['id'],
+            'idx_connection_id'               => ['connection_id'],
+            'idx_message_id'                  => ['message_id'],
+            'idx_tracking_id'                 => ['tracking_id'],
+            'idx_created_at'                  => ['created_at'],
+            'idx_source_created'              => ['source_plugin', 'created_at'],
+            'idx_connection_created'          => ['connection', 'created_at'],
+            'idx_connection_id_created'       => ['connection_id', 'created_at'],
+            'idx_status_created'              => ['status', 'created_at'],
+            'idx_source_created_utc'          => ['source_plugin', 'created_at_utc'],
+            'idx_connection_id_created_utc'   => ['connection_id', 'created_at_utc'],
+            'idx_created_at_utc'              => ['created_at_utc'],
+            'idx_connection_created_utc'      => ['connection', 'created_at_utc'],
+            'idx_status_created_utc'          => ['status', 'created_at_utc'],
+        ];
+        ksort($expected);
+
+        self::assertSame($expected, $this->logIndexes());
+    }
+
+    private function assertExactOneEightIndexSet(): void
+    {
+        $expected = [
+            'PRIMARY'                         => ['id'],
+            'idx_connection_id'               => ['connection_id'],
+            'idx_message_id'                  => ['message_id'],
+            'idx_tracking_id'                 => ['tracking_id'],
+            'idx_created_at'                  => ['created_at'],
+            'idx_source_created_utc'          => ['source_plugin', 'created_at_utc'],
+            'idx_connection_id_created_utc'   => ['connection_id', 'created_at_utc'],
+            'idx_created_at_utc'              => ['created_at_utc'],
+        ];
+        ksort($expected);
+
+        self::assertSame($expected, $this->logIndexes());
+    }
+
+    /**
+     * @return array<string,array<int,string>>
+     */
+    private function logIndexes(): array
+    {
+        global $wpdb;
+
+        /** @var array<int,object{Key_name:string,Column_name:string,Seq_in_index:string}> $rows */
+        $rows   = $wpdb->get_results("SHOW INDEX FROM `{$this->logsTable}`");
+        $actual = [];
+        foreach ($rows as $row) {
+            $actual[$row->Key_name][(int) $row->Seq_in_index] = $row->Column_name;
+        }
+
+        ksort($actual);
+        foreach ($actual as &$columns) {
+            ksort($columns);
+            $columns = array_values($columns);
+        }
+        unset($columns);
+
+        return $actual;
+    }
+
     private function createLegacyLogsTable(): void
     {
         global $wpdb;
@@ -308,6 +446,53 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
                 KEY `idx_connection_id` (`connection_id`),
                 KEY `idx_message_id` (`message_id`),
                 KEY `idx_tracking_id` (`tracking_id`)
+            ) {$wpdb->get_charset_collate()}"
+        );
+
+        $this->assertNotFalse($result);
+    }
+
+    private function createOneSevenLogsTable(): void
+    {
+        global $wpdb;
+
+        $result = $wpdb->query(
+            "CREATE TABLE `{$this->logsTable}` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `status` TINYINT NOT NULL,
+                `subject` LONGTEXT NOT NULL,
+                `to_addr` LONGTEXT NOT NULL,
+                `details` LONGTEXT NULL,
+                `debug_info` TEXT NULL,
+                `retry_count` TINYINT NOT NULL DEFAULT 0,
+                `connection` VARCHAR(191) NULL,
+                `connection_id` VARCHAR(191) NULL,
+                `message_id` VARCHAR(191) NULL,
+                `tracking_id` VARCHAR(64) NULL,
+                `delivery_status` VARCHAR(32) NULL,
+                `delivery_updated_at` DATETIME NULL,
+                `source_plugin` VARCHAR(191) NULL,
+                `routing_type` VARCHAR(32) NULL,
+                `routing_rule_index` INT NULL,
+                `subject_pattern` VARCHAR(191) NULL,
+                `recipient_count` INT NULL,
+                `created_at_utc` DATETIME NULL,
+                `created_at` TIMESTAMP NULL DEFAULT NULL,
+                `updated_at` TIMESTAMP NULL DEFAULT NULL,
+                PRIMARY KEY (`id`),
+                KEY `idx_connection_id` (`connection_id`),
+                KEY `idx_message_id` (`message_id`),
+                KEY `idx_tracking_id` (`tracking_id`),
+                KEY `idx_created_at` (`created_at`),
+                KEY `idx_source_created` (`source_plugin`, `created_at`),
+                KEY `idx_connection_created` (`connection`, `created_at`),
+                KEY `idx_connection_id_created` (`connection_id`, `created_at`),
+                KEY `idx_status_created` (`status`, `created_at`),
+                KEY `idx_source_created_utc` (`source_plugin`, `created_at_utc`),
+                KEY `idx_connection_id_created_utc` (`connection_id`, `created_at_utc`),
+                KEY `idx_created_at_utc` (`created_at_utc`),
+                KEY `idx_connection_created_utc` (`connection`, `created_at_utc`),
+                KEY `idx_status_created_utc` (`status`, `created_at_utc`)
             ) {$wpdb->get_charset_collate()}"
         );
 

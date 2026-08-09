@@ -24,7 +24,7 @@ class Config
 
     public const VERSION = '1.2.4';
 
-    public const DB_VERSION = '1.7';
+    public const DB_VERSION = '1.8';
 
     public const LOGGING_CONTINUITY_FROM_OPTION = 'logging_continuity_from';
 

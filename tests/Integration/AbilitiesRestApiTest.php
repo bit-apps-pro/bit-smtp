@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Config;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
 use WP_REST_Request;
@@ -36,6 +37,11 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
      */
     private array $range;
 
+    /**
+     * @var mixed
+     */
+    private $previousRetention;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -44,7 +50,8 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
         $wpdb->query('TRUNCATE TABLE ' . (new Log())->getTable());
 
         update_option('timezone_string', 'Asia/Dhaka');
-        $this->storeOptions(['log_retention' => 200]);
+        $this->previousRetention = Config::getOption('log_retention', false);
+        Config::updateOption('log_retention', 200, true);
         $this->range = [
             'start'  => '2026-08-01T00:00:00+06:00',
             'end'    => '2026-08-02T00:00:00+06:00',
@@ -58,6 +65,11 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
     {
         wp_set_current_user(0);
         delete_option('timezone_string');
+        if ($this->previousRetention === false) {
+            Config::deleteOption('log_retention');
+        } else {
+            Config::updateOption('log_retention', $this->previousRetention, true);
+        }
 
         parent::tearDown();
     }
@@ -105,6 +117,21 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
         }
     }
 
+    public function testRestDefaultRangeUsesConfiguredRetentionWhenItIsShorterThanThirtyDays(): void
+    {
+        Config::updateOption('log_retention', 7, true);
+
+        $response = $this->runAbility('bit-smtp/get-email-analytics', [
+            'end' => '2026-08-15T00:00:00+06:00',
+        ]);
+
+        self::assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        self::assertIsArray($data);
+        self::assertSame('2026-08-07T18:00:00+00:00', $data['range']['start']);
+        self::assertSame('2026-08-14T18:00:00+00:00', $data['range']['end']);
+    }
+
     public function testUnauthenticatedAndNonAdministratorRestRequestsCannotDiscoverOrExecuteAnalytics(): void
     {
         wp_set_current_user(0);
@@ -143,7 +170,7 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
             'start' => '2026-08-02T00:00:00+06:00',
             'end'   => '2026-08-01T00:00:00+06:00',
         ]);
-        self::assertSame(500, $invalidRange->get_status());
+        self::assertSame(400, $invalidRange->get_status());
         self::assertSame('bit_smtp_invalid_analytics_range', $invalidRange->get_data()['code']);
 
         $invalidRoutingMode = $this->runAbility('bit-smtp/explain-routing', [
@@ -154,7 +181,7 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
         self::assertSame('ability_invalid_input', $invalidRoutingMode->get_data()['code']);
 
         $missingLog = $this->runAbility('bit-smtp/explain-routing', ['log_id' => 999999]);
-        self::assertSame(500, $missingLog->get_status());
+        self::assertSame(404, $missingLog->get_status());
         self::assertSame('bit_smtp_log_not_found', $missingLog->get_data()['code']);
 
         $logs = new LogService();
@@ -162,10 +189,29 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
 
         try {
             $disabled = $this->runAbility('bit-smtp/get-email-analytics', $this->range);
-            self::assertSame(500, $disabled->get_status());
+            self::assertSame(400, $disabled->get_status());
             self::assertSame('bit_smtp_logging_disabled', $disabled->get_data()['code']);
         } finally {
             $logs->setEnabled(true);
+        }
+    }
+
+    public function testRestDatabaseFailuresRemainInternalServerErrors(): void
+    {
+        global $wpdb;
+        $logsTable    = (new Log())->getTable();
+        $offlineTable = $logsTable . '_offline';
+        self::assertNotFalse($wpdb->query("RENAME TABLE `{$logsTable}` TO `{$offlineTable}`"));
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+
+        try {
+            $response = $this->runAbility('bit-smtp/get-email-analytics', $this->range);
+
+            self::assertSame(500, $response->get_status());
+            self::assertSame('bit_smtp_analytics_database_error', $response->get_data()['code']);
+        } finally {
+            self::assertNotFalse($wpdb->query("RENAME TABLE `{$offlineTable}` TO `{$logsTable}`"));
+            $wpdb->suppress_errors($previousSuppressErrors);
         }
     }
 
@@ -193,19 +239,31 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
      */
     private function assertAggregateOnlyResponse(array $response): void
     {
-        $json = (string) wp_json_encode($response);
-        self::assertStringNotContainsString('private.customer@example.test', $json);
-        self::assertStringNotContainsString('Private receipt 884422', $json);
-        self::assertStringNotContainsString('body never leaves the retained log', $json);
-        self::assertStringNotContainsString('secret-token-value', $json);
-
         $keys = [];
         $this->collectKeys($response, $keys);
         // Aggregate count metadata such as recipients and unknown_recipient_count is allowed;
-        // this list deliberately covers only keys that could carry a raw personal-data value.
-        foreach (['to', 'to_addr', 'recipient', 'subject', 'body', 'details', 'debug_info', 'credentials', 'token'] as $key) {
-            self::assertNotContains($key, $keys, "Response must not expose raw {$key} data");
+        // protected key matching is case-insensitive and exact, so subject_patterns remains a
+        // documented aggregate while a raw Subject field cannot silently enter a nested response.
+        foreach ($keys as $key) {
+            self::assertNotContains(strtolower($key), [
+                'to',
+                'to_addr',
+                'from',
+                'cc',
+                'bcc',
+                'recipient',
+                'subject',
+                'body',
+                'details',
+                'debug',
+                'debug_info',
+                'attachments',
+                'credentials',
+                'token',
+            ], "Response must not expose raw {$key} data");
         }
+
+        $this->assertSensitiveValuesAbsent($response);
     }
 
     /**
@@ -222,6 +280,46 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
         }
     }
 
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function assertSensitiveValuesAbsent(array $data): void
+    {
+        foreach ($data as $value) {
+            if (\is_array($value)) {
+                $this->assertSensitiveValuesAbsent($value);
+
+                continue;
+            }
+            if (!\is_string($value)) {
+                continue;
+            }
+
+            foreach ($this->sensitiveSentinels() as $sentinel) {
+                self::assertStringNotContainsString($sentinel, $value, 'Responses must not contain retained personal-data values.');
+            }
+        }
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function sensitiveSentinels(): array
+    {
+        return [
+            'private.customer@example.test',
+            'private.sender@example.test',
+            'private.cc@example.test',
+            'private.bcc@example.test',
+            'Private receipt 884422',
+            'body never leaves the retained log',
+            'attachment-private-884422.pdf',
+            'nested-metadata-private-value',
+            'debug-private-value',
+            'secret-token-value',
+        ];
+    }
+
     private function seedSensitiveLog(): int
     {
         global $wpdb;
@@ -231,9 +329,26 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
             [
                 'status'             => 1,
                 'subject'            => 'Private receipt 884422 for private.customer@example.test',
-                'to_addr'            => wp_json_encode(['private.customer@example.test']),
-                'details'            => 'body never leaves the retained log',
-                'debug_info'         => 'secret-token-value',
+                'to_addr'            => wp_json_encode([
+                    'to'  => ['private.customer@example.test'],
+                    'cc'  => ['private.cc@example.test'],
+                    'bcc' => ['private.bcc@example.test'],
+                ]),
+                'details'            => wp_json_encode([
+                    'From'        => 'private.sender@example.test',
+                    'attachments' => ['attachment-private-884422.pdf'],
+                    'metadata'    => [
+                        'nested' => [
+                            'token' => 'nested-metadata-private-value',
+                        ],
+                    ],
+                ]),
+                'debug_info'         => wp_json_encode([
+                    'Debug' => [
+                        'token' => 'debug-private-value',
+                        'value' => 'secret-token-value',
+                    ],
+                ]),
                 'connection'         => 'conn_primary',
                 'connection_id'      => 'conn_primary',
                 'source_plugin'      => 'woocommerce',

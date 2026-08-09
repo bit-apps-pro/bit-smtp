@@ -51,7 +51,7 @@ final class AnalyticsQueryFactory
         $end   = $end->setTimezone($this->timezone);
         $start = \array_key_exists('start', $input)
             ? $this->parseIso($input['start'])
-            : $end->sub(new DateInterval('P' . self::DEFAULT_RANGE_DAYS . 'D'));
+            : $end->sub(new DateInterval('P' . min(self::DEFAULT_RANGE_DAYS, $this->retentionDays) . 'D'));
         if ($start === null) {
             return $this->rangeError('The start timestamp must be a complete ISO-8601 timestamp.');
         }

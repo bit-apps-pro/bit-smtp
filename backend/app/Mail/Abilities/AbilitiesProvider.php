@@ -19,6 +19,23 @@ final class AbilitiesProvider
 {
     private const CATEGORY = 'bit-smtp-analytics';
 
+    /**
+     * Expected callback errors that result from a caller's input or current capability state.
+     * Database and unexpected service failures intentionally remain 500 below.
+     *
+     * @var array<int,string>
+     */
+    private const CLIENT_ERROR_CODES = [
+        'bit_smtp_invalid_analytics_dimension',
+        'bit_smtp_invalid_analytics_input',
+        'bit_smtp_invalid_analytics_range',
+        'bit_smtp_invalid_log_id',
+        'bit_smtp_invalid_routing_mode',
+        'bit_smtp_invalid_routing_simulation',
+        'bit_smtp_logging_disabled',
+        'bit_smtp_missing_analytics_plugin',
+    ];
+
     private ?AnalyticsQueryFactory $queryFactory;
 
     private ?MailAnalyticsService $analytics;
@@ -116,17 +133,17 @@ final class AbilitiesProvider
     {
         try {
             if (\array_key_exists('log_id', $input)) {
-                return $this->routing()->actual((int) $input['log_id']);
+                return $this->restError($this->routing()->actual((int) $input['log_id']));
             }
 
             if (\array_key_exists('to_domains', $input)) {
-                return $this->routing()->simulate($input);
+                return $this->restError($this->routing()->simulate($input));
             }
         } catch (Throwable $exception) {
             return $this->serviceError();
         }
 
-        return new WP_Error('bit_smtp_invalid_routing_mode', 'Choose either a retained log id or a routing simulation.');
+        return $this->restError(new WP_Error('bit_smtp_invalid_routing_mode', 'Choose either a retained log id or a routing simulation.'));
     }
 
     /**
@@ -228,10 +245,10 @@ final class AbilitiesProvider
         try {
             $query = $this->queryFactory()->fromInput($input);
             if ($query instanceof WP_Error) {
-                return $query;
+                return $this->restError($query);
             }
 
-            return $this->analyticsService()->{$method}($query);
+            return $this->restError($this->analyticsService()->{$method}($query));
         } catch (Throwable $exception) {
             return $this->serviceError();
         }
@@ -257,6 +274,34 @@ final class AbilitiesProvider
 
     private function serviceError(): WP_Error
     {
-        return new WP_Error('bit_smtp_analytics_service_error', 'The email analytics service could not process the request.');
+        return new WP_Error('bit_smtp_analytics_service_error', 'The email analytics service could not process the request.', ['status' => 500]);
+    }
+
+    /**
+     * @param array<string,mixed>|WP_Error $result
+     *
+     * @return array<string,mixed>|WP_Error
+     */
+    private function restError($result)
+    {
+        if (!($result instanceof WP_Error)) {
+            return $result;
+        }
+
+        $code = $result->get_error_code();
+        if ($code === 'bit_smtp_log_not_found') {
+            $status = 404;
+        } elseif (\in_array($code, self::CLIENT_ERROR_CODES, true)) {
+            $status = 400;
+        } else {
+            $status = 500;
+        }
+
+        $data = $result->get_error_data($code);
+        $data = \is_array($data) ? $data : [];
+        $data['status'] = $status;
+        $result->add_data($data, $code);
+
+        return $result;
     }
 }

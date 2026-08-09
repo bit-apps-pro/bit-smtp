@@ -31,6 +31,16 @@ final class AnalyticsQueryFactoryTest extends BaseUnitTestCase
         self::assertSame('day', $query->bucket());
     }
 
+    public function testDefaultsToConfiguredRetentionWhenItIsShorterThanThirtyDays(): void
+    {
+        $query = $this->factory('2026-03-15T16:30:00+00:00', 7)->fromInput([]);
+
+        self::assertInstanceOf(AnalyticsQuery::class, $query);
+        self::assertSame('2026-03-08T16:30:00+00:00', $query->start()->format(DATE_ATOM));
+        self::assertSame('2026-03-15T16:30:00+00:00', $query->end()->format(DATE_ATOM));
+        self::assertSame('day', $query->bucket());
+    }
+
     public function testConvertsSiteLocalDstBoundariesToUtcWithoutChangingTheCalendarRange(): void
     {
         $query = $this->factory('2026-03-10T00:00:00+00:00', 30)->fromInput([

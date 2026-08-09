@@ -222,7 +222,10 @@ class MailAnalyticsRepository
         $output   = \defined('ARRAY_A') ? ARRAY_A : 'ARRAY_A';
         $rows     = $this->database->get_results($prepared, $output);
         $error    = (string) ($this->database->last_error ?? '');
-        if ($rows === null && $error !== '') {
+        // wpdb may return an empty array (rather than null) for a failed SELECT. The database
+        // error is authoritative: treating that response as an empty aggregate would mask an
+        // internal failure as a successful zero-result analytics response.
+        if ($error !== '') {
             return new WP_Error('bit_smtp_analytics_database_error', 'The retained-log aggregate query failed.');
         }
 

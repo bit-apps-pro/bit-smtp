@@ -23,9 +23,15 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
 {
     private const RETENTION_DAYS = 200;
 
-    private const ROWS_PER_DAY = 24;
+    private const HOURS_PER_DAY = 24;
 
-    private const MAX_RESPONSE_BYTES = 131072;
+    // Multiple records in every hour distinguish a bounded SQL aggregate from a raw-row query
+    // followed by PHP-side aggregation: a 200-day hourly result has 4,800 rows, not 14,400.
+    private const ROWS_PER_HOUR = 3;
+
+    private const HOURLY_BUCKETS = self::RETENTION_DAYS * self::HOURS_PER_DAY;
+
+    private const MAX_RESPONSE_BYTES = 1048576;
 
     private string $table;
 
@@ -79,50 +85,51 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
 
     public function testMaximumRetentionOverviewUsesBoundedAggregateQueriesAndACompactResponse(): void
     {
-        $response = $this->recordAbilityExecution('bit-smtp/get-email-analytics', $this->recentRange());
+        $response = $this->recordAbilityExecution('bit-smtp/get-email-analytics', $this->maximumRetentionRange());
 
         self::assertSame(200, $response->get_status());
         $data = $response->get_data();
         self::assertIsArray($data);
         self::assertSame('Asia/Dhaka', $data['timezone']);
-        self::assertSame(self::ROWS_PER_DAY * 30, $data['total']);
-        self::assertCount(30, $data['series']);
+        self::assertSame(self::HOURLY_BUCKETS * self::ROWS_PER_HOUR, $data['total']);
+        self::assertCount(self::HOURLY_BUCKETS, $data['series']);
         self::assertLessThanOrEqual(self::MAX_RESPONSE_BYTES, \strlen((string) wp_json_encode($data)));
         $this->assertBoundedAggregateQueries(5);
         $this->assertRawLogContentIsAbsent($data);
-        $this->assertPlansUseIndexes($this->analyticsQueries, 'idx_created_at_utc');
+        $this->assertPlansMatchEveryQueryContract($this->analyticsQueries);
+        $this->assertRetentionDeletionPlanUsesCreatedAtIndex();
     }
 
     public function testPluginDeliverabilityAndAnomalyRequestsRemainBoundedOverMaximumRetention(): void
     {
-        $plugin = $this->recordAbilityExecution('bit-smtp/analyze-plugin-email', array_merge($this->recentRange(), [
+        $plugin = $this->recordAbilityExecution('bit-smtp/analyze-plugin-email', array_merge($this->maximumRetentionRange(), [
             'plugin' => 'woocommerce',
         ]));
         self::assertSame(200, $plugin->get_status());
         self::assertLessThanOrEqual(self::MAX_RESPONSE_BYTES, \strlen((string) wp_json_encode($plugin->get_data())));
         $this->assertBoundedAggregateQueries(6);
         $this->assertRawLogContentIsAbsent($plugin->get_data());
-        $this->assertPlansUseIndexes($this->analyticsQueries, 'idx_source_created_utc');
+        $this->assertPlansMatchEveryQueryContract($this->analyticsQueries);
 
-        $deliverability = $this->recordAbilityExecution('bit-smtp/analyze-deliverability', array_merge($this->recentRange(), [
+        $deliverability = $this->recordAbilityExecution('bit-smtp/analyze-deliverability', array_merge($this->maximumRetentionRange(), [
             'connection_id' => 'conn_primary',
         ]));
         self::assertSame(200, $deliverability->get_status());
         self::assertLessThanOrEqual(self::MAX_RESPONSE_BYTES, \strlen((string) wp_json_encode($deliverability->get_data())));
         $this->assertBoundedAggregateQueries(3);
         $this->assertRawLogContentIsAbsent($deliverability->get_data());
-        $this->assertPlansUseIndexes($this->analyticsQueries, 'idx_connection_id_created_utc');
+        $this->assertPlansMatchEveryQueryContract($this->analyticsQueries);
 
         $anomalies = $this->recordAbilityExecution('bit-smtp/detect-email-anomalies', [
-            'start'  => '2026-05-20T00:00:00+06:00',
-            'end'    => '2026-06-19T00:00:00+06:00',
-            'bucket' => 'day',
+            'start'  => '2026-04-11T06:00:00+06:00',
+            'end'    => '2026-07-20T06:00:00+06:00',
+            'bucket' => 'hour',
         ]);
         self::assertSame(200, $anomalies->get_status());
         self::assertLessThanOrEqual(self::MAX_RESPONSE_BYTES, \strlen((string) wp_json_encode($anomalies->get_data())));
         $this->assertBoundedAggregateQueries(9);
         $this->assertRawLogContentIsAbsent($anomalies->get_data());
-        $this->assertPlansUseIndexes($this->analyticsQueries, 'idx_created_at_utc');
+        $this->assertPlansMatchEveryQueryContract($this->analyticsQueries);
     }
 
     /**
@@ -160,12 +167,12 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
     /**
      * @return array{start:string,end:string,bucket:string}
      */
-    private function recentRange(): array
+    private function maximumRetentionRange(): array
     {
         return [
-            'start'  => '2026-06-19T00:00:00+06:00',
-            'end'    => '2026-07-19T00:00:00+06:00',
-            'bucket' => 'day',
+            'start'  => '2026-01-01T06:00:00+06:00',
+            'end'    => '2026-07-20T06:00:00+06:00',
+            'bucket' => 'hour',
         ];
     }
 
@@ -175,8 +182,18 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
         self::assertLessThanOrEqual($maximum, \count($this->analyticsQueries));
 
         foreach ($this->analyticsQueries as $query) {
-            self::assertDoesNotMatchRegularExpression('/SELECT\s+\*/i', $query);
-            self::assertDoesNotMatchRegularExpression('/\b(?:subject|to_addr|details|debug_info)\b/i', $query);
+            $contract = $this->queryContract($query);
+            $this->assertNoRawProjection($query);
+
+            global $wpdb;
+            $rows = $wpdb->get_results($query, ARRAY_A);
+            self::assertSame('', (string) $wpdb->last_error, "Aggregate query must execute cleanly:\n{$query}");
+            self::assertIsArray($rows);
+            self::assertLessThanOrEqual(
+                $contract['maximum_rows'],
+                \count($rows),
+                "Aggregate query returned more rows than its bounded contract:\n{$query}"
+            );
         }
     }
 
@@ -195,20 +212,132 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
     /**
      * @param array<int,string> $queries
      */
-    private function assertPlansUseIndexes(array $queries, string $requiredIndex): void
+    private function assertPlansMatchEveryQueryContract(array $queries): void
     {
         global $wpdb;
 
-        $selectedIndexes = [];
         foreach ($queries as $query) {
-            $plan = $wpdb->get_results('EXPLAIN ' . $query, ARRAY_A);
+            $contract = $this->queryContract($query);
+            $plan     = $wpdb->get_results('EXPLAIN ' . $query, ARRAY_A);
+
             self::assertIsArray($plan);
-            self::assertNotEmpty($plan);
-            self::assertNotEmpty($plan[0]['key'], "Aggregate query must use a selected index:\n{$query}");
-            $selectedIndexes[] = (string) $plan[0]['key'];
+            self::assertCount(1, $plan, "EXPLAIN must yield one plan for {$contract['shape']} analytics query.");
+            self::assertSame(
+                $contract['index'],
+                $plan[0]['key'],
+                "{$contract['shape']} must retain its expected index choice:\n{$query}"
+            );
+            self::assertSame(
+                $contract['access'],
+                $plan[0]['type'],
+                "{$contract['shape']} must retain its expected access type:\n{$query}"
+            );
+        }
+    }
+
+    private function assertRetentionDeletionPlanUsesCreatedAtIndex(): void
+    {
+        global $wpdb;
+
+        $query = $wpdb->prepare("DELETE FROM `{$this->table}` WHERE created_at < %s", '2026-01-05 06:00:00');
+        $plan  = $wpdb->get_results('EXPLAIN ' . $query, ARRAY_A);
+
+        self::assertIsArray($plan);
+        self::assertCount(1, $plan);
+        self::assertSame('idx_created_at', $plan[0]['key']);
+        self::assertSame('range', $plan[0]['type']);
+    }
+
+    /**
+     * @return array{shape:string,index:?string,access:string,maximum_rows:int}
+     */
+    private function queryContract(string $query): array
+    {
+        $normalized = preg_replace('/\s+/', ' ', $query) ?? $query;
+
+        if (str_contains($normalized, 'MIN(created_at_utc) AS earliest')) {
+            self::assertMatchesRegularExpression('/COUNT\(created_at_utc\)/i', $normalized);
+            self::assertDoesNotMatchRegularExpression('/\bGROUP BY\b/i', $normalized);
+
+            return [
+                'shape'        => 'retained-bounds aggregate',
+                'index'        => 'idx_created_at_utc',
+                'access'       => 'index',
+                'maximum_rows' => 1,
+            ];
         }
 
-        self::assertContains($requiredIndex, $selectedIndexes);
+        if (str_contains($normalized, 'DATE_FORMAT(created_at_utc')) {
+            self::assertMatchesRegularExpression('/COUNT\(\*\) AS total/i', $normalized);
+            self::assertMatchesRegularExpression('/SUM\(/i', $normalized);
+            self::assertMatchesRegularExpression('/GROUP BY utc_hour/i', $normalized);
+
+            return [
+                'shape'        => 'hourly aggregate',
+                // A full retained-window scan cannot reduce rows through this range predicate;
+                // MariaDB correctly chooses a table scan while SQL still returns one row/hour.
+                'index'        => null,
+                'access'       => 'ALL',
+                'maximum_rows' => self::HOURLY_BUCKETS,
+            ];
+        }
+
+        if (str_contains($normalized, 'subject_pattern AS pattern')) {
+            self::assertMatchesRegularExpression('/COUNT\(\*\) AS total/i', $normalized);
+            self::assertMatchesRegularExpression('/GROUP BY subject_pattern/i', $normalized);
+            self::assertMatchesRegularExpression('/LIMIT 10/i', $normalized);
+
+            return [
+                'shape'        => 'subject-pattern aggregate',
+                'index'        => 'idx_source_created_utc',
+                'access'       => 'range',
+                'maximum_rows' => 10,
+            ];
+        }
+
+        if (str_contains($normalized, ' AS dimension')) {
+            self::assertMatchesRegularExpression('/COUNT\(\*\) AS total/i', $normalized);
+            self::assertMatchesRegularExpression('/SUM\(/i', $normalized);
+            self::assertMatchesRegularExpression('/GROUP BY dimension/i', $normalized);
+            self::assertMatchesRegularExpression('/LIMIT (?:10|100)/i', $normalized);
+            $isPluginFiltered = str_contains($normalized, "source_plugin = 'woocommerce'");
+
+            return [
+                'shape'        => $isPluginFiltered ? 'plugin dimension aggregate' : 'dimension aggregate',
+                'index'        => $isPluginFiltered ? 'idx_source_created_utc' : 'idx_created_at_utc',
+                'access'       => 'range',
+                'maximum_rows' => str_contains($normalized, 'LIMIT 100') ? 100 : 10,
+            ];
+        }
+
+        if (str_contains($normalized, 'COUNT(*) AS total')) {
+            self::assertMatchesRegularExpression('/SUM\(/i', $normalized);
+            self::assertDoesNotMatchRegularExpression('/\bGROUP BY\b/i', $normalized);
+
+            return [
+                'shape'        => 'summary aggregate',
+                'index'        => null,
+                'access'       => 'ALL',
+                'maximum_rows' => 1,
+            ];
+        }
+
+        self::fail("Analytics query has no recognized bounded aggregate contract:\n{$query}");
+    }
+
+    private function assertNoRawProjection(string $query): void
+    {
+        self::assertDoesNotMatchRegularExpression('/SELECT\s+\*/i', $query);
+        self::assertMatchesRegularExpression('/\b(?:COUNT|SUM|MIN|MAX)\s*\(/i', $query);
+        $projection = preg_replace('/^\s*SELECT\s+(.*?)\s+FROM\s+.*$/is', '$1', $query) ?? '';
+
+        // Fields are permitted inside fixed aggregate expressions above. They must never appear
+        // as a bare result column, which would let PHP hydrate retained rows to aggregate later.
+        self::assertDoesNotMatchRegularExpression(
+            '/(?:^|,)\s*`?(?:id|status|recipient(?:_count)?|to(?:_addr)?|subject|details|debug(?:_info)?|body|from|cc|bcc|attachments?|token|created_at(?:_utc)?|connection(?:_id)?|source_plugin|routing_type)`?(?:\s+AS\b|\s*,|\s*$)/i',
+            $projection,
+            "Analytics query must not project a raw retained-log field:\n{$query}"
+        );
     }
 
     private function seedMaximumRetention(): void
@@ -218,7 +347,7 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
         $utc       = new DateTimeZone('UTC');
         $site      = new DateTimeZone('Asia/Dhaka');
         $start     = new DateTimeImmutable('2026-01-01 00:00:00', $utc);
-        $rows      = self::RETENTION_DAYS * self::ROWS_PER_DAY;
+        $rows      = self::HOURLY_BUCKETS * self::ROWS_PER_HOUR;
         $batchSize = 200;
 
         for ($offset = 0; $offset < $rows; $offset += $batchSize) {
@@ -226,7 +355,8 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
             $placeholders = [];
             $limit        = min($rows, $offset + $batchSize);
             for ($index = $offset; $index < $limit; ++$index) {
-                $createdUtc     = $start->add(new DateInterval('PT' . $index . 'H'));
+                $hour           = intdiv($index, self::ROWS_PER_HOUR);
+                $createdUtc     = $start->add(new DateInterval('PT' . $hour . 'H'));
                 $createdLocal   = $createdUtc->setTimezone($site);
                 $source         = ['woocommerce', 'contact-form-7', 'unknown'][$index % 3];
                 $connection     = $index % 2 === 0 ? 'conn_primary' : 'conn_secondary';

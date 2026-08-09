@@ -177,7 +177,7 @@ With Bit SMTP’s built-in email logs system, you can easily track every email y
 
 On WordPress 6.9 or newer, Bit SMTP registers five read-only Email Analytics abilities for authorized tools and automation clients. The abilities API is an optional integration: Bit SMTP continues sending mail and recording logs on older supported WordPress versions, but no abilities are registered there.
 
-All five abilities require the WordPress `manage_options` capability. They are aggregate-only and never return email bodies, attachments, credentials, API tokens, raw debug output, or complete recipient addresses. They operate only on retained Bit SMTP mail logs; they do not query orders, form entries, users, posts, or another plugin's data.
+All five abilities require the WordPress `manage_options` capability. They return aggregate metrics or privacy-safe routing metadata and never return email bodies, attachments, credentials, API tokens, raw debug output, or complete recipient addresses. They operate only on retained Bit SMTP mail logs; they do not query orders, form entries, users, posts, or another plugin's data.
 
 * `bit-smtp/get-email-analytics` — overview of volume, recipients counted, send acceptance, verified delivery outcomes, timing, sources, connections, retained-record bounds, and timestamp coverage. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
 * `bit-smtp/analyze-plugin-email` — aggregate timing, outcomes, connections, routes, and bounded normalized subject-pattern groups for one source. Required input: `plugin`; it also accepts `start`, `end`, `bucket`, and `connection_id`.
@@ -185,7 +185,7 @@ All five abilities require the WordPress `manage_options` capability. They are a
 * `bit-smtp/explain-routing` — either explain a retained decision with `log_id`, or simulate the current rules with `to_domains` and optional `from`, `subject`, and `source_plugin`. Simulation is read-only and never sends email.
 * `bit-smtp/detect-email-anomalies` — compares aggregate activity with the preceding equal period. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
 
-`start` and `end` are complete ISO-8601 timestamps. If omitted, the effective range is the 30 days ending now. `bucket` is `hour`, `day`, or `week`; Bit SMTP selects a sensible default when it is omitted. A request may not exceed the configured log-retention period, capped at 200 days. Results use the site timezone for display and UTC timestamps for range filtering.
+`start` and `end` are complete ISO-8601 timestamps. If omitted, the effective range is the 30 days ending now, or the configured retention period when it is shorter. `bucket` is `hour`, `day`, or `week`; Bit SMTP selects a sensible default when it is omitted. A request may not exceed the configured log-retention period, capped at 200 days. Results use the site timezone for display and UTC timestamps for range filtering.
 
 Every result identifies its effective range and says that it represents retained email activity, not business records. The `timestamp_coverage` metadata distinguishes qualified rows with explicit UTC capture timestamps from unqualified historical rows; precise range and timing aggregates exclude unqualified rows instead of guessing a timezone. Anomaly comparisons also report whether logging was continuous throughout both windows, and suppress observations when that continuity or retained coverage is incomplete.
 
@@ -245,7 +245,9 @@ Yes. Turn on failure alerts (Notifications) to be told by email, webhook, Slack,
 == Changelog ==
 
 = 1.3.0 (26 Jul, 2026) =
-* Feat: Read-only aggregate Email Analytics abilities for WordPress 6.9+ (`get-email-analytics`, `analyze-plugin-email`, `analyze-deliverability`, `explain-routing`, and `detect-email-anomalies`). Administrators can query retained logs without exposing raw recipient, body, credential, or debug data; older supported WordPress versions continue without abilities.
+* Feat: Read-only Email Analytics abilities are available only on WordPress 6.9+ (`get-email-analytics`, `analyze-plugin-email`, `analyze-deliverability`, `explain-routing`, and `detect-email-anomalies`) and require `manage_options`. They accept documented ISO range/bucket and filter inputs, while routing accepts either a retained `log_id` or privacy-safe simulation inputs; older supported WordPress versions continue without abilities.
+* Feat: Analytics defaults to 30 days or a shorter configured retention period, with a 200-day retention maximum. It reports qualified UTC timestamp coverage separately from unqualified historical records and logging continuity, preserves unknown historical attribution, and returns aggregate metrics or privacy-safe routing metadata without raw recipient, body, credential, attachment, token, or debug data.
+* Feat: WooCommerce and contact-form analytics describe notification activity only as a proxy for business activity. Send acceptance remains distinct from provider-confirmed delivery; absent webhook data remains unknown rather than delivered.
 * Feat: Multi-provider framework — send over dedicated integrations for SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, and SparkPost, plus Gmail and Microsoft 365 via OAuth, any SMTP server, and PHP mail().
 * Feat: Cloudflare Email Sending (Beta) API integration. Configure your sender address/domain in Cloudflare; sending to general recipients requires Workers Paid. Use Other SMTP as the SMTP alternative.
 * Feat: Multiple connections with a priority order and automatic fallback to the next connection when a send fails.
