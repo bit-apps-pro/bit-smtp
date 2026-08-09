@@ -85,10 +85,11 @@ class LogService
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
         }
 
+        $recipients              = Arr::get($details, 'to', []);
         $log->subject            = Arr::get($details, 'subject', '');
         $log->to_addr            = Arr::get($details, 'to', '[]');
         $log->subject_pattern    = $this->subjectPattern((string) $log->subject);
-        $log->recipient_count    = $this->recipientCount($log->to_addr);
+        $log->recipient_count    = $this->recipientCount($recipients);
         $log->connection         = $connection;
         $log->connection_id      = $connectionId;
         $log->message_id         = $messageId;

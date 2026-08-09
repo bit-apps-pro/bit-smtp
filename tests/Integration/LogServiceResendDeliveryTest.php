@@ -164,6 +164,16 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertStringNotContainsString('123456', $log->subject_pattern);
     }
 
+    public function testSaveCountsMissingRecipientsAsZero(): void
+    {
+        $this->service->save(Log::SUCCESS, ['subject' => 'No recipients']);
+
+        $log = Log::where('subject', 'No recipients')->first();
+
+        $this->assertSame([], $log->to_addr);
+        $this->assertSame(0, $log->recipient_count);
+    }
+
     /**
      * A prior send that already carried a delivery status plus a per-recipient child row, so a resend
      * must be seen to both clear the old outcome and re-stamp (or not) the new one.
