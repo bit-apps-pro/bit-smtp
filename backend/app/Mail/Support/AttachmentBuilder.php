@@ -26,6 +26,8 @@ final class AttachmentBuilder
 
     public const SHAPE_SPARKPOST = 'sparkpost';
 
+    public const SHAPE_CLOUDFLARE = 'cloudflare';
+
     private const MIME_FALLBACK = 'application/octet-stream';
 
     private const KNOWN_SHAPES = [
@@ -36,6 +38,7 @@ final class AttachmentBuilder
         self::SHAPE_ZEPTO,
         self::SHAPE_RESEND,
         self::SHAPE_SPARKPOST,
+        self::SHAPE_CLOUDFLARE,
     ];
 
     /**
@@ -89,6 +92,8 @@ final class AttachmentBuilder
                 return ['filename' => $name, 'content' => $content];
             case self::SHAPE_SPARKPOST:
                 return ['name' => $name, 'type' => $mime, 'data' => $content];
+            case self::SHAPE_CLOUDFLARE:
+                return ['content' => $content, 'disposition' => 'attachment', 'filename' => $name, 'type' => $mime];
             default:
                 throw new InvalidArgumentException("Unknown attachment shape: {$shape}");
         }
