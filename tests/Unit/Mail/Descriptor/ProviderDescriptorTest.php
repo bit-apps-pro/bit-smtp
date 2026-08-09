@@ -168,8 +168,9 @@ class ProviderDescriptorTest extends BaseUnitTestCase
                 'params' => ['token' => '{api_key}'],
             ],
             'endpoint' => [
-                'hostByRegion' => ['default' => 'api.sendgrid.com'],
-                'path'         => '/v3/mail/send',
+                'host'         => 'api.cloudflare.com',
+                'path'         => '/client/v4/accounts/{account_id}/email/sending/send',
+                'pathSettings' => ['account_id' => '/^[a-f0-9]{32}$/iD'],
             ],
             'encoder' => 'json',
             'payload' => [

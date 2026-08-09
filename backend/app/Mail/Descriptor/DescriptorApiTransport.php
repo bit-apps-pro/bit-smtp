@@ -62,7 +62,7 @@ final class DescriptorApiTransport extends AbstractApiTransport
 
         return 'https://'
             . $this->resolveHost($endpoint, $connection)
-            . $this->resolvePath((string) ($endpoint['path'] ?? ''), $connection);
+            . $this->resolvePath($endpoint, $connection);
     }
 
     /**
@@ -292,17 +292,41 @@ final class DescriptorApiTransport extends AbstractApiTransport
         return (string) $hostByRegion[$region];
     }
 
-    private function resolvePath(string $path, Connection $connection): string
+    /**
+     * @param array<string,mixed> $endpoint
+     */
+    private function resolvePath(array $endpoint, Connection $connection): string
     {
-        if (strpos($path, self::DOMAIN_PLACEHOLDER) === false) {
-            return $path;
+        $path = (string) ($endpoint['path'] ?? '');
+
+        if (strpos($path, self::DOMAIN_PLACEHOLDER) !== false) {
+            $domain = (string) $connection->setting('domain', '');
+            if (preg_match(self::HOSTNAME_PATTERN, $domain) !== 1) {
+                throw new InvalidArgumentException('Invalid domain for endpoint path');
+            }
+
+            $path = str_replace(self::DOMAIN_PLACEHOLDER, rawurlencode($domain), $path);
         }
 
-        $domain = (string) $connection->setting('domain', '');
-        if (preg_match(self::HOSTNAME_PATTERN, $domain) !== 1) {
-            throw new InvalidArgumentException('Invalid domain for endpoint path');
+        foreach (($endpoint['pathSettings'] ?? []) as $key => $pattern) {
+            $placeholder = '{' . $key . '}';
+            if (strpos($path, $placeholder) === false) {
+                continue;
+            }
+            $setting = $connection->setting((string) $key, '');
+            if (!\is_scalar($setting)) {
+                throw new InvalidArgumentException('Invalid endpoint path setting: ' . $key);
+            }
+            $value = (string) $setting;
+            if (@preg_match((string) $pattern, $value) !== 1) {
+                throw new InvalidArgumentException('Invalid endpoint path setting: ' . $key);
+            }
+            $path = str_replace($placeholder, rawurlencode($value), $path);
+        }
+        if (preg_match('/\{[a-z0-9_-]+\}/i', $path) === 1) {
+            throw new InvalidArgumentException('Unresolved endpoint path placeholder');
         }
 
-        return str_replace(self::DOMAIN_PLACEHOLDER, rawurlencode($domain), $path);
+        return $path;
     }
 }

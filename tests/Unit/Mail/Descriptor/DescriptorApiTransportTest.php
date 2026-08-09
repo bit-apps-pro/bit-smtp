@@ -16,6 +16,7 @@ use BitApps\SMTP\Mail\Support\JsonEncoder;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
+use stdClass;
 
 /**
  * @internal
@@ -414,6 +415,115 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
         $connection = $this->connection(['settings' => ['domain' => 'not a domain!']]);
 
         $this->assertFalse($this->transportWith($descriptor)->send($this->message(), $connection)->isOk());
+    }
+
+    public function testDeclaredPathSettingIsValidatedAndInterpolatedIntoPath(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with(
+                'https://api.cloudflare.com/client/v4/accounts/0123456789abcdef0123456789abcdef/email/sending/send',
+                Mockery::any()
+            )
+            ->andReturn(new ApiResponse(202, []));
+
+        $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
+            'endpoint' => [
+                'host'         => 'api.cloudflare.com',
+                'path'         => '/client/v4/accounts/{account_id}/email/sending/send',
+                'pathSettings' => ['account_id' => '/^[a-f0-9]{32}$/iD'],
+            ],
+        ]));
+
+        $connection = $this->connection(['settings' => ['account_id' => '0123456789abcdef0123456789abcdef']]);
+
+        $this->assertTrue($this->transportWith($descriptor)->send($this->message(), $connection)->isOk());
+    }
+
+    public function testDeclaredPathSettingIsRawUrlEncodedBeforeInterpolation(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with('https://api.example.com/v1/team%2Faccount/send', Mockery::any())
+            ->andReturn(new ApiResponse(202, []));
+
+        $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
+            'endpoint' => [
+                'host'         => 'api.example.com',
+                'path'         => '/v1/{resource}/send',
+                'pathSettings' => ['resource' => '/^[a-z\/]+$/D'],
+            ],
+        ]));
+
+        $connection = $this->connection(['settings' => ['resource' => 'team/account']]);
+
+        $this->assertTrue($this->transportWith($descriptor)->send($this->message(), $connection)->isOk());
+    }
+
+    public function testMalformedDeclaredPathSettingYieldsFailureAndNeverPosts(): void
+    {
+        $this->apiClient->shouldReceive('post')->zeroOrMoreTimes()->andReturn(new ApiResponse(202, []));
+
+        $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
+            'endpoint' => [
+                'host'         => 'api.cloudflare.com',
+                'path'         => '/client/v4/accounts/{account_id}/email/sending/send',
+                'pathSettings' => ['account_id' => '/^[a-f0-9]{32}$/iD'],
+            ],
+        ]));
+
+        $connection = $this->connection(['settings' => ['account_id' => 'not-an-account-id']]);
+
+        $result = $this->transportWith($descriptor)->send($this->message(), $connection);
+
+        $this->assertFalse($result->isOk());
+        $this->assertStringContainsString('Invalid endpoint path setting: account_id', $result->getError());
+        $this->apiClient->shouldNotHaveReceived('post');
+    }
+
+    public function testNonScalarDeclaredPathSettingYieldsFailureAndNeverPosts(): void
+    {
+        $this->apiClient->shouldReceive('post')->zeroOrMoreTimes()->andReturn(new ApiResponse(202, []));
+
+        $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
+            'endpoint' => [
+                'host'         => 'api.cloudflare.com',
+                'path'         => '/client/v4/accounts/{account_id}/email/sending/send',
+                'pathSettings' => ['account_id' => '/^[a-f0-9]{32}$/iD'],
+            ],
+        ]));
+
+        $result = $this->transportWith($descriptor)->send(
+            $this->message(),
+            $this->connection(['settings' => ['account_id' => new stdClass()]])
+        );
+
+        $this->assertFalse($result->isOk());
+        $this->assertStringContainsString('Invalid endpoint path setting: account_id', $result->getError());
+        $this->apiClient->shouldNotHaveReceived('post');
+    }
+
+    public function testUndeclaredPathPlaceholderYieldsFailureAndNeverPosts(): void
+    {
+        $this->apiClient->shouldReceive('post')->zeroOrMoreTimes()->andReturn(new ApiResponse(202, []));
+
+        $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
+            'endpoint' => [
+                'host' => 'api.cloudflare.com',
+                'path' => '/client/v4/accounts/{account_id}/email/sending/send',
+            ],
+        ]));
+
+        $result = $this->transportWith($descriptor)->send(
+            $this->message(),
+            $this->connection(['settings' => ['account_id' => '0123456789abcdef0123456789abcdef']])
+        );
+
+        $this->assertFalse($result->isOk());
+        $this->assertStringContainsString('Unresolved endpoint path placeholder', $result->getError());
+        $this->apiClient->shouldNotHaveReceived('post');
     }
 
     public function testSingleSourceThatFormatsToBlankOmitsTheKey(): void
