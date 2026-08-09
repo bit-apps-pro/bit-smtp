@@ -6,10 +6,16 @@ import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type FailureAlertSettings, MASK_SENTINEL, type MailSettings } from '@pages/Connections/types'
 import { Button, Divider, Flex, Form, Input, Select, Spin, Switch, Typography, theme } from 'antd'
 import { KeyRound, Save } from 'lucide-react'
+import useTestNotification, {
+  type NotificationChannel,
+  type TestNotificationResult
+} from './data/useTestNotification'
 
 const { Text, Title } = Typography
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const SIGNING_SECRET_PATTERN = /^whsec_[A-Za-z0-9_-]{32,128}$/
+const TELEGRAM_BOT_TOKEN_PATTERN = /^\d{6,20}:[A-Za-z0-9_-]{20,}$/
+const TELEGRAM_CHAT_ID_PATTERN = /^-?\d{1,20}$/
 
 interface NotificationFormValues {
   enabled: boolean
@@ -18,6 +24,11 @@ interface NotificationFormValues {
   webhookEnabled: boolean
   webhookUrl: string
   signingSecret: string
+  slackEnabled: boolean
+  slackWebhookUrl: string
+  telegramEnabled: boolean
+  telegramBotToken: string
+  telegramChatId: string
 }
 
 function readAlerts(settings: MailSettings): FailureAlertSettings {
@@ -56,7 +67,12 @@ function toFormValues(settings: MailSettings): NotificationFormValues {
     recipients: alerts.email.recipients,
     webhookEnabled: alerts.webhook.enabled,
     webhookUrl: alerts.webhook.url,
-    signingSecret: alerts.webhook.signing_secret
+    signingSecret: alerts.webhook.signing_secret,
+    slackEnabled: alerts.slack.enabled,
+    slackWebhookUrl: alerts.slack.webhook_url,
+    telegramEnabled: alerts.telegram.enabled,
+    telegramBotToken: alerts.telegram.bot_token,
+    telegramChatId: alerts.telegram.chat_id
   }
 }
 
@@ -67,10 +83,7 @@ function generateSigningSecret(): string {
   return `whsec_${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
-function toStoredAlerts(
-  values: NotificationFormValues,
-  current: FailureAlertSettings
-): FailureAlertSettings {
+function toStoredAlerts(values: NotificationFormValues): FailureAlertSettings {
   return {
     enabled: values.enabled,
     email: {
@@ -82,9 +95,46 @@ function toStoredAlerts(
       url: values.webhookUrl.trim(),
       signing_secret: values.signingSecret.trim()
     },
-    slack: current.slack,
-    telegram: current.telegram
+    slack: {
+      enabled: values.slackEnabled,
+      webhook_url: values.slackWebhookUrl.trim()
+    },
+    telegram: {
+      enabled: values.telegramEnabled,
+      bot_token: values.telegramBotToken.trim(),
+      chat_id: values.telegramChatId.trim()
+    }
   }
+}
+
+function isSlackIncomingWebhookUrl(value: string): boolean {
+  if (value === MASK_SENTINEL) {
+    return true
+  }
+  if (!value.startsWith('https://hooks.slack.com/services/')) {
+    return false
+  }
+
+  try {
+    const url = new URL(value)
+    return (
+      url.protocol === 'https:' &&
+      url.hostname === 'hooks.slack.com' &&
+      url.port === '' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.search === '' &&
+      url.hash === '' &&
+      url.pathname.startsWith('/services/') &&
+      url.pathname.length > '/services/'.length
+    )
+  } catch {
+    return false
+  }
+}
+
+function isTelegramBotToken(value: string): boolean {
+  return value === MASK_SENTINEL || TELEGRAM_BOT_TOKEN_PATTERN.test(value)
 }
 
 export default function NotificationsPage() {
@@ -95,6 +145,9 @@ export default function NotificationsPage() {
   const alertsEnabled = Form.useWatch('enabled', form) ?? false
   const emailEnabled = Form.useWatch('emailEnabled', form) ?? false
   const webhookEnabled = Form.useWatch('webhookEnabled', form) ?? false
+  const slackEnabled = Form.useWatch('slackEnabled', form) ?? false
+  const telegramEnabled = Form.useWatch('telegramEnabled', form) ?? false
+  const testNotification = useTestNotification()
 
   useEffect(() => {
     if (settings) {
@@ -119,7 +172,7 @@ export default function NotificationsPage() {
       {
         features: {
           ...settings.features,
-          alerts: toStoredAlerts(values, readAlerts(settings))
+          alerts: toStoredAlerts(values)
         }
       },
       { onSuccess: () => notify.success(__('Notification settings saved')) }
@@ -172,6 +225,70 @@ export default function NotificationsPage() {
     }
 
     return Promise.reject(new Error(__('Generate or enter a valid signing secret')))
+  }
+
+  const validateSlackWebhookUrl = (_: unknown, value?: string) => {
+    if (!alertsEnabled || !slackEnabled) {
+      return Promise.resolve()
+    }
+    if (value && isSlackIncomingWebhookUrl(value.trim())) {
+      return Promise.resolve()
+    }
+
+    return Promise.reject(new Error(__('Enter a valid Slack incoming webhook URL')))
+  }
+
+  const validateTelegramBotToken = (_: unknown, value?: string) => {
+    if (!alertsEnabled || !telegramEnabled) {
+      return Promise.resolve()
+    }
+    if (value && isTelegramBotToken(value.trim())) {
+      return Promise.resolve()
+    }
+
+    return Promise.reject(new Error(__('Enter a valid Telegram bot token')))
+  }
+
+  const validateTelegramChatId = (_: unknown, value?: string) => {
+    if (!alertsEnabled || !telegramEnabled) {
+      return Promise.resolve()
+    }
+    if (value && TELEGRAM_CHAT_ID_PATTERN.test(value.trim())) {
+      return Promise.resolve()
+    }
+
+    return Promise.reject(new Error(__('Enter a valid Telegram chat ID')))
+  }
+
+  const savedAlerts = readAlerts(settings)
+  const canTestSlack =
+    alertsEnabled &&
+    slackEnabled &&
+    savedAlerts.slack.enabled &&
+    isSlackIncomingWebhookUrl(savedAlerts.slack.webhook_url)
+  const canTestTelegram =
+    alertsEnabled &&
+    telegramEnabled &&
+    savedAlerts.telegram.enabled &&
+    isTelegramBotToken(savedAlerts.telegram.bot_token) &&
+    TELEGRAM_CHAT_ID_PATTERN.test(savedAlerts.telegram.chat_id)
+
+  const handleTest = (channel: NotificationChannel) => {
+    testNotification.mutate(
+      { channel },
+      {
+        onSuccess: (result: TestNotificationResult) => {
+          if (result.ok) {
+            notify.success(__('Test notification sent'))
+            return
+          }
+          notify.error(__('Notification test failed'))
+        },
+        onError: () => {
+          notify.error(__('Notification test failed'))
+        }
+      }
+    )
   }
 
   return (
@@ -266,6 +383,66 @@ export default function NotificationsPage() {
           disabled={!alertsEnabled || !webhookEnabled}
         />
       </Form.Item>
+
+      <Divider orientation="left">{__('Slack')}</Divider>
+      <Form.Item name="slackEnabled" label={__('Slack notification')} valuePropName="checked">
+        <Switch disabled={!alertsEnabled} />
+      </Form.Item>
+      <Form.Item
+        name="slackWebhookUrl"
+        label={__('Slack webhook URL')}
+        dependencies={['enabled', 'slackEnabled']}
+        rules={[{ validator: validateSlackWebhookUrl }]}
+      >
+        <Input.Password
+          autoComplete="new-password"
+          placeholder="https://hooks.slack.com/services/..."
+          disabled={!alertsEnabled || !slackEnabled}
+        />
+      </Form.Item>
+      <Button
+        onClick={() => handleTest('slack')}
+        disabled={!canTestSlack || testNotification.isPending}
+        loading={testNotification.isPending}
+      >
+        {__('Test Slack notification')}
+      </Button>
+
+      <Divider orientation="left">{__('Telegram')}</Divider>
+      <Form.Item name="telegramEnabled" label={__('Telegram notification')} valuePropName="checked">
+        <Switch disabled={!alertsEnabled} />
+      </Form.Item>
+      <Form.Item
+        name="telegramBotToken"
+        label={__('Telegram bot token')}
+        dependencies={['enabled', 'telegramEnabled']}
+        rules={[{ validator: validateTelegramBotToken }]}
+      >
+        <Input.Password
+          autoComplete="new-password"
+          placeholder={__('123456:bot-token')}
+          disabled={!alertsEnabled || !telegramEnabled}
+        />
+      </Form.Item>
+      <Form.Item
+        name="telegramChatId"
+        label={__('Telegram chat ID')}
+        dependencies={['enabled', 'telegramEnabled']}
+        rules={[{ validator: validateTelegramChatId }]}
+      >
+        <Input
+          autoComplete="off"
+          placeholder="-1001234567890"
+          disabled={!alertsEnabled || !telegramEnabled}
+        />
+      </Form.Item>
+      <Button
+        onClick={() => handleTest('telegram')}
+        disabled={!canTestTelegram || testNotification.isPending}
+        loading={testNotification.isPending}
+      >
+        {__('Test Telegram notification')}
+      </Button>
     </Form>
   )
 }
