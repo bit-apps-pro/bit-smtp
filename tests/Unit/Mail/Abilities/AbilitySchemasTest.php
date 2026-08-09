@@ -111,6 +111,10 @@ final class AbilitySchemasTest extends BaseUnitTestCase
         self::assertSame(23, $observations['oneOf'][4]['properties']['hour']['maximum']);
         self::assertSame(7, $observations['oneOf'][5]['properties']['weekday']['maximum']);
         self::assertSame(['type', 'hour', 'current', 'prior', 'current_percentage', 'prior_percentage', 'percentage_point_change'], $observations['oneOf'][4]['required']);
+
+        $coverage = AbilitySchemas::anomaliesOutput()['properties']['comparison_coverage'];
+        self::assertSame(['complete', 'retained_from', 'configured_retained_from'], $coverage['required']);
+        self::assertSame('date-time', $coverage['properties']['configured_retained_from']['oneOf'][0]['format']);
     }
 
     public function testDoesNotAddAnyAbilitiesHooksWhenCoreDoesNotProvideTheApi(): void

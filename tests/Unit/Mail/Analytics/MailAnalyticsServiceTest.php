@@ -246,6 +246,10 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldReceive('summary')->once()->with(Mockery::on(static fn (AnalyticsQuery $candidate): bool => $candidate->start()->format(DATE_ATOM) === $prior->start()->format(DATE_ATOM)))->andReturn(array_merge($this->summary(), [
             'total' => 19, 'accepted' => 18, 'failed' => 1,
         ]));
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn([
+            'earliest' => '2026-02-01 00:00:00',
+            'latest'   => '2026-03-02 00:00:00',
+        ]);
         $repo->shouldReceive('groups')->with($query, 'source', 100)->andReturn([['dimension' => 'wpforms-lite', 'total' => 19, 'failed' => 4]]);
         $repo->shouldReceive('groups')->with(Mockery::type(AnalyticsQuery::class), 'source', 100)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'connection', 100)->andReturn([['dimension' => 'conn_primary', 'total' => 19, 'failed' => 4]]);
@@ -280,6 +284,10 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldReceive('summary')->once()->with(Mockery::on(static fn (AnalyticsQuery $candidate): bool => $candidate->start()->format(DATE_ATOM) === $prior->start()->format(DATE_ATOM)))->andReturn(array_merge($this->summary(), [
             'total' => 40, 'accepted' => 38, 'failed' => 2,
         ]));
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn([
+            'earliest' => '2026-02-01 00:00:00',
+            'latest'   => '2026-03-03 00:00:00',
+        ]);
         $repo->shouldReceive('groups')->with($query, 'source', 100)->andReturn([]);
         $repo->shouldReceive('groups')->with(Mockery::type(AnalyticsQuery::class), 'source', 100)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'connection', 100)->andReturn([]);
@@ -337,12 +345,12 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         )));
     }
 
-    public function testAnomaliesSuppressComparisonsWhenThePriorPeriodPredatesRetention(): void
+    public function testAnomaliesSuppressComparisonsWhenTheActualRetainedStartDoesNotCoverThePriorPeriod(): void
     {
         $query = (new AnalyticsQueryFactory(
             new DateTimeImmutable('2026-04-01T00:00:00+00:00'),
             new DateTimeZone('America/New_York'),
-            7
+            20
         ))->fromInput([
             'start' => '2026-03-25T00:00:00+00:00',
             'end'   => '2026-04-01T00:00:00+00:00',
@@ -350,6 +358,10 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         self::assertInstanceOf(AnalyticsQuery::class, $query);
         $repo = Mockery::mock(MailAnalyticsRepository::class);
         $repo->shouldReceive('summary')->twice()->andReturn($this->summary());
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn([
+            'earliest' => '2026-03-20 00:00:00',
+            'latest'   => '2026-04-01 00:00:00',
+        ]);
         $repo->shouldNotReceive('groups');
         $repo->shouldNotReceive('timeSeries');
 
@@ -357,7 +369,27 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
 
         self::assertFalse($result['comparison_coverage']['complete']);
         self::assertSame([], $result['observations']);
-        self::assertSame('2026-03-25T00:00:00+00:00', $result['comparison_coverage']['retained_from']);
+        self::assertSame('2026-03-20T00:00:00+00:00', $result['comparison_coverage']['retained_from']);
+        self::assertSame('2026-03-12T00:00:00+00:00', $result['comparison_coverage']['configured_retained_from']);
+    }
+
+    public function testAnomaliesMarkEmptyRetainedLogsAsIncompleteCoverage(): void
+    {
+        $query = $this->query([
+            'start' => '2026-03-10T00:00:00+00:00',
+            'end'   => '2026-03-11T00:00:00+00:00',
+        ]);
+        $repo = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->twice()->andReturn($this->summary());
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn(['earliest' => null, 'latest' => null]);
+        $repo->shouldNotReceive('groups');
+        $repo->shouldNotReceive('timeSeries');
+
+        $result = (new MailAnalyticsService($repo))->anomalies($query);
+
+        self::assertFalse($result['comparison_coverage']['complete']);
+        self::assertNull($result['comparison_coverage']['retained_from']);
+        self::assertSame([], $result['observations']);
     }
 
     public function testConvertsUtcHoursInPhpForSpringForwardAndFallBackWithoutMergingRepeatedHours(): void

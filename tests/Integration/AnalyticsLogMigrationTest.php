@@ -63,6 +63,31 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertAnalyticsIndexesExist();
     }
 
+    public function testUpgradeBackfillsLegacyLocalTimestampsIntoUtcWithoutChangingDisplayTimestamps(): void
+    {
+        $this->dropLogsTable();
+        $this->createLegacyLogsTable();
+        $this->seedLegacyLog('2026-11-01 01:30:00');
+        $previousTimezone = get_option('timezone_string');
+        update_option('timezone_string', 'America/New_York');
+
+        try {
+            $this->migrateLogs();
+            $this->migrateLogs();
+
+            global $wpdb;
+            $row = $wpdb->get_row("SELECT created_at, created_at_utc FROM `{$this->logsTable}` WHERE id = 1");
+
+            $this->assertSame('2026-11-01 01:30:00', $row->created_at);
+            // The legacy fall-back hour has no offset. PHP chooses its earlier DST occurrence
+            // consistently, preserving a conservative and repeatable analytics timestamp.
+            $this->assertSame('2026-11-01 05:30:00', $row->created_at_utc);
+            $this->assertAnalyticsIndexesExist();
+        } finally {
+            update_option('timezone_string', $previousTimezone);
+        }
+    }
+
     public function testLogModelAcceptsAttributionAndPreservesANullRuleIndex(): void
     {
         $log = new Log([
@@ -87,28 +112,29 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertNull($log->recipient_count);
     }
 
-    public function testConnectionIdRangeQueriesUseTheConnectionIdLeadingCompositeIndex(): void
+    public function testAnalyticsConnectionIdRangeQueriesUseTheUtcCompositeIndex(): void
     {
         $this->migrateLogs();
         global $wpdb;
 
         $wpdb->insert($this->logsTable, [
-            'status'        => 1,
-            'subject'       => 'Subject',
-            'to_addr'       => '[]',
-            'connection_id' => 'conn_primary',
-            'created_at'    => '2026-03-01 00:00:00',
-            'updated_at'    => '2026-03-01 00:00:00',
+            'status'         => 1,
+            'subject'        => 'Subject',
+            'to_addr'        => '[]',
+            'connection_id'  => 'conn_primary',
+            'created_at'     => '2026-03-01 00:00:00',
+            'created_at_utc' => '2026-03-01 00:00:00',
+            'updated_at'     => '2026-03-01 00:00:00',
         ]);
         $plan = $wpdb->get_row($wpdb->prepare(
-            "EXPLAIN SELECT COUNT(*) FROM `{$this->logsTable}` WHERE connection_id = %s AND created_at >= %s AND created_at < %s",
+            "EXPLAIN SELECT COUNT(*) FROM `{$this->logsTable}` WHERE connection_id = %s AND created_at_utc >= %s AND created_at_utc < %s",
             'conn_primary',
             '2026-03-01 00:00:00',
             '2026-03-02 00:00:00'
         ));
 
         $this->assertNotNull($plan);
-        $this->assertSame('idx_connection_id_created', $plan->key);
+        $this->assertSame('idx_connection_id_created_utc', $plan->key);
     }
 
     public function testMaybeMigrateDbUpgradesAOneSixLogsTableAtTheCurrentPluginVersion(): void
@@ -150,7 +176,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
     {
         global $wpdb;
 
-        foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'subject_pattern', 'recipient_count'] as $column) {
+        foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'subject_pattern', 'recipient_count', 'created_at_utc'] as $column) {
             $definition = $wpdb->get_row(
                 $wpdb->prepare("SHOW COLUMNS FROM `{$this->logsTable}` LIKE %s", $column)
             );
@@ -189,11 +215,16 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         }
 
         $expected = [
-            'idx_source_created'        => ['source_plugin', 'created_at'],
-            'idx_connection_created'    => ['connection', 'created_at'],
-            'idx_connection_id_created' => ['connection_id', 'created_at'],
-            'idx_created_at'            => ['created_at'],
-            'idx_status_created'        => ['status', 'created_at'],
+            'idx_source_created'            => ['source_plugin', 'created_at'],
+            'idx_connection_created'        => ['connection', 'created_at'],
+            'idx_connection_id_created'     => ['connection_id', 'created_at'],
+            'idx_created_at'                => ['created_at'],
+            'idx_status_created'            => ['status', 'created_at'],
+            'idx_source_created_utc'        => ['source_plugin', 'created_at_utc'],
+            'idx_connection_created_utc'    => ['connection', 'created_at_utc'],
+            'idx_connection_id_created_utc' => ['connection_id', 'created_at_utc'],
+            'idx_created_at_utc'            => ['created_at_utc'],
+            'idx_status_created_utc'        => ['status', 'created_at_utc'],
         ];
 
         foreach ($expected as $index => $columns) {
@@ -233,19 +264,25 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertNotFalse($result);
     }
 
-    private function seedLegacyLog(): void
+    private function seedLegacyLog(?string $createdAt = null): void
     {
         global $wpdb;
 
+        $row = [
+            'id'      => 1,
+            'status'  => 1,
+            'subject' => 'Legacy subject',
+            'to_addr' => '["legacy@example.test"]',
+        ];
+        if ($createdAt !== null) {
+            $row['created_at'] = $createdAt;
+            $row['updated_at'] = $createdAt;
+        }
+
         $inserted = $wpdb->insert(
             $this->logsTable,
-            [
-                'id'      => 1,
-                'status'  => 1,
-                'subject' => 'Legacy subject',
-                'to_addr' => '["legacy@example.test"]',
-            ],
-            ['%d', '%d', '%s', '%s']
+            $row,
+            $createdAt === null ? ['%d', '%d', '%s', '%s'] : ['%d', '%d', '%s', '%s', '%s', '%s']
         );
 
         $this->assertSame(1, $inserted);

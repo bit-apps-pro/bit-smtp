@@ -6,6 +6,8 @@ use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
+use DateTimeImmutable;
+use DateTimeZone;
 
 /**
  * Drives LogService::update() (the resend path) against the real test DB: a resend over a provider
@@ -108,6 +110,8 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertSame(2, $saved->routing_rule_index);
         $this->assertSame('Saved', $saved->subject_pattern);
         $this->assertSame(1, $saved->recipient_count);
+        $this->assertNotEmpty($saved->created_at_utc);
+        $savedAnalyticsTimestamp = $saved->created_at_utc;
 
         $this->service->update(
             (int) $saved->id,
@@ -128,6 +132,7 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertSame('woocommerce', $updated->source_plugin);
         $this->assertSame('fallback', $updated->routing_type);
         $this->assertNull($updated->routing_rule_index);
+        $this->assertSame($savedAnalyticsTimestamp, $updated->created_at_utc);
 
         $this->service->bulkInsert([[
             'status'              => Log::SUCCESS,
@@ -172,6 +177,36 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
 
         $this->assertSame([], $log->to_addr);
         $this->assertSame(0, $log->recipient_count);
+    }
+
+    public function testNewSaveBulkAndNativeLogsPersistIndependentUtcAnalyticsTimestamps(): void
+    {
+        $previousTimezone = get_option('timezone_string');
+        update_option('timezone_string', 'Asia/Dhaka');
+        $before = time();
+
+        try {
+            $this->service->save(Log::SUCCESS, ['subject' => 'Saved UTC', 'to' => ['recipient@example.com']]);
+            $this->service->bulkInsert([[
+                'status' => Log::SUCCESS,
+                'data'   => ['subject' => 'Bulk UTC', 'to' => ['recipient@example.com']],
+            ]]);
+            $native          = new Log();
+            $native->status  = Log::SUCCESS;
+            $native->subject = 'Native UTC';
+            $native->to_addr = ['recipient@example.com'];
+            $native->save();
+
+            $logs = Log::where('subject', ['Saved UTC', 'Bulk UTC', 'Native UTC'])->orderBy('subject')->get();
+            $this->assertCount(3, $logs);
+            foreach ($logs as $log) {
+                $stored = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $log->created_at_utc, new DateTimeZone('UTC'));
+                $this->assertNotFalse($stored);
+                $this->assertLessThanOrEqual(2, abs($stored->getTimestamp() - $before));
+            }
+        } finally {
+            update_option('timezone_string', $previousTimezone);
+        }
     }
 
     /**

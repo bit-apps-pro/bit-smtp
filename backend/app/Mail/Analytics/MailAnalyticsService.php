@@ -151,21 +151,27 @@ final class MailAnalyticsService
         $prior          = $query->priorPeriod();
         $currentSummary = $this->repository->summary($query);
         $priorSummary   = $this->repository->summary($prior);
-        $error          = $this->firstError([$currentSummary, $priorSummary]);
+        $bounds         = $this->repository->retainedRecordBounds();
+        $error          = $this->firstError([$currentSummary, $priorSummary, $bounds]);
         if ($error !== null) {
             return $error;
         }
+
+        $actualRetainedFrom = $this->utcTimestamp($bounds['earliest'] ?? null);
+        $completeCoverage   = $actualRetainedFrom !== null
+            && $this->utcDate($actualRetainedFrom) <= $prior->start();
 
         $response = array_merge($this->metadata($query, $currentSummary), [
             'current'             => $this->counts($currentSummary),
             'prior'               => $this->counts($priorSummary),
             'prior_range'         => $this->range($prior),
             'comparison_coverage' => [
-                'complete'      => $query->hasCompletePriorCoverage(),
-                'retained_from' => $query->retainedFrom() === null ? null : $query->retainedFrom()->format(DATE_ATOM),
+                'complete'                 => $completeCoverage,
+                'retained_from'            => $actualRetainedFrom,
+                'configured_retained_from' => $query->retainedFrom() === null ? null : $query->retainedFrom()->format(DATE_ATOM),
             ],
         ]);
-        if (!$query->hasCompletePriorCoverage()) {
+        if (!$completeCoverage) {
             $response['observations'] = [];
 
             return $response;
@@ -570,6 +576,11 @@ final class MailAnalyticsService
         $timestamp = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $value, new DateTimeZone('UTC'));
 
         return $timestamp === false ? null : $timestamp->format(DATE_ATOM);
+    }
+
+    private function utcDate(string $timestamp): DateTimeImmutable
+    {
+        return new DateTimeImmutable($timestamp, new DateTimeZone('UTC'));
     }
 
     private function loggingEnabled(): bool

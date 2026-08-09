@@ -5,6 +5,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Blueprint;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Schema;
 use BitApps\SMTP\Deps\BitApps\WPKit\Migration\Migration;
+use BitApps\SMTP\Model\Log;
 
 if (! \defined('ABSPATH')) {
     exit;
@@ -12,6 +13,8 @@ if (! \defined('ABSPATH')) {
 
 final class BitSmtpLogsTableMigration extends Migration
 {
+    private const UTC_BACKFILL_BATCH_SIZE = 250;
+
     public function up()
     {
         Schema::withPrefix(Connection::wpPrefix() . Config::VAR_PREFIX)->create(
@@ -35,6 +38,7 @@ final class BitSmtpLogsTableMigration extends Migration
                 $table->integer('routing_rule_index')->nullable();
                 $table->varchar('subject_pattern', 191)->nullable();
                 $table->integer('recipient_count')->nullable();
+                $table->datetime('created_at_utc')->nullable();
 
                 $table->timestamps();
             }
@@ -48,6 +52,7 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addWebhookCorrelationColumnsIfMissing();
         $this->addDeliveryColumnsIfMissing();
         $this->addAnalyticsColumnsIfMissing();
+        $this->backfillLegacyAnalyticsTimestamps();
         $this->createDeliveryEventsTableIfMissing();
     }
 
@@ -93,11 +98,72 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addColumnIfMissing($table, 'routing_rule_index', 'ADD COLUMN `routing_rule_index` INT NULL');
         $this->addColumnIfMissing($table, 'subject_pattern', 'ADD COLUMN `subject_pattern` VARCHAR(191) NULL');
         $this->addColumnIfMissing($table, 'recipient_count', 'ADD COLUMN `recipient_count` INT NULL');
+        $this->addColumnIfMissing($table, 'created_at_utc', 'ADD COLUMN `created_at_utc` DATETIME NULL');
         $this->addIndexIfMissing($table, 'idx_source_created', 'ADD INDEX `idx_source_created` (`source_plugin`, `created_at`)');
         $this->addIndexIfMissing($table, 'idx_connection_created', 'ADD INDEX `idx_connection_created` (`connection`, `created_at`)');
         $this->addIndexIfMissing($table, 'idx_connection_id_created', 'ADD INDEX `idx_connection_id_created` (`connection_id`, `created_at`)');
         $this->addIndexIfMissing($table, 'idx_created_at', 'ADD INDEX `idx_created_at` (`created_at`)');
         $this->addIndexIfMissing($table, 'idx_status_created', 'ADD INDEX `idx_status_created` (`status`, `created_at`)');
+        $this->addIndexIfMissing($table, 'idx_source_created_utc', 'ADD INDEX `idx_source_created_utc` (`source_plugin`, `created_at_utc`)');
+        $this->addIndexIfMissing($table, 'idx_connection_created_utc', 'ADD INDEX `idx_connection_created_utc` (`connection`, `created_at_utc`)');
+        $this->addIndexIfMissing($table, 'idx_connection_id_created_utc', 'ADD INDEX `idx_connection_id_created_utc` (`connection_id`, `created_at_utc`)');
+        $this->addIndexIfMissing($table, 'idx_created_at_utc', 'ADD INDEX `idx_created_at_utc` (`created_at_utc`)');
+        $this->addIndexIfMissing($table, 'idx_status_created_utc', 'ADD INDEX `idx_status_created_utc` (`status`, `created_at_utc`)');
+    }
+
+    /**
+     * Backfill a bounded result set at a time so old retained logs never need a MySQL timezone
+     * table or an unbounded in-memory load. The NULL predicate makes repeated migration runs
+     * idempotent; displayed created_at values are never modified.
+     */
+    private function backfillLegacyAnalyticsTimestamps()
+    {
+        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
+
+        while (true) {
+            $rows = Connection::get_results(
+                "SELECT `id`, `created_at` FROM `{$table}` WHERE `created_at_utc` IS NULL AND `created_at` IS NOT NULL ORDER BY `id` ASC LIMIT " . self::UTC_BACKFILL_BATCH_SIZE,
+                \defined('ARRAY_A') ? ARRAY_A : 'ARRAY_A'
+            );
+            if (!\is_array($rows) || $rows === []) {
+                return;
+            }
+
+            $cases        = [];
+            $ids          = [];
+            $placeholders = [];
+            $values       = [];
+            foreach ($rows as $row) {
+                $timestamp = Log::legacyCreatedAtToUtc(isset($row['created_at']) ? (string) $row['created_at'] : null);
+                if ($timestamp === null) {
+                    continue;
+                }
+
+                $cases[]        = 'WHEN %d THEN %s';
+                $placeholders[] = '%d';
+                $ids[]          = (int) $row['id'];
+                $values[]       = (int) $row['id'];
+                $values[]       = $timestamp;
+            }
+
+            if ($cases === []) {
+                return;
+            }
+
+            foreach ($ids as $id) {
+                $values[] = $id;
+            }
+
+            $sql = "UPDATE `{$table}` SET `created_at_utc` = CASE `id` " . implode(' ', $cases) . ' END'
+                . ' WHERE `created_at_utc` IS NULL AND `id` IN (' . implode(', ', $placeholders) . ')';
+            if (Connection::query(Connection::prepare($sql, $values)) === false) {
+                return;
+            }
+
+            if (\count($rows) < self::UTC_BACKFILL_BATCH_SIZE) {
+                return;
+            }
+        }
     }
 
     private function createDeliveryEventsTableIfMissing()

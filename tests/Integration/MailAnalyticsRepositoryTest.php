@@ -55,7 +55,7 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
             self::assertStringNotContainsString('JSON_LENGTH', $sql);
         }
         self::assertStringContainsString('%s', $database->templates[0]);
-        self::assertStringContainsString('MIN(created_at) AS earliest', $database->queries[4]);
+        self::assertStringContainsString('MIN(created_at_utc) AS earliest', $database->queries[4]);
     }
 
     public function testEmptyRetainedLogsReturnStableZeroTimingAndNullableRecordBounds(): void
@@ -156,6 +156,50 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         self::assertStringNotContainsString('CONVERT_TZ', $database->queries[1]);
     }
 
+    public function testAnalyticsUseUtcTimestampsForRangesBoundsAndLocalBusyTimesAcrossNonUtcSites(): void
+    {
+        // created_at remains a site-local display field. Deliberately use values that would be
+        // excluded if analytics compared its UTC filters against that display field.
+        $this->seed('2026-03-01 00:30:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 05:30:00');
+        $this->seed('2026-03-01 01:15:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 06:15:00');
+        $this->seed('2026-03-01 01:45:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 06:45:00');
+        $this->seed('2026-03-01 23:30:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 04:30:00');
+        $this->seed('2026-03-01 18:10:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 12:10:00');
+
+        $service = new MailAnalyticsService(new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable()));
+        $newYork = (new AnalyticsQueryFactory(
+            new DateTimeImmutable('2026-03-02T00:00:00+00:00'),
+            new DateTimeZone('America/New_York'),
+            30
+        ))->fromInput([
+            'start'  => '2026-03-01T00:00:00-05:00',
+            'end'    => '2026-03-01T02:00:00-05:00',
+            'bucket' => 'hour',
+        ]);
+        self::assertInstanceOf(AnalyticsQuery::class, $newYork);
+
+        $newYorkResult = $service->overview($newYork);
+        self::assertSame(3, $newYorkResult['total']);
+        self::assertSame('2026-03-01T04:30:00+00:00', $newYorkResult['retained_records']['earliest']);
+        self::assertSame('2026-03-01T12:10:00+00:00', $newYorkResult['retained_records']['latest']);
+        self::assertSame(['hour' => 1, 'label' => '01:00', 'total' => 2], $newYorkResult['busiest_hours'][0]);
+
+        $dhaka = (new AnalyticsQueryFactory(
+            new DateTimeImmutable('2026-03-02T00:00:00+00:00'),
+            new DateTimeZone('Asia/Dhaka'),
+            30
+        ))->fromInput([
+            'start'  => '2026-03-01T17:00:00+06:00',
+            'end'    => '2026-03-01T19:00:00+06:00',
+            'bucket' => 'hour',
+        ]);
+        self::assertInstanceOf(AnalyticsQuery::class, $dhaka);
+
+        $dhakaResult = $service->overview($dhaka);
+        self::assertSame(1, $dhakaResult['total']);
+        self::assertSame(['hour' => 18, 'label' => '18:00', 'total' => 1], $dhakaResult['busiest_hours'][0]);
+    }
+
     private function query(): AnalyticsQuery
     {
         $query = (new AnalyticsQueryFactory(
@@ -173,7 +217,7 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         return $query;
     }
 
-    private function seed(string $createdAt, int $status, ?string $source, string $connectionId, ?string $deliveryStatus, ?string $subjectPattern, ?int $recipientCount): void
+    private function seed(string $createdAt, int $status, ?string $source, string $connectionId, ?string $deliveryStatus, ?string $subjectPattern, ?int $recipientCount, ?string $createdAtUtc = null): void
     {
         global $wpdb;
 
@@ -190,9 +234,10 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
                 'subject_pattern' => $subjectPattern,
                 'recipient_count' => $recipientCount,
                 'created_at'      => $createdAt,
+                'created_at_utc'  => $createdAtUtc ?? $createdAt,
                 'updated_at'      => $createdAt,
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s']
         );
 
         self::assertSame(1, $inserted);

@@ -14,11 +14,11 @@ use WP_Error;
 class MailAnalyticsRepository
 {
     /**
-     * Database timestamps are stored in UTC. Deliberately aggregate only by a UTC hour here:
-     * shared hosts frequently do not load MySQL named timezone tables. The bounded result is
-     * converted and merged into requested local buckets by MailAnalyticsService.
+     * created_at_utc is the analytics timestamp contract. Deliberately aggregate only by a UTC
+     * hour here: shared hosts frequently do not load MySQL named timezone tables. The bounded
+     * result is converted and merged into requested local buckets by MailAnalyticsService.
      */
-    private const UTC_HOUR_SQL = "DATE_FORMAT(created_at, '%%Y-%%m-%%d %%H:00:00')";
+    private const UTC_HOUR_SQL = "DATE_FORMAT(created_at_utc, '%%Y-%%m-%%d %%H:00:00')";
 
     private const VERIFIED_DELIVERY_STATUSES = "'delivered', 'deferred', 'bounced', 'blocked', 'spam'";
 
@@ -112,7 +112,7 @@ class MailAnalyticsRepository
      */
     public function retainedRecordBounds()
     {
-        $rows = $this->rows("SELECT MIN(created_at) AS earliest, MAX(created_at) AS latest FROM `{$this->table}`", []);
+        $rows = $this->rows("SELECT MIN(created_at_utc) AS earliest, MAX(created_at_utc) AS latest FROM `{$this->table}`", []);
         if ($rows instanceof WP_Error) {
             return $rows;
         }
@@ -120,7 +120,7 @@ class MailAnalyticsRepository
         $row = $rows[0] ?? [];
 
         return [
-            'earliest' => isset($row['earliest']) && $row['earliest'] !== '' ? (string) $row['earliest'] : null,
+            'earliest' => isset($row['earliest']) && $row['earliest']   !== '' ? (string) $row['earliest'] : null,
             'latest'   => isset($row['latest'])   && $row['latest']     !== '' ? (string) $row['latest'] : null,
         ];
     }
@@ -184,7 +184,7 @@ class MailAnalyticsRepository
      */
     private function where(AnalyticsQuery $query): array
     {
-        $clauses = ['created_at >= %s', 'created_at < %s'];
+        $clauses = ['created_at_utc >= %s', 'created_at_utc < %s'];
         $values  = [$query->startSql(), $query->endSql()];
 
         if ($query->plugin() !== null) {

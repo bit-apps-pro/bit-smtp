@@ -99,6 +99,7 @@ class LogService
         $log->source_plugin      = $sourcePlugin;
         $log->routing_type       = $routingType;
         $log->routing_rule_index = $routingRuleIndex;
+        $log->created_at_utc     = gmdate('Y-m-d H:i:s');
 
         unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
         $log->details    = $details;
@@ -371,6 +372,7 @@ class LogService
                 'tracking_id'         => $log['tracking_id']         ?? null,
                 'delivery_status'     => $log['delivery_status']     ?? null,
                 'delivery_updated_at' => $log['delivery_updated_at'] ?? null,
+                'created_at_utc'      => gmdate('Y-m-d H:i:s'),
             ];
 
             foreach (['source_plugin', 'routing_type', 'routing_rule_index'] as $field) {

@@ -238,9 +238,10 @@ final class AbilitySchemas
             'prior'               => self::counts(),
             'prior_range'         => self::range(),
             'comparison_coverage' => self::object([
-                'complete'      => ['type' => 'boolean'],
-                'retained_from' => self::nullable(self::string(['format' => 'date-time'])),
-            ], ['complete', 'retained_from']),
+                'complete'                 => ['type' => 'boolean'],
+                'retained_from'            => self::nullable(self::string(['format' => 'date-time'])),
+                'configured_retained_from' => self::nullable(self::string(['format' => 'date-time'])),
+            ], ['complete', 'retained_from', 'configured_retained_from']),
             'observations' => self::arrayOf(self::observation()),
         ]), [
             'range',
