@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Tests\Integration;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
 use BitApps\SMTP\Mail\Notifications\FailureNotification;
+use BitApps\SMTP\Mail\Notifications\FailureNotificationChannelRegistry;
 use BitApps\SMTP\Mail\Notifications\FailureNotificationGate;
 use BitApps\SMTP\Mail\Notifications\FailureNotifier;
 use WP_Error;
@@ -35,7 +36,7 @@ final class FailureNotifierIntegrationTest extends IntegrationTestCase
         ]);
 
         $channel  = new CountingFailureNotificationChannel();
-        $notifier = new FailureNotifier($config, new FailureNotificationGate(), [$channel]);
+        $notifier = new FailureNotifier($config, new FailureNotificationGate(), new FailureNotificationChannelRegistry([$channel]));
         $error    = new WP_Error('wp_mail_failed', 'Connection unavailable');
 
         $notifier->notifyFailure($error);
