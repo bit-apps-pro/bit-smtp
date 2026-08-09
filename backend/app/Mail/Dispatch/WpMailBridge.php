@@ -413,7 +413,7 @@ class WpMailBridge
 
     private function captureSourceForSend(MailSettings $settings): void
     {
-        if (!$this->loggingEnabled && $this->routingRules($settings) === null) {
+        if (!$this->loggingEnabled && (!$settings->isEnabled() || $this->routingRules($settings) === null)) {
             return;
         }
 

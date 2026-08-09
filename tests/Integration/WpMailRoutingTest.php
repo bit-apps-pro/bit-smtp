@@ -144,6 +144,62 @@ final class WpMailRoutingTest extends IntegrationTestCase
         }
     }
 
+    public function testDisabledSmtpAndLoggingDoNotDetectRetainedRoutingSource(): void
+    {
+        $this->storeV2(
+            [$this->connection('conn_default', self::SMTP_HOST, self::SMTP_PORT)],
+            'conn_default',
+            [],
+            $this->routingFeature('conn_default', 'recipient', 'domain', 'routed.test'),
+            false
+        );
+
+        $detector = Mockery::mock(MailSourceDetector::class);
+        $detector->shouldNotReceive('detect');
+        $bridge           = Plugin::instance()->smtpProvider();
+        $originalDetector = $this->replaceSourceDetector($bridge, $detector);
+        $originalLogging  = $this->replaceLoggingEnabled($bridge, false);
+
+        try {
+            $this->assertTrue(wp_mail('user@routed.test', 'Disabled SMTP', 'Body'));
+            $this->assertCount(0, $this->logs());
+        } finally {
+            $this->replaceLoggingEnabled($bridge, $originalLogging);
+            $this->replaceSourceDetector($bridge, $originalDetector);
+            Mockery::close();
+        }
+    }
+
+    public function testDisabledSmtpWithLoggingCapturesNativeSource(): void
+    {
+        $this->storeV2(
+            [$this->connection('conn_default', self::SMTP_HOST, self::SMTP_PORT)],
+            'conn_default',
+            [],
+            $this->routingFeature('conn_default', 'recipient', 'domain', 'routed.test'),
+            false
+        );
+
+        $detector = Mockery::mock(MailSourceDetector::class);
+        $detector->shouldReceive('detect')->once()->andReturn('woocommerce');
+        $bridge           = Plugin::instance()->smtpProvider();
+        $originalDetector = $this->replaceSourceDetector($bridge, $detector);
+        $originalLogging  = $this->replaceLoggingEnabled($bridge, true);
+
+        try {
+            $this->assertTrue(wp_mail('user@routed.test', 'Native attribution', 'Body'));
+
+            $logs = $this->logs();
+            $this->assertCount(1, $logs);
+            $this->assertSame('woocommerce', $logs[0]->source_plugin);
+            $this->assertSame('native', $logs[0]->routing_type);
+        } finally {
+            $this->replaceLoggingEnabled($bridge, $originalLogging);
+            $this->replaceSourceDetector($bridge, $originalDetector);
+            Mockery::close();
+        }
+    }
+
     /**
      * @return array<string,mixed>
      */
@@ -166,11 +222,11 @@ final class WpMailRoutingTest extends IntegrationTestCase
      * @param string[]                       $fallbackIds
      * @param array<string,mixed>            $features
      */
-    private function storeV2(array $connections, string $defaultId, array $fallbackIds, array $features): void
+    private function storeV2(array $connections, string $defaultId, array $fallbackIds, array $features, bool $enabled = true): void
     {
         $this->storeOptions([
             'schema_version'          => 2,
-            'enabled'                 => true,
+            'enabled'                 => $enabled,
             'default_connection_id'   => $defaultId,
             'fallback_connection_ids' => $fallbackIds,
             'connections'             => $connections,
@@ -222,6 +278,16 @@ final class WpMailRoutingTest extends IntegrationTestCase
         $property->setAccessible(true);
         $previous = $property->getValue($bridge);
         $property->setValue($bridge, $detector);
+
+        return $previous;
+    }
+
+    private function replaceLoggingEnabled(object $bridge, bool $enabled): bool
+    {
+        $property = (new ReflectionClass($bridge))->getProperty('loggingEnabled');
+        $property->setAccessible(true);
+        $previous = $property->getValue($bridge);
+        $property->setValue($bridge, $enabled);
 
         return $previous;
     }
