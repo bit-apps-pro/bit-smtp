@@ -3,12 +3,12 @@
 These specs drive the plugin's React admin against a **real WordPress install** and assert the
 four core flows end-to-end.
 
-| Spec                          | Flow                                                                                                              |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `connection-setup.spec.ts`    | Add connection → pick provider → fill Identity + SMTP settings → Save → appears in the list                       |
-| `send-test.spec.ts`           | An SMTP→Mailpit connection's **Test Connection** actually delivers (confirmed via the Mailpit API)                |
-| `notifications.spec.ts`       | Enable failure-notification email alerts + recipient → Save → persists across reload                              |
-| `delivery-webhook-ui.spec.ts` | A SendGrid connection's webhook panel: pasteable URL, verification badge, metadata-driven "Create webhook" button |
+| Spec                          | Flow                                                                                                                                      |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `connection-setup.spec.ts`    | Add connection → pick provider → fill Identity + SMTP settings → Save → appears in the list                                               |
+| `send-test.spec.ts`           | An SMTP→Mailpit connection's **Test Connection** actually delivers (confirmed via the Mailpit API)                                        |
+| `notifications.spec.ts`       | Save email, Slack, and Telegram failure alerts → reload with masked secrets → test each channel through an intercepted WordPress endpoint |
+| `delivery-webhook-ui.spec.ts` | A SendGrid connection's webhook panel: pasteable URL, verification badge, metadata-driven "Create webhook" button                         |
 
 ## Prerequisites
 
@@ -37,5 +37,5 @@ pnpm exec playwright test --ui   # interactive
 
 - Login happens once (`auth.setup.ts`) and the session is reused via `storageState` (git-ignored).
 - Specs create connections named `E2E SMTP …`; `global-teardown.ts` removes them via the plugin (best-effort, requires `wp-cli`).
-- The notifications spec restores its own state (turns failure notifications back off) in `afterAll`.
+- The notifications spec snapshots and restores its global and channel settings in `afterAll`. Its Slack and Telegram test-send requests are intercepted at the WordPress REST endpoint, so the E2E run never contacts either provider.
 - Artifacts (`.auth/`, `.results/`, `.report/`) are git-ignored.

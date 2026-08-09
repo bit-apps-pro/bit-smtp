@@ -6,7 +6,8 @@ const changeLogs = {
     'Resend email',
     'Delete email record',
     'Resend multiple emails',
-    'Cloudflare Email Sending (Beta)'
+    'Cloudflare Email Sending (Beta)',
+    'Slack and Telegram failure notifications with safe test sends'
   ],
   fixed: ['Some minor issue fixed.']
 }

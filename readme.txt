@@ -52,7 +52,7 @@ Your provider handles delivery, ensuring your WordPress emails arrive securely e
 - **Multiple Connections with Automatic Fallback:** Add several connections and set a priority order. If the top provider fails, Bit SMTP automatically retries the next one so your mail still goes out.
 - **Smart Routing:** Route mail to a specific connection by recipient, from address, subject, or the sending plugin.
 - **Real Delivery Tracking:** Provider webhooks report each email's true outcome — Delivered, Bounced, Blocked, Deferred — shown in a separate Delivery column, not just "accepted".
-- **Failure Alerts:** Get notified by email or webhook when a send fails, so a broken provider never goes unnoticed.
+- **Failure Alerts:** Get notified by email, webhook, Slack, or Telegram when sending starts failing, so a broken provider never goes unnoticed.
 - **Encrypted Credentials at Rest:** API keys and secrets are stored with authenticated AES-256-GCM encryption.
 - **Customizable Reply-To:** Set a custom Reply-To address for managing responses.
 - **Quick Setup:** Pick a provider, paste a key (or click Connect), and send — configured in minutes.
@@ -120,6 +120,16 @@ Bit SMTP includes a tool for this:
 If you receive the email, you’re setup is correct. To make things even easier, check out our video tutorial:
 
 https://youtu.be/1dnw6v2E2y8
+
+## Failure Notifications: Email, Webhook, Slack, and Telegram
+
+Open **Bit SMTP ▸ Notifications** to configure failure alerts. Bit SMTP sends one alert when a sending failure streak starts; a successful send resets the streak, so a continuing outage does not flood your inbox or channel.
+
+* **Slack:** In your Slack workspace, create or open an app, enable **Incoming Webhooks**, add a webhook for the destination channel, and paste its `https://hooks.slack.com/services/...` URL into the Slack notification field.
+* **Telegram:** Create a bot with **@BotFather**, add or message the bot from the destination chat, then enter the bot token and that chat's signed numeric chat ID in the Telegram notification fields.
+* **Test safely:** Save the settings, then use the channel's **Test notification** button to check the saved configuration. Test sends use the saved channel only and do not change the failure-alert streak.
+
+Slack webhook URLs and Telegram bot tokens are encrypted at rest and returned to the settings screen as masked values. Delivery is best effort: each provider request has a five-second limit, does not follow redirects, and can never change the outcome of the email that triggered an alert. WhatsApp notifications are not included in this release.
 
 ## Compatible with All the Top Form Plugins
 
@@ -203,7 +213,7 @@ Yes. Credentials are encrypted at rest with authenticated AES-256-GCM before the
 Yes. Bit SMTP routes any email sent through WordPress's `wp_mail()`, including form plugins, WooCommerce, and core notifications.
 
 = Will I be notified if sending fails? =
-Yes. Turn on failure alerts (Notifications) to be told by email or webhook when a send fails.
+Yes. Turn on failure alerts (Notifications) to be told by email, webhook, Slack, or Telegram when sending starts failing. Bit SMTP alerts once per failure streak and resets that alert state after a successful send. Slack webhooks and Telegram bot tokens are encrypted and masked in the settings screen; provider delivery is best effort with a five-second limit. WhatsApp notifications are not included in this release.
 
 == Screenshots ==
 1. SMTP Configuration
@@ -221,6 +231,7 @@ Yes. Turn on failure alerts (Notifications) to be told by email or webhook when 
 * Feat: Smart routing — send matching mail through a chosen connection by recipient, from address, subject, or source plugin.
 * Feat: Real delivery tracking — provider webhooks record each email's true outcome (Delivered / Bounced / Blocked / Deferred) in a separate Delivery column.
 * Feat: Failure alerts by email or webhook when a send fails.
+* Feat: Failure alerts can also notify Slack Incoming Webhooks and Telegram bots; secrets are encrypted and masked, and notifications are sent once per failure streak with five-second best-effort delivery.
 * Feat: Credentials encrypted at rest with AES-256-GCM; existing plaintext values are migrated on save.
 * Security: hardened the inbound delivery-webhook and outbound API paths.
 * Requires PHP 8.1 or newer (was 8.0). Installs on older PHP show an admin notice and stay inactive.
