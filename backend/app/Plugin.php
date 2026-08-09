@@ -36,6 +36,7 @@ use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
 use BitApps\SMTP\Mail\Providers\Brevo\BrevoProvider;
+use BitApps\SMTP\Mail\Providers\Cloudflare\CloudflareProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
 use BitApps\SMTP\Mail\Providers\Mailgun\MailgunProvider;
@@ -152,6 +153,7 @@ final class Plugin
         $registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
         $registry->register(new PostmarkProvider($apiClient, $authResolver));
         $registry->register(new BrevoProvider($apiClient, $authResolver));
+        $registry->register(new CloudflareProvider($apiClient, $authResolver));
         $registry->register(new ResendProvider($apiClient, $authResolver));
         $registry->register(new MailjetProvider($apiClient, $authResolver));
         $registry->register(new ZeptoProvider($apiClient, $authResolver));

@@ -15,6 +15,7 @@ use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
 use BitApps\SMTP\Mail\Providers\Brevo\BrevoProvider;
+use BitApps\SMTP\Mail\Providers\Cloudflare\CloudflareProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailProvider;
 use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
 use BitApps\SMTP\Mail\Providers\Mailgun\MailgunProvider;
@@ -68,6 +69,7 @@ final class ProviderMetadataGoldenTest extends GoldenTestCase
         $this->registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
         $this->registry->register(new PostmarkProvider($apiClient, $authResolver));
         $this->registry->register(new BrevoProvider($apiClient, $authResolver));
+        $this->registry->register(new CloudflareProvider($apiClient, $authResolver));
         $this->registry->register(new ResendProvider($apiClient, $authResolver));
         $this->registry->register(new MailjetProvider($apiClient, $authResolver));
         $this->registry->register(new ZeptoProvider($apiClient, $authResolver));
@@ -93,6 +95,7 @@ final class ProviderMetadataGoldenTest extends GoldenTestCase
         yield 'amazon_ses'   => ['amazon_ses'];
         yield 'postmark'     => ['postmark'];
         yield 'brevo'        => ['brevo'];
+        yield 'cloudflare'   => ['cloudflare'];
         yield 'resend'       => ['resend'];
         yield 'mailjet'      => ['mailjet'];
         yield 'zeptomail'    => ['zeptomail'];

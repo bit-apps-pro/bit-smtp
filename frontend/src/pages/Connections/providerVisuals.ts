@@ -1,5 +1,6 @@
 import amazonSesLogo from '@resource/img/providers/amazon_ses.svg'
 import brevoLogo from '@resource/img/providers/brevo.svg'
+import cloudflareLogo from '@resource/img/providers/cloudflare.svg'
 import gmailLogo from '@resource/img/providers/gmail.svg'
 import mailgunLogo from '@resource/img/providers/mailgun.svg'
 import mailjetLogo from '@resource/img/providers/mailjet.png'
@@ -61,6 +62,11 @@ const providers: Record<string, ProviderEntry> = {
     logo: brevoLogo,
     accent: '#0B996E',
     blurb: 'Brevo (Sendinblue) API'
+  },
+  cloudflare: {
+    logo: cloudflareLogo,
+    accent: '#F6821F',
+    blurb: 'Email Sending beta · paid plan required'
   },
   resend: {
     logo: resendLogo,

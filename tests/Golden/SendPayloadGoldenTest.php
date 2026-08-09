@@ -14,6 +14,7 @@ use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Mail\Providers\Brevo\BrevoProvider;
+use BitApps\SMTP\Mail\Providers\Cloudflare\CloudflareProvider;
 use BitApps\SMTP\Mail\Providers\Mailgun\MailgunProvider;
 use BitApps\SMTP\Mail\Providers\Mailjet\MailjetProvider;
 use BitApps\SMTP\Mail\Providers\Postmark\PostmarkProvider;
@@ -63,6 +64,7 @@ final class SendPayloadGoldenTest extends GoldenTestCase
     {
         yield 'postmark'  => ['postmark'];
         yield 'brevo'     => ['brevo'];
+        yield 'cloudflare' => ['cloudflare'];
         yield 'resend'    => ['resend'];
         yield 'mailjet'   => ['mailjet'];
         yield 'zeptomail' => ['zeptomail'];
@@ -90,6 +92,7 @@ final class SendPayloadGoldenTest extends GoldenTestCase
         switch ($key) {
             case 'postmark':  return new PostmarkProvider($this->apiClient, $this->authResolver);
             case 'brevo':     return new BrevoProvider($this->apiClient, $this->authResolver);
+            case 'cloudflare': return new CloudflareProvider($this->apiClient, $this->authResolver);
             case 'resend':    return new ResendProvider($this->apiClient, $this->authResolver);
             case 'mailjet':   return new MailjetProvider($this->apiClient, $this->authResolver);
             case 'zeptomail': return new ZeptoProvider($this->apiClient, $this->authResolver);

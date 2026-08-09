@@ -1,0 +1,24 @@
+[
+    {
+        "key": "account_id",
+        "label": "Account ID",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "api_token",
+        "label": "API Token",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    }
+]
