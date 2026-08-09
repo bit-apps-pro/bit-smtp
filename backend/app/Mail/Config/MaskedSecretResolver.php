@@ -63,7 +63,15 @@ final class MaskedSecretResolver
         $storedAlerts = $current->getFeatures()['alerts'] ?? [];
 
         foreach (MailSettingsSerializer::ALERT_SECRET_KEYS as $channel => $secretKeys) {
-            if (!isset($incomingV2['features']['alerts'][$channel]) || !\is_array($incomingV2['features']['alerts'][$channel])) {
+            if (!\array_key_exists($channel, $incomingV2['features']['alerts'])) {
+                if (isset($storedAlerts[$channel]) && \is_array($storedAlerts[$channel])) {
+                    $incomingV2['features']['alerts'][$channel] = $storedAlerts[$channel];
+                }
+
+                continue;
+            }
+
+            if (!\is_array($incomingV2['features']['alerts'][$channel])) {
                 continue;
             }
 

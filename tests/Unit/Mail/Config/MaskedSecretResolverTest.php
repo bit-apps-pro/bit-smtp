@@ -369,6 +369,45 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
         $this->assertSame('', $result['features']['alerts']['telegram']['bot_token']);
     }
 
+    public function testOmittedAlertChannelsPreserveTheirEntireStoredConfiguration(): void
+    {
+        $storedSlack = [
+            'enabled'     => true,
+            'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+        ];
+        $storedTelegram = [
+            'enabled'   => true,
+            'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+            'chat_id'   => '-1001234567890',
+        ];
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'webhook'  => ['enabled' => true, 'url' => 'https://hooks.example.com/failure'],
+                    'slack'    => $storedSlack,
+                    'telegram' => $storedTelegram,
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'webhook' => ['enabled' => false],
+                ],
+            ],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame($storedSlack, $result['features']['alerts']['slack']);
+        $this->assertSame($storedTelegram, $result['features']['alerts']['telegram']);
+    }
+
     private function connectionStub(string $id, array $credentials): array
     {
         return [

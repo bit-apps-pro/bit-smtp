@@ -360,6 +360,77 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz', $preserved['telegram']['bot_token']);
     }
 
+    public function testWebhookOnlyAlertsSavePreservesOmittedSlackAndTelegramChannels(): void
+    {
+        $stored                       = $this->v2SettingsArray('conn_1', 'smtp-secret');
+        $stored['features']['alerts'] = [
+            'webhook'  => ['enabled' => true, 'url' => 'https://hooks.example.com/failure'],
+            'slack'    => [
+                'enabled'     => true,
+                'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+            ],
+            'telegram' => [
+                'enabled'   => true,
+                'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+                'chat_id'   => '-1001234567890',
+            ],
+        ];
+        $this->freshService()->saveSettings($stored);
+
+        $partial                       = $this->v2SettingsArray('conn_1', 'smtp-secret');
+        $partial['features']['alerts'] = [
+            'webhook' => ['enabled' => false],
+        ];
+        $this->freshService()->saveSettings($partial);
+
+        $raw = Config::getOption('options')['features']['alerts'];
+        $this->assertStringStartsWith('bsenc:v1:', $raw['slack']['webhook_url']);
+        $this->assertStringStartsWith('bsenc:v1:', $raw['telegram']['bot_token']);
+
+        $loaded = $this->freshService()->load()->getFeatures()['alerts'];
+        $this->assertSame([
+            'enabled'     => true,
+            'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+        ], $loaded['slack']);
+        $this->assertSame([
+            'enabled'   => true,
+            'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+            'chat_id'   => '-1001234567890',
+        ], $loaded['telegram']);
+
+        $api = $this->freshService()->apiSettings()['features']['alerts'];
+        $this->assertSame('********', $api['slack']['webhook_url']);
+        $this->assertSame('********', $api['telegram']['bot_token']);
+        $this->assertSame('-1001234567890', $api['telegram']['chat_id']);
+    }
+
+    public function testExplicitSlackChannelSaveCanClearItsStoredConfiguration(): void
+    {
+        $stored                       = $this->v2SettingsArray('conn_1', 'smtp-secret');
+        $stored['features']['alerts'] = [
+            'slack'    => [
+                'enabled'     => true,
+                'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+            ],
+            'telegram' => [
+                'enabled'   => true,
+                'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+                'chat_id'   => '-1001234567890',
+            ],
+        ];
+        $this->freshService()->saveSettings($stored);
+
+        $partial                       = $this->v2SettingsArray('conn_1', 'smtp-secret');
+        $partial['features']['alerts'] = [
+            'slack' => ['enabled' => false, 'webhook_url' => ''],
+        ];
+        $this->freshService()->saveSettings($partial);
+
+        $loaded = $this->freshService()->load()->getFeatures()['alerts'];
+        $this->assertSame(['enabled' => false, 'webhook_url' => ''], $loaded['slack']);
+        $this->assertSame('123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz', $loaded['telegram']['bot_token']);
+    }
+
     public function testEncryptSecretsMigrationEncryptsExistingPlaintextInstall(): void
     {
         // Seed the raw option exactly as a pre-encryption install would have it: v2 shape, but the
