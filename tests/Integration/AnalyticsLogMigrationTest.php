@@ -4,6 +4,7 @@ namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Model\Log;
+use BitApps\SMTP\Plugin;
 use BitSmtpLogsTableMigration;
 
 /**
@@ -76,6 +77,36 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertNull($log->routing_rule_index);
     }
 
+    public function testMaybeMigrateDbUpgradesAOneSixLogsTableAtTheCurrentPluginVersion(): void
+    {
+        $this->dropLogsTable();
+        $this->createLegacyLogsTable();
+        $this->seedLegacyLog();
+
+        $previousVersion   = Config::getOption('version');
+        $previousDbVersion = Config::getOption('db_version');
+        Config::updateOption('version', Config::VERSION, true);
+        Config::updateOption('db_version', '1.6', true);
+        wp_set_current_user(1);
+
+        try {
+            Plugin::maybeMigrateDB();
+
+            $this->assertLegacyAnalyticsUpgrade();
+            $this->assertSame('1.7', Config::getOption('db_version'));
+
+            Plugin::maybeMigrateDB();
+
+            $this->assertLegacyAnalyticsUpgrade();
+            $this->assertSame('1.7', Config::getOption('db_version'));
+        } finally {
+            wp_set_current_user(0);
+            $this->migrateLogs();
+            Config::updateOption('version', $previousVersion, true);
+            Config::updateOption('db_version', $previousDbVersion, true);
+        }
+    }
+
     private function migrateLogs(): void
     {
         (new BitSmtpLogsTableMigration())->up();
@@ -93,6 +124,21 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             $this->assertNotNull($definition, "{$column} should be present on the logs table");
             $this->assertSame('YES', $definition->Null, "{$column} must preserve legacy rows as null");
         }
+    }
+
+    private function assertLegacyAnalyticsUpgrade(): void
+    {
+        global $wpdb;
+
+        $row = $wpdb->get_row("SELECT * FROM `{$this->logsTable}` WHERE id = 1");
+
+        $this->assertNotNull($row);
+        $this->assertSame('Legacy subject', $row->subject);
+        $this->assertNull($row->source_plugin);
+        $this->assertNull($row->routing_type);
+        $this->assertNull($row->routing_rule_index);
+        $this->assertAnalyticsColumnsAreNullable();
+        $this->assertAnalyticsIndexesExist();
     }
 
     private function assertAnalyticsIndexesExist(): void
