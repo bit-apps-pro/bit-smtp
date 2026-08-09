@@ -487,12 +487,6 @@ parameters:
 			path: backend/app/HTTP/Services/LogService.php
 
 		-
-			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:get\(\) should return BitApps\\SMTP\\Model\\Log\|null but returns BitApps\\SMTP\\Deps\\BitApps\\WPDatabase\\Model\.$#'
-			identifier: return.type
-			count: 1
-			path: backend/app/HTTP/Services/LogService.php
-
-		-
 			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:getBulk\(\) has parameter \$ids with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -992,12 +986,6 @@ parameters:
 
 		-
 			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:resolveHost\(\) has parameter \$endpoint with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
-
-		-
-			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:successFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php

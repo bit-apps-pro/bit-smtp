@@ -65,7 +65,9 @@ class LogService
 
     public function get(int $id): ?Log
     {
-        return Log::where('id', $id)->first();
+        $log = Log::where('id', $id)->first();
+
+        return $log instanceof Log ? $log : null;
     }
 
     /**

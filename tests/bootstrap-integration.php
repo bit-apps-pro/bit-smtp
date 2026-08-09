@@ -5,7 +5,7 @@
  * docker test DB, then loads the plugin on `muplugins_loaded` so its hooks are live.
  */
 
-require_once dirname(__DIR__) . '/vendor/autoload.php';
+require_once \dirname(__DIR__) . '/vendor/autoload.php';
 
 putenv('WP_PHPUNIT__TESTS_CONFIG=' . __DIR__ . '/wp-tests-config.php');
 
@@ -18,8 +18,14 @@ if (!$_tests_dir) {
 require_once $_tests_dir . '/includes/functions.php';
 
 tests_add_filter('muplugins_loaded', static function () {
-    require dirname(__DIR__) . '/bit_smtp.php';
+    require \dirname(__DIR__) . '/bit_smtp.php';
 });
+
+// A third-party consumer may initialize the lazy abilities registry at the first init callback.
+// Bit SMTP must have attached its category and ability callbacks before that happens.
+tests_add_filter('init', static function () {
+    wp_get_abilities();
+}, 1);
 
 require $_tests_dir . '/includes/bootstrap.php';
 

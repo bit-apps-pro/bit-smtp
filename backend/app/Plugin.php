@@ -20,6 +20,7 @@ use BitApps\SMTP\HTTP\Middleware\CapabilityCheckerMiddleware;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\HTTP\Services\WebhookProvisioningService;
+use BitApps\SMTP\Mail\Abilities\AbilitiesProvider;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
@@ -87,6 +88,13 @@ final class Plugin
     public function __construct()
     {
         $this->registerInstaller();
+
+        // WordPress before 6.9 does not provide the Abilities API. Do not even attach its hooks
+        // there, so email sending and the rest of the plugin keep their existing behavior.
+        if (\function_exists('wp_register_ability') && \function_exists('wp_register_ability_category')) {
+            (new AbilitiesProvider())->register();
+        }
+
         Hooks::addAction('plugins_loaded', [$this, 'loaded']);
 
         $this->initWPTelemetry();
