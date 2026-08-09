@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
@@ -62,6 +63,60 @@ final class LogServiceDeliveryCleanupTest extends IntegrationTestCase
 
         self::assertEmpty(Log::where('id', $expiredLogId)->first());
         self::assertSame(0, LogDeliveryEvent::where('log_id', $expiredLogId)->count());
+        self::assertNotNull(Log::where('id', $currentLogId)->first());
+        self::assertSame(1, LogDeliveryEvent::where('log_id', $currentLogId)->count());
+    }
+
+    public function testRetentionUsesAPreparedSetBasedChildDeleteWithoutHydratingExpiredLogs(): void
+    {
+        $expiredLogId = $this->createLog('Expired log', gmdate('Y-m-d H:i:s', time() - (DAY_IN_SECONDS * 3)));
+        $currentLogId = $this->createLog('Current log', gmdate('Y-m-d H:i:s', time() - HOUR_IN_SECONDS));
+        $this->createEvent($expiredLogId, 'expired-query@example.test');
+        $this->createEvent($currentLogId, 'current-query@example.test');
+        Config::updateOption('log_retention', 1, true);
+
+        Connection::enableQuery();
+        $queryOffset = \count(Connection::queries());
+
+        self::assertNotFalse($this->service->deleteOlder());
+
+        $queries          = \array_slice(Connection::queries(), $queryOffset);
+        $expiredSelects   = array_filter($queries, static function (string $query): bool {
+            return str_starts_with(ltrim($query), 'SELECT');
+        });
+        $childDeleteQuery = $this->childDeleteQuery($queries);
+
+        self::assertSame([], array_values($expiredSelects), 'Retention must not hydrate expired logs before deleting their children.');
+        self::assertStringContainsString('DELETE `' . $this->eventsTable . '` FROM `' . $this->eventsTable . '`', $childDeleteQuery);
+        self::assertStringContainsString('INNER JOIN `' . $this->logsTable . '`', $childDeleteQuery);
+        self::assertStringContainsString('`' . $this->logsTable . '`.`created_at` < ', $childDeleteQuery);
+        self::assertMatchesRegularExpression('/`' . preg_quote($this->logsTable, '/') . "`\\.`created_at` < '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}'/", $childDeleteQuery);
+        self::assertStringNotContainsString(' IN (', $childDeleteQuery);
+        self::assertSame(0, LogDeliveryEvent::where('log_id', $expiredLogId)->count());
+        self::assertSame(1, LogDeliveryEvent::where('log_id', $currentLogId)->count());
+    }
+
+    public function testRetentionCleansALargeExpiredBacklogAndPreservesCurrentRows(): void
+    {
+        $expiredLogIds = [];
+        for ($index = 0; $index < 128; ++$index) {
+            $logId           = $this->createLog('Expired backlog ' . $index, gmdate('Y-m-d H:i:s', time() - (DAY_IN_SECONDS * 3)));
+            $expiredLogIds[] = $logId;
+            $this->createEvent($logId, 'backlog-' . $index . '@example.test');
+        }
+
+        $currentLogId = $this->createLog('Current backlog log', gmdate('Y-m-d H:i:s', time() - HOUR_IN_SECONDS));
+        $this->createEvent($currentLogId, 'current-backlog@example.test');
+        Config::updateOption('log_retention', 1, true);
+        Connection::enableQuery();
+        $queryOffset = \count(Connection::queries());
+
+        self::assertNotFalse($this->service->deleteOlder());
+
+        $childDeleteQuery = $this->childDeleteQuery(\array_slice(Connection::queries(), $queryOffset));
+        self::assertStringNotContainsString(' IN (', $childDeleteQuery, 'A large expired backlog must not become an unbounded child ID list.');
+        self::assertSame(0, Log::where('id', $expiredLogIds)->count());
+        self::assertSame(0, LogDeliveryEvent::where('log_id', $expiredLogIds)->count());
         self::assertNotNull(Log::where('id', $currentLogId)->first());
         self::assertSame(1, LogDeliveryEvent::where('log_id', $currentLogId)->count());
     }
@@ -138,5 +193,19 @@ final class LogServiceDeliveryCleanupTest extends IntegrationTestCase
     {
         global $wpdb;
         self::assertNotFalse($wpdb->query("TRUNCATE TABLE `{$table}`"));
+    }
+
+    /**
+     * @param array<int,string> $queries
+     */
+    private function childDeleteQuery(array $queries): string
+    {
+        foreach ($queries as $query) {
+            if (str_starts_with(ltrim($query), 'DELETE') && str_contains($query, $this->eventsTable)) {
+                return $query;
+            }
+        }
+
+        self::fail('Retention must issue a delivery-event child DELETE query.');
     }
 }

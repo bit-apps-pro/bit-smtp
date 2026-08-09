@@ -318,26 +318,14 @@ class LogService
         $dateToDelete = date_sub($currentDate, date_interval_create_from_date_string($logRetention . ' days'));
         $dateToDelete = date_format($dateToDelete, QueryBuilder::TIME_FORMAT);
 
-        $expired = Log::where('created_at', '<', $dateToDelete)->get();
-        if ($expired === false) {
+        // Keep retention set-based: materializing every expired id would create an unbounded PHP
+        // collection and a correspondingly unbounded WHERE IN child delete. The child statement
+        // shares the parent's cutoff and must complete before the parent delete is attempted.
+        if (!$this->deleteDeliveryEventsOlderThan($dateToDelete)) {
             return false;
         }
 
-        $ids = $this->normalizeLogIds(array_map(static function (Log $log): int {
-            return (int) $log->getAttribute('id');
-        }, $this->toRows($expired)));
-
-        if ($ids === []) {
-            Config::updateOption('log_deleted_at', time());
-
-            return 0;
-        }
-
-        if (!$this->deleteDeliveryEventsForLogs($ids)) {
-            return false;
-        }
-
-        $deleted = Log::where('id', $ids)->delete();
+        $deleted = Log::where('created_at', '<', $dateToDelete)->delete();
         if ($deleted === false) {
             return false;
         }
@@ -560,6 +548,28 @@ class LogService
         $deleted = LogDeliveryEvent::where('log_id', $ids)->delete();
 
         return $deleted !== false;
+    }
+
+    /**
+     * Remove event PII for every log covered by the retention cutoff without hydrating rows or
+     * creating an unbounded ID list. Table identifiers are model-derived and closed; the cutoff is
+     * passed as a prepared value.
+     */
+    private function deleteDeliveryEventsOlderThan(string $dateToDelete): bool
+    {
+        $logsTable   = (new Log())->getTable();
+        $eventsTable = (new LogDeliveryEvent())->getTable();
+        // Use Connection's dynamic wpdb proxy so this query follows the same prepared-query and
+        // database-error behavior as the rest of the service without exposing a table identifier
+        // to request data.
+        $sql = Connection::__callStatic('prepare', [
+            'DELETE `' . $eventsTable . '` FROM `' . $eventsTable . '` '
+            . 'INNER JOIN `' . $logsTable . '` ON `' . $eventsTable . '`.`log_id` = `' . $logsTable . '`.`id` '
+            . 'WHERE `' . $logsTable . '`.`created_at` < %s',
+            [$dateToDelete],
+        ]);
+
+        return Connection::__callStatic('query', [$sql]) !== false;
     }
 
     /**
