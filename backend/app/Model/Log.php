@@ -7,20 +7,23 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
 /**
  * Model for log
  *
- * @property int    $status
- * @property string $subject
- * @property array  $to_addr
- * @property array  $details
- * @property array  $debug_info
- * @property int    $retry_count
- * @property string $connection
- * @property string $connection_id
- * @property string $message_id
- * @property string $tracking_id
- * @property string $delivery_status
- * @property string $delivery_updated_at
- * @property string $created_at
- * @property string $updated_at
+ * @property int         $status
+ * @property string      $subject
+ * @property array       $to_addr
+ * @property array       $details
+ * @property array       $debug_info
+ * @property int         $retry_count
+ * @property string      $connection
+ * @property string      $connection_id
+ * @property string      $message_id
+ * @property string      $tracking_id
+ * @property string      $delivery_status
+ * @property string      $delivery_updated_at
+ * @property null|string $source_plugin
+ * @property null|string $routing_type
+ * @property null|int    $routing_rule_index
+ * @property string      $created_at
+ * @property string      $updated_at
  */
 class Log extends Model
 {
@@ -41,6 +44,9 @@ class Log extends Model
         'tracking_id'         => 'string',
         'delivery_status'     => 'string',
         'delivery_updated_at' => 'string',
+        'source_plugin'       => 'string',
+        'routing_type'        => 'string',
+        'routing_rule_index'  => 'int',
         'created_at'          => 'string',
         'updated_at'          => 'string',
     ];
@@ -56,5 +62,8 @@ class Log extends Model
         'tracking_id',
         'delivery_status',
         'delivery_updated_at',
+        'source_plugin',
+        'routing_type',
+        'routing_rule_index',
     ];
 }
