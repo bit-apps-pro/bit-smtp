@@ -26,9 +26,9 @@ describe('getProviderVisual', () => {
     expect(v.initial).toBe('P')
     expect(v.blurb).toBe('PHP mail() / server sendmail')
   })
-  it('uses the Cloudflare asset and explains its beta paid-plan availability', () => {
+  it('uses the generic letter tile for Cloudflare and explains its beta paid-plan availability', () => {
     const v = getProviderVisual('cloudflare', 'Cloudflare')
-    expect(v.logo).toBeTruthy()
+    expect(v.logo).toBeNull()
     expect(v.initial).toBe('C')
     expect(v.accent).toBe('#F6821F')
     expect(v.blurb).toBe('Email Sending beta · paid plan required')
