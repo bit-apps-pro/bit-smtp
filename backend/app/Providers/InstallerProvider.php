@@ -79,6 +79,7 @@ class InstallerProvider
         $migrations = [
             'BitSmtpLogsTableMigration',
             'BitSmtpEncryptSecrets',
+            'BitSmtpCleanupOrphanDeliveryEvents',
             'BitSmtpPluginOptions',
         ];
 
@@ -97,6 +98,7 @@ class InstallerProvider
     {
         $migrations = [
             'BitSmtpPluginOptions',
+            'BitSmtpCleanupOrphanDeliveryEvents',
             'BitSmtpLogsTableMigration',
             'BitSmtpEncryptSecrets',
         ];

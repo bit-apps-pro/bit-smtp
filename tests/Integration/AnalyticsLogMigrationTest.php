@@ -4,7 +4,9 @@ namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Model\Log;
+use BitApps\SMTP\Model\LogDeliveryEvent;
 use BitApps\SMTP\Plugin;
+use BitSmtpCleanupOrphanDeliveryEvents;
 use BitSmtpLogsTableMigration;
 use RuntimeException;
 
@@ -20,25 +22,46 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 {
     private string $logsTable;
 
+    private string $eventsTable;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->logsTable = $this->tableName();
+        $this->logsTable   = $this->tableName();
+        $this->eventsTable = (new LogDeliveryEvent())->getTable();
     }
 
     public function testFreshMigrationCreatesNullableAttributionColumnsAndIndexes(): void
     {
         $this->dropLogsTable();
+        $this->dropDeliveryEventsTable();
 
         $this->migrateLogs();
+        (new BitSmtpCleanupOrphanDeliveryEvents())->up();
         $this->assertAnalyticsColumnsAreNullable();
         $this->assertAnalyticsIndexesExist();
+        $eventsTable = $GLOBALS['wpdb']->get_var(
+            $GLOBALS['wpdb']->prepare('SHOW TABLES LIKE %s', $GLOBALS['wpdb']->esc_like($this->eventsTable))
+        );
+        self::assertSame($this->eventsTable, $eventsTable);
 
         // Activations invoke this migration more than once. A second run must retain the schema
         // without duplicate-column or duplicate-index errors.
         $this->migrateLogs();
         $this->assertAnalyticsColumnsAreNullable();
         $this->assertAnalyticsIndexesExist();
+    }
+
+    public function testOrphanCleanupIsSafeWhenTheDeliveryEventsTableIsMissing(): void
+    {
+        $this->dropDeliveryEventsTable();
+
+        try {
+            (new BitSmtpCleanupOrphanDeliveryEvents())->up();
+            self::assertTrue(true);
+        } finally {
+            $this->migrateLogs();
+        }
     }
 
     public function testUpgradeMigrationPreservesLegacyRowsWithNullAttribution(): void
@@ -161,12 +184,12 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             Plugin::maybeMigrateDB();
 
             $this->assertLegacyAnalyticsUpgrade();
-            $this->assertSame('1.8', Config::getOption('db_version'));
+            $this->assertSame('1.9', Config::getOption('db_version'));
 
             Plugin::maybeMigrateDB();
 
             $this->assertLegacyAnalyticsUpgrade();
-            $this->assertSame('1.8', Config::getOption('db_version'));
+            $this->assertSame('1.9', Config::getOption('db_version'));
         } finally {
             wp_set_current_user(0);
             $this->migrateLogs();
@@ -200,7 +223,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
             $this->assertNotFalse($wpdb->query("ALTER TABLE `{$this->logsTable}` MODIFY COLUMN `created_at_utc` DATETIME NULL"));
             Plugin::maybeMigrateDB();
-            self::assertSame('1.8', Config::getOption('db_version'));
+            self::assertSame('1.9', Config::getOption('db_version'));
         } finally {
             $wpdb->suppress_errors($previousSuppressErrors);
             wp_set_current_user(0);
@@ -226,12 +249,12 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
             $this->assertAnalyticsColumnsAreNullable();
             $this->assertExactOneEightIndexSet();
-            self::assertSame('1.8', Config::getOption('db_version'));
+            self::assertSame('1.9', Config::getOption('db_version'));
 
             Plugin::maybeMigrateDB();
 
             $this->assertExactOneEightIndexSet();
-            self::assertSame('1.8', Config::getOption('db_version'));
+            self::assertSame('1.9', Config::getOption('db_version'));
         } finally {
             wp_set_current_user(0);
             $this->migrateLogs();
@@ -262,6 +285,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
         try {
             $exception = null;
+
             try {
                 Plugin::maybeMigrateDB();
             } catch (RuntimeException $caught) {
@@ -278,7 +302,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             Plugin::maybeMigrateDB();
 
             $this->assertExactOneEightIndexSet();
-            self::assertSame('1.8', Config::getOption('db_version'));
+            self::assertSame('1.9', Config::getOption('db_version'));
         } finally {
             $wpdb->query(
                 "ALTER TABLE `{$this->logsTable}` DROP FOREIGN KEY `bit_smtp_source_created_guard`"
@@ -286,6 +310,80 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             $wpdb->suppress_errors($previousSuppressErrors);
             wp_set_current_user(0);
             $this->migrateLogs();
+            Config::updateOption('version', $previousVersion, true);
+            Config::updateOption('db_version', $previousDbVersion, true);
+        }
+    }
+
+    public function testOneEightToOneNineMigrationRemovesPreExistingOrphanDeliveryEventsIdempotently(): void
+    {
+        $orphanLogId = 987654321;
+        $this->seedDeliveryEvent($orphanLogId, 'orphan-cleanup');
+
+        $previousVersion   = Config::getOption('version');
+        $previousDbVersion = Config::getOption('db_version');
+        Config::updateOption('version', Config::VERSION, true);
+        Config::updateOption('db_version', '1.8', true);
+        wp_set_current_user(1);
+
+        try {
+            Plugin::maybeMigrateDB();
+
+            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(0, LogDeliveryEvent::where('log_id', $orphanLogId)->count());
+
+            Plugin::maybeMigrateDB();
+
+            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(0, LogDeliveryEvent::where('log_id', $orphanLogId)->count());
+        } finally {
+            wp_set_current_user(0);
+            Config::updateOption('version', $previousVersion, true);
+            Config::updateOption('db_version', $previousDbVersion, true);
+        }
+    }
+
+    public function testOrphanCleanupFailureLeavesOneEightVersionForARetry(): void
+    {
+        $orphanLogId = 987654322;
+        $this->seedDeliveryEvent($orphanLogId, 'orphan-cleanup-failure');
+        $triggerName = 'bit_smtp_orphan_cleanup_failure';
+        global $wpdb;
+        self::assertNotFalse($wpdb->query(
+            "CREATE TRIGGER `{$triggerName}` BEFORE DELETE ON `{$this->eventsTable}` "
+            . "FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'orphan cleanup failure'"
+        ));
+
+        $previousVersion        = Config::getOption('version');
+        $previousDbVersion      = Config::getOption('db_version');
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        Config::updateOption('version', Config::VERSION, true);
+        Config::updateOption('db_version', '1.8', true);
+        wp_set_current_user(1);
+
+        try {
+            $exception = null;
+
+            try {
+                Plugin::maybeMigrateDB();
+            } catch (RuntimeException $caught) {
+                $exception = $caught;
+            }
+
+            self::assertInstanceOf(RuntimeException::class, $exception, 'A failed orphan cleanup must propagate from migration.');
+            self::assertStringContainsString('orphaned delivery events', $exception->getMessage());
+            self::assertSame('1.8', Config::getOption('db_version'));
+            self::assertSame(1, LogDeliveryEvent::where('log_id', $orphanLogId)->count());
+
+            self::assertNotFalse($wpdb->query("DROP TRIGGER `{$triggerName}`"));
+            Plugin::maybeMigrateDB();
+
+            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(0, LogDeliveryEvent::where('log_id', $orphanLogId)->count());
+        } finally {
+            $wpdb->query("DROP TRIGGER IF EXISTS `{$triggerName}`");
+            $wpdb->suppress_errors($previousSuppressErrors);
+            wp_set_current_user(0);
             Config::updateOption('version', $previousVersion, true);
             Config::updateOption('db_version', $previousDbVersion, true);
         }
@@ -523,11 +621,31 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertSame(1, $inserted);
     }
 
+    private function seedDeliveryEvent(int $logId, string $hashSuffix): void
+    {
+        $event             = new LogDeliveryEvent();
+        $event->log_id     = $logId;
+        $event->recipient  = 'orphan@example.test';
+        $event->status     = 'bounced';
+        $event->terminal   = 1;
+        $event->detail     = 'Provider recipient detail';
+        $event->event_hash = hash('sha256', $hashSuffix);
+
+        self::assertTrue((bool) $event->save());
+    }
+
     private function dropLogsTable(): void
     {
         global $wpdb;
 
         $wpdb->query("DROP TABLE IF EXISTS `{$this->logsTable}`");
+    }
+
+    private function dropDeliveryEventsTable(): void
+    {
+        global $wpdb;
+
+        $wpdb->query("DROP TABLE IF EXISTS `{$this->eventsTable}`");
     }
 
     private function tableName(): string

@@ -278,9 +278,23 @@ class LogService
 
     public function delete(array $ids)
     {
-        Log::where('id', $ids)->delete();
+        $ids = $this->normalizeLogIds($ids);
+        if ($ids === []) {
+            return true;
+        }
 
-        return Connection::prop('last_error') ? false : true;
+        // Delivery events carry provider recipient and diagnostic detail. They intentionally have
+        // no database FK for WordPress compatibility, so remove the children before their selected
+        // parent logs and fail closed if that privacy cleanup cannot complete. This deliberately
+        // is not a transaction: WordPress installs can use mixed or non-transactional engines, and
+        // child-first cleanup leaves no retained provider PII if a later parent deletion fails.
+        if (!$this->deleteDeliveryEventsForLogs($ids)) {
+            return false;
+        }
+
+        $deleted = Log::where('id', $ids)->delete();
+
+        return $deleted !== false;
     }
 
     public function maybeDeleteOlder()
@@ -304,9 +318,33 @@ class LogService
         $dateToDelete = date_sub($currentDate, date_interval_create_from_date_string($logRetention . ' days'));
         $dateToDelete = date_format($dateToDelete, QueryBuilder::TIME_FORMAT);
 
+        $expired = Log::where('created_at', '<', $dateToDelete)->get();
+        if ($expired === false) {
+            return false;
+        }
+
+        $ids = $this->normalizeLogIds(array_map(static function (Log $log): int {
+            return (int) $log->getAttribute('id');
+        }, $this->toRows($expired)));
+
+        if ($ids === []) {
+            Config::updateOption('log_deleted_at', time());
+
+            return 0;
+        }
+
+        if (!$this->deleteDeliveryEventsForLogs($ids)) {
+            return false;
+        }
+
+        $deleted = Log::where('id', $ids)->delete();
+        if ($deleted === false) {
+            return false;
+        }
+
         Config::updateOption('log_deleted_at', time());
 
-        return Log::where('created_at', '<', $dateToDelete)->delete();
+        return $deleted;
     }
 
     public function updateRetention($days)
@@ -503,5 +541,44 @@ class LogService
     private function subjectPattern(string $subject): string
     {
         return (new SubjectPatternNormalizer())->normalize($subject);
+    }
+
+    /**
+     * Delete delivery-event children for a closed, normalized list of parent IDs.
+     *
+     * WPDatabase prepares the value-only WHERE IN clause; its table reference comes solely from the
+     * internal model convention and is never derived from a request or provider payload.
+     *
+     * @param array<int,int> $ids
+     */
+    private function deleteDeliveryEventsForLogs(array $ids): bool
+    {
+        if ($ids === []) {
+            return true;
+        }
+
+        $deleted = LogDeliveryEvent::where('log_id', $ids)->delete();
+
+        return $deleted !== false;
+    }
+
+    /**
+     * @param array<int,mixed> $ids
+     *
+     * @return array<int,int>
+     */
+    private function normalizeLogIds(array $ids): array
+    {
+        $normalized = [];
+        foreach ($ids as $id) {
+            $validated = filter_var($id, FILTER_VALIDATE_INT);
+            if ($validated === false || $validated < 1) {
+                continue;
+            }
+
+            $normalized[(int) $validated] = (int) $validated;
+        }
+
+        return array_values($normalized);
     }
 }
