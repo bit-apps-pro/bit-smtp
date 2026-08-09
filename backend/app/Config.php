@@ -169,37 +169,6 @@ class Config
         return delete_option(self::withPrefix($option));
     }
 
-    /**
-     * Atomically delete an option only when its database representation is still the supplied
-     * snapshot. This prevents a stale reader from deleting a later value written by another
-     * request between its read and delete operations.
-     *
-     * @param mixed $value
-     */
-    public static function deleteOptionIfUnchanged(string $option, $value): bool
-    {
-        global $wpdb;
-
-        $option = self::VAR_PREFIX . $option;
-        $query  = $wpdb->prepare(
-            "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
-            $option,
-            maybe_serialize($value)
-        );
-        $deleted = $wpdb->query($query);
-
-        if ($deleted !== 1) {
-            return false;
-        }
-
-        // The option is explicitly non-autoloaded, so invalidating its individual cache entry is
-        // sufficient. A concurrent add may repopulate it; clearing that cache cannot delete the DB
-        // row and forces the next reader to observe the new marker.
-        wp_cache_delete($option, 'options');
-
-        return true;
-    }
-
     public static function isDev()
     {
         return is_readable(Config::get('BASEDIR') . '/port');

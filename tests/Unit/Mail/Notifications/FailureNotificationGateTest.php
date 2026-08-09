@@ -6,44 +6,67 @@ use BitApps\SMTP\Config;
 use BitApps\SMTP\Mail\Notifications\FailureNotificationGate;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
-use Mockery;
 
-final class FailureNotificationGateOptionState
-{
-    /**
-     * @var array<string,string>|null
-     */
-    public ?array $marker;
-
-    /**
-     * @param array<string,string>|null $marker
-     */
-    public function __construct(?array $marker)
-    {
-        $this->marker = $marker;
-    }
-}
-
-final class FailureNotificationGateConditionalDeleteSpy
+final class FailureNotificationGateDatabaseSpy
 {
     public string $options = 'wp_options';
+
+    public int $insertCount = 0;
+
+    public int $getVarCount = 0;
 
     public int $queryCount = 0;
 
     /**
-     * @var array<int,mixed>
+     * @var array<int,bool>
+     */
+    public array $suppressErrorCalls = [];
+
+    /**
+     * @var array<int,array<int,mixed>>
      */
     public array $preparedArguments = [];
 
-    /** @param array<string,string> $snapshot */
     /**
-     * @param array<string,string>|null $interleavingMarker
+     * @var array<int,array<string,string>>
      */
-    public function __construct(
-        private FailureNotificationGateOptionState $state,
-        private array $snapshot,
-        private ?array $interleavingMarker = null
-    ) {
+    public array $insertData = [];
+
+    /**
+     * @var array<int,string>
+     */
+    public array $insertTables = [];
+
+    public ?string $interleavingIncidentId = null;
+
+    public function __construct(public ?string $incidentId = null)
+    {
+    }
+
+    /**
+     * @param array<string,string> $data
+     * @param array<int,string>    $format
+     */
+    public function insert(string $table, array $data, array $format): int|false
+    {
+        ++$this->insertCount;
+        $this->insertData[]   = $data;
+        $this->insertTables[] = $table;
+
+        if ($this->incidentId !== null) {
+            return false;
+        }
+
+        $this->incidentId = $data['option_value'];
+
+        return 1;
+    }
+
+    public function suppress_errors(bool $suppress): bool
+    {
+        $this->suppressErrorCalls[] = $suppress;
+
+        return false;
     }
 
     /**
@@ -51,22 +74,30 @@ final class FailureNotificationGateConditionalDeleteSpy
      */
     public function prepare(string $query, ...$arguments): string
     {
-        $this->preparedArguments = $arguments;
-
-        if ($this->interleavingMarker !== null) {
-            // A different success reset completes, then the next failure acquires a new marker.
-            $this->state->marker = $this->interleavingMarker;
-        }
+        $this->preparedArguments[] = $arguments;
 
         return $query;
+    }
+
+    public function get_var(string $query): ?string
+    {
+        ++$this->getVarCount;
+
+        return $this->incidentId;
     }
 
     public function query(string $query): int
     {
         ++$this->queryCount;
 
-        if ($this->state->marker === $this->snapshot) {
-            $this->state->marker = null;
+        if ($this->interleavingIncidentId !== null) {
+            $this->incidentId = $this->interleavingIncidentId;
+        }
+
+        $incidentId = $this->preparedArguments[\count($this->preparedArguments) - 1][1] ?? null;
+
+        if ($this->incidentId === $incidentId) {
+            $this->incidentId = null;
 
             return 1;
         }
@@ -82,100 +113,181 @@ final class FailureNotificationGateConditionalDeleteSpy
  */
 final class FailureNotificationGateTest extends BaseUnitTestCase
 {
-    public function testAcquireUsesAtomicAddOptionResult(): void
+    public function testAcquireUsesPlainInsertInsteadOfAddOptionCachePreflight(): void
     {
-        Functions\expect('add_option')
-            ->once()
-            ->with(
-                Config::withPrefix('failure_notification_active'),
-                Mockery::on(static function (array $marker): bool {
-                    return \count($marker) === 1 && isset($marker['started_at']);
-                }),
-                '',
-                'no'
-            )
-            ->andReturn(true);
+        // This models a stale persistent `notoptions` cache: core add_option() would perform
+        // its preflight and its ON DUPLICATE KEY UPDATE could report success. The option row
+        // already exists, so the database's plain INSERT must be the only authority.
+        $database = new FailureNotificationGateDatabaseSpy('active-incident');
 
-        $gate = new FailureNotificationGate();
+        Functions\expect('add_option')->never();
+        Functions\expect('get_option')->never();
+        Functions\expect('wp_generate_uuid4')->once()->andReturn('competing-incident');
+        Functions\expect('wp_cache_set')->never();
+        Functions\expect('wp_cache_delete')->once()->with(Config::withPrefix('failure_notification_active'), 'options')->andReturn(true);
+        Functions\expect('wp_cache_delete')->once()->with('notoptions', 'options')->andReturn(true);
 
-        $this->assertTrue($gate->acquire());
-    }
-
-    public function testResetConditionallyDeletesTheIncidentSnapshot(): void
-    {
-        $marker          = ['started_at' => 'now'];
-        $state           = new FailureNotificationGateOptionState($marker);
-        $database        = new FailureNotificationGateConditionalDeleteSpy($state, $marker);
-        $hadWpdb         = \array_key_exists('wpdb', $GLOBALS);
-        $previousWpdb    = $GLOBALS['wpdb'] ?? null;
-        $GLOBALS['wpdb'] = $database;
-
-        Functions\expect('get_option')
-            ->once()
-            ->with(Config::withPrefix('failure_notification_active'), false)
-            ->andReturn($marker);
-        Functions\when('maybe_serialize')->alias(static fn ($value): string => serialize($value));
-        Functions\when('wp_cache_delete')->justReturn(true);
-        Functions\when('delete_option')->justReturn(true);
-
-        try {
-            (new FailureNotificationGate())->reset();
-
-            $this->assertSame(1, $database->queryCount);
-            $this->assertSame(
-                [Config::withPrefix('failure_notification_active'), serialize($marker)],
-                $database->preparedArguments
-            );
-            $this->assertNull($state->marker);
-        } finally {
-            if ($hadWpdb) {
-                $GLOBALS['wpdb'] = $previousWpdb;
-            } else {
-                unset($GLOBALS['wpdb']);
-            }
-        }
-    }
-
-    public function testResetSkipsDeleteWhenNoIncidentActive(): void
-    {
-        Functions\expect('get_option')
-            ->once()
-            ->with(Config::withPrefix('failure_notification_active'), false)
-            ->andReturn(false);
-        Functions\expect('delete_option')->never();
-
-        (new FailureNotificationGate())->reset();
-    }
-
-    public function testResetCannotDeleteAMarkerAcquiredAfterItsSnapshot(): void
-    {
-        $snapshot        = ['started_at' => 'first-streak'];
-        $newMarker       = ['started_at' => 'next-streak'];
-        $state           = new FailureNotificationGateOptionState($snapshot);
-        $database        = new FailureNotificationGateConditionalDeleteSpy($state, $snapshot, $newMarker);
-        $hadWpdb         = \array_key_exists('wpdb', $GLOBALS);
-        $previousWpdb    = $GLOBALS['wpdb'] ?? null;
-        $GLOBALS['wpdb'] = $database;
-
-        Functions\expect('get_option')
-            ->once()
-            ->with(Config::withPrefix('failure_notification_active'), false)
-            ->andReturn($snapshot);
-        Functions\when('maybe_serialize')->alias(static fn ($value): string => serialize($value));
-        Functions\when('delete_option')->alias(static function () use ($state, $newMarker): bool {
-            // The old implementation's unconditional delete runs after another request has
-            // completed a reset and acquired the next failure streak.
-            $state->marker = $newMarker;
-            $state->marker = null;
-
-            return true;
+        $this->withDatabase($database, function (): void {
+            $this->assertFalse((new FailureNotificationGate())->acquire());
         });
 
-        try {
-            (new FailureNotificationGate())->reset();
+        $this->assertSame('active-incident', $database->incidentId);
+        $this->assertSame(1, $database->insertCount);
+        $this->assertSame(['wp_options'], $database->insertTables);
+        $this->assertSame([true, false], $database->suppressErrorCalls);
+        $this->assertSame([[
+            'option_name'  => Config::withPrefix('failure_notification_active'),
+            'option_value' => 'competing-incident',
+            'autoload'     => 'no',
+        ]], $database->insertData);
+    }
 
-            $this->assertSame($newMarker, $state->marker);
-            $this->assertSame(1, $database->queryCount);
+    public function testOnlyOneConcurrentFirstFailureCanAcquireTheGate(): void
+    {
+        $database = new FailureNotificationGateDatabaseSpy();
+
+        Functions\when('wp_generate_uuid4')->alias(static function (): string {
+            static $next = 0;
+
+            return 'incident-' . ++$next;
+        });
+        Functions\when('wp_cache_set')->justReturn(true);
+        Functions\when('wp_cache_delete')->justReturn(true);
+
+        $this->withDatabase($database, function (): void {
+            $first  = new FailureNotificationGate();
+            $second = new FailureNotificationGate();
+
+            $this->assertTrue($first->acquire());
+            $this->assertFalse($second->acquire());
+        });
+
+        $this->assertSame(2, $database->insertCount);
+        $this->assertSame('incident-1', $database->incidentId);
+        $this->assertSame([
+            [
+                'option_name'  => Config::withPrefix('failure_notification_active'),
+                'option_value' => 'incident-1',
+                'autoload'     => 'no',
+            ],
+            [
+                'option_name'  => Config::withPrefix('failure_notification_active'),
+                'option_value' => 'incident-2',
+                'autoload'     => 'no',
+            ],
+        ], $database->insertData);
+    }
+
+    public function testResetConditionallyDeletesTheDatabaseIncidentSnapshot(): void
+    {
+        $database = new FailureNotificationGateDatabaseSpy('incident-1');
+
+        Functions\expect('get_option')->never();
+        Functions\expect('wp_cache_set')->never();
+        Functions\when('wp_cache_delete')->justReturn(true);
+
+        $this->withDatabase($database, function (): void {
+            (new FailureNotificationGate())->reset();
+        });
+
+        $this->assertSame(1, $database->getVarCount);
+        $this->assertSame(1, $database->queryCount);
+        $this->assertSame([
+            [Config::withPrefix('failure_notification_active')],
+            [Config::withPrefix('failure_notification_active'), 'incident-1'],
+        ], $database->preparedArguments);
+        $this->assertNull($database->incidentId);
+    }
+
+    public function testResetSkipsDeleteWhenNoIncidentIsActiveInTheDatabase(): void
+    {
+        $database = new FailureNotificationGateDatabaseSpy();
+
+        Functions\expect('get_option')->never();
+        Functions\expect('wp_cache_delete')->once()->with(Config::withPrefix('failure_notification_active'), 'options')->andReturn(true);
+        Functions\expect('wp_cache_delete')->once()->with('notoptions', 'options')->andReturn(true);
+
+        $this->withDatabase($database, function (): void {
+            (new FailureNotificationGate())->reset();
+        });
+
+        $this->assertSame(1, $database->getVarCount);
+        $this->assertSame(0, $database->queryCount);
+    }
+
+    public function testStaleResetCannotDeleteANewIncidentThatStartsInTheSameSecond(): void
+    {
+        // The old and new streak deliberately share a timestamp. The opaque incident IDs,
+        // rather than the clock, distinguish their conditional database operations.
+        $database                         = new FailureNotificationGateDatabaseSpy('incident-first');
+        $database->interleavingIncidentId = 'incident-next';
+
+        Functions\when('wp_cache_delete')->justReturn(true);
+
+        $this->withDatabase($database, function (): void {
+            (new FailureNotificationGate())->reset();
+        });
+
+        $this->assertSame(1, $database->queryCount);
+        $this->assertSame('incident-next', $database->incidentId);
+        $this->assertSame(
+            [Config::withPrefix('failure_notification_active'), 'incident-first'],
+            $database->preparedArguments[1]
+        );
+    }
+
+    public function testResetUsesDatabaseSnapshotDespiteAStalePersistentOptionCache(): void
+    {
+        // The cache still contains an old incident, but reset must select the current row from
+        // wp_options directly before deciding what to delete.
+        $persistentCacheIncidentId = 'stale-cache-incident';
+        $database                  = new FailureNotificationGateDatabaseSpy('database-incident');
+
+        Functions\expect('get_option')->never();
+        Functions\expect('wp_cache_get')->never();
+        Functions\when('wp_cache_delete')->justReturn(true);
+
+        $this->withDatabase($database, function () use ($persistentCacheIncidentId): void {
+            $this->assertSame('stale-cache-incident', $persistentCacheIncidentId);
+            (new FailureNotificationGate())->reset();
+        });
+
+        $this->assertNull($database->incidentId);
+        $this->assertSame(
+            [Config::withPrefix('failure_notification_active'), 'database-incident'],
+            $database->preparedArguments[1]
+        );
+    }
+
+    public function testStaleResetInvalidatesCachesWithoutWritingANotoptionsMissForNewIncident(): void
+    {
+        // A newly acquired row appears after reset's database snapshot. Writing `notoptions`
+        // here would hide that row from another request's persistent object cache.
+        $database                         = new FailureNotificationGateDatabaseSpy('incident-first');
+        $database->interleavingIncidentId = 'incident-next';
+
+        Functions\expect('wp_cache_set')->never();
+        Functions\expect('wp_cache_delete')->once()->with(Config::withPrefix('failure_notification_active'), 'options')->andReturn(true);
+        Functions\expect('wp_cache_delete')->once()->with('notoptions', 'options')->andReturn(true);
+
+        $this->withDatabase($database, function (): void {
+            (new FailureNotificationGate())->reset();
+        });
+
+        $this->assertSame('incident-next', $database->incidentId);
+    }
+
+    /**
+     * @param callable():void $callback
+     */
+    private function withDatabase(FailureNotificationGateDatabaseSpy $database, callable $callback): void
+    {
+        $hadWpdb         = \array_key_exists('wpdb', $GLOBALS);
+        $previousWpdb    = $GLOBALS['wpdb'] ?? null;
+        $GLOBALS['wpdb'] = $database;
+
+        try {
+            $callback();
         } finally {
             if ($hadWpdb) {
                 $GLOBALS['wpdb'] = $previousWpdb;
