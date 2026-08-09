@@ -25,7 +25,13 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Functions\when('get_option')->justReturn(true);
+        Functions\when('get_option')->alias(static function ($key, $default) {
+            if ($key === 'bit_smtp_logging_enabled') {
+                return true;
+            }
+
+            return $key === 'bit_smtp_logging_continuity_from' ? '2026-02-01 00:00:00' : $default;
+        });
     }
 
     public function testOverviewFillsEmptyDailyPeriodsAndCarriesTheRequiredRetainedLogMetadata(): void
@@ -77,8 +83,10 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
         $repo->shouldReceive('retainedRecordBounds')->once()->andReturn([
-            'earliest' => '2026-02-01 01:02:03',
-            'latest'   => '2026-03-03 15:00:00',
+            'earliest'                    => '2026-02-01 01:02:03',
+            'latest'                      => '2026-03-03 15:00:00',
+            'qualified_timestamp_count'   => 8,
+            'unqualified_timestamp_count' => 2,
         ]);
 
         $result = (new MailAnalyticsService($repo))->overview($query);
@@ -88,6 +96,11 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
             'earliest' => '2026-02-01T01:02:03+00:00',
             'latest'   => '2026-03-03T15:00:00+00:00',
         ], $result['retained_records']);
+        self::assertSame([
+            'qualified_records'   => 8,
+            'unqualified_records' => 2,
+            'interpretation'      => 'Precise time and range analytics exclude retained logs without an explicit UTC timestamp.',
+        ], $result['timestamp_coverage']);
         self::assertSame([
             ['hour' => 9, 'label' => '09:00', 'total' => 5],
             ['hour' => 10, 'label' => '10:00', 'total' => 5],
@@ -179,6 +192,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
             static fn (int $n): array => ['pattern' => "Receipt pattern {$n}", 'total' => 1],
             range(1, 12)
         ));
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn(['earliest' => null, 'latest' => null]);
 
         $result = (new MailAnalyticsService($repo))->plugin($query);
 
@@ -199,6 +213,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'routing_type', 10)->andReturn([]);
         $repo->shouldReceive('subjectCounts')->once()->with($query)->andReturn([]);
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn(['earliest' => null, 'latest' => null]);
 
         $result = (new MailAnalyticsService($repo))->plugin($query);
 
@@ -390,6 +405,54 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         self::assertFalse($result['comparison_coverage']['complete']);
         self::assertNull($result['comparison_coverage']['retained_from']);
         self::assertSame([], $result['observations']);
+    }
+
+    public function testAnomaliesRequireBothQualifiedRetentionAndPostResumeContinuityCoverage(): void
+    {
+        $continuityFrom = '2026-03-09 12:00:00';
+        Functions\when('get_option')->alias(static function (string $key, $default) use (&$continuityFrom) {
+            if ($key === 'bit_smtp_logging_enabled') {
+                return true;
+            }
+
+            return $key === 'bit_smtp_logging_continuity_from' ? $continuityFrom : $default;
+        });
+        $query = $this->query([
+            'start' => '2026-03-10T00:00:00+00:00',
+            'end'   => '2026-03-11T00:00:00+00:00',
+        ]);
+        $bounds = [
+            'earliest'                    => '2026-03-01 00:00:00',
+            'latest'                      => '2026-03-11 00:00:00',
+            'qualified_timestamp_count'   => 40,
+            'unqualified_timestamp_count' => 5,
+        ];
+
+        $incomplete = Mockery::mock(MailAnalyticsRepository::class);
+        $incomplete->shouldReceive('summary')->twice()->andReturn($this->summary());
+        $incomplete->shouldReceive('retainedRecordBounds')->once()->andReturn($bounds);
+        $incomplete->shouldNotReceive('groups');
+        $incomplete->shouldNotReceive('timeSeries');
+        $withoutPostResumeHistory = (new MailAnalyticsService($incomplete))->anomalies($query);
+
+        self::assertFalse($withoutPostResumeHistory['comparison_coverage']['complete']);
+        self::assertSame('2026-03-09T12:00:00+00:00', $withoutPostResumeHistory['comparison_coverage']['continuity_from']);
+        self::assertSame([], $withoutPostResumeHistory['observations']);
+
+        // Once both equal comparison windows begin after the recorded resume, qualified retained
+        // timestamps and continuity together cover the comparison.
+        $continuityFrom = '2026-03-01 00:00:00';
+        $complete       = Mockery::mock(MailAnalyticsRepository::class);
+        $complete->shouldReceive('summary')->twice()->andReturn($this->summary());
+        $complete->shouldReceive('retainedRecordBounds')->once()->andReturn($bounds);
+        $complete->shouldReceive('groups')->twice()->with(Mockery::type(AnalyticsQuery::class), 'source', 100)->andReturn([]);
+        $complete->shouldReceive('groups')->twice()->with(Mockery::type(AnalyticsQuery::class), 'connection', 100)->andReturn([]);
+        $complete->shouldReceive('timeSeries')->twice()->with(Mockery::type(AnalyticsQuery::class))->andReturn([]);
+        $withPostResumeHistory = (new MailAnalyticsService($complete))->anomalies($query);
+
+        self::assertTrue($withPostResumeHistory['comparison_coverage']['complete']);
+        self::assertSame(40, $withPostResumeHistory['timestamp_coverage']['qualified_records']);
+        self::assertSame(5, $withPostResumeHistory['timestamp_coverage']['unqualified_records']);
     }
 
     public function testConvertsUtcHoursInPhpForSpringForwardAndFallBackWithoutMergingRepeatedHours(): void

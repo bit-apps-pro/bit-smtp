@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Config;
+use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Mail\Analytics\AnalyticsQuery;
 use BitApps\SMTP\Mail\Analytics\AnalyticsQueryFactory;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Model\Log;
+use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
 
@@ -45,6 +48,11 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
             'earliest' => '2026-03-01T05:00:00+00:00',
             'latest'   => '2026-03-03T05:00:00+00:00',
         ], $result['retained_records']);
+        self::assertSame([
+            'qualified_records'   => 2,
+            'unqualified_records' => 0,
+            'interpretation'      => 'Precise time and range analytics exclude retained logs without an explicit UTC timestamp.',
+        ], $result['timestamp_coverage']);
         self::assertSame([['hour' => 0, 'label' => '00:00', 'total' => 2]], $result['busiest_hours']);
         self::assertCount(5, $database->queries);
         self::assertNotEmpty($database->templates);
@@ -70,10 +78,64 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         self::assertSame(0, $result['total']);
         self::assertSame(0, $result['recipients']);
         self::assertSame(['earliest' => null, 'latest' => null], $result['retained_records']);
+        self::assertSame(['qualified_records' => 0, 'unqualified_records' => 0], array_intersect_key($result['timestamp_coverage'], array_flip(['qualified_records', 'unqualified_records'])));
         self::assertSame([], $result['busiest_hours']);
         self::assertSame([], $result['busiest_weekdays']);
         self::assertSame([0, 0, 0], array_column($result['series'], 'total'));
         self::assertCount(5, $database->queries);
+    }
+
+    public function testLegacyRowsWithoutAnExplicitUtcTimestampAreReportedButExcludedFromPreciseAnalytics(): void
+    {
+        $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1);
+        global $wpdb;
+        $wpdb->insert((new Log())->getTable(), [
+            'status'     => 1,
+            'subject'    => 'Legacy local timestamp',
+            'to_addr'    => '[]',
+            'created_at' => '2026-03-02 05:00:00',
+            'updated_at' => '2026-03-02 05:00:00',
+        ]);
+
+        $result = (new MailAnalyticsService(new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable())))->overview($this->query());
+
+        self::assertSame(1, $result['total']);
+        self::assertSame('2026-03-01T05:00:00+00:00', $result['retained_records']['earliest']);
+        self::assertSame(1, $result['timestamp_coverage']['qualified_records']);
+        self::assertSame(1, $result['timestamp_coverage']['unqualified_records']);
+    }
+
+    public function testAnomaliesSuppressADisableResumeGapUntilBothWindowsFollowTheResume(): void
+    {
+        $utc = new DateTimeZone('UTC');
+        $now = new DateTimeImmutable('now', $utc);
+        $this->seed($now->sub(new DateInterval('PT4H'))->format('Y-m-d H:i:s'), 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1);
+
+        Config::updateOption('logging_enabled', 1, true);
+        Config::updateOption(Config::LOGGING_CONTINUITY_FROM_OPTION, '2000-01-01 00:00:00', true);
+        $logger = new LogService();
+        self::assertTrue($logger->setEnabled(false));
+        self::assertTrue($logger->setEnabled(true));
+
+        $service    = new MailAnalyticsService(new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable()));
+        $incomplete = (new AnalyticsQueryFactory($now, $utc, 30))->fromInput([
+            'start' => $now->sub(new DateInterval('PT1H'))->format(DATE_ATOM),
+            'end'   => $now->format(DATE_ATOM),
+        ]);
+        self::assertInstanceOf(AnalyticsQuery::class, $incomplete);
+        $incompleteResult = $service->anomalies($incomplete);
+        self::assertFalse($incompleteResult['comparison_coverage']['complete']);
+        self::assertSame([], $incompleteResult['observations']);
+
+        $completeStart = $now->add(new DateInterval('PT2H'));
+        $completeEnd   = $now->add(new DateInterval('PT3H'));
+        $complete      = (new AnalyticsQueryFactory($now->add(new DateInterval('PT4H')), $utc, 30))->fromInput([
+            'start' => $completeStart->format(DATE_ATOM),
+            'end'   => $completeEnd->format(DATE_ATOM),
+        ]);
+        self::assertInstanceOf(AnalyticsQuery::class, $complete);
+        $completeResult = $service->anomalies($complete);
+        self::assertTrue($completeResult['comparison_coverage']['complete']);
     }
 
     public function testPluginSubjectsUseOnlyPersistedRedactedPatternsAndIdentifyLegacyUnknowns(): void

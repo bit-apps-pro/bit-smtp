@@ -26,6 +26,8 @@ class Config
 
     public const DB_VERSION = '1.7';
 
+    public const LOGGING_CONTINUITY_FROM_OPTION = 'logging_continuity_from';
+
     public const REQUIRED_PHP_VERSION = '8.0';
 
     public const REQUIRED_WP_VERSION = '5.0';

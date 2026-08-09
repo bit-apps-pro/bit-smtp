@@ -12,6 +12,7 @@ use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
 use DateTime;
+use RuntimeException;
 use Throwable;
 use WP_Error;
 
@@ -21,6 +22,8 @@ class LogService
 {
     public function __construct()
     {
+        self::initializeLoggingContinuity();
+
         if (\defined('DOING_CRON') && DOING_CRON) {
             $this->maybeDeleteOlder();
         }
@@ -335,7 +338,45 @@ class LogService
      */
     public function setEnabled(bool $enable)
     {
-        return (bool) Config::updateOption('logging_enabled', $enable ? 1 : 0, true);
+        $wasEnabled = $this->isEnabled();
+        if ($wasEnabled !== $enable && !Config::updateOption('logging_enabled', $enable ? 1 : 0, true)) {
+            return false;
+        }
+
+        if (!$enable) {
+            Config::deleteOption(Config::LOGGING_CONTINUITY_FROM_OPTION);
+
+            return Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, false) === false;
+        }
+
+        self::initializeLoggingContinuity();
+
+        return true;
+    }
+
+    /**
+     * Start (or retain) the proven-continuous UTC interval for precise log analytics. Existing
+     * installs without the marker deliberately begin at first migration/service boot instead of
+     * inferring continuity from legacy local display timestamps.
+     */
+    public static function initializeLoggingContinuity(): ?string
+    {
+        if (!(bool) Config::getOption('logging_enabled', true)) {
+            return null;
+        }
+
+        $existing = Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, false);
+        if (\is_string($existing) && preg_match('/^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$/', $existing) === 1) {
+            return $existing;
+        }
+
+        $continuityFrom = gmdate('Y-m-d H:i:s');
+        Config::updateOption(Config::LOGGING_CONTINUITY_FROM_OPTION, $continuityFrom, true);
+        if (Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, false) !== $continuityFrom) {
+            throw new RuntimeException('Unable to persist the logging continuity timestamp.');
+        }
+
+        return $continuityFrom;
     }
 
     /**

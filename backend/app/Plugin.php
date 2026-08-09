@@ -65,7 +65,6 @@ use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Providers\HookProvider;
 use BitApps\SMTP\Providers\InstallerProvider;
 use BitApps\SMTP\Views\Layout;
-use Exception;
 
 final class Plugin
 {
@@ -315,13 +314,9 @@ final class Plugin
         $behindDbVersion = version_compare(Config::getOption('db_version', '0'), Config::DB_VERSION, '<');
 
         if ($behindVersion || $behindDbVersion) {
-            // BitSmtpPluginOptions::up() writes version and db_version to current, so one run settles both gates.
-            try {
-                MigrationHelper::migrate(InstallerProvider::migration());
-            } catch (Exception $e) {
-                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- we want to log this error
-                error_log('BIT SMTP Migration Error: ' . $e->getMessage());
-            }
+            // BitSmtpPluginOptions::up() writes version and db_version only after preceding migrations
+            // complete. Let any schema failure propagate so the version gate remains retryable.
+            MigrationHelper::migrate(InstallerProvider::migration());
         }
     }
 

@@ -108,11 +108,16 @@ class MailAnalyticsRepository
     }
 
     /**
-     * @return array{earliest:?string,latest:?string}|WP_Error
+     * @return array{earliest:?string,latest:?string,qualified_timestamp_count:int,unqualified_timestamp_count:int}|WP_Error
      */
     public function retainedRecordBounds()
     {
-        $rows = $this->rows("SELECT MIN(created_at_utc) AS earliest, MAX(created_at_utc) AS latest FROM `{$this->table}`", []);
+        $rows = $this->rows("SELECT
+            MIN(created_at_utc) AS earliest,
+            MAX(created_at_utc) AS latest,
+            COUNT(created_at_utc) AS qualified_timestamp_count,
+            COALESCE(SUM(CASE WHEN created_at_utc IS NULL THEN 1 ELSE 0 END), 0) AS unqualified_timestamp_count
+            FROM `{$this->table}`", []);
         if ($rows instanceof WP_Error) {
             return $rows;
         }
@@ -120,8 +125,10 @@ class MailAnalyticsRepository
         $row = $rows[0] ?? [];
 
         return [
-            'earliest' => isset($row['earliest']) && $row['earliest']   !== '' ? (string) $row['earliest'] : null,
-            'latest'   => isset($row['latest'])   && $row['latest']     !== '' ? (string) $row['latest'] : null,
+            'earliest'                    => isset($row['earliest']) && $row['earliest']   !== '' ? (string) $row['earliest'] : null,
+            'latest'                      => isset($row['latest'])   && $row['latest']     !== '' ? (string) $row['latest'] : null,
+            'qualified_timestamp_count'   => (int) ($row['qualified_timestamp_count'] ?? 0),
+            'unqualified_timestamp_count' => (int) ($row['unqualified_timestamp_count'] ?? 0),
         ];
     }
 

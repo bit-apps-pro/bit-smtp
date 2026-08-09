@@ -89,16 +89,17 @@ final class AbilitySchemas
     public static function overviewOutput(): array
     {
         return self::object(array_merge(self::metadataProperties(), [
-            'logging_enabled'  => ['type' => 'boolean'],
-            'retained_records' => self::retainedRecords(),
-            'recipients'       => self::integer(),
-            'acceptance'       => self::acceptance(),
-            'delivery'         => self::delivery(),
-            'busiest_hours'    => self::boundedArrayOf(self::busiestHour()),
-            'busiest_weekdays' => self::boundedArrayOf(self::busiestWeekday()),
-            'series'           => self::arrayOf(self::seriesRow()),
-            'top_sources'      => self::arrayOf(self::groupRow()),
-            'top_connections'  => self::arrayOf(self::groupRow()),
+            'logging_enabled'    => ['type' => 'boolean'],
+            'retained_records'   => self::retainedRecords(),
+            'timestamp_coverage' => self::timestampCoverage(),
+            'recipients'         => self::integer(),
+            'acceptance'         => self::acceptance(),
+            'delivery'           => self::delivery(),
+            'busiest_hours'      => self::boundedArrayOf(self::busiestHour()),
+            'busiest_weekdays'   => self::boundedArrayOf(self::busiestWeekday()),
+            'series'             => self::arrayOf(self::seriesRow()),
+            'top_sources'        => self::arrayOf(self::groupRow()),
+            'top_connections'    => self::arrayOf(self::groupRow()),
         ]), [
             'range',
             'timezone',
@@ -108,6 +109,7 @@ final class AbilitySchemas
             'interpretation',
             'logging_enabled',
             'retained_records',
+            'timestamp_coverage',
             'recipients',
             'acceptance',
             'delivery',
@@ -131,6 +133,7 @@ final class AbilitySchemas
             'series'                        => self::arrayOf(self::seriesRow()),
             'busiest_hours'                 => self::boundedArrayOf(self::busiestHour()),
             'busiest_weekdays'              => self::boundedArrayOf(self::busiestWeekday()),
+            'timestamp_coverage'            => self::timestampCoverage(),
             'connections'                   => self::arrayOf(self::groupRow()),
             'routing_types'                 => self::arrayOf(self::groupRow()),
             'subject_patterns'              => self::arrayOf(self::subjectPattern()),
@@ -149,6 +152,7 @@ final class AbilitySchemas
             'series',
             'busiest_hours',
             'busiest_weekdays',
+            'timestamp_coverage',
             'connections',
             'routing_types',
             'subject_patterns',
@@ -237,11 +241,13 @@ final class AbilitySchemas
             'current'             => self::counts(),
             'prior'               => self::counts(),
             'prior_range'         => self::range(),
+            'timestamp_coverage'  => self::timestampCoverage(),
             'comparison_coverage' => self::object([
                 'complete'                 => ['type' => 'boolean'],
                 'retained_from'            => self::nullable(self::string(['format' => 'date-time'])),
+                'continuity_from'          => self::nullable(self::string(['format' => 'date-time'])),
                 'configured_retained_from' => self::nullable(self::string(['format' => 'date-time'])),
-            ], ['complete', 'retained_from', 'configured_retained_from']),
+            ], ['complete', 'retained_from', 'continuity_from', 'configured_retained_from']),
             'observations' => self::arrayOf(self::observation()),
         ]), [
             'range',
@@ -253,6 +259,7 @@ final class AbilitySchemas
             'current',
             'prior',
             'prior_range',
+            'timestamp_coverage',
             'comparison_coverage',
             'observations',
         ]);
@@ -381,6 +388,18 @@ final class AbilitySchemas
             'earliest' => self::nullable(self::string(['format' => 'date-time'])),
             'latest'   => self::nullable(self::string(['format' => 'date-time'])),
         ], ['earliest', 'latest']);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function timestampCoverage(): array
+    {
+        return self::object([
+            'qualified_records'   => self::integer(),
+            'unqualified_records' => self::integer(),
+            'interpretation'      => self::string(),
+        ], ['qualified_records', 'unqualified_records', 'interpretation']);
     }
 
     /**

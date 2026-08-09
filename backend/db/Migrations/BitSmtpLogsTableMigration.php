@@ -5,7 +5,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Blueprint;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Schema;
 use BitApps\SMTP\Deps\BitApps\WPKit\Migration\Migration;
-use BitApps\SMTP\Model\Log;
+use BitApps\SMTP\HTTP\Services\LogService;
 
 if (! \defined('ABSPATH')) {
     exit;
@@ -13,8 +13,6 @@ if (! \defined('ABSPATH')) {
 
 final class BitSmtpLogsTableMigration extends Migration
 {
-    private const UTC_BACKFILL_BATCH_SIZE = 250;
-
     public function up()
     {
         Schema::withPrefix(Connection::wpPrefix() . Config::VAR_PREFIX)->create(
@@ -52,8 +50,8 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addWebhookCorrelationColumnsIfMissing();
         $this->addDeliveryColumnsIfMissing();
         $this->addAnalyticsColumnsIfMissing();
-        $this->backfillLegacyAnalyticsTimestamps();
         $this->createDeliveryEventsTableIfMissing();
+        LogService::initializeLoggingContinuity();
     }
 
     public function down()
@@ -111,61 +109,6 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addIndexIfMissing($table, 'idx_status_created_utc', 'ADD INDEX `idx_status_created_utc` (`status`, `created_at_utc`)');
     }
 
-    /**
-     * Backfill a bounded result set at a time so old retained logs never need a MySQL timezone
-     * table or an unbounded in-memory load. The NULL predicate makes repeated migration runs
-     * idempotent; displayed created_at values are never modified.
-     */
-    private function backfillLegacyAnalyticsTimestamps()
-    {
-        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
-
-        while (true) {
-            $rows = Connection::get_results(
-                "SELECT `id`, `created_at` FROM `{$table}` WHERE `created_at_utc` IS NULL AND `created_at` IS NOT NULL ORDER BY `id` ASC LIMIT " . self::UTC_BACKFILL_BATCH_SIZE,
-                \defined('ARRAY_A') ? ARRAY_A : 'ARRAY_A'
-            );
-            if (!\is_array($rows) || $rows === []) {
-                return;
-            }
-
-            $cases        = [];
-            $ids          = [];
-            $placeholders = [];
-            $values       = [];
-            foreach ($rows as $row) {
-                $timestamp = Log::legacyCreatedAtToUtc(isset($row['created_at']) ? (string) $row['created_at'] : null);
-                if ($timestamp === null) {
-                    continue;
-                }
-
-                $cases[]        = 'WHEN %d THEN %s';
-                $placeholders[] = '%d';
-                $ids[]          = (int) $row['id'];
-                $values[]       = (int) $row['id'];
-                $values[]       = $timestamp;
-            }
-
-            if ($cases === []) {
-                return;
-            }
-
-            foreach ($ids as $id) {
-                $values[] = $id;
-            }
-
-            $sql = "UPDATE `{$table}` SET `created_at_utc` = CASE `id` " . implode(' ', $cases) . ' END'
-                . ' WHERE `created_at_utc` IS NULL AND `id` IN (' . implode(', ', $placeholders) . ')';
-            if (Connection::query(Connection::prepare($sql, $values)) === false) {
-                return;
-            }
-
-            if (\count($rows) < self::UTC_BACKFILL_BATCH_SIZE) {
-                return;
-            }
-        }
-    }
-
     private function createDeliveryEventsTableIfMissing()
     {
         Schema::withPrefix(Connection::wpPrefix() . Config::VAR_PREFIX)->create(
@@ -192,12 +135,17 @@ final class BitSmtpLogsTableMigration extends Migration
         $exists = Connection::get_var(
             Connection::prepare('SHOW COLUMNS FROM `' . $table . '` LIKE %s', [$column])
         );
+        $this->throwOnDatabaseError('read column ' . $column);
 
         if ($exists) {
             return;
         }
 
-        Connection::query("ALTER TABLE `{$table}` {$alter}");
+        if (Connection::query("ALTER TABLE `{$table}` {$alter}") === false) {
+            $this->throwOnDatabaseError('add column ' . $column);
+
+            throw new RuntimeException('Unable to add analytics column ' . $column . '.');
+        }
     }
 
     private function addIndexIfMissing($table, $index, $alter)
@@ -206,11 +154,24 @@ final class BitSmtpLogsTableMigration extends Migration
         $exists = Connection::get_var(
             Connection::prepare('SHOW INDEX FROM `' . $table . '` WHERE Key_name = %s', [$index])
         );
+        $this->throwOnDatabaseError('read index ' . $index);
 
         if ($exists) {
             return;
         }
 
-        Connection::query("ALTER TABLE `{$table}` {$alter}");
+        if (Connection::query("ALTER TABLE `{$table}` {$alter}") === false) {
+            $this->throwOnDatabaseError('add index ' . $index);
+
+            throw new RuntimeException('Unable to add analytics index ' . $index . '.');
+        }
+    }
+
+    private function throwOnDatabaseError(string $operation): void
+    {
+        $error = (string) Connection::prop('last_error');
+        if ($error !== '') {
+            throw new RuntimeException('Unable to ' . $operation . ': ' . $error);
+        }
     }
 }

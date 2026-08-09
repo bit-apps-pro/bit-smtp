@@ -3,8 +3,6 @@
 namespace BitApps\SMTP\Model;
 
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
-use DateTimeImmutable;
-use DateTimeZone;
 
 /**
  * Model for log
@@ -78,22 +76,6 @@ class Log extends Model
         'created_at_utc',
     ];
 
-    /**
-     * Legacy created_at was written in the configured site timezone. During a DST fall-back hour
-     * that string carries no offset, so PHP deterministically selects the earlier occurrence; an
-     * exact recovery is impossible, but the result is stable and never depends on MySQL timezones.
-     */
-    public static function legacyCreatedAtToUtc(?string $createdAt): ?string
-    {
-        if ($createdAt === null || $createdAt === '') {
-            return null;
-        }
-
-        $timestamp = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $createdAt, self::siteTimezone());
-
-        return $timestamp === false ? null : $timestamp->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
-    }
-
     protected static function boot(): void
     {
         parent::boot();
@@ -108,20 +90,6 @@ class Log extends Model
 
                 return;
             }
-
-            $legacyTimestamp = self::legacyCreatedAtToUtc($log->created_at);
-            if ($legacyTimestamp !== null) {
-                $log->created_at_utc = $legacyTimestamp;
-            }
         });
-    }
-
-    private static function siteTimezone(): DateTimeZone
-    {
-        if (\function_exists('wp_timezone')) {
-            return wp_timezone();
-        }
-
-        return new DateTimeZone('UTC');
     }
 }

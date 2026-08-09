@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Config;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
@@ -148,6 +149,29 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertNull($bulk->routing_rule_index);
         $this->assertSame('Bulk', $bulk->subject_pattern);
         $this->assertSame(1, $bulk->recipient_count);
+    }
+
+    public function testLoggingContinuityStartsConservativelyAndOnlyChangesAcrossDisableResume(): void
+    {
+        Config::deleteOption(Config::LOGGING_CONTINUITY_FROM_OPTION);
+        $firstBoot = new LogService();
+        $initial   = Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, null);
+        $this->assertIsString($initial);
+        $this->assertSame($initial, $firstBoot->initializeLoggingContinuity());
+
+        // Unchanged enabled saves and unrelated partial settings retain the continuity marker.
+        $knownContinuous = '2000-01-01 00:00:00';
+        Config::updateOption(Config::LOGGING_CONTINUITY_FROM_OPTION, $knownContinuous, true);
+        $this->assertTrue($firstBoot->setEnabled(true));
+        Config::updateOption('options', ['connections' => []]);
+        $this->assertSame($knownContinuous, Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, null));
+
+        $this->assertTrue($firstBoot->setEnabled(false));
+        $this->assertNull(Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, null));
+        $this->assertTrue($firstBoot->setEnabled(true));
+        $resumed = Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, null);
+        $this->assertIsString($resumed);
+        $this->assertGreaterThan($knownContinuous, $resumed);
     }
 
     public function testPersistenceStoresOnlyTheRedactedSubjectPatternForAnalytics(): void

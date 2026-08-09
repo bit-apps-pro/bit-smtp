@@ -100,10 +100,12 @@ final class AbilitySchemasTest extends BaseUnitTestCase
         self::assertSame(10, $overview['properties']['busiest_hours']['maxItems']);
         self::assertSame(23, $overview['properties']['busiest_hours']['items']['properties']['hour']['maximum']);
         self::assertSame(7, $overview['properties']['busiest_weekdays']['items']['properties']['weekday']['maximum']);
+        self::assertSame(['qualified_records', 'unqualified_records', 'interpretation'], $overview['properties']['timestamp_coverage']['required']);
 
         $plugin = AbilitySchemas::pluginOutput();
         self::assertSame(10, $plugin['properties']['busiest_hours']['maxItems']);
         self::assertSame(10, $plugin['properties']['busiest_weekdays']['maxItems']);
+        self::assertSame(['qualified_records', 'unqualified_records', 'interpretation'], $plugin['properties']['timestamp_coverage']['required']);
 
         $observations = AbilitySchemas::anomaliesOutput()['properties']['observations']['items'];
         self::assertContains('hourly_distribution_shift', $observations['properties']['type']['enum']);
@@ -113,8 +115,10 @@ final class AbilitySchemasTest extends BaseUnitTestCase
         self::assertSame(['type', 'hour', 'current', 'prior', 'current_percentage', 'prior_percentage', 'percentage_point_change'], $observations['oneOf'][4]['required']);
 
         $coverage = AbilitySchemas::anomaliesOutput()['properties']['comparison_coverage'];
-        self::assertSame(['complete', 'retained_from', 'configured_retained_from'], $coverage['required']);
+        self::assertSame(['complete', 'retained_from', 'continuity_from', 'configured_retained_from'], $coverage['required']);
         self::assertSame('date-time', $coverage['properties']['configured_retained_from']['oneOf'][0]['format']);
+        self::assertSame('date-time', $coverage['properties']['continuity_from']['oneOf'][0]['format']);
+        self::assertSame(['qualified_records', 'unqualified_records', 'interpretation'], AbilitySchemas::anomaliesOutput()['properties']['timestamp_coverage']['required']);
     }
 
     public function testDoesNotAddAnyAbilitiesHooksWhenCoreDoesNotProvideTheApi(): void

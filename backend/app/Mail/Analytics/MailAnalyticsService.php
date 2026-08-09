@@ -60,14 +60,15 @@ final class MailAnalyticsService
                 'earliest' => $this->utcTimestamp($bounds['earliest'] ?? null),
                 'latest'   => $this->utcTimestamp($bounds['latest'] ?? null),
             ],
-            'recipients'       => (int) ($summary['recipient_count'] ?? 0),
-            'acceptance'       => $this->acceptance($summary),
-            'delivery'         => $this->delivery($summary),
-            'busiest_hours'    => $busyTimes['hours'],
-            'busiest_weekdays' => $busyTimes['weekdays'],
-            'series'           => $this->fillBuckets($query, $series),
-            'top_sources'      => $sources,
-            'top_connections'  => $connections,
+            'timestamp_coverage' => $this->timestampCoverage($bounds),
+            'recipients'         => (int) ($summary['recipient_count'] ?? 0),
+            'acceptance'         => $this->acceptance($summary),
+            'delivery'           => $this->delivery($summary),
+            'busiest_hours'      => $busyTimes['hours'],
+            'busiest_weekdays'   => $busyTimes['weekdays'],
+            'series'             => $this->fillBuckets($query, $series),
+            'top_sources'        => $sources,
+            'top_connections'    => $connections,
         ]);
     }
 
@@ -90,7 +91,8 @@ final class MailAnalyticsService
         $connections  = $this->repository->groups($query, 'connection', self::TOP_LIMIT);
         $routingTypes = $this->repository->groups($query, 'routing_type', self::TOP_LIMIT);
         $subjects     = $this->repository->subjectCounts($query);
-        $error        = $this->firstError([$summary, $series, $connections, $routingTypes, $subjects]);
+        $bounds       = $this->repository->retainedRecordBounds();
+        $error        = $this->firstError([$summary, $series, $connections, $routingTypes, $subjects, $bounds]);
         if ($error !== null) {
             return $error;
         }
@@ -104,6 +106,7 @@ final class MailAnalyticsService
             'series'                        => $this->fillBuckets($query, $series),
             'busiest_hours'                 => $busyTimes['hours'],
             'busiest_weekdays'              => $busyTimes['weekdays'],
+            'timestamp_coverage'            => $this->timestampCoverage($bounds),
             'connections'                   => $connections,
             'routing_types'                 => $routingTypes,
             'subject_patterns'              => $this->subjectPatterns($subjects),
@@ -158,16 +161,22 @@ final class MailAnalyticsService
         }
 
         $actualRetainedFrom = $this->utcTimestamp($bounds['earliest'] ?? null);
-        $completeCoverage   = $actualRetainedFrom !== null
-            && $this->utcDate($actualRetainedFrom) <= $prior->start();
+        $continuityFrom     = $this->utcTimestamp(\BitApps\SMTP\Config::getOption(\BitApps\SMTP\Config::LOGGING_CONTINUITY_FROM_OPTION, false));
+        $coverageStart      = $this->laterTimestamp($actualRetainedFrom, $continuityFrom);
+        $completeCoverage   = $coverageStart !== null
+            && $actualRetainedFrom           !== null
+            && $continuityFrom               !== null
+            && $this->utcDate($coverageStart) <= $prior->start();
 
         $response = array_merge($this->metadata($query, $currentSummary), [
             'current'             => $this->counts($currentSummary),
             'prior'               => $this->counts($priorSummary),
             'prior_range'         => $this->range($prior),
+            'timestamp_coverage'  => $this->timestampCoverage($bounds),
             'comparison_coverage' => [
                 'complete'                 => $completeCoverage,
                 'retained_from'            => $actualRetainedFrom,
+                'continuity_from'          => $continuityFrom,
                 'configured_retained_from' => $query->retainedFrom() === null ? null : $query->retainedFrom()->format(DATE_ATOM),
             ],
         ]);
@@ -581,6 +590,32 @@ final class MailAnalyticsService
     private function utcDate(string $timestamp): DateTimeImmutable
     {
         return new DateTimeImmutable($timestamp, new DateTimeZone('UTC'));
+    }
+
+    /**
+     * @param array<string,mixed> $bounds
+     *
+     * @return array{qualified_records:int,unqualified_records:int,interpretation:string}
+     */
+    private function timestampCoverage(array $bounds): array
+    {
+        return [
+            'qualified_records'   => (int) ($bounds['qualified_timestamp_count'] ?? 0),
+            'unqualified_records' => (int) ($bounds['unqualified_timestamp_count'] ?? 0),
+            'interpretation'      => 'Precise time and range analytics exclude retained logs without an explicit UTC timestamp.',
+        ];
+    }
+
+    private function laterTimestamp(?string $first, ?string $second): ?string
+    {
+        if ($first === null) {
+            return $second;
+        }
+        if ($second === null) {
+            return $first;
+        }
+
+        return $this->utcDate($first) >= $this->utcDate($second) ? $first : $second;
     }
 
     private function loggingEnabled(): bool

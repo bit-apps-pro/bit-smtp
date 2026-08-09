@@ -6,6 +6,7 @@ use BitApps\SMTP\Config;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 use BitSmtpLogsTableMigration;
+use RuntimeException;
 
 /**
  * Exercises the logs migration against the real WordPress test database for both new installs and
@@ -63,7 +64,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertAnalyticsIndexesExist();
     }
 
-    public function testUpgradeBackfillsLegacyLocalTimestampsIntoUtcWithoutChangingDisplayTimestamps(): void
+    public function testUpgradeLeavesLegacyTimestampsUnqualifiedWithoutGuessingAcrossTimezoneChanges(): void
     {
         $this->dropLogsTable();
         $this->createLegacyLogsTable();
@@ -73,15 +74,22 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
         try {
             $this->migrateLogs();
+            update_option('timezone_string', 'Asia/Dhaka');
             $this->migrateLogs();
 
             global $wpdb;
             $row = $wpdb->get_row("SELECT created_at, created_at_utc FROM `{$this->logsTable}` WHERE id = 1");
 
             $this->assertSame('2026-11-01 01:30:00', $row->created_at);
-            // The legacy fall-back hour has no offset. PHP chooses its earlier DST occurrence
-            // consistently, preserving a conservative and repeatable analytics timestamp.
-            $this->assertSame('2026-11-01 05:30:00', $row->created_at_utc);
+            // A legacy local display timestamp has no historical offset. Never invent a UTC value
+            // from the currently configured timezone, including an ambiguous DST fall-back hour.
+            $this->assertNull($row->created_at_utc);
+
+            $legacy              = Log::where('id', 1)->first();
+            $legacy->retry_count = 1;
+            $legacy->save();
+            $row = $wpdb->get_row("SELECT created_at_utc FROM `{$this->logsTable}` WHERE id = 1");
+            $this->assertNull($row->created_at_utc, 'Updating legacy metadata must not infer or double-convert a UTC timestamp.');
             $this->assertAnalyticsIndexesExist();
         } finally {
             update_option('timezone_string', $previousTimezone);
@@ -160,6 +168,41 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             $this->assertLegacyAnalyticsUpgrade();
             $this->assertSame('1.7', Config::getOption('db_version'));
         } finally {
+            wp_set_current_user(0);
+            $this->migrateLogs();
+            Config::updateOption('version', $previousVersion, true);
+            Config::updateOption('db_version', $previousDbVersion, true);
+        }
+    }
+
+    public function testMigrationFailureDoesNotAdvanceDbVersionAndCanBeRetried(): void
+    {
+        $this->dropLogsTable();
+        $this->createLegacyLogsTable();
+        global $wpdb;
+        $this->assertNotFalse($wpdb->query("ALTER TABLE `{$this->logsTable}` ADD COLUMN `created_at_utc` TEXT NULL"));
+
+        $previousVersion   = Config::getOption('version');
+        $previousDbVersion = Config::getOption('db_version');
+        Config::updateOption('version', Config::VERSION, true);
+        Config::updateOption('db_version', '1.6', true);
+        wp_set_current_user(1);
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+
+        try {
+            try {
+                Plugin::maybeMigrateDB();
+                self::fail('A failed analytics DDL statement must propagate from migration.');
+            } catch (RuntimeException $exception) {
+                self::assertStringContainsString('idx_source_created_utc', $exception->getMessage());
+            }
+            self::assertSame('1.6', Config::getOption('db_version'));
+
+            $this->assertNotFalse($wpdb->query("ALTER TABLE `{$this->logsTable}` MODIFY COLUMN `created_at_utc` DATETIME NULL"));
+            Plugin::maybeMigrateDB();
+            self::assertSame('1.7', Config::getOption('db_version'));
+        } finally {
+            $wpdb->suppress_errors($previousSuppressErrors);
             wp_set_current_user(0);
             $this->migrateLogs();
             Config::updateOption('version', $previousVersion, true);
