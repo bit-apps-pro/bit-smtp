@@ -5,7 +5,8 @@ const changeLogs = {
     'View sent emails',
     'Resend email',
     'Delete email record',
-    'Resend multiple emails'
+    'Resend multiple emails',
+    'Cloudflare Email Sending (Beta)'
   ],
   fixed: ['Some minor issue fixed.']
 }

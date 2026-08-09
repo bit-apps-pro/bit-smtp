@@ -276,6 +276,37 @@
         ]
     },
     {
+        "key": "cloudflare",
+        "label": "Cloudflare",
+        "kind": "api",
+        "supports_webhook": false,
+        "supports_webhook_provisioning": false,
+        "fields": [
+            {
+                "key": "account_id",
+                "label": "Account ID",
+                "type": "text",
+                "required": true,
+                "secret": false,
+                "placeholder": "",
+                "default": "",
+                "options": [],
+                "dependsOn": null
+            },
+            {
+                "key": "api_token",
+                "label": "API Token",
+                "type": "password",
+                "required": true,
+                "secret": true,
+                "placeholder": "",
+                "default": "",
+                "options": [],
+                "dependsOn": null
+            }
+        ]
+    },
+    {
         "key": "resend",
         "label": "Resend",
         "kind": "api",

@@ -10,6 +10,12 @@ final class CloudflareValidator implements ValidatorInterface
 {
     private const ACCOUNT_ID_PATTERN = '/^[a-f0-9]{32}$/D';
 
+    /**
+     * @param array<string,mixed> $settings
+     * @param array<string,mixed> $credentials
+     *
+     * @return array<string,string>
+     */
     public function validate(array $settings, array $credentials): array
     {
         $errors    = [];

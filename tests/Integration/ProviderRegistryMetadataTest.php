@@ -5,7 +5,7 @@ namespace BitApps\SMTP\Tests\Integration;
 use BitApps\SMTP\Plugin;
 
 /**
- * Verifies the live plugin registers all thirteen mail providers, so `GET mail/providers` (backed by
+ * Verifies the live plugin registers all fourteen mail providers, so `GET mail/providers` (backed by
  * ProviderRegistry::metadata()) drives the frontend provider modal + metadata-driven fields.
  *
  * @internal
@@ -14,7 +14,7 @@ use BitApps\SMTP\Plugin;
  */
 final class ProviderRegistryMetadataTest extends IntegrationTestCase
 {
-    public function testMetadataExposesAllThirteenRegisteredProviders(): void
+    public function testMetadataExposesAllFourteenRegisteredProviders(): void
     {
         $metadata = Plugin::instance()->providerRegistry()->metadata();
 
@@ -24,12 +24,12 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         }
 
         $this->assertSame(
-            ['other_smtp', 'php_sendmail', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost', 'microsoft365'],
+            ['other_smtp', 'php_sendmail', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'cloudflare', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost', 'microsoft365'],
             array_keys($byKey),
-            'all thirteen providers register in priority-agnostic insertion order'
+            'all fourteen providers register in priority-agnostic insertion order'
         );
 
-        foreach (['other_smtp', 'php_sendmail', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost', 'microsoft365'] as $key) {
+        foreach (['other_smtp', 'php_sendmail', 'sendgrid', 'gmail', 'amazon_ses', 'postmark', 'brevo', 'cloudflare', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost', 'microsoft365'] as $key) {
             $this->assertArrayHasKey('label', $byKey[$key]);
             $this->assertArrayHasKey('kind', $byKey[$key]);
             $this->assertIsArray($byKey[$key]['fields']);
@@ -43,6 +43,7 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         $this->assertSame('api', $byKey['amazon_ses']['kind']);
         $this->assertSame('api', $byKey['postmark']['kind']);
         $this->assertSame('api', $byKey['brevo']['kind']);
+        $this->assertSame('api', $byKey['cloudflare']['kind']);
         $this->assertSame('api', $byKey['resend']['kind']);
         $this->assertSame('api', $byKey['mailjet']['kind']);
         $this->assertSame('api', $byKey['zeptomail']['kind']);
@@ -54,14 +55,14 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         foreach (['gmail', 'microsoft365'] as $key) {
             $this->assertSame($oauthRedirectUrl, $byKey[$key]['oauth_redirect_url'], "{$key} must expose the exact OAuth callback URL");
         }
-        foreach (['other_smtp', 'php_sendmail', 'sendgrid', 'amazon_ses', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost'] as $key) {
+        foreach (['other_smtp', 'php_sendmail', 'sendgrid', 'amazon_ses', 'postmark', 'brevo', 'cloudflare', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost'] as $key) {
             $this->assertArrayNotHasKey('oauth_redirect_url', $byKey[$key], "{$key} must not expose an OAuth callback URL");
         }
 
         foreach (['sendgrid', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost'] as $key) {
             $this->assertTrue($byKey[$key]['supports_webhook'], "{$key} must expose its live webhook receiver");
         }
-        foreach (['other_smtp', 'php_sendmail', 'gmail', 'amazon_ses', 'microsoft365'] as $key) {
+        foreach (['other_smtp', 'php_sendmail', 'gmail', 'amazon_ses', 'cloudflare', 'microsoft365'] as $key) {
             $this->assertFalse($byKey[$key]['supports_webhook'], "{$key} must not advertise an unimplemented webhook");
         }
 
@@ -70,7 +71,7 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
         foreach (['sendgrid', 'brevo', 'postmark', 'sparkpost', 'mailgun', 'mailjet', 'resend'] as $key) {
             $this->assertTrue($byKey[$key]['supports_webhook_provisioning'], "{$key} provisions its own webhook via API");
         }
-        foreach (['other_smtp', 'php_sendmail', 'gmail', 'amazon_ses', 'zeptomail', 'microsoft365'] as $key) {
+        foreach (['other_smtp', 'php_sendmail', 'gmail', 'amazon_ses', 'cloudflare', 'zeptomail', 'microsoft365'] as $key) {
             $this->assertFalse($byKey[$key]['supports_webhook_provisioning'], "{$key} must not advertise API webhook provisioning");
         }
 
@@ -79,6 +80,10 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
 
         $brevoFieldKeys = array_column($byKey['brevo']['fields'], 'key');
         $this->assertContains('api_key', $brevoFieldKeys, 'brevo must expose an api_key field');
+
+        $cloudflareFieldKeys = array_column($byKey['cloudflare']['fields'], 'key');
+        $this->assertContains('account_id', $cloudflareFieldKeys, 'cloudflare must expose an account_id field');
+        $this->assertContains('api_token', $cloudflareFieldKeys, 'cloudflare must expose an api_token field');
 
         $resendFieldKeys = array_column($byKey['resend']['fields'], 'key');
         $this->assertContains('api_key', $resendFieldKeys, 'resend must expose an api_key field');

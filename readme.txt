@@ -7,13 +7,13 @@ Requires PHP: 8.1
 Stable tag: 1.2.4
 License: GPLv2 or later
 
-SMTP plugin for reliable, secure email delivery. Connect Gmail, Outlook, SendGrid, Brevo, Mailgun, Amazon SES, Postmark, and more via API, OAuth, or SMTP.
+SMTP plugin for reliable, secure email delivery. Connect Gmail, Outlook, SendGrid, Brevo, Mailgun, Amazon SES, Postmark, Cloudflare Email Sending, and more via API, OAuth, or SMTP.
 
 == Description ==
 
 ## SMTP Plugin for WordPress for Reliable and Secure Email Delivery | Complete Free SMTP Solution with Detailed Email Logs
 
-**Easily fix WordPress email delivery issues. Connect with Gmail, Outlook/Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, and more — over their fast API, secure OAuth, or classic SMTP — to keep your site communication dependable and secure.**
+**Easily fix WordPress email delivery issues. Connect with Gmail, Outlook/Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Cloudflare Email Sending, and more — over their fast API, secure OAuth, or classic SMTP — to keep your site communication dependable and secure.**
 
 Add multiple sending connections, set a priority order so delivery automatically **falls back** to the next provider if one fails, track the **real delivery status** (delivered / bounced) of each email, and get **alerts** when sending fails — all free.
 
@@ -35,7 +35,7 @@ Using an SMTP server authenticates your website's emails, proving they are from 
 
 Getting started with Bit SMTP is simple:
 
-1. **Sign up with an email provider:** Choose Gmail, Outlook/Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, or any SMTP server.
+1. **Sign up with an email provider:** Choose Gmail, Outlook/Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Cloudflare Email Sending, or any SMTP server.
 2. **Add a connection:** In the Bit SMTP dashboard click **Add connection** and pick your provider from the grid.
 3. **Enter your credentials:** Paste the provider's API key (or SMTP host/port/username/password). For Gmail and Microsoft 365, click **Connect** to authorize securely over OAuth — no password stored.
 4. **Send a test email:** Run **Test** to confirm delivery. Your credentials are encrypted at rest before they're saved.
@@ -47,7 +47,7 @@ Your provider handles delivery, ensuring your WordPress emails arrive securely e
 
 [Bit SMTP](https://bitapps.pro/bit-smtp/) gives you all the tools you need to send emails from WordPress safely and reliably.
 
-- **Dedicated Provider Integrations:** Send over each provider's own API — SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost — plus Gmail and Microsoft 365, any SMTP server, and PHP mail().
+- **Dedicated Provider Integrations:** Send over each provider's own API — SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost, Cloudflare Email Sending — plus Gmail and Microsoft 365, any SMTP server, and PHP mail().
 - **Secure OAuth for Gmail & Microsoft 365:** Authorize with one click; the plugin stores refresh tokens, never your account password.
 - **Multiple Connections with Automatic Fallback:** Add several connections and set a priority order. If the top provider fails, Bit SMTP automatically retries the next one so your mail still goes out.
 - **Smart Routing:** Route mail to a specific connection by recipient, from address, subject, or the sending plugin.
@@ -72,7 +72,7 @@ Every connection asks for an identity:
 
 Then enter the provider's credentials:
 
-* **API providers** (SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost): paste the API key (SES and Mailgun also take a region/domain).
+* **API providers** (SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost, Cloudflare Email Sending): paste the API key (SES and Mailgun also take a region/domain; Cloudflare also needs its Account ID).
 * **Gmail / Microsoft 365:** enter the Client ID and Secret, then click **Connect** to authorize over OAuth.
 * **Other SMTP:** enter **SMTP Host**, **Port** (usually 465 or 587), **Encryption** (SSL/TLS), and **Username / Password**.
 
@@ -93,6 +93,7 @@ Bit SMTP ships **dedicated integrations** for the major email services — using
 * **Mailjet** — API Key + Secret Key.
 * **ZeptoMail (Zoho)** — transactional mail with a Send Mail Token and data center.
 * **SparkPost** — classic Transmissions API (US/EU).
+* **Cloudflare Email Sending (Beta)** — send outbound email through Cloudflare's Email Sending API. Configure the sender address and domain in Cloudflare first; sending to general recipients requires a Workers Paid plan. This is an API integration; use **Other SMTP** with an SMTP provider when SMTP is the better fit.
 
 **OAuth integrations** (one-click Connect, no password stored):
 
@@ -184,7 +185,7 @@ Wp-Telemetry DOES NOT IMMEDIATELY start gathering data; rather, it will gather b
 == Frequently Asked Questions ==
 
 = Which provider should I use? =
-Any of them work. If you already have an SMTP host, use **Other SMTP**. For better deliverability and speed, use a dedicated API provider (SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost) or connect Gmail / Microsoft 365 over OAuth.
+Any of them work. If you already have an SMTP host, use **Other SMTP**. For better deliverability and speed, use a dedicated API provider (SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost, Cloudflare Email Sending) or connect Gmail / Microsoft 365 over OAuth.
 
 = Do I have to enter my Gmail or Microsoft password? =
 No. Gmail and Microsoft 365 use OAuth: you create an app, enter its Client ID and Secret, then click **Connect** to authorize. Bit SMTP stores only the OAuth tokens, never your account password.
@@ -215,6 +216,7 @@ Yes. Turn on failure alerts (Notifications) to be told by email or webhook when 
 
 = 1.3.0 (26 Jul, 2026) =
 * Feat: Multi-provider framework — send over dedicated integrations for SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, and SparkPost, plus Gmail and Microsoft 365 via OAuth, any SMTP server, and PHP mail().
+* Feat: Cloudflare Email Sending (Beta) API integration. Configure your sender address/domain in Cloudflare; sending to general recipients requires Workers Paid. Use Other SMTP as the SMTP alternative.
 * Feat: Multiple connections with a priority order and automatic fallback to the next connection when a send fails.
 * Feat: Smart routing — send matching mail through a chosen connection by recipient, from address, subject, or source plugin.
 * Feat: Real delivery tracking — provider webhooks record each email's true outcome (Delivered / Bounced / Blocked / Deferred) in a separate Delivery column.
