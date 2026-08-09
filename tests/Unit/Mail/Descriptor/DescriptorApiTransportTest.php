@@ -210,6 +210,32 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
         $this->assertFalse($result->isOk());
     }
 
+    public function testSemanticResponseConditionsRequireAValidEnvelopeBeforeAcceptance(): void
+    {
+        // A descriptor may require documented response semantics in addition to an allowed HTTP
+        // status. A failed semantic envelope was not accepted, so dispatch fallback can continue.
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'success'  => false,
+            'errors'   => [['message' => 'Recipient rejected']],
+            'messages' => [],
+            'result'   => null,
+        ]));
+
+        $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
+            'semanticSuccess' => [
+                'equals'                      => ['success' => true],
+                'requiredNonEmptyStringPaths' => ['result.message_id'],
+            ],
+        ]));
+
+        $result = $this->transportWith($descriptor)->send($this->message(), $this->connection());
+
+        $this->assertFalse($result->isOk());
+        $this->assertFalse($result->isAccepted());
+        $this->assertSame('Recipient rejected', $result->getError());
+    }
+
     public function testNonSuccessStatusIsNotAcceptedSoFallbackCanRun(): void
     {
         // A 4xx was never handed off by the provider, so the dispatch fallback must be allowed to

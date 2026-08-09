@@ -29,6 +29,11 @@ final class ProviderDescriptor
 
     private array $success;
 
+    /**
+     * @var array{equals?: array<string,mixed>, requiredNonEmptyStringPaths?: list<string>}
+     */
+    private array $semanticSuccess;
+
     private array $errorPaths;
 
     private array $errorDetectPaths;
@@ -42,6 +47,9 @@ final class ProviderDescriptor
 
     private array $tracking;
 
+    /**
+     * @param array{equals?: array<string,mixed>, requiredNonEmptyStringPaths?: list<string>} $semanticSuccess
+     */
     private function __construct(
         string $key,
         string $label,
@@ -52,6 +60,7 @@ final class ProviderDescriptor
         string $encoder,
         array $payload,
         array $success,
+        array $semanticSuccess,
         array $errorPaths,
         array $errorDetectPaths,
         ?callable $payloadBuilder,
@@ -67,6 +76,7 @@ final class ProviderDescriptor
         $this->encoder          = $encoder;
         $this->payload          = $payload;
         $this->success          = $success;
+        $this->semanticSuccess  = $semanticSuccess;
         $this->errorPaths       = $errorPaths;
         $this->errorDetectPaths = $errorDetectPaths;
         $this->payloadBuilder   = $payloadBuilder;
@@ -94,6 +104,7 @@ final class ProviderDescriptor
             (string) ($config['encoder'] ?? ''),
             $config['payload']          ?? [],
             $config['success']          ?? [],
+            $config['semanticSuccess']  ?? [],
             $config['errorPaths']       ?? [],
             $config['errorDetectPaths'] ?? [],
             $config['payloadBuilder']   ?? null,
@@ -148,6 +159,18 @@ final class ProviderDescriptor
     public function success(): array
     {
         return $this->success;
+    }
+
+    /**
+     * Optional response-body requirements that supplement HTTP success status. `equals` maps dot
+     * paths to strict expected values; `requiredNonEmptyStringPaths` lists dot paths that must
+     * resolve to non-blank strings. Empty by default to preserve status-only success semantics.
+     *
+     * @return array{equals?: array<string,mixed>, requiredNonEmptyStringPaths?: list<string>}
+     */
+    public function semanticSuccess(): array
+    {
+        return $this->semanticSuccess;
     }
 
     public function errorPaths(): array

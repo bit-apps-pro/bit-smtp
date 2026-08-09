@@ -54,13 +54,13 @@ class CloudflareValidatorTest extends BaseUnitTestCase
         $this->assertSame('Account ID is invalid.', $errors['account_id']);
     }
 
-    public function testUppercaseAccountIdReturnsFieldError(): void
+    public function testUppercaseAccountIdIsValid(): void
     {
         $errors = $this->validator->validate([
             'account_id' => 'ABCDEFABCDEFABCDEFABCDEFABCDEFAB',
         ], $this->validCredentials());
 
-        $this->assertSame('Account ID is invalid.', $errors['account_id']);
+        $this->assertSame([], $errors);
     }
 
     public function testValidAccountIdAndCredentialValueHaveNoErrors(): void

@@ -15,6 +15,7 @@ use BitApps\SMTP\Mail\Providers\Cloudflare\CloudflareProvider;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Exercises the Cloudflare Email Sending contract at the HTTP boundary: the documented bearer
@@ -73,7 +74,7 @@ class CloudflareProviderTest extends BaseUnitTestCase
                     'text'    => 'Body text',
                 ] && strpos($json, self::API_TOKEN) === false;
             })
-        )->andReturn(new ApiResponse(200, ['success' => true, 'result' => ['message_id' => 'cf-message-1']]));
+        )->andReturn(new ApiResponse(200, $this->successEnvelope('cf-message-1')));
 
         $result = $this->provider()->transport()->send($this->message(), $this->connection());
 
@@ -156,8 +157,10 @@ class CloudflareProviderTest extends BaseUnitTestCase
     {
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(400, [
-            'success' => false,
-            'errors'  => [['code' => 1000, 'message' => 'Invalid sender address']],
+            'success'  => false,
+            'errors'   => [['code' => 1000, 'message' => 'Invalid sender address']],
+            'messages' => [],
+            'result'   => null,
         ]));
 
         $result = $this->provider()->transport()->send($this->message(), $this->connection());
@@ -170,10 +173,7 @@ class CloudflareProviderTest extends BaseUnitTestCase
     public function testUnexpectedStatusIsNotAcceptedEvenWithSuccessBody(): void
     {
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
-        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(202, [
-            'success' => true,
-            'result'  => ['message_id' => 'cf-message-ignored'],
-        ]));
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(202, $this->successEnvelope('cf-message-ignored')));
 
         $result = $this->provider()->transport()->send($this->message(), $this->connection());
 
@@ -181,15 +181,80 @@ class CloudflareProviderTest extends BaseUnitTestCase
         $this->assertSame('Cloudflare error HTTP 202', $result->getError());
     }
 
-    public function testUppercaseAccountIdIsRejectedBeforeAnyHttpRequest(): void
+    public function testSuccessFalseEnvelopeIsUnacceptedSoFallbackCanRun(): void
     {
-        $result = $this->provider()->transport()->send(
-            $this->message(),
-            $this->connection(['settings' => ['account_id' => 'ABCDEFABCDEFABCDEFABCDEFABCDEFAB']])
-        );
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'success'  => false,
+            'errors'   => [['code' => 1000, 'message' => 'Invalid sender address']],
+            'messages' => [],
+            'result'   => null,
+        ]));
+
+        $result = $this->provider()->transport()->send($this->message(), $this->connection());
 
         $this->assertFalse($result->isOk());
-        $this->assertSame('Invalid endpoint path setting: account_id', $result->getError());
+        $this->assertFalse($result->isAccepted());
+        $this->assertSame('Invalid sender address', $result->getError());
+    }
+
+    #[DataProvider('invalidSuccessBodies')]
+    public function testMalformedOrEmptySuccessResponseIsUnacceptedSoFallbackCanRun(string $body, string $expectedError): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, $body));
+
+        $result = $this->provider()->transport()->send($this->message(), $this->connection());
+
+        $this->assertFalse($result->isOk());
+        $this->assertFalse($result->isAccepted());
+        $this->assertSame($expectedError, $result->getError());
+    }
+
+    public function testSuccessEnvelopeWithoutMessageIdIsUnacceptedSoFallbackCanRun(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
+            'success'  => true,
+            'errors'   => [],
+            'messages' => [],
+            'result'   => [],
+        ]));
+
+        $result = $this->provider()->transport()->send($this->message(), $this->connection());
+
+        $this->assertFalse($result->isOk());
+        $this->assertFalse($result->isAccepted());
+        $this->assertSame('Cloudflare error HTTP 200', $result->getError());
+    }
+
+    public function testUppercaseAccountIdUsesTheAccountEndpoint(): void
+    {
+        $accountId = 'ABCDEFABCDEFABCDEFABCDEFABCDEFAB';
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->with(
+            'https://api.cloudflare.com/client/v4/accounts/' . $accountId . '/email/sending/send',
+            Mockery::any()
+        )->andReturn(new ApiResponse(200, $this->successEnvelope('cf-uppercase-id')));
+
+        $result = $this->provider()->transport()->send(
+            $this->message(),
+            $this->connection(['settings' => ['account_id' => $accountId]])
+        );
+
+        $this->assertTrue($result->isOk());
+        $this->assertSame('cf-uppercase-id', $result->getMessageId());
+    }
+
+    /**
+     * @return array<string,array{string,string}>
+     */
+    public static function invalidSuccessBodies(): array
+    {
+        return [
+            'empty response'    => ['', 'Network error (HTTP 200)'],
+            'non-json response' => ['<html>invalid response</html>', '<html>invalid response</html>'],
+        ];
     }
 
     private function expectSuccessfulSend(array &$captured): void
@@ -199,7 +264,7 @@ class CloudflareProviderTest extends BaseUnitTestCase
             $captured = json_decode($json, true);
 
             return \is_array($captured);
-        }))->andReturn(new ApiResponse(200, ['success' => true, 'result' => ['message_id' => 'cf-message-1']]));
+        }))->andReturn(new ApiResponse(200, $this->successEnvelope('cf-message-1')));
     }
 
     private function provider(): CloudflareProvider
@@ -226,6 +291,19 @@ class CloudflareProviderTest extends BaseUnitTestCase
             'settings'    => ['account_id' => '0123456789abcdef0123456789abcdef'],
             'credentials' => ['api_token' => ['source' => 'database', 'value' => self::API_TOKEN]],
         ], $overrides));
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function successEnvelope(string $messageId): array
+    {
+        return [
+            'success'  => true,
+            'errors'   => [],
+            'messages' => [],
+            'result'   => ['message_id' => $messageId],
+        ];
     }
 
     private function createTempFile(string $contents): string

@@ -39,7 +39,7 @@ final class CloudflareProvider extends DescriptorProvider
             'endpoint' => [
                 'host'         => 'api.cloudflare.com',
                 'path'         => '/client/v4/accounts/{account_id}/email/sending/send',
-                'pathSettings' => ['account_id' => '/^[a-f0-9]{32}$/D'],
+                'pathSettings' => ['account_id' => '/^[a-f0-9]{32}$/iD'],
             ],
             'encoder' => 'json',
             'payload' => [
@@ -55,9 +55,13 @@ final class CloudflareProvider extends DescriptorProvider
                 'attachments' => ['key' => 'attachments', 'shape' => 'cloudflare'],
                 'headers'     => 'headers',
             ],
-            'success'       => [200],
-            'errorPaths'    => ['errors.0.message'],
-            'messageIdPath' => 'result.message_id',
+            'success'         => [200],
+            'semanticSuccess' => [
+                'equals'                      => ['success' => true],
+                'requiredNonEmptyStringPaths' => ['result.message_id'],
+            ],
+            'errorPaths'      => ['errors.0.message'],
+            'messageIdPath'   => 'result.message_id',
         ]);
     }
 }

@@ -8,7 +8,7 @@ use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 
 final class CloudflareValidator implements ValidatorInterface
 {
-    private const ACCOUNT_ID_PATTERN = '/^[a-f0-9]{32}$/D';
+    private const ACCOUNT_ID_PATTERN = '/^[a-f0-9]{32}$/iD';
 
     /**
      * @param array<string,mixed> $settings

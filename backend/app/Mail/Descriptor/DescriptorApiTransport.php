@@ -112,7 +112,7 @@ final class DescriptorApiTransport extends AbstractApiTransport
      * per-message failure in the body under a 2xx, so success also requires no error at any of the
      * descriptor's errorDetectPaths — which default to [] (status-only success) for every other one.
      *
-     * @param array|string $body
+     * @param array<string,mixed>|string $body
      */
     protected function successFrom(int $status, $body): bool
     {
@@ -125,7 +125,8 @@ final class DescriptorApiTransport extends AbstractApiTransport
      */
     protected function acceptedFrom(int $status, $body): bool
     {
-        return \in_array($status, $this->descriptor->success(), true);
+        return \in_array($status, $this->descriptor->success(), true)
+            && $this->semanticSuccessFrom($body);
     }
 
     /**
@@ -269,6 +270,59 @@ final class DescriptorApiTransport extends AbstractApiTransport
         }
 
         $body[$payload[$key]] = $values;
+    }
+
+    /**
+     * Descriptors can require an API-specific success envelope in addition to the HTTP status.
+     * This remains generic: providers declare strict dot-path values and required non-blank string
+     * paths, while providers with no declaration retain status-only acceptance.
+     *
+     * @param array<string,mixed>|string $body
+     */
+    private function semanticSuccessFrom($body): bool
+    {
+        $conditions = $this->descriptor->semanticSuccess();
+        if ($conditions === []) {
+            return true;
+        }
+
+        if (!\is_array($body)) {
+            return false;
+        }
+
+        foreach (($conditions['equals'] ?? []) as $path => $expected) {
+            if (!\is_string($path) || $this->responseValueAt($body, $path) !== $expected) {
+                return false;
+            }
+        }
+
+        foreach (($conditions['requiredNonEmptyStringPaths'] ?? []) as $path) {
+            $value = \is_string($path) ? $this->responseValueAt($body, $path) : null;
+            if (!\is_string($value) || trim($value) === '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string,mixed> $body
+     *
+     * @return mixed
+     */
+    private function responseValueAt(array $body, string $path)
+    {
+        $value = $body;
+        foreach (explode('.', $path) as $segment) {
+            if (!\is_array($value) || !\array_key_exists($segment, $value)) {
+                return;
+            }
+
+            $value = $value[$segment];
+        }
+
+        return $value;
     }
 
     private function resolveHost(array $endpoint, Connection $connection): string

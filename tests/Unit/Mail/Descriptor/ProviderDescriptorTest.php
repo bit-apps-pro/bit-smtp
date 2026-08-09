@@ -27,6 +27,7 @@ class ProviderDescriptorTest extends BaseUnitTestCase
         $this->assertSame($config['encoder'], $descriptor->encoder());
         $this->assertSame($config['payload'], $descriptor->payload());
         $this->assertSame($config['success'], $descriptor->success());
+        $this->assertSame($config['semanticSuccess'], $descriptor->semanticSuccess());
         $this->assertSame($config['errorPaths'], $descriptor->errorPaths());
         $this->assertSame($config['errorDetectPaths'], $descriptor->errorDetectPaths());
         $this->assertSame($config['payloadBuilder'], $descriptor->payloadBuilder());
@@ -43,6 +44,7 @@ class ProviderDescriptorTest extends BaseUnitTestCase
         $this->assertSame('', $descriptor->encoder());
         $this->assertSame([], $descriptor->payload());
         $this->assertSame([], $descriptor->success());
+        $this->assertSame([], $descriptor->semanticSuccess());
         $this->assertSame([], $descriptor->errorPaths());
         $this->assertSame([], $descriptor->errorDetectPaths());
         $this->assertNull($descriptor->payloadBuilder());
@@ -180,6 +182,10 @@ class ProviderDescriptorTest extends BaseUnitTestCase
                 'envelope'        => ['from' => 'from'],
             ],
             'success'          => [200, 202],
+            'semanticSuccess'  => [
+                'equals'                      => ['success' => true],
+                'requiredNonEmptyStringPaths' => ['result.message_id'],
+            ],
             'errorPaths'       => ['errors.0.message', 'message'],
             'errorDetectPaths' => ['errors.0.message'],
             'payloadBuilder'   => static function (array $message): array {

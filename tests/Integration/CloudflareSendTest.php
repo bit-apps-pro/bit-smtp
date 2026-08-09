@@ -82,6 +82,21 @@ final class CloudflareSendTest extends IntegrationTestCase
         $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
     }
 
+    public function testFallsBackAfterCloudflareReturnsA200ErrorEnvelope(): void
+    {
+        $this->assertFallsBackAfterCloudflareResponse('{
+            "success": false,
+            "errors": [{"code": 1000, "message": "Invalid sender address"}],
+            "messages": [],
+            "result": null
+        }');
+    }
+
+    public function testFallsBackAfterCloudflareReturnsAMalformed200Body(): void
+    {
+        $this->assertFallsBackAfterCloudflareResponse('<html>Cloudflare error page</html>');
+    }
+
     /**
      * @return array<string,mixed>
      */
@@ -130,9 +145,9 @@ final class CloudflareSendTest extends IntegrationTestCase
     /**
      * @param array<string,mixed> $captured
      */
-    private function interceptCloudflareRequest(array &$captured, int $status): callable
+    private function interceptCloudflareRequest(array &$captured, int $status, ?string $body = null): callable
     {
-        return static function ($preempt, $args, $url) use (&$captured, $status) {
+        return static function ($preempt, $args, $url) use (&$captured, $status, $body) {
             if (strpos($url, 'api.cloudflare.com') === false) {
                 return $preempt;
             }
@@ -143,11 +158,38 @@ final class CloudflareSendTest extends IntegrationTestCase
 
             return [
                 'headers'  => [],
-                'body'     => $status === 200 ? '{"result":{"message_id":"mocked-id"}}' : '{"errors":[{"message":"Cloudflare is unavailable"}]}',
+                'body'     => $body ?? ($status === 200
+                    ? '{"success":true,"errors":[],"messages":[],"result":{"message_id":"mocked-id"}}'
+                    : '{"success":false,"errors":[{"message":"Cloudflare is unavailable"}],"messages":[],"result":null}'),
                 'response' => ['code' => $status, 'message' => $status === 200 ? 'OK' : 'Internal Server Error'],
                 'cookies'  => [],
                 'filename' => null,
             ];
         };
+    }
+
+    private function assertFallsBackAfterCloudflareResponse(string $body): void
+    {
+        $captured = [];
+        $filter   = $this->interceptCloudflareRequest($captured, 200, $body);
+
+        add_filter('pre_http_request', $filter, 10, 3);
+
+        try {
+            $this->useRealPhpMailer();
+            $settings                            = $this->settings('cloudflare-failing-token');
+            $settings['fallback_connection_ids'] = ['conn_smtp_fallback'];
+            $settings['connections'][]           = $this->smtpFallbackConnection();
+            Plugin::instance()->mailConfigService()->saveSettings($settings);
+
+            $sent = wp_mail('to@example.org', 'Cloudflare semantic fallback', 'Body');
+        } finally {
+            remove_filter('pre_http_request', $filter, 10);
+        }
+
+        $this->assertTrue($sent, 'WpMailBridge must continue to the configured fallback after a non-accepted Cloudflare 200 response.');
+        $this->assertNotEmpty($captured, 'The Cloudflare primary must have been attempted before fallback.');
+        $this->assertNotEmpty($this->mailpitMessages(), 'The SMTP fallback must deliver after Cloudflare does not accept the message.');
+        $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
     }
 }
