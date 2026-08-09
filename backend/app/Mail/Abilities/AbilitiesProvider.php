@@ -239,7 +239,10 @@ final class AbilitiesProvider
 
     private function queryFactory(): AnalyticsQueryFactory
     {
-        return $this->queryFactory ??= new AnalyticsQueryFactory();
+        // A supplied factory is a deliberate test/customization dependency. The default factory
+        // captures the site timezone and current time, so create it per execution rather than
+        // retaining stale values when this provider is used by a long-running process.
+        return $this->queryFactory ?? new AnalyticsQueryFactory();
     }
 
     private function analyticsService(): MailAnalyticsService

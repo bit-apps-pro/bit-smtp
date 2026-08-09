@@ -173,6 +173,26 @@ Make sure all your emails get to the right place, every time. Install Bit SMTP n
 ## Track and Monitor WordPress Email Logs
 With Bit SMTP’s built-in email logs system, you can easily track every email you send. View delivery details and monitor performance right from your WordPress dashboard. This gives you complete transparency and control over your WordPress site's email activity.
 
+## Email Analytics Abilities (WordPress 6.9+)
+
+On WordPress 6.9 or newer, Bit SMTP registers five read-only Email Analytics abilities for authorized tools and automation clients. The abilities API is an optional integration: Bit SMTP continues sending mail and recording logs on older supported WordPress versions, but no abilities are registered there.
+
+All five abilities require the WordPress `manage_options` capability. They are aggregate-only and never return email bodies, attachments, credentials, API tokens, raw debug output, or complete recipient addresses. They operate only on retained Bit SMTP mail logs; they do not query orders, form entries, users, posts, or another plugin's data.
+
+* `bit-smtp/get-email-analytics` — overview of volume, recipients counted, send acceptance, verified delivery outcomes, timing, sources, connections, retained-record bounds, and timestamp coverage. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
+* `bit-smtp/analyze-plugin-email` — aggregate timing, outcomes, connections, routes, and bounded normalized subject-pattern groups for one source. Required input: `plugin`; it also accepts `start`, `end`, `bucket`, and `connection_id`.
+* `bit-smtp/analyze-deliverability` — separates send acceptance from provider-confirmed delivery, grouped by source and connection. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
+* `bit-smtp/explain-routing` — either explain a retained decision with `log_id`, or simulate the current rules with `to_domains` and optional `from`, `subject`, and `source_plugin`. Simulation is read-only and never sends email.
+* `bit-smtp/detect-email-anomalies` — compares aggregate activity with the preceding equal period. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
+
+`start` and `end` are complete ISO-8601 timestamps. If omitted, the effective range is the 30 days ending now. `bucket` is `hour`, `day`, or `week`; Bit SMTP selects a sensible default when it is omitted. A request may not exceed the configured log-retention period, capped at 200 days. Results use the site timezone for display and UTC timestamps for range filtering.
+
+Every result identifies its effective range and says that it represents retained email activity, not business records. The `timestamp_coverage` metadata distinguishes qualified rows with explicit UTC capture timestamps from unqualified historical rows; precise range and timing aggregates exclude unqualified rows instead of guessing a timezone. Anomaly comparisons also report whether logging was continuous throughout both windows, and suppress observations when that continuity or retained coverage is incomplete.
+
+Source attribution is collected for new mail activity. Historical rows without that evidence remain `unknown`; Bit SMTP never infers a plugin from a translated or customized subject line. WooCommerce results describe WooCommerce-generated notification activity only, as a proxy for order-related activity. Contact-form results likewise describe notification activity only, as a proxy for contact submissions.
+
+Delivery reporting keeps send acceptance distinct from delivery confirmation. A message is counted as delivered, bounced, blocked, deferred, spam, or another verified outcome only when supported provider webhook data exists. Missing webhook outcomes remain `unknown`; they are never reported as delivered.
+
 ### **Explore Our Other Products :**
 
 * [**Bit Form**](https://bit-form.com/): A powerful WordPress form builder that lets you create **multi-step and conversational forms** with a **smart drag-and-drop builder**. Connect your forms with 50+ apps through **built-in integrations** to automate workflows. Build, customize, and convert with the lightning-fast form solution
@@ -225,6 +245,7 @@ Yes. Turn on failure alerts (Notifications) to be told by email, webhook, Slack,
 == Changelog ==
 
 = 1.3.0 (26 Jul, 2026) =
+* Feat: Read-only aggregate Email Analytics abilities for WordPress 6.9+ (`get-email-analytics`, `analyze-plugin-email`, `analyze-deliverability`, `explain-routing`, and `detect-email-anomalies`). Administrators can query retained logs without exposing raw recipient, body, credential, or debug data; older supported WordPress versions continue without abilities.
 * Feat: Multi-provider framework — send over dedicated integrations for SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, and SparkPost, plus Gmail and Microsoft 365 via OAuth, any SMTP server, and PHP mail().
 * Feat: Cloudflare Email Sending (Beta) API integration. Configure your sender address/domain in Cloudflare; sending to general recipients requires Workers Paid. Use Other SMTP as the SMTP alternative.
 * Feat: Multiple connections with a priority order and automatic fallback to the next connection when a send fails.

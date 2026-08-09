@@ -258,21 +258,28 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         }
 
         $expected = [
-            'idx_source_created'            => ['source_plugin', 'created_at'],
-            'idx_connection_created'        => ['connection', 'created_at'],
-            'idx_connection_id_created'     => ['connection_id', 'created_at'],
             'idx_created_at'                => ['created_at'],
-            'idx_status_created'            => ['status', 'created_at'],
             'idx_source_created_utc'        => ['source_plugin', 'created_at_utc'],
-            'idx_connection_created_utc'    => ['connection', 'created_at_utc'],
             'idx_connection_id_created_utc' => ['connection_id', 'created_at_utc'],
             'idx_created_at_utc'            => ['created_at_utc'],
-            'idx_status_created_utc'        => ['status', 'created_at_utc'],
         ];
 
         foreach ($expected as $index => $columns) {
             $this->assertArrayHasKey($index, $actual);
             $this->assertSame($columns, array_values($actual[$index]));
+        }
+
+        // Analytics no longer filters by legacy display timestamps, raw connection, or status.
+        // Retaining these composite write indexes would add write cost without helping a query.
+        foreach ([
+            'idx_source_created',
+            'idx_connection_created',
+            'idx_connection_id_created',
+            'idx_status_created',
+            'idx_connection_created_utc',
+            'idx_status_created_utc',
+        ] as $unusedIndex) {
+            $this->assertArrayNotHasKey($unusedIndex, $actual);
         }
     }
 

@@ -97,16 +97,11 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addColumnIfMissing($table, 'subject_pattern', 'ADD COLUMN `subject_pattern` VARCHAR(191) NULL');
         $this->addColumnIfMissing($table, 'recipient_count', 'ADD COLUMN `recipient_count` INT NULL');
         $this->addColumnIfMissing($table, 'created_at_utc', 'ADD COLUMN `created_at_utc` DATETIME NULL');
-        $this->addIndexIfMissing($table, 'idx_source_created', 'ADD INDEX `idx_source_created` (`source_plugin`, `created_at`)');
-        $this->addIndexIfMissing($table, 'idx_connection_created', 'ADD INDEX `idx_connection_created` (`connection`, `created_at`)');
-        $this->addIndexIfMissing($table, 'idx_connection_id_created', 'ADD INDEX `idx_connection_id_created` (`connection_id`, `created_at`)');
         $this->addIndexIfMissing($table, 'idx_created_at', 'ADD INDEX `idx_created_at` (`created_at`)');
-        $this->addIndexIfMissing($table, 'idx_status_created', 'ADD INDEX `idx_status_created` (`status`, `created_at`)');
         $this->addIndexIfMissing($table, 'idx_source_created_utc', 'ADD INDEX `idx_source_created_utc` (`source_plugin`, `created_at_utc`)');
-        $this->addIndexIfMissing($table, 'idx_connection_created_utc', 'ADD INDEX `idx_connection_created_utc` (`connection`, `created_at_utc`)');
         $this->addIndexIfMissing($table, 'idx_connection_id_created_utc', 'ADD INDEX `idx_connection_id_created_utc` (`connection_id`, `created_at_utc`)');
         $this->addIndexIfMissing($table, 'idx_created_at_utc', 'ADD INDEX `idx_created_at_utc` (`created_at_utc`)');
-        $this->addIndexIfMissing($table, 'idx_status_created_utc', 'ADD INDEX `idx_status_created_utc` (`status`, `created_at_utc`)');
+        $this->removeUnusedAnalyticsIndexes($table);
     }
 
     private function createDeliveryEventsTableIfMissing()
@@ -164,6 +159,36 @@ final class BitSmtpLogsTableMigration extends Migration
             $this->throwOnDatabaseError('add index ' . $index);
 
             throw new RuntimeException('Unable to add analytics index ' . $index . '.');
+        }
+    }
+
+    private function removeUnusedAnalyticsIndexes($table)
+    {
+        // Analytics filters only use created_at_utc, source_plugin, and connection_id. Keep
+        // idx_created_at for retention deletion, but remove the former display-time/raw-
+        // connection/status composites so they do not impose write cost after this upgrade.
+        foreach ([
+            'idx_source_created',
+            'idx_connection_created',
+            'idx_connection_id_created',
+            'idx_status_created',
+            'idx_connection_created_utc',
+            'idx_status_created_utc',
+        ] as $index) {
+            $exists = Connection::get_var(
+                Connection::prepare('SHOW INDEX FROM `' . $table . '` WHERE Key_name = %s', [$index])
+            );
+            $this->throwOnDatabaseError('read index ' . $index);
+
+            if (!$exists) {
+                continue;
+            }
+
+            if (Connection::query("ALTER TABLE `{$table}` DROP INDEX `{$index}`") === false) {
+                $this->throwOnDatabaseError('remove index ' . $index);
+
+                throw new RuntimeException('Unable to remove unused analytics index ' . $index . '.');
+            }
         }
     }
 
