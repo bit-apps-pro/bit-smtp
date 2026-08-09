@@ -11,9 +11,14 @@ class MailSettingsSerializer
     public const MASK_SENTINEL = '********';
 
     /**
-     * Alert-webhook fields that are encrypted at rest and masked on read — kept in sync across the mask/resolve/encrypt walks.
+     * Alert secrets by channel. This single map drives API masking, sentinel restoration, and
+     * encrypted storage/decryption so adding a channel cannot leave a secret plaintext.
      */
-    public const ALERT_WEBHOOK_SECRET_KEYS = ['url', 'signing_secret'];
+    public const ALERT_SECRET_KEYS = [
+        'webhook'  => ['url', 'signing_secret'],
+        'slack'    => ['webhook_url'],
+        'telegram' => ['bot_token'],
+    ];
 
     public static function toLegacyShape(MailSettings $s): array
     {
@@ -75,9 +80,11 @@ class MailSettingsSerializer
     {
         $data = $s->toArray();
 
-        foreach (self::ALERT_WEBHOOK_SECRET_KEYS as $secretKey) {
-            if (!empty($data['features']['alerts']['webhook'][$secretKey])) {
-                $data['features']['alerts']['webhook'][$secretKey] = self::MASK_SENTINEL;
+        foreach (self::ALERT_SECRET_KEYS as $channel => $secretKeys) {
+            foreach ($secretKeys as $secretKey) {
+                if (!empty($data['features']['alerts'][$channel][$secretKey])) {
+                    $data['features']['alerts'][$channel][$secretKey] = self::MASK_SENTINEL;
+                }
             }
         }
 

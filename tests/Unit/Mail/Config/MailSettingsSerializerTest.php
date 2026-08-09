@@ -378,6 +378,28 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
         );
     }
 
+    public function testToApiShapeMasksSlackAndTelegramSecretsButNotTelegramChatId(): void
+    {
+        $data                       = $this->v2Array();
+        $data['features']['alerts'] = [
+            'slack'    => [
+                'enabled'     => true,
+                'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+            ],
+            'telegram' => [
+                'enabled'   => true,
+                'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+                'chat_id'   => '-1001234567890',
+            ],
+        ];
+
+        $result = MailSettingsSerializer::toApiShape(MailSettings::fromArray($data));
+
+        $this->assertSame(MailSettingsSerializer::MASK_SENTINEL, $result['features']['alerts']['slack']['webhook_url']);
+        $this->assertSame(MailSettingsSerializer::MASK_SENTINEL, $result['features']['alerts']['telegram']['bot_token']);
+        $this->assertSame('-1001234567890', $result['features']['alerts']['telegram']['chat_id']);
+    }
+
     private function v2Array(): array
     {
         return [

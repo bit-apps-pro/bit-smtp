@@ -27,6 +27,15 @@ const settings: MailSettings = {
         enabled: true,
         url: '********',
         signing_secret: '********'
+      },
+      slack: {
+        enabled: false,
+        webhook_url: ''
+      },
+      telegram: {
+        enabled: false,
+        bot_token: '',
+        chat_id: ''
       }
     }
   }
@@ -58,6 +67,15 @@ describe('NotificationsPage', () => {
                 enabled: true,
                 url: '********',
                 signing_secret: '********'
+              },
+              slack: {
+                enabled: false,
+                webhook_url: ''
+              },
+              telegram: {
+                enabled: false,
+                bot_token: '',
+                chat_id: ''
               }
             }
           }

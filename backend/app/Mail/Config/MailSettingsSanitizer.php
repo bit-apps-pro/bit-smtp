@@ -206,12 +206,14 @@ final class MailSettingsSanitizer
     }
 
     /**
-     * @return array{enabled:bool,email:array{enabled:bool,recipients:string[]},webhook:array{enabled:bool,url:string,signing_secret:string}}
+     * @return array{enabled:bool,email:array{enabled:bool,recipients:string[]},webhook:array{enabled:bool,url:string,signing_secret:string},slack:array{enabled:bool,webhook_url:string},telegram:array{enabled:bool,bot_token:string,chat_id:string}}
      */
     private static function sanitizeAlerts(array $alerts): array
     {
-        $email   = isset($alerts['email'])   && \is_array($alerts['email']) ? $alerts['email'] : [];
-        $webhook = isset($alerts['webhook']) && \is_array($alerts['webhook']) ? $alerts['webhook'] : [];
+        $email    = isset($alerts['email'])    && \is_array($alerts['email']) ? $alerts['email'] : [];
+        $webhook  = isset($alerts['webhook'])  && \is_array($alerts['webhook']) ? $alerts['webhook'] : [];
+        $slack    = isset($alerts['slack'])    && \is_array($alerts['slack']) ? $alerts['slack'] : [];
+        $telegram = isset($alerts['telegram']) && \is_array($alerts['telegram']) ? $alerts['telegram'] : [];
 
         $recipients = [];
         foreach ((array) ($email['recipients'] ?? []) as $recipient) {
@@ -242,6 +244,21 @@ final class MailSettingsSanitizer
             $signingSecret = '';
         }
 
+        $slackWebhookUrl = self::scalarString($slack, 'webhook_url');
+        if (!self::isSlackIncomingWebhookUrl($slackWebhookUrl)) {
+            $slackWebhookUrl = '';
+        }
+
+        $telegramBotToken = self::scalarString($telegram, 'bot_token');
+        if ($telegramBotToken !== '' && preg_match('/^\d{6,20}:[A-Za-z0-9_-]{20,}$/', $telegramBotToken) !== 1) {
+            $telegramBotToken = '';
+        }
+
+        $telegramChatId = self::scalarString($telegram, 'chat_id');
+        if ($telegramChatId !== '' && preg_match('/^-?\d{1,20}$/', $telegramChatId) !== 1) {
+            $telegramChatId = '';
+        }
+
         return [
             'enabled' => isset($alerts['enabled'])
                 ? (bool) filter_var($alerts['enabled'], FILTER_VALIDATE_BOOLEAN)
@@ -259,7 +276,44 @@ final class MailSettingsSanitizer
                 'url'            => $url,
                 'signing_secret' => $signingSecret,
             ],
+            'slack' => [
+                'enabled' => isset($slack['enabled'])
+                    ? (bool) filter_var($slack['enabled'], FILTER_VALIDATE_BOOLEAN)
+                    : false,
+                'webhook_url' => $slackWebhookUrl,
+            ],
+            'telegram' => [
+                'enabled' => isset($telegram['enabled'])
+                    ? (bool) filter_var($telegram['enabled'], FILTER_VALIDATE_BOOLEAN)
+                    : false,
+                'bot_token' => $telegramBotToken,
+                'chat_id'   => $telegramChatId,
+            ],
         ];
+    }
+
+    private static function scalarString(array $settings, string $key): string
+    {
+        return isset($settings[$key]) && \is_scalar($settings[$key]) ? trim((string) $settings[$key]) : '';
+    }
+
+    private static function isSlackIncomingWebhookUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+        if (!\is_array($parts)) {
+            return false;
+        }
+
+        return ($parts['scheme'] ?? '') === 'https'
+            && ($parts['host'] ?? '')   === 'hooks.slack.com'
+            && !isset($parts['port'])
+            && !isset($parts['user'])
+            && !isset($parts['pass'])
+            && !isset($parts['query'])
+            && !isset($parts['fragment'])
+            && isset($parts['path'])
+            && str_starts_with($parts['path'], '/services/')
+            && \strlen($parts['path']) > \strlen('/services/');
     }
 
     /**

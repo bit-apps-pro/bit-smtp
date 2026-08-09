@@ -336,6 +336,39 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
         );
     }
 
+    public function testAlertChannelSentinelsRestoreStoredSecretsWhileExplicitBlanksClearThem(): void
+    {
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'slack'    => ['webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'],
+                    'telegram' => ['bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz'],
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'slack'    => ['webhook_url' => self::SENTINEL],
+                    'telegram' => ['bot_token' => ''],
+                ],
+            ],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+            $result['features']['alerts']['slack']['webhook_url']
+        );
+        $this->assertSame('', $result['features']['alerts']['telegram']['bot_token']);
+    }
+
     private function connectionStub(string $id, array $credentials): array
     {
         return [

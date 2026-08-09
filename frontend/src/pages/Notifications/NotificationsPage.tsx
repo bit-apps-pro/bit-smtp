@@ -34,6 +34,15 @@ function readAlerts(settings: MailSettings): FailureAlertSettings {
       enabled: alerts?.webhook?.enabled ?? false,
       url: alerts?.webhook?.url ?? '',
       signing_secret: alerts?.webhook?.signing_secret ?? ''
+    },
+    slack: {
+      enabled: alerts?.slack?.enabled ?? false,
+      webhook_url: alerts?.slack?.webhook_url ?? ''
+    },
+    telegram: {
+      enabled: alerts?.telegram?.enabled ?? false,
+      bot_token: alerts?.telegram?.bot_token ?? '',
+      chat_id: alerts?.telegram?.chat_id ?? ''
     }
   }
 }
@@ -58,7 +67,10 @@ function generateSigningSecret(): string {
   return `whsec_${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
-function toStoredAlerts(values: NotificationFormValues): FailureAlertSettings {
+function toStoredAlerts(
+  values: NotificationFormValues,
+  current: FailureAlertSettings
+): FailureAlertSettings {
   return {
     enabled: values.enabled,
     email: {
@@ -69,7 +81,9 @@ function toStoredAlerts(values: NotificationFormValues): FailureAlertSettings {
       enabled: values.webhookEnabled,
       url: values.webhookUrl.trim(),
       signing_secret: values.signingSecret.trim()
-    }
+    },
+    slack: current.slack,
+    telegram: current.telegram
   }
 }
 
@@ -105,7 +119,7 @@ export default function NotificationsPage() {
       {
         features: {
           ...settings.features,
-          alerts: toStoredAlerts(values)
+          alerts: toStoredAlerts(values, readAlerts(settings))
         }
       },
       { onSuccess: () => notify.success(__('Notification settings saved')) }

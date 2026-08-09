@@ -501,14 +501,16 @@ class MailConfigService
             }
         }
 
-        foreach (MailSettingsSerializer::ALERT_WEBHOOK_SECRET_KEYS as $secretKey) {
-            if (
-                isset($data['features']['alerts']['webhook'][$secretKey])
-                && \is_scalar($data['features']['alerts']['webhook'][$secretKey])
-            ) {
-                $data['features']['alerts']['webhook'][$secretKey] = $transform(
-                    (string) $data['features']['alerts']['webhook'][$secretKey]
-                );
+        foreach (MailSettingsSerializer::ALERT_SECRET_KEYS as $channel => $secretKeys) {
+            foreach ($secretKeys as $secretKey) {
+                if (
+                    isset($data['features']['alerts'][$channel][$secretKey])
+                    && \is_scalar($data['features']['alerts'][$channel][$secretKey])
+                ) {
+                    $data['features']['alerts'][$channel][$secretKey] = $transform(
+                        (string) $data['features']['alerts'][$channel][$secretKey]
+                    );
+                }
             }
         }
 

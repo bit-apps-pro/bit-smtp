@@ -67,6 +67,15 @@ export interface FailureAlertSettings {
     url: string
     signing_secret: string
   }
+  slack: {
+    enabled: boolean
+    webhook_url: string
+  }
+  telegram: {
+    enabled: boolean
+    bot_token: string
+    chat_id: string
+  }
 }
 
 export interface MailFeatures extends Record<string, unknown> {

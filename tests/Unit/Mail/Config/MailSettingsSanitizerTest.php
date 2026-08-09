@@ -640,6 +640,8 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
                 'url'            => 'https://hooks.example.com/mail-failed',
                 'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
             ],
+            'slack'    => ['enabled' => false, 'webhook_url' => ''],
+            'telegram' => ['enabled' => false, 'bot_token' => '', 'chat_id' => ''],
         ], $alerts);
     }
 
@@ -671,6 +673,68 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
 
         $this->assertSame('', $alerts['webhook']['signing_secret']);
+    }
+
+    public function testFailureAlertsNormalizeSlackAndTelegramSettingsWithoutUnknownKeys(): void
+    {
+        $input                       = $this->baseV2();
+        $input['features']['alerts'] = [
+            'enabled'  => true,
+            'email'    => ['enabled' => true, 'recipients' => ['ops@example.com']],
+            'webhook'  => [
+                'enabled'        => true,
+                'url'            => 'https://hooks.example.com/failure',
+                'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            ],
+            'slack'    => [
+                'enabled'     => 'true',
+                'webhook_url' => ' https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX ',
+                'ignored'     => 'drop me',
+            ],
+            'telegram' => [
+                'enabled'   => '1',
+                'bot_token' => ' 123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz ',
+                'chat_id'   => ' -1001234567890 ',
+                'ignored'   => 'drop me',
+            ],
+            'ignored' => 'drop me',
+        ];
+
+        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+
+        $this->assertSame([
+            'enabled'  => true,
+            'email'    => ['enabled' => true, 'recipients' => ['ops@example.com']],
+            'webhook'  => [
+                'enabled'        => true,
+                'url'            => 'https://hooks.example.com/failure',
+                'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            ],
+            'slack'    => [
+                'enabled'     => true,
+                'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+            ],
+            'telegram' => [
+                'enabled'   => true,
+                'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+                'chat_id'   => '-1001234567890',
+            ],
+        ], $alerts);
+    }
+
+    public function testFailureAlertsBlankMalformedSlackAndTelegramSecrets(): void
+    {
+        $input                       = $this->baseV2();
+        $input['features']['alerts'] = [
+            'slack'    => ['enabled' => true, 'webhook_url' => 'https://hooks.slack.com/api/services/T/B/X'],
+            'telegram' => ['enabled' => true, 'bot_token' => 'bad token', 'chat_id' => 'channel-name'],
+        ];
+
+        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+
+        $this->assertSame('', $alerts['slack']['webhook_url']);
+        $this->assertSame('', $alerts['telegram']['bot_token']);
+        $this->assertSame('', $alerts['telegram']['chat_id']);
     }
 
     /**

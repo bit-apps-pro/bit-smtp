@@ -14,7 +14,7 @@ final class MaskedSecretResolver
      */
     public static function apply(array $incomingV2, MailSettings $current): array
     {
-        $incomingV2 = self::resolveAlertWebhookSecrets($incomingV2, $current);
+        $incomingV2 = self::resolveAlertSecrets($incomingV2, $current);
 
         if (!isset($incomingV2['connections']) || !\is_array($incomingV2['connections'])) {
             return $incomingV2;
@@ -54,25 +54,31 @@ final class MaskedSecretResolver
         return $incomingV2;
     }
 
-    private static function resolveAlertWebhookSecrets(array $incomingV2, MailSettings $current): array
+    private static function resolveAlertSecrets(array $incomingV2, MailSettings $current): array
     {
-        if (
-            !isset($incomingV2['features']['alerts']['webhook'])
-            || !\is_array($incomingV2['features']['alerts']['webhook'])
-        ) {
+        if (!isset($incomingV2['features']['alerts']) || !\is_array($incomingV2['features']['alerts'])) {
             return $incomingV2;
         }
 
-        $storedWebhook = $current->getFeatures()['alerts']['webhook'] ?? [];
+        $storedAlerts = $current->getFeatures()['alerts'] ?? [];
 
-        foreach (MailSettingsSerializer::ALERT_WEBHOOK_SECRET_KEYS as $secretKey) {
-            $storedValue   = $storedWebhook[$secretKey]                                 ?? '';
-            $incomingValue = $incomingV2['features']['alerts']['webhook'][$secretKey]   ?? null;
+        foreach (MailSettingsSerializer::ALERT_SECRET_KEYS as $channel => $secretKeys) {
+            if (!isset($incomingV2['features']['alerts'][$channel]) || !\is_array($incomingV2['features']['alerts'][$channel])) {
+                continue;
+            }
 
-            if ($incomingValue === MailSettingsSerializer::MASK_SENTINEL) {
-                $incomingV2['features']['alerts']['webhook'][$secretKey] = (string) $storedValue;
-            } elseif ($incomingValue === null && $storedValue !== '') {
-                $incomingV2['features']['alerts']['webhook'][$secretKey] = (string) $storedValue;
+            $storedChannel = isset($storedAlerts[$channel]) && \is_array($storedAlerts[$channel])
+                ? $storedAlerts[$channel]
+                : [];
+            foreach ($secretKeys as $secretKey) {
+                $storedValue   = $storedChannel[$secretKey]                              ?? '';
+                $incomingValue = $incomingV2['features']['alerts'][$channel][$secretKey] ?? null;
+
+                if ($incomingValue === MailSettingsSerializer::MASK_SENTINEL) {
+                    $incomingV2['features']['alerts'][$channel][$secretKey] = (string) $storedValue;
+                } elseif ($incomingValue === null && $storedValue !== '') {
+                    $incomingV2['features']['alerts'][$channel][$secretKey] = (string) $storedValue;
+                }
             }
         }
 
