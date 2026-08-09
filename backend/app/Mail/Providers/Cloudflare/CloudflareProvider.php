@@ -39,7 +39,7 @@ final class CloudflareProvider extends DescriptorProvider
             'endpoint' => [
                 'host'         => 'api.cloudflare.com',
                 'path'         => '/client/v4/accounts/{account_id}/email/sending/send',
-                'pathSettings' => ['account_id' => '/^[a-f0-9]{32}$/iD'],
+                'pathSettings' => ['account_id' => '/^[a-f0-9]{32}$/D'],
             ],
             'encoder' => 'json',
             'payload' => [

@@ -8,13 +8,13 @@ use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 
 final class CloudflareValidator implements ValidatorInterface
 {
-    private const ACCOUNT_ID_PATTERN = '/^[a-f0-9]{32}$/iD';
+    private const ACCOUNT_ID_PATTERN = '/^[a-f0-9]{32}$/D';
 
     public function validate(array $settings, array $credentials): array
     {
         $errors    = [];
         $accountId = trim((string) ($settings['account_id'] ?? ''));
-        $apiToken  = trim((string) ($credentials['api_token']['value'] ?? ''));
+        $apiToken  = trim((string) ($credentials['api_token'] ?? ''));
 
         if ($accountId === '') {
             $errors['account_id'] = 'Account ID is required.';

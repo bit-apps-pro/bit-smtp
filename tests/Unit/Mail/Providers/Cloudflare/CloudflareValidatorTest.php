@@ -29,10 +29,10 @@ class CloudflareValidatorTest extends BaseUnitTestCase
         $this->assertArrayHasKey('account_id', $errors);
     }
 
-    public function testWhitespaceOnlyApiTokenValueReturnsFieldError(): void
+    public function testWhitespaceOnlyFlattenedApiTokenReturnsFieldError(): void
     {
         $errors = $this->validator->validate($this->validSettings(), [
-            'api_token' => ['source' => 'database', 'value' => '   '],
+            'api_token' => '   ',
         ]);
 
         $this->assertArrayHasKey('api_token', $errors);
@@ -54,6 +54,15 @@ class CloudflareValidatorTest extends BaseUnitTestCase
         $this->assertSame('Account ID is invalid.', $errors['account_id']);
     }
 
+    public function testUppercaseAccountIdReturnsFieldError(): void
+    {
+        $errors = $this->validator->validate([
+            'account_id' => 'ABCDEFABCDEFABCDEFABCDEFABCDEFAB',
+        ], $this->validCredentials());
+
+        $this->assertSame('Account ID is invalid.', $errors['account_id']);
+    }
+
     public function testValidAccountIdAndCredentialValueHaveNoErrors(): void
     {
         $this->assertSame([], $this->validator->validate($this->validSettings(), $this->validCredentials()));
@@ -66,6 +75,6 @@ class CloudflareValidatorTest extends BaseUnitTestCase
 
     private function validCredentials(): array
     {
-        return ['api_token' => ['source' => 'database', 'value' => 'cf-secret-token']];
+        return ['api_token' => 'cf-secret-token'];
     }
 }

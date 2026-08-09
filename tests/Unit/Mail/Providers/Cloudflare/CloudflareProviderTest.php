@@ -181,6 +181,17 @@ class CloudflareProviderTest extends BaseUnitTestCase
         $this->assertSame('Cloudflare error HTTP 202', $result->getError());
     }
 
+    public function testUppercaseAccountIdIsRejectedBeforeAnyHttpRequest(): void
+    {
+        $result = $this->provider()->transport()->send(
+            $this->message(),
+            $this->connection(['settings' => ['account_id' => 'ABCDEFABCDEFABCDEFABCDEFABCDEFAB']])
+        );
+
+        $this->assertFalse($result->isOk());
+        $this->assertSame('Invalid endpoint path setting: account_id', $result->getError());
+    }
+
     private function expectSuccessfulSend(array &$captured): void
     {
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
