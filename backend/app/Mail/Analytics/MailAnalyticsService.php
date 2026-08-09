@@ -15,9 +15,15 @@ final class MailAnalyticsService
 
     private const TOP_LIMIT = 10;
 
+    private const BUSY_TIME_LIMIT = 10;
+
     private const ANOMALY_GROUP_LIMIT = 100;
 
+    private const TIMING_OBSERVATION_LIMIT = 10;
+
     private const MINIMUM_RATE_SAMPLE = 20;
+
+    private const CONTACT_FORM_PLUGINS = ['contact-form-7', 'wpforms', 'wpforms-lite', 'gravityforms', 'ninja-forms'];
 
     private MailAnalyticsRepository $repository;
 
@@ -31,22 +37,37 @@ final class MailAnalyticsService
      */
     public function overview(AnalyticsQuery $query)
     {
+        $loggingError = $this->loggingDisabledError();
+        if ($loggingError !== null) {
+            return $loggingError;
+        }
+
         $summary     = $this->repository->summary($query);
         $series      = $this->repository->timeSeries($query);
         $sources     = $this->repository->groups($query, 'source', self::TOP_LIMIT);
         $connections = $this->repository->groups($query, 'connection', self::TOP_LIMIT);
-        $error       = $this->firstError([$summary, $series, $sources, $connections]);
+        $bounds      = $this->repository->retainedRecordBounds();
+        $error       = $this->firstError([$summary, $series, $sources, $connections, $bounds]);
         if ($error !== null) {
             return $error;
         }
 
+        $busyTimes = $this->busyTimes($query, $series);
+
         return array_merge($this->metadata($query, $summary), [
-            'recipients'      => (int) ($summary['recipient_count'] ?? 0),
-            'acceptance'      => $this->acceptance($summary),
-            'delivery'        => $this->delivery($summary),
-            'series'          => $this->fillBuckets($query, $series),
-            'top_sources'     => $sources,
-            'top_connections' => $connections,
+            'logging_enabled'  => $this->loggingEnabled(),
+            'retained_records' => [
+                'earliest' => $this->utcTimestamp($bounds['earliest'] ?? null),
+                'latest'   => $this->utcTimestamp($bounds['latest'] ?? null),
+            ],
+            'recipients'       => (int) ($summary['recipient_count'] ?? 0),
+            'acceptance'       => $this->acceptance($summary),
+            'delivery'         => $this->delivery($summary),
+            'busiest_hours'    => $busyTimes['hours'],
+            'busiest_weekdays' => $busyTimes['weekdays'],
+            'series'           => $this->fillBuckets($query, $series),
+            'top_sources'      => $sources,
+            'top_connections'  => $connections,
         ]);
     }
 
@@ -55,6 +76,11 @@ final class MailAnalyticsService
      */
     public function plugin(AnalyticsQuery $query)
     {
+        $loggingError = $this->loggingDisabledError();
+        if ($loggingError !== null) {
+            return $loggingError;
+        }
+
         if ($query->plugin() === null) {
             return new WP_Error('bit_smtp_missing_analytics_plugin', 'A plugin filter is required for plugin analytics.');
         }
@@ -69,16 +95,20 @@ final class MailAnalyticsService
             return $error;
         }
 
+        $busyTimes = $this->busyTimes($query, $series);
+
         return array_merge($this->metadata($query, $summary), [
             'plugin'                        => $query->plugin(),
             'acceptance'                    => $this->acceptance($summary),
             'delivery'                      => $this->delivery($summary),
             'series'                        => $this->fillBuckets($query, $series),
+            'busiest_hours'                 => $busyTimes['hours'],
+            'busiest_weekdays'              => $busyTimes['weekdays'],
             'connections'                   => $connections,
             'routing_types'                 => $routingTypes,
             'subject_patterns'              => $this->subjectPatterns($subjects),
             'subject_pattern_unknown_count' => (int) ($summary['unknown_subject_pattern_count'] ?? 0),
-            'proxy_interpretation'          => 'Plugin activity is derived from retained email notifications and is only a proxy for application activity.',
+            'proxy_interpretation'          => $this->pluginProxyInterpretation($query->plugin()),
         ]);
     }
 
@@ -87,6 +117,11 @@ final class MailAnalyticsService
      */
     public function deliverability(AnalyticsQuery $query)
     {
+        $loggingError = $this->loggingDisabledError();
+        if ($loggingError !== null) {
+            return $loggingError;
+        }
+
         $summary     = $this->repository->summary($query);
         $sources     = $this->repository->groups($query, 'source', self::TOP_LIMIT);
         $connections = $this->repository->groups($query, 'connection', self::TOP_LIMIT);
@@ -108,6 +143,11 @@ final class MailAnalyticsService
      */
     public function anomalies(AnalyticsQuery $query)
     {
+        $loggingError = $this->loggingDisabledError();
+        if ($loggingError !== null) {
+            return $loggingError;
+        }
+
         $prior          = $query->priorPeriod();
         $currentSummary = $this->repository->summary($query);
         $priorSummary   = $this->repository->summary($prior);
@@ -135,18 +175,30 @@ final class MailAnalyticsService
         $priorSources       = $this->repository->groups($prior, 'source', self::ANOMALY_GROUP_LIMIT);
         $currentConnections = $this->repository->groups($query, 'connection', self::ANOMALY_GROUP_LIMIT);
         $priorConnections   = $this->repository->groups($prior, 'connection', self::ANOMALY_GROUP_LIMIT);
-        $error              = $this->firstError([$currentSources, $priorSources, $currentConnections, $priorConnections]);
+        $currentSeries      = $this->repository->timeSeries($query);
+        $priorSeries        = $this->repository->timeSeries($prior);
+        $error              = $this->firstError([
+            $currentSources,
+            $priorSources,
+            $currentConnections,
+            $priorConnections,
+            $currentSeries,
+            $priorSeries,
+        ]);
         if ($error !== null) {
             return $error;
         }
 
         $response['observations'] = $this->observations(
+            $query,
             $currentSummary,
             $priorSummary,
             $currentSources,
             $priorSources,
             $currentConnections,
-            $priorConnections
+            $priorConnections,
+            $currentSeries,
+            $priorSeries
         );
 
         return $response;
@@ -332,6 +384,212 @@ final class MailAnalyticsService
         return $result;
     }
 
+    private function pluginProxyInterpretation(string $plugin): string
+    {
+        if ($plugin === 'woocommerce') {
+            return 'WooCommerce email activity is derived from retained notifications and is only a proxy for order-related activity.';
+        }
+
+        if (\in_array($plugin, self::CONTACT_FORM_PLUGINS, true)) {
+            return 'Contact-form email activity is derived from retained notifications and is only a proxy for user contact submissions.';
+        }
+
+        return 'Plugin activity is derived from retained email notifications and is only a proxy for application activity.';
+    }
+
+    /**
+     * @param array<int,array<string,int|string>> $rows
+     *
+     * @return array{hours:array<int,array{hour:int,label:string,total:int}>,weekdays:array<int,array{weekday:int,label:string,total:int}>}
+     */
+    private function busyTimes(AnalyticsQuery $query, array $rows): array
+    {
+        $distribution = $this->localTimeDistribution($query, $rows);
+        $hours        = $distribution['hours'];
+        $weekdays     = $distribution['weekdays'];
+
+        $busiestHours = [];
+        foreach ($hours as $hour => $total) {
+            if ($total > 0) {
+                $busiestHours[] = ['hour' => $hour, 'label' => \sprintf('%02d:00', $hour), 'total' => $total];
+            }
+        }
+        usort($busiestHours, static function (array $left, array $right): int {
+            return $right['total'] <=> $left['total'] ?: $left['hour'] <=> $right['hour'];
+        });
+
+        $busiestWeekdays = [];
+        foreach ($weekdays as $weekday => $total) {
+            if ($total > 0) {
+                $busiestWeekdays[] = [
+                    'weekday' => $weekday,
+                    'label'   => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][$weekday - 1],
+                    'total'   => $total,
+                ];
+            }
+        }
+        usort($busiestWeekdays, static function (array $left, array $right): int {
+            return $right['total'] <=> $left['total'] ?: $left['weekday'] <=> $right['weekday'];
+        });
+
+        return [
+            'hours'    => \array_slice($busiestHours, 0, self::BUSY_TIME_LIMIT),
+            'weekdays' => \array_slice($busiestWeekdays, 0, self::BUSY_TIME_LIMIT),
+        ];
+    }
+
+    /**
+     * @param array<int,array<string,int|string>> $rows
+     *
+     * @return array{hours:array<int,int>,weekdays:array<int,int>}
+     */
+    private function localTimeDistribution(AnalyticsQuery $query, array $rows): array
+    {
+        $hours    = array_fill(0, 24, 0);
+        $weekdays = array_fill(1, 7, 0);
+        foreach ($rows as $row) {
+            $utcHour = $this->utcHour($row);
+            if ($utcHour === null) {
+                continue;
+            }
+
+            $local                                        = $utcHour->setTimezone($query->timezone());
+            $total                                        = (int) ($row['total'] ?? 0);
+            $hours[(int) $local->format('G')]    += $total;
+            $weekdays[(int) $local->format('N')] += $total;
+        }
+
+        return ['hours' => $hours, 'weekdays' => $weekdays];
+    }
+
+    /**
+     * @param array<int,array<string,int|string>> $current
+     * @param array<int,array<string,int|string>> $prior
+     *
+     * @return array<int,array<string,int|float|string>>
+     */
+    private function timingDistributionObservations(
+        AnalyticsQuery $query,
+        array $current,
+        array $prior,
+        int $currentTotal,
+        int $priorTotal
+    ): array {
+        if ($currentTotal < self::MINIMUM_RATE_SAMPLE || $priorTotal < self::MINIMUM_RATE_SAMPLE) {
+            return [];
+        }
+
+        $currentDistribution = $this->localTimeDistribution($query, $current);
+        $priorDistribution   = $this->localTimeDistribution($query, $prior);
+
+        return array_merge(
+            $this->distributionShiftObservations(
+                $currentDistribution['hours'],
+                $priorDistribution['hours'],
+                $currentTotal,
+                $priorTotal,
+                'hourly_distribution_shift',
+                'hour'
+            ),
+            $this->distributionShiftObservations(
+                $currentDistribution['weekdays'],
+                $priorDistribution['weekdays'],
+                $currentTotal,
+                $priorTotal,
+                'weekday_distribution_shift',
+                'weekday'
+            )
+        );
+    }
+
+    /**
+     * @param array<int,int> $current
+     * @param array<int,int> $prior
+     *
+     * @return array<int,array<string,int|float|string>>
+     */
+    private function distributionShiftObservations(
+        array $current,
+        array $prior,
+        int $currentTotal,
+        int $priorTotal,
+        string $type,
+        string $dimension
+    ): array {
+        $observations = [];
+        foreach ($current as $bucket => $currentCount) {
+            $priorCount        = $prior[$bucket] ?? 0;
+            $currentPercentage = $this->rate($currentCount, $currentTotal);
+            $priorPercentage   = $this->rate($priorCount, $priorTotal);
+            if ($currentPercentage === $priorPercentage) {
+                continue;
+            }
+
+            $observations[] = [
+                'type'                     => $type,
+                $dimension                 => $bucket,
+                'current'                  => $currentCount,
+                'prior'                    => $priorCount,
+                'current_percentage'       => $currentPercentage,
+                'prior_percentage'         => $priorPercentage,
+                'percentage_point_change'  => round($currentPercentage - $priorPercentage, 2),
+            ];
+        }
+        usort($observations, static function (array $left, array $right) use ($dimension): int {
+            $change = abs((float) $right['percentage_point_change']) <=> abs((float) $left['percentage_point_change']);
+
+            return $change !== 0 ? $change : $left[$dimension] <=> $right[$dimension];
+        });
+
+        return \array_slice($observations, 0, self::TIMING_OBSERVATION_LIMIT);
+    }
+
+    /**
+     * @param array<string,int|string> $row
+     */
+    private function utcHour(array $row): ?DateTimeImmutable
+    {
+        $utcHour = DateTimeImmutable::createFromFormat(
+            '!Y-m-d H:i:s',
+            (string) ($row['utc_hour'] ?? ''),
+            new DateTimeZone('UTC')
+        );
+
+        return $utcHour === false ? null : $utcHour;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function utcTimestamp($value): ?string
+    {
+        if (!\is_string($value) || $value === '') {
+            return null;
+        }
+
+        $timestamp = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $value, new DateTimeZone('UTC'));
+
+        return $timestamp === false ? null : $timestamp->format(DATE_ATOM);
+    }
+
+    private function loggingEnabled(): bool
+    {
+        if (!\function_exists('get_option')) {
+            return true;
+        }
+
+        return (bool) \BitApps\SMTP\Config::getOption('logging_enabled', true);
+    }
+
+    private function loggingDisabledError(): ?WP_Error
+    {
+        if ($this->loggingEnabled()) {
+            return null;
+        }
+
+        return new WP_Error('bit_smtp_logging_disabled', 'Email analytics require Bit SMTP logging to be enabled.');
+    }
+
     /**
      * @param array<string,int>                   $current
      * @param array<string,int>                   $prior
@@ -339,16 +597,21 @@ final class MailAnalyticsService
      * @param array<int,array<string,int|string>> $priorSources
      * @param array<int,array<string,int|string>> $currentConnections
      * @param array<int,array<string,int|string>> $priorConnections
+     * @param array<int,array<string,int|string>> $currentSeries
+     * @param array<int,array<string,int|string>> $priorSeries
      *
      * @return array<int,array<string,int|float|string>>
      */
     private function observations(
+        AnalyticsQuery $query,
         array $current,
         array $prior,
         array $currentSources,
         array $priorSources,
         array $currentConnections,
-        array $priorConnections
+        array $priorConnections,
+        array $currentSeries,
+        array $priorSeries
     ): array {
         $observations = [];
         $currentTotal = (int) ($current['total'] ?? 0);
@@ -376,6 +639,14 @@ final class MailAnalyticsService
         }
 
         $observations = array_merge($observations, $this->activityObservations($currentSources, $priorSources, 'source'));
+
+        $observations = array_merge($observations, $this->timingDistributionObservations(
+            $query,
+            $currentSeries,
+            $priorSeries,
+            $currentTotal,
+            $priorTotal
+        ));
 
         return array_merge($observations, $this->connectionRateObservations($currentConnections, $priorConnections));
     }

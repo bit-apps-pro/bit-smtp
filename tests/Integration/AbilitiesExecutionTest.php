@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Mail\Analytics\RoutingExplainer;
 use BitApps\SMTP\Model\Log;
 use WP_Error;
@@ -77,6 +78,25 @@ final class AbilitiesExecutionTest extends IntegrationTestCase
 
         self::assertInstanceOf(WP_Error::class, $result);
         self::assertSame('ability_invalid_permissions', $result->get_error_code());
+    }
+
+    public function testAnalyticsAbilitiesReturnTheStableErrorWhenLoggingIsDisabled(): void
+    {
+        $logs = new LogService();
+        self::assertTrue($logs->setEnabled(false));
+
+        try {
+            self::assertFalse($logs->isEnabled());
+            $ability = wp_get_ability('bit-smtp/get-email-analytics');
+            self::assertNotNull($ability);
+
+            $result = $ability->execute($this->range);
+
+            self::assertInstanceOf(WP_Error::class, $result);
+            self::assertSame('bit_smtp_logging_disabled', $result->get_error_code());
+        } finally {
+            $logs->setEnabled(true);
+        }
     }
 
     public function testMalformedInputIsRejectedBeforeTheServiceIsCalled(): void

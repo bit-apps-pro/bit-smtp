@@ -334,7 +334,7 @@ class LogService
      */
     public function setEnabled(bool $enable)
     {
-        return (bool) Config::updateOption('logging_enabled', $enable, true);
+        return (bool) Config::updateOption('logging_enabled', $enable ? 1 : 0, true);
     }
 
     /**

@@ -89,12 +89,16 @@ final class AbilitySchemas
     public static function overviewOutput(): array
     {
         return self::object(array_merge(self::metadataProperties(), [
-            'recipients'      => self::integer(),
-            'acceptance'      => self::acceptance(),
-            'delivery'        => self::delivery(),
-            'series'          => self::arrayOf(self::seriesRow()),
-            'top_sources'     => self::arrayOf(self::groupRow()),
-            'top_connections' => self::arrayOf(self::groupRow()),
+            'logging_enabled'  => ['type' => 'boolean'],
+            'retained_records' => self::retainedRecords(),
+            'recipients'       => self::integer(),
+            'acceptance'       => self::acceptance(),
+            'delivery'         => self::delivery(),
+            'busiest_hours'    => self::boundedArrayOf(self::busiestHour()),
+            'busiest_weekdays' => self::boundedArrayOf(self::busiestWeekday()),
+            'series'           => self::arrayOf(self::seriesRow()),
+            'top_sources'      => self::arrayOf(self::groupRow()),
+            'top_connections'  => self::arrayOf(self::groupRow()),
         ]), [
             'range',
             'timezone',
@@ -102,9 +106,13 @@ final class AbilitySchemas
             'unknown_source_count',
             'unknown_recipient_count',
             'interpretation',
+            'logging_enabled',
+            'retained_records',
             'recipients',
             'acceptance',
             'delivery',
+            'busiest_hours',
+            'busiest_weekdays',
             'series',
             'top_sources',
             'top_connections',
@@ -121,6 +129,8 @@ final class AbilitySchemas
             'acceptance'                    => self::acceptance(),
             'delivery'                      => self::delivery(),
             'series'                        => self::arrayOf(self::seriesRow()),
+            'busiest_hours'                 => self::boundedArrayOf(self::busiestHour()),
+            'busiest_weekdays'              => self::boundedArrayOf(self::busiestWeekday()),
             'connections'                   => self::arrayOf(self::groupRow()),
             'routing_types'                 => self::arrayOf(self::groupRow()),
             'subject_patterns'              => self::arrayOf(self::subjectPattern()),
@@ -137,6 +147,8 @@ final class AbilitySchemas
             'acceptance',
             'delivery',
             'series',
+            'busiest_hours',
+            'busiest_weekdays',
             'connections',
             'routing_types',
             'subject_patterns',
@@ -362,6 +374,41 @@ final class AbilitySchemas
     /**
      * @return array<string,mixed>
      */
+    private static function retainedRecords(): array
+    {
+        return self::object([
+            'earliest' => self::nullable(self::string(['format' => 'date-time'])),
+            'latest'   => self::nullable(self::string(['format' => 'date-time'])),
+        ], ['earliest', 'latest']);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function busiestHour(): array
+    {
+        return self::object([
+            'hour'  => array_merge(self::integer(), ['maximum' => 23]),
+            'label' => self::string(),
+            'total' => self::integer(),
+        ], ['hour', 'label', 'total']);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function busiestWeekday(): array
+    {
+        return self::object([
+            'weekday' => array_merge(self::integer(1), ['maximum' => 7]),
+            'label'   => self::string(),
+            'total'   => self::integer(),
+        ], ['weekday', 'label', 'total']);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
     private static function subjectPattern(): array
     {
         return self::object([
@@ -437,19 +484,49 @@ final class AbilitySchemas
             'prior_failure_rate'      => self::number(),
             'percentage_point_change' => self::number(),
         ], ['type', 'connection', 'current_failure_rate', 'prior_failure_rate', 'percentage_point_change']);
-        $properties = array_merge(
+        $hourlyDistribution  = self::distributionShift('hourly_distribution_shift', 'hour', array_merge(self::integer(), ['maximum' => 23]));
+        $weekdayDistribution = self::distributionShift('weekday_distribution_shift', 'weekday', array_merge(self::integer(1), ['maximum' => 7]));
+        $properties          = array_merge(
             $volume['properties'],
             $rate['properties'],
             $activity['properties'],
-            $connection['properties']
+            $connection['properties'],
+            $hourlyDistribution['properties'],
+            $weekdayDistribution['properties']
         );
         $properties['type'] = self::string([
-            'enum' => ['volume_change', 'failure_rate_change', 'newly_active_source', 'inactive_source', 'connection_failure_rate_change'],
+            'enum' => [
+                'volume_change',
+                'failure_rate_change',
+                'newly_active_source',
+                'inactive_source',
+                'connection_failure_rate_change',
+                'hourly_distribution_shift',
+                'weekday_distribution_shift',
+            ],
         ]);
 
         return self::object($properties, [], [
-            'oneOf' => [$volume, $rate, $activity, $connection],
+            'oneOf' => [$volume, $rate, $activity, $connection, $hourlyDistribution, $weekdayDistribution],
         ]);
+    }
+
+    /**
+     * @param array<string,mixed> $dimensionSchema
+     *
+     * @return array<string,mixed>
+     */
+    private static function distributionShift(string $type, string $dimension, array $dimensionSchema): array
+    {
+        return self::object([
+            'type'                     => self::string(['enum' => [$type]]),
+            $dimension                 => $dimensionSchema,
+            'current'                  => self::integer(),
+            'prior'                    => self::integer(),
+            'current_percentage'       => self::number(),
+            'prior_percentage'         => self::number(),
+            'percentage_point_change'  => self::number(),
+        ], ['type', $dimension, 'current', 'prior', 'current_percentage', 'prior_percentage', 'percentage_point_change']);
     }
 
     /**
@@ -509,6 +586,16 @@ final class AbilitySchemas
             'type'  => 'array',
             'items' => $item,
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $item
+     *
+     * @return array<string,mixed>
+     */
+    private static function boundedArrayOf(array $item): array
+    {
+        return array_merge(self::arrayOf($item), ['maxItems' => 10]);
     }
 
     /**

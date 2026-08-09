@@ -91,6 +91,28 @@ final class AbilitySchemasTest extends BaseUnitTestCase
         );
     }
 
+    public function testTimingAndRetentionOutputContractsMatchTheAggregateAnalyticsResponses(): void
+    {
+        $overview = AbilitySchemas::overviewOutput();
+        self::assertSame(['type' => 'boolean'], $overview['properties']['logging_enabled']);
+        self::assertSame(['earliest', 'latest'], $overview['properties']['retained_records']['required']);
+        self::assertSame('date-time', $overview['properties']['retained_records']['properties']['earliest']['oneOf'][0]['format']);
+        self::assertSame(10, $overview['properties']['busiest_hours']['maxItems']);
+        self::assertSame(23, $overview['properties']['busiest_hours']['items']['properties']['hour']['maximum']);
+        self::assertSame(7, $overview['properties']['busiest_weekdays']['items']['properties']['weekday']['maximum']);
+
+        $plugin = AbilitySchemas::pluginOutput();
+        self::assertSame(10, $plugin['properties']['busiest_hours']['maxItems']);
+        self::assertSame(10, $plugin['properties']['busiest_weekdays']['maxItems']);
+
+        $observations = AbilitySchemas::anomaliesOutput()['properties']['observations']['items'];
+        self::assertContains('hourly_distribution_shift', $observations['properties']['type']['enum']);
+        self::assertContains('weekday_distribution_shift', $observations['properties']['type']['enum']);
+        self::assertSame(23, $observations['oneOf'][4]['properties']['hour']['maximum']);
+        self::assertSame(7, $observations['oneOf'][5]['properties']['weekday']['maximum']);
+        self::assertSame(['type', 'hour', 'current', 'prior', 'current_percentage', 'prior_percentage', 'percentage_point_change'], $observations['oneOf'][4]['required']);
+    }
+
     public function testDoesNotAddAnyAbilitiesHooksWhenCoreDoesNotProvideTheApi(): void
     {
         Functions\expect('add_action')->never();

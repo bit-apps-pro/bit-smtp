@@ -40,7 +40,13 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         self::assertSame(2, $result['total']);
         self::assertSame(2, $result['recipients']);
         self::assertSame(1, $result['unknown_recipient_count']);
-        self::assertCount(4, $database->queries);
+        self::assertTrue($result['logging_enabled']);
+        self::assertSame([
+            'earliest' => '2026-03-01T05:00:00+00:00',
+            'latest'   => '2026-03-03T05:00:00+00:00',
+        ], $result['retained_records']);
+        self::assertSame([['hour' => 0, 'label' => '00:00', 'total' => 2]], $result['busiest_hours']);
+        self::assertCount(5, $database->queries);
         self::assertNotEmpty($database->templates);
         foreach ($database->queries as $sql) {
             self::assertDoesNotMatchRegularExpression('/SELECT\\s+\\*/i', $sql);
@@ -49,6 +55,25 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
             self::assertStringNotContainsString('JSON_LENGTH', $sql);
         }
         self::assertStringContainsString('%s', $database->templates[0]);
+        self::assertStringContainsString('MIN(created_at) AS earliest', $database->queries[4]);
+    }
+
+    public function testEmptyRetainedLogsReturnStableZeroTimingAndNullableRecordBounds(): void
+    {
+        $database = new RecordingDatabase($GLOBALS['wpdb']);
+        $service  = new MailAnalyticsService(
+            new MailAnalyticsRepository($database, (new Log())->getTable())
+        );
+
+        $result = $service->overview($this->query());
+
+        self::assertSame(0, $result['total']);
+        self::assertSame(0, $result['recipients']);
+        self::assertSame(['earliest' => null, 'latest' => null], $result['retained_records']);
+        self::assertSame([], $result['busiest_hours']);
+        self::assertSame([], $result['busiest_weekdays']);
+        self::assertSame([0, 0, 0], array_column($result['series'], 'total'));
+        self::assertCount(5, $database->queries);
     }
 
     public function testPluginSubjectsUseOnlyPersistedRedactedPatternsAndIdentifyLegacyUnknowns(): void

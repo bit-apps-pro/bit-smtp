@@ -108,6 +108,24 @@ class MailAnalyticsRepository
     }
 
     /**
+     * @return array{earliest:?string,latest:?string}|WP_Error
+     */
+    public function retainedRecordBounds()
+    {
+        $rows = $this->rows("SELECT MIN(created_at) AS earliest, MAX(created_at) AS latest FROM `{$this->table}`", []);
+        if ($rows instanceof WP_Error) {
+            return $rows;
+        }
+
+        $row = $rows[0] ?? [];
+
+        return [
+            'earliest' => isset($row['earliest']) && $row['earliest'] !== '' ? (string) $row['earliest'] : null,
+            'latest'   => isset($row['latest'])   && $row['latest']     !== '' ? (string) $row['latest'] : null,
+        ];
+    }
+
+    /**
      * @return array<int,array<string,int|string>>|WP_Error
      */
     public function groups(AnalyticsQuery $query, string $dimension, int $limit)
@@ -193,7 +211,7 @@ class MailAnalyticsRepository
      */
     private function rows(string $sql, array $values)
     {
-        $prepared = $this->database->prepare($sql, ...$values);
+        $prepared = $values === [] ? $sql : $this->database->prepare($sql, ...$values);
         $output   = \defined('ARRAY_A') ? ARRAY_A : 'ARRAY_A';
         $rows     = $this->database->get_results($prepared, $output);
         $error    = (string) ($this->database->last_error ?? '');

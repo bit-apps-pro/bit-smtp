@@ -9,9 +9,11 @@ use BitApps\SMTP\Mail\Analytics\AnalyticsQueryFactory;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
+use Brain\Monkey\Functions;
 use DateTimeImmutable;
 use DateTimeZone;
 use Mockery;
+use WP_Error;
 
 /**
  * @internal
@@ -20,6 +22,12 @@ use Mockery;
  */
 final class MailAnalyticsServiceTest extends BaseUnitTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Functions\when('get_option')->justReturn(true);
+    }
+
     public function testOverviewFillsEmptyDailyPeriodsAndCarriesTheRequiredRetainedLogMetadata(): void
     {
         $query = $this->query([
@@ -38,6 +46,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([
             ['dimension' => 'conn_primary', 'total' => 3],
         ]);
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn(['earliest' => null, 'latest' => null]);
 
         $result = (new MailAnalyticsService($repo))->overview($query);
 
@@ -49,6 +58,45 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         self::assertSame(0, $result['series'][0]['total']);
         self::assertSame(3, $result['series'][1]['total']);
         self::assertSame(3, $result['acceptance']['denominator']);
+    }
+
+    public function testOverviewReportsRetainedRecordBoundsAndDeterministicSiteLocalBusyTimes(): void
+    {
+        $query = $this->query([
+            'start'  => '2026-03-01T00:00:00-05:00',
+            'end'    => '2026-03-04T00:00:00-05:00',
+            'bucket' => 'day',
+        ]);
+        $repo = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->once()->with($query)->andReturn($this->summary());
+        $repo->shouldReceive('timeSeries')->once()->with($query)->andReturn([
+            ['utc_hour' => '2026-03-01 14:00:00', 'total' => 3],
+            ['utc_hour' => '2026-03-02 14:00:00', 'total' => 2],
+            ['utc_hour' => '2026-03-03 15:00:00', 'total' => 5],
+        ]);
+        $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([]);
+        $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn([
+            'earliest' => '2026-02-01 01:02:03',
+            'latest'   => '2026-03-03 15:00:00',
+        ]);
+
+        $result = (new MailAnalyticsService($repo))->overview($query);
+
+        self::assertTrue($result['logging_enabled']);
+        self::assertSame([
+            'earliest' => '2026-02-01T01:02:03+00:00',
+            'latest'   => '2026-03-03T15:00:00+00:00',
+        ], $result['retained_records']);
+        self::assertSame([
+            ['hour' => 9, 'label' => '09:00', 'total' => 5],
+            ['hour' => 10, 'label' => '10:00', 'total' => 5],
+        ], \array_slice($result['busiest_hours'], 0, 2));
+        self::assertSame([
+            ['weekday' => 2, 'label' => 'Tuesday', 'total' => 5],
+            ['weekday' => 7, 'label' => 'Sunday', 'total' => 3],
+            ['weekday' => 1, 'label' => 'Monday', 'total' => 2],
+        ], \array_slice($result['busiest_weekdays'], 0, 3));
     }
 
     public function testDeliverabilitySeparatesAcceptanceFromConfirmedDeliveryDenominators(): void
@@ -139,6 +187,51 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         self::assertArrayNotHasKey('subject', $result['subject_patterns'][0]);
     }
 
+    public function testPluginReportsSiteLocalBusyTimesWhileKeepingTheNotificationProxyInterpretation(): void
+    {
+        $query = $this->query(['plugin' => 'woocommerce']);
+        $repo  = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->once()->with($query)->andReturn($this->summary());
+        $repo->shouldReceive('timeSeries')->once()->with($query)->andReturn([
+            ['utc_hour' => '2026-03-01 14:00:00', 'total' => 3],
+            ['utc_hour' => '2026-03-02 15:00:00', 'total' => 4],
+        ]);
+        $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
+        $repo->shouldReceive('groups')->with($query, 'routing_type', 10)->andReturn([]);
+        $repo->shouldReceive('subjectCounts')->once()->with($query)->andReturn([]);
+
+        $result = (new MailAnalyticsService($repo))->plugin($query);
+
+        self::assertSame([
+            ['hour' => 10, 'label' => '10:00', 'total' => 4],
+            ['hour' => 9, 'label' => '09:00', 'total' => 3],
+        ], $result['busiest_hours']);
+        self::assertSame([
+            ['weekday' => 1, 'label' => 'Monday', 'total' => 4],
+            ['weekday' => 7, 'label' => 'Sunday', 'total' => 3],
+        ], $result['busiest_weekdays']);
+        self::assertStringContainsString('only a proxy', $result['proxy_interpretation']);
+        self::assertStringContainsString('order-related activity', $result['proxy_interpretation']);
+    }
+
+    public function testAnalyticsReturnTheStableDisabledLoggingError(): void
+    {
+        Functions\when('get_option')->alias(static function (string $key, $default) {
+            return $key === 'bit_smtp_logging_enabled' ? false : $default;
+        });
+        $query = $this->query([]);
+        $repo  = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldNotReceive('summary');
+        $repo->shouldNotReceive('timeSeries');
+        $repo->shouldNotReceive('groups');
+        $repo->shouldNotReceive('retainedRecordBounds');
+
+        $result = (new MailAnalyticsService($repo))->overview($query);
+
+        self::assertInstanceOf(WP_Error::class, $result);
+        self::assertSame('bit_smtp_logging_disabled', $result->get_error_code());
+    }
+
     public function testAnomaliesCompareThePriorEqualPeriodAndSuppressRateChangesBelowTwentyMessages(): void
     {
         $query = $this->query([
@@ -157,12 +250,91 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldReceive('groups')->with(Mockery::type(AnalyticsQuery::class), 'source', 100)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'connection', 100)->andReturn([['dimension' => 'conn_primary', 'total' => 19, 'failed' => 4]]);
         $repo->shouldReceive('groups')->with(Mockery::type(AnalyticsQuery::class), 'connection', 100)->andReturn([]);
+        $repo->shouldReceive('timeSeries')->with($query)->andReturn([
+            ['utc_hour' => '2026-03-01 14:00:00', 'total' => 19],
+        ]);
+        $repo->shouldReceive('timeSeries')->with(Mockery::on(static fn (AnalyticsQuery $candidate): bool => $candidate->start()->format(DATE_ATOM) === $prior->start()->format(DATE_ATOM)))->andReturn([
+            ['utc_hour' => '2026-02-28 15:00:00', 'total' => 19],
+        ]);
 
         $result = (new MailAnalyticsService($repo))->anomalies($query);
 
         self::assertSame(19, $result['current']['total']);
         self::assertNotEmpty($result['observations']);
         self::assertNotContains('failure_rate_change', array_column($result['observations'], 'type'));
+        self::assertNotContains('hourly_distribution_shift', array_column($result['observations'], 'type'));
+        self::assertNotContains('weekday_distribution_shift', array_column($result['observations'], 'type'));
+    }
+
+    public function testAnomaliesReportDeterministicSiteLocalHourlyAndWeekdayDistributionShiftsWithCounts(): void
+    {
+        $query = $this->query([
+            'start' => '2026-03-02T00:00:00-05:00',
+            'end'   => '2026-03-03T00:00:00-05:00',
+        ]);
+        $prior = $query->priorPeriod();
+        $repo  = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->once()->with($query)->andReturn(array_merge($this->summary(), [
+            'total' => 40, 'accepted' => 36, 'failed' => 4,
+        ]));
+        $repo->shouldReceive('summary')->once()->with(Mockery::on(static fn (AnalyticsQuery $candidate): bool => $candidate->start()->format(DATE_ATOM) === $prior->start()->format(DATE_ATOM)))->andReturn(array_merge($this->summary(), [
+            'total' => 40, 'accepted' => 38, 'failed' => 2,
+        ]));
+        $repo->shouldReceive('groups')->with($query, 'source', 100)->andReturn([]);
+        $repo->shouldReceive('groups')->with(Mockery::type(AnalyticsQuery::class), 'source', 100)->andReturn([]);
+        $repo->shouldReceive('groups')->with($query, 'connection', 100)->andReturn([]);
+        $repo->shouldReceive('groups')->with(Mockery::type(AnalyticsQuery::class), 'connection', 100)->andReturn([]);
+        $repo->shouldReceive('timeSeries')->once()->with($query)->andReturn([
+            ['utc_hour' => '2026-03-02 14:00:00', 'total' => 20],
+            ['utc_hour' => '2026-03-02 15:00:00', 'total' => 20],
+        ]);
+        $repo->shouldReceive('timeSeries')->once()->with(Mockery::on(static fn (AnalyticsQuery $candidate): bool => $candidate->start()->format(DATE_ATOM) === $prior->start()->format(DATE_ATOM)))->andReturn([
+            ['utc_hour' => '2026-03-01 14:00:00', 'total' => 40],
+        ]);
+
+        $result = (new MailAnalyticsService($repo))->anomalies($query);
+
+        self::assertSame([
+            [
+                'type'                     => 'hourly_distribution_shift',
+                'hour'                     => 9,
+                'current'                  => 20,
+                'prior'                    => 40,
+                'current_percentage'       => 50.0,
+                'prior_percentage'         => 100.0,
+                'percentage_point_change'  => -50.0,
+            ],
+            [
+                'type'                     => 'hourly_distribution_shift',
+                'hour'                     => 10,
+                'current'                  => 20,
+                'prior'                    => 0,
+                'current_percentage'       => 50.0,
+                'prior_percentage'         => 0.0,
+                'percentage_point_change'  => 50.0,
+            ],
+            [
+                'type'                     => 'weekday_distribution_shift',
+                'weekday'                  => 1,
+                'current'                  => 40,
+                'prior'                    => 0,
+                'current_percentage'       => 100.0,
+                'prior_percentage'         => 0.0,
+                'percentage_point_change'  => 100.0,
+            ],
+            [
+                'type'                     => 'weekday_distribution_shift',
+                'weekday'                  => 7,
+                'current'                  => 0,
+                'prior'                    => 40,
+                'current_percentage'       => 0.0,
+                'prior_percentage'         => 100.0,
+                'percentage_point_change'  => -100.0,
+            ],
+        ], array_values(array_filter(
+            $result['observations'],
+            static fn (array $observation): bool => \in_array($observation['type'], ['hourly_distribution_shift', 'weekday_distribution_shift'], true)
+        )));
     }
 
     public function testAnomaliesSuppressComparisonsWhenThePriorPeriodPredatesRetention(): void
@@ -179,6 +351,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo = Mockery::mock(MailAnalyticsRepository::class);
         $repo->shouldReceive('summary')->twice()->andReturn($this->summary());
         $repo->shouldNotReceive('groups');
+        $repo->shouldNotReceive('timeSeries');
 
         $result = (new MailAnalyticsService($repo))->anomalies($query);
 
@@ -202,6 +375,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         ]);
         $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn(['earliest' => null, 'latest' => null]);
 
         $result = (new MailAnalyticsService($repo))->overview($query);
 
@@ -227,6 +401,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         ]);
         $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'connection', 10)->andReturn([]);
+        $repo->shouldReceive('retainedRecordBounds')->once()->andReturn(['earliest' => null, 'latest' => null]);
 
         $result = (new MailAnalyticsService($repo))->overview($query);
 
