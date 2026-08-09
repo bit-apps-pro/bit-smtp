@@ -185,7 +185,10 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
                 `delivery_updated_at` DATETIME NULL,
                 `created_at` TIMESTAMP NULL DEFAULT NULL,
                 `updated_at` TIMESTAMP NULL DEFAULT NULL,
-                PRIMARY KEY (`id`)
+                PRIMARY KEY (`id`),
+                KEY `idx_connection_id` (`connection_id`),
+                KEY `idx_message_id` (`message_id`),
+                KEY `idx_tracking_id` (`tracking_id`)
             ) {$wpdb->get_charset_collate()}"
         );
 
