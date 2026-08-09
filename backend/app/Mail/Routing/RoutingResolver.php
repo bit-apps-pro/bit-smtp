@@ -6,14 +6,19 @@ namespace BitApps\SMTP\Mail\Routing;
 
 final class RoutingResolver
 {
-    public function resolve(RoutingContext $context, RoutingRules $rules): ?string
+    public function decide(RoutingContext $context, RoutingRules $rules): RoutingDecision
     {
-        foreach ($rules as $rule) {
+        foreach ($rules as $index => $rule) {
             if ($rule->matches($context)) {
-                return $rule->getConnectionId();
+                return new RoutingDecision($context->getSourcePlugin(), $rule->getConnectionId(), 'rule', $index);
             }
         }
 
-        return null;
+        return new RoutingDecision($context->getSourcePlugin(), null, 'default', null);
+    }
+
+    public function resolve(RoutingContext $context, RoutingRules $rules): ?string
+    {
+        return $this->decide($context, $rules)->connectionId();
     }
 }

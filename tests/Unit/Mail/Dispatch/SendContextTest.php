@@ -3,8 +3,14 @@
 namespace BitApps\SMTP\Tests\Unit\Mail\Dispatch;
 
 use BitApps\SMTP\Mail\Dispatch\SendContext;
+use BitApps\SMTP\Mail\Routing\RoutingDecision;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class SendContextTest extends BaseUnitTestCase
 {
     private SendContext $context;
@@ -23,6 +29,7 @@ class SendContextTest extends BaseUnitTestCase
         $this->assertFalse($this->context->isBatch());
         $this->assertSame(0, $this->context->getRetryLogId());
         $this->assertSame([], $this->context->getDebugOutput());
+        $this->assertNull($this->context->getRoutingDecision());
     }
 
     public function testAppendDebugAccumulatesLines(): void
@@ -57,6 +64,18 @@ class SendContextTest extends BaseUnitTestCase
         $this->assertTrue($this->context->isRetrying());
         $this->assertSame(42, $this->context->getRetryLogId());
         $this->assertTrue($this->context->isBatch());
+    }
+
+    public function testResetForSendClearsThePreviousRoutingDecision(): void
+    {
+        $decision = new RoutingDecision('woocommerce', 'conn_primary', 'rule', 2);
+        $this->context->setRoutingDecision($decision);
+
+        $this->assertSame($decision, $this->context->getRoutingDecision());
+
+        $this->context->resetForSend();
+
+        $this->assertNull($this->context->getRoutingDecision());
     }
 
     public function testMutatorsAreChainable(): void

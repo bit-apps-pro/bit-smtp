@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Routing;
 
-final class MailSourceDetector
+class MailSourceDetector
 {
     public function detect(?array $frames = null, ?string $selfDir = null): string
     {

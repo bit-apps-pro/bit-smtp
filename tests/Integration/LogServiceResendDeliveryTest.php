@@ -87,6 +87,60 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertSame($logId, (int) $logs[0]->id);
     }
 
+    public function testPersistenceMethodsRetainRoutingAttribution(): void
+    {
+        $this->service->save(
+            Log::SUCCESS,
+            ['subject' => 'Saved', 'to' => ['recipient@example.com']],
+            null,
+            'Primary',
+            null,
+            null,
+            'conn_primary',
+            'woocommerce',
+            'rule',
+            2
+        );
+
+        $saved = Log::where('subject', 'Saved')->first();
+        $this->assertSame('woocommerce', $saved->source_plugin);
+        $this->assertSame('rule', $saved->routing_type);
+        $this->assertSame(2, $saved->routing_rule_index);
+
+        $this->service->update(
+            (int) $saved->id,
+            Log::SUCCESS,
+            ['subject' => 'Saved', 'to' => ['recipient@example.com']],
+            null,
+            'Fallback',
+            null,
+            null,
+            'conn_fallback',
+            null,
+            'woocommerce',
+            'fallback',
+            null
+        );
+
+        $updated = Log::where('id', $saved->id)->first();
+        $this->assertSame('woocommerce', $updated->source_plugin);
+        $this->assertSame('fallback', $updated->routing_type);
+        $this->assertNull($updated->routing_rule_index);
+
+        $this->service->bulkInsert([[
+            'status'              => Log::SUCCESS,
+            'data'                => ['subject' => 'Bulk', 'to' => ['recipient@example.com']],
+            'source_plugin'       => 'edd',
+            'routing_type'        => 'native',
+            'routing_rule_index'  => null,
+        ]]);
+
+        $bulk = Log::where('subject', 'Bulk')->first();
+        $this->assertSame('edd', $bulk->source_plugin);
+        $this->assertSame('native', $bulk->routing_type);
+        $this->assertNull($bulk->routing_rule_index);
+    }
+
     /**
      * A prior send that already carried a delivery status plus a per-recipient child row, so a resend
      * must be seen to both clear the old outcome and re-stamp (or not) the new one.

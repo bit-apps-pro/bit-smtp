@@ -75,7 +75,7 @@ class LogService
         return $this->toRows(Log::where('id', $ids)->get());
     }
 
-    public function save($status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null)
+    public function save($status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $sourcePlugin = null, ?string $routingType = null, ?int $routingRuleIndex = null)
     {
         $log             = new Log();
 
@@ -84,12 +84,15 @@ class LogService
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
         }
 
-        $log->subject       = Arr::get($details, 'subject', '');
-        $log->to_addr       = Arr::get($details, 'to', '[]');
-        $log->connection    = $connection;
-        $log->connection_id = $connectionId;
-        $log->message_id    = $messageId;
-        $log->tracking_id   = $trackingId;
+        $log->subject            = Arr::get($details, 'subject', '');
+        $log->to_addr            = Arr::get($details, 'to', '[]');
+        $log->connection         = $connection;
+        $log->connection_id      = $connectionId;
+        $log->message_id         = $messageId;
+        $log->tracking_id        = $trackingId;
+        $log->source_plugin      = $sourcePlugin;
+        $log->routing_type       = $routingType;
+        $log->routing_rule_index = $routingRuleIndex;
 
         unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
         $log->details    = $details;
@@ -97,7 +100,7 @@ class LogService
         return $log->save();
     }
 
-    public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null)
+    public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null, ?string $sourcePlugin = null, ?string $routingType = null, ?int $routingRuleIndex = null)
     {
         $log = $this->get($id);
         if (!$log) {
@@ -108,6 +111,12 @@ class LogService
         $log->status        = $status;
         $log->connection    = $connection;
         $log->connection_id = $connectionId;
+
+        if ($sourcePlugin !== null || $routingType !== null) {
+            $log->source_plugin      = $sourcePlugin;
+            $log->routing_type       = $routingType;
+            $log->routing_rule_index = $routingRuleIndex;
+        }
 
         // A resend gets a fresh provider message-id + tracking token; overwrite so delivery webhooks
         // correlate to this resend, not the original send.
@@ -357,6 +366,12 @@ class LogService
                 'delivery_status'     => $log['delivery_status']     ?? null,
                 'delivery_updated_at' => $log['delivery_updated_at'] ?? null,
             ];
+
+            foreach (['source_plugin', 'routing_type', 'routing_rule_index'] as $field) {
+                if (\array_key_exists($field, $log)) {
+                    $record[$field] = $log[$field];
+                }
+            }
 
             if ($log['status'] === Log::ERROR && $log['data'] instanceof WP_Error) {
                 $record['debug_info'] = wp_json_encode($log['data']->get_error_messages());

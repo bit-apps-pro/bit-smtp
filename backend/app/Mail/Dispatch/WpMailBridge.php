@@ -16,6 +16,7 @@ use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingContext;
+use BitApps\SMTP\Mail\Routing\RoutingDecision;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Routing\RoutingRules;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
@@ -159,6 +160,7 @@ class WpMailBridge
         $this->context->resetForSend();
 
         $settings = Plugin::instance()->mailConfigService()->load();
+        $this->captureSourceForSend($settings);
         if (!$settings->isEnabled()) {
             return;
         }
@@ -198,6 +200,7 @@ class WpMailBridge
         }
 
         if ($this->loggingEnabled) {
+            $this->captureNativeRoutingDecision();
             $this->eventLogger->logMailSuccess((array) $mailData, $this->context);
         }
         if ($this->failureNotifier !== null) {
@@ -215,6 +218,7 @@ class WpMailBridge
         }
 
         if ($this->loggingEnabled) {
+            $this->captureNativeRoutingDecision();
             $this->eventLogger->logMailFailed($error, $this->context);
         }
         if ($this->failureNotifier !== null) {
@@ -242,6 +246,7 @@ class WpMailBridge
             $winningDeliveryStatus = null;
 
             foreach ($connections as $connection) {
+                $this->advanceRoutingDecision($connection);
                 $provider       = $this->resolveProvider($connection);
                 $tracking       = ($provider !== null && $connection->isWebhookEnabled()) ? $provider->tracking() : [];
                 $trackingId     = $tracking !== [] ? $this->stamper->generate() : null;
@@ -365,27 +370,100 @@ class WpMailBridge
         ]));
     }
 
-    /**
-     * Resolve the connection a matching routing rule picks for this message, or null when routing is
-     * unconfigured or no rule matches — in which case the dispatch order is unchanged (BC). Source
-     * detection (a backtrace walk) is skipped entirely when no rules are configured, the common case.
-     */
     private function routedConnectionId(MailMessage $message, MailSettings $settings): ?string
     {
-        $features = $settings->getFeatures();
-        $rawRules = $features['routing'] ?? [];
-        if (!\is_array($rawRules) || $rawRules === []) {
+        $rules    = $this->routingRules($settings);
+        $decision = $this->context->getRoutingDecision();
+
+        if ($rules === null) {
+            if ($decision !== null) {
+                $this->context->setRoutingDecision(new RoutingDecision(
+                    $decision->sourcePlugin(),
+                    $this->defaultConnectionId($settings),
+                    'default',
+                    null
+                ));
+            }
+
             return null;
+        }
+
+        if ($decision === null) {
+            $decision = new RoutingDecision($this->sourceDetector->detect(), null, 'native', null);
         }
 
         $context = RoutingContext::fromArray([
             'recipients'   => $message->getTo(),
             'from'         => $message->getFrom() ?? '',
             'subject'      => $message->getSubject(),
-            'sourcePlugin' => $this->sourceDetector->detect(),
+            'sourcePlugin' => $decision->sourcePlugin(),
         ]);
+        $decision     = $this->routingResolver->decide($context, $rules);
+        $connectionId = $decision->connectionId() ?? $this->defaultConnectionId($settings);
 
-        return $this->routingResolver->resolve($context, RoutingRules::fromArray($rawRules));
+        $this->context->setRoutingDecision(new RoutingDecision(
+            $decision->sourcePlugin(),
+            $connectionId,
+            $decision->type(),
+            $decision->ruleIndex()
+        ));
+
+        return $decision->connectionId();
+    }
+
+    private function captureSourceForSend(MailSettings $settings): void
+    {
+        if (!$this->loggingEnabled && $this->routingRules($settings) === null) {
+            return;
+        }
+
+        $this->context->setRoutingDecision(new RoutingDecision(
+            $this->sourceDetector->detect(),
+            null,
+            'native',
+            null
+        ));
+    }
+
+    private function captureNativeRoutingDecision(): void
+    {
+        $decision = $this->context->getRoutingDecision();
+        if ($decision === null) {
+            $decision = new RoutingDecision($this->sourceDetector->detect(), null, 'native', null);
+        } else {
+            $decision = $decision->withType('native');
+        }
+
+        $this->context->setRoutingDecision($decision);
+    }
+
+    private function advanceRoutingDecision(Connection $connection): void
+    {
+        $decision = $this->context->getRoutingDecision();
+        if ($decision === null || $decision->type() === 'fallback' || $decision->type() === 'native') {
+            return;
+        }
+
+        if ($decision->connectionId() !== null && $decision->connectionId() !== $connection->getId()) {
+            $this->context->setRoutingDecision($decision->withType('fallback'));
+        }
+    }
+
+    private function defaultConnectionId(MailSettings $settings): ?string
+    {
+        $connections = $this->sendableConnections($settings);
+
+        return isset($connections[0]) ? $connections[0]->getId() : null;
+    }
+
+    private function routingRules(MailSettings $settings): ?RoutingRules
+    {
+        $rawRules = $settings->getFeatures()['routing'] ?? [];
+        if (!\is_array($rawRules) || $rawRules === []) {
+            return null;
+        }
+
+        return RoutingRules::fromArray($rawRules);
     }
 
     /**

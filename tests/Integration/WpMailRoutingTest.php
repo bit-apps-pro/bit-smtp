@@ -3,8 +3,11 @@
 namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
+use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
+use Mockery;
+use ReflectionClass;
 
 /**
  * Exercises smart-routing in the live pre_wp_mail dispatch: a matching rule sends via its chosen
@@ -47,6 +50,8 @@ final class WpMailRoutingTest extends IntegrationTestCase
         $logs = $this->logs();
         $this->assertCount(1, $logs, 'the routed connection must be attempted first, skipping the default');
         $this->assertSame(Log::SUCCESS, $logs[0]->status);
+        $this->assertSame('rule', $logs[0]->routing_type);
+        $this->assertSame(0, $logs[0]->routing_rule_index);
     }
 
     public function testNonMatchingRecipientKeepsTheDefaultOrder(): void
@@ -78,6 +83,65 @@ final class WpMailRoutingTest extends IntegrationTestCase
         $this->assertCount(2, $attempts, 'the unreachable default must be tried before mailpit');
         $this->assertSame(['conn_default', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
         $this->assertSame(['conn_mailpit', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
+    }
+
+    public function testFallbackCapturesTheSourceOnceAndPersistsFallbackRouting(): void
+    {
+        $this->storeV2(
+            [
+                $this->connection('conn_default', '127.0.0.1', 2),
+                $this->connection('conn_mailpit', self::SMTP_HOST, self::SMTP_PORT),
+            ],
+            'conn_default',
+            [],
+            $this->routingFeature('conn_mailpit', 'recipient', 'domain', 'routed.test')
+        );
+
+        $detector = Mockery::mock(MailSourceDetector::class);
+        $detector->shouldReceive('detect')->once()->andReturn('woocommerce');
+        $bridge   = Plugin::instance()->smtpProvider();
+        $original = $this->replaceSourceDetector($bridge, $detector);
+
+        try {
+            $this->assertTrue(wp_mail('user@other.test', 'Fallback attribution', 'Body'));
+
+            $logs = $this->logs();
+            $this->assertCount(1, $logs);
+            $this->assertSame('woocommerce', $logs[0]->source_plugin);
+            $this->assertSame('fallback', $logs[0]->routing_type);
+            $this->assertNull($logs[0]->routing_rule_index);
+        } finally {
+            $this->replaceSourceDetector($bridge, $original);
+            Mockery::close();
+        }
+    }
+
+    public function testDefaultSendCapturesTheSourceOnceAndPersistsDefaultRouting(): void
+    {
+        $this->storeV2(
+            [$this->connection('conn_mailpit', self::SMTP_HOST, self::SMTP_PORT)],
+            'conn_mailpit',
+            [],
+            []
+        );
+
+        $detector = Mockery::mock(MailSourceDetector::class);
+        $detector->shouldReceive('detect')->once()->andReturn('woocommerce');
+        $bridge   = Plugin::instance()->smtpProvider();
+        $original = $this->replaceSourceDetector($bridge, $detector);
+
+        try {
+            $this->assertTrue(wp_mail('user@default.test', 'Default attribution', 'Body'));
+
+            $logs = $this->logs();
+            $this->assertCount(1, $logs);
+            $this->assertSame('woocommerce', $logs[0]->source_plugin);
+            $this->assertSame('default', $logs[0]->routing_type);
+            $this->assertNull($logs[0]->routing_rule_index);
+        } finally {
+            $this->replaceSourceDetector($bridge, $original);
+            Mockery::close();
+        }
     }
 
     /**
@@ -150,5 +214,15 @@ final class WpMailRoutingTest extends IntegrationTestCase
         global $wpdb;
         $table = (new Log())->getTable();
         $wpdb->query("TRUNCATE TABLE {$table}");
+    }
+
+    private function replaceSourceDetector(object $bridge, MailSourceDetector $detector): MailSourceDetector
+    {
+        $property = (new ReflectionClass($bridge))->getProperty('sourceDetector');
+        $property->setAccessible(true);
+        $previous = $property->getValue($bridge);
+        $property->setValue($bridge, $detector);
+
+        return $previous;
     }
 }

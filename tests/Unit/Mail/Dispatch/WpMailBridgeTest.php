@@ -16,6 +16,8 @@ use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotifierInterface;
 use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
+use BitApps\SMTP\Mail\Routing\MailSourceDetector;
+use BitApps\SMTP\Mail\Routing\RoutingDecision;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
@@ -154,6 +156,34 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
         $this->assertTrue($succeeded);
         $this->assertSame(2, $transport->callCount, 'the second connection must be tried as fallback');
+    }
+
+    public function testFallbackOutcomeIsPersistedAsFallbackRouting(): void
+    {
+        $transport = new ScriptedTransport([
+            SendResult::failure('Primary unavailable'),
+            SendResult::success(),
+        ]);
+        $bridge = $this->bridgeWithTransport($transport);
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(static function (array $logs): bool {
+                return $logs[0]['source_plugin']      === 'woocommerce'
+                    && $logs[0]['routing_type']       === 'fallback'
+                    && $logs[0]['routing_rule_index'] === null;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, (new SendContext())->setRoutingDecision(
+            new RoutingDecision('woocommerce', 'conn_1', 'default', null)
+        ));
+        $this->setLoggingEnabled($bridge, true);
+
+        $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
     }
 
     public function testFinalFailureNotifiesOnceAfterAllFallbacksFail(): void
@@ -382,6 +412,44 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $bridge->onNativeMailSucceeded(['subject' => 'Hi', 'to' => ['a@example.org']]);
     }
 
+    public function testNativeMailSuccessCapturesSourceOnceWithNativeRoutingType(): void
+    {
+        $bridge   = $this->bridgeWithTransport(new SpyTransport());
+        $detector = Mockery::mock(MailSourceDetector::class);
+        $detector->shouldReceive('detect')->once()->andReturn('woocommerce');
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(static function (array $logs): bool {
+                return $logs[0]['source_plugin']      === 'woocommerce'
+                    && $logs[0]['routing_type']       === 'native'
+                    && $logs[0]['routing_rule_index'] === null;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setSourceDetector($bridge, $detector);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $bridge->onNativeMailSucceeded(['subject' => 'Hi', 'to' => ['a@example.org']]);
+    }
+
+    public function testNativeMailWithLoggingDisabledKeepsLegacyNoLoggingBehavior(): void
+    {
+        $bridge   = $this->bridgeWithTransport(new SpyTransport());
+        $detector = Mockery::mock(MailSourceDetector::class);
+        $detector->shouldNotReceive('detect');
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldNotReceive('bulkInsert');
+        $this->setEventLogger($bridge, $logService);
+        $this->setSourceDetector($bridge, $detector);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, false);
+
+        $bridge->onNativeMailSucceeded(['subject' => 'Hi', 'to' => ['a@example.org']]);
+    }
+
     public function testNativeMailFailureIsForwardedToTheNotifier(): void
     {
         $bridge   = $this->bridgeWithTransport(new SpyTransport());
@@ -455,6 +523,13 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $property->setValue($bridge, $enabled);
     }
 
+    private function setSourceDetector(WpMailBridge $bridge, MailSourceDetector $detector): void
+    {
+        $property = (new ReflectionClass(WpMailBridge::class))->getProperty('sourceDetector');
+        $property->setAccessible(true);
+        $property->setValue($bridge, $detector);
+    }
+
     private function setFailureNotifier(WpMailBridge $bridge, FailureNotifierInterface $notifier): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('failureNotifier');
@@ -496,6 +571,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $stamperProperty = $refClass->getProperty('stamper');
         $stamperProperty->setAccessible(true);
         $stamperProperty->setValue($bridge, new TrackingIdStamper());
+
+        $sourceDetectorProperty = $refClass->getProperty('sourceDetector');
+        $sourceDetectorProperty->setAccessible(true);
+        $sourceDetectorProperty->setValue($bridge, new MailSourceDetector());
 
         return $bridge;
     }

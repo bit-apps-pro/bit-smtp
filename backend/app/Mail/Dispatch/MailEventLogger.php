@@ -29,7 +29,10 @@ class MailEventLogger
 
     public function logMailSuccess(array $mailData, SendContext $context, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null): void
     {
-        if ($context->isRetrying() && $context->getRetryLogId() > 0) {
+        $decision = $context->getRoutingDecision();
+        if ($context->isRetrying() && $context->getRetryLogId() > 0 && $decision !== null) {
+            $this->logger->update($context->getRetryLogId(), Log::SUCCESS, $mailData, null, $connection, $messageId, $trackingId, $connectionId, $deliveryStatus, $decision->sourcePlugin(), $decision->type(), $decision->ruleIndex());
+        } elseif ($context->isRetrying() && $context->getRetryLogId() > 0) {
             $this->logger->update($context->getRetryLogId(), Log::SUCCESS, $mailData, null, $connection, $messageId, $trackingId, $connectionId, $deliveryStatus);
         } else {
             $this->queue(Log::SUCCESS, $mailData, $context, $connection, $messageId, $trackingId, $connectionId, $deliveryStatus);
@@ -47,7 +50,10 @@ class MailEventLogger
             $context->appendDebug($message . "\n");
         }
 
-        if ($context->isRetrying() && $context->getRetryLogId() > 0) {
+        $decision = $context->getRoutingDecision();
+        if ($context->isRetrying() && $context->getRetryLogId() > 0 && $decision !== null) {
+            $this->logger->update($context->getRetryLogId(), Log::ERROR, $error->get_error_data(), $error->get_error_messages(), $connection, $messageId, $trackingId, $connectionId, null, $decision->sourcePlugin(), $decision->type(), $decision->ruleIndex());
+        } elseif ($context->isRetrying() && $context->getRetryLogId() > 0) {
             $this->logger->update($context->getRetryLogId(), Log::ERROR, $error->get_error_data(), $error->get_error_messages(), $connection, $messageId, $trackingId, $connectionId);
         } else {
             $this->queue(Log::ERROR, $error, $context, $connection, $messageId, $trackingId, $connectionId);
@@ -91,7 +97,7 @@ class MailEventLogger
      */
     private function queue(int $status, $data, SendContext $context, ?string $connection, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null): void
     {
-        $this->pendingLogs[] = [
+        $log = [
             'status'              => $status,
             'data'                => $data,
             'connection'          => $connection,
@@ -101,6 +107,15 @@ class MailEventLogger
             'delivery_status'     => $deliveryStatus,
             'delivery_updated_at' => $deliveryStatus !== null ? gmdate('Y-m-d H:i:s') : null,
         ];
+
+        $decision = $context->getRoutingDecision();
+        if ($decision !== null) {
+            $log['source_plugin']      = $decision->sourcePlugin();
+            $log['routing_type']       = $decision->type();
+            $log['routing_rule_index'] = $decision->ruleIndex();
+        }
+
+        $this->pendingLogs[] = $log;
 
         if ($this->shouldFlushLogs($context)) {
             $this->flushPendingLogs();

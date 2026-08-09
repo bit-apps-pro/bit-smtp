@@ -2,6 +2,8 @@
 
 namespace BitApps\SMTP\Mail\Dispatch;
 
+use BitApps\SMTP\Mail\Routing\RoutingDecision;
+
 /**
  * Mutable per-send state shared between the wp_mail hooks and the calling controller.
  *
@@ -25,16 +27,19 @@ class SendContext
 
     private bool $isBatch = false;
 
+    private ?RoutingDecision $routingDecision = null;
+
     /**
-     * Clear only the per-send OUTPUT accumulators at the start of each send.
+     * Clear per-send output accumulators and routing metadata at the start of each send.
      *
      * Caller-set inputs (debug flag, isRetrying, retryLogId, isBatch) are intentionally
      * preserved so batch/resend loops keep their configuration across sends.
      */
     public function resetForSend(): void
     {
-        $this->debugOutput = [];
-        $this->isFailed    = false;
+        $this->debugOutput     = [];
+        $this->isFailed        = false;
+        $this->routingDecision = null;
     }
 
     public function setDebug(bool $debug): self
@@ -108,5 +113,17 @@ class SendContext
     public function isBatch(): bool
     {
         return $this->isBatch;
+    }
+
+    public function setRoutingDecision(RoutingDecision $routingDecision): self
+    {
+        $this->routingDecision = $routingDecision;
+
+        return $this;
+    }
+
+    public function getRoutingDecision(): ?RoutingDecision
+    {
+        return $this->routingDecision;
     }
 }

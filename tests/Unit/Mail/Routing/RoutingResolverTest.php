@@ -44,6 +44,50 @@ class RoutingResolverTest extends BaseUnitTestCase
         $this->assertSame('conn-first-match', $result);
     }
 
+    public function testDecideCapturesTheFirstMatchingRuleAndSource(): void
+    {
+        $rules = RoutingRules::fromArray([
+            [
+                'conditions'   => [['field' => 'source_plugin', 'operator' => 'equals', 'value' => 'edd']],
+                'connectionId' => 'conn-not-matching',
+            ],
+            [
+                'conditions'   => [['field' => 'source_plugin', 'operator' => 'equals', 'value' => 'woocommerce']],
+                'connectionId' => 'conn-first-match',
+            ],
+            [
+                'conditions'   => [['field' => 'from', 'operator' => 'equals', 'value' => 'billing@example.com']],
+                'connectionId' => 'conn-second-match',
+            ],
+        ]);
+
+        $decision = $this->resolver->decide($this->context(), $rules);
+
+        $this->assertSame('woocommerce', $decision->sourcePlugin());
+        $this->assertSame('conn-first-match', $decision->connectionId());
+        $this->assertSame('rule', $decision->type());
+        $this->assertSame(1, $decision->ruleIndex());
+        $this->assertSame('fallback', $decision->withType('fallback')->type());
+        $this->assertSame('rule', $decision->type());
+    }
+
+    public function testDecideReturnsTheDefaultShapeWhenNoRuleMatches(): void
+    {
+        $rules = RoutingRules::fromArray([
+            [
+                'conditions'   => [['field' => 'source_plugin', 'operator' => 'equals', 'value' => 'edd']],
+                'connectionId' => 'conn-1',
+            ],
+        ]);
+
+        $decision = $this->resolver->decide($this->context(), $rules);
+
+        $this->assertSame('woocommerce', $decision->sourcePlugin());
+        $this->assertNull($decision->connectionId());
+        $this->assertSame('default', $decision->type());
+        $this->assertNull($decision->ruleIndex());
+    }
+
     public function testResolveReturnsNullWhenNoRuleMatches(): void
     {
         $rules = RoutingRules::fromArray([

@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Tests\Unit\Mail\Dispatch;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Mail\Dispatch\MailEventLogger;
 use BitApps\SMTP\Mail\Dispatch\SendContext;
+use BitApps\SMTP\Mail\Routing\RoutingDecision;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
@@ -130,6 +131,45 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->assertTrue($this->context->isFailed());
         $this->assertFalse($this->context->isRetrying());
+    }
+
+    public function testSuccessPersistsRoutingDecisionMetadata(): void
+    {
+        $mailData = ['subject' => 'Hi', 'to' => ['a@example.org']];
+        $this->context->setRoutingDecision(new RoutingDecision('woocommerce', 'conn_primary', 'rule', 3));
+
+        $this->logger->shouldReceive('bulkInsert')
+            ->once()
+            ->with([[
+                'status'              => Log::SUCCESS,
+                'data'                => $mailData,
+                'connection'          => null,
+                'connection_id'       => null,
+                'message_id'          => null,
+                'tracking_id'         => null,
+                'delivery_status'     => null,
+                'delivery_updated_at' => null,
+                'source_plugin'       => 'woocommerce',
+                'routing_type'        => 'rule',
+                'routing_rule_index'  => 3,
+            ]]);
+
+        $this->eventLogger->logMailSuccess($mailData, $this->context);
+    }
+
+    public function testRetrySuccessUpdatesRoutingDecisionMetadata(): void
+    {
+        $mailData = ['subject' => 'Hi'];
+        $this->context
+            ->setRetrying(true)
+            ->setRetryLogId(99)
+            ->setRoutingDecision(new RoutingDecision('woocommerce', 'conn_fallback', 'fallback', null));
+
+        $this->logger->shouldReceive('update')
+            ->once()
+            ->with(99, Log::SUCCESS, $mailData, null, 'Primary SMTP', null, null, null, null, 'woocommerce', 'fallback', null);
+
+        $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
     }
 
     public function testBatchingDefersFlushUntilThresholdThenFlushesAll(): void
