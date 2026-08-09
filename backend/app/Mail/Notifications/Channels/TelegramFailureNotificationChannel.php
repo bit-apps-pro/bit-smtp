@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Mail\Notifications\Channels;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
 use BitApps\SMTP\Mail\Notifications\FailureNotification;
 use BitApps\SMTP\Mail\Notifications\FailureNotificationMessage;
+use Throwable;
 
 final class TelegramFailureNotificationChannel implements FailureNotificationChannelInterface
 {
@@ -24,15 +25,19 @@ final class TelegramFailureNotificationChannel implements FailureNotificationCha
             return false;
         }
 
-        $response = wp_safe_remote_post('https://api.telegram.org/bot' . $token . '/sendMessage', [
-            'body' => [
-                'chat_id'                  => $chatId,
-                'text'                     => FailureNotificationMessage::plainText($notification),
-                'disable_web_page_preview' => 'true',
-            ],
-            'timeout'     => 5,
-            'redirection' => 0,
-        ]);
+        try {
+            $response = wp_safe_remote_post('https://api.telegram.org/bot' . $token . '/sendMessage', [
+                'body' => [
+                    'chat_id'                  => $chatId,
+                    'text'                     => FailureNotificationMessage::plainText($notification),
+                    'disable_web_page_preview' => 'true',
+                ],
+                'timeout'     => 5,
+                'redirection' => 0,
+            ]);
+        } catch (Throwable) {
+            return false;
+        }
         if (is_wp_error($response)) {
             return false;
         }

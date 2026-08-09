@@ -7,6 +7,7 @@ use BitApps\SMTP\Mail\Notifications\FailureNotification;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
+use RuntimeException;
 use Throwable;
 use WP_Error;
 
@@ -81,6 +82,20 @@ final class TelegramFailureNotificationChannelTest extends BaseUnitTestCase
 
             throw $exception;
         }
+    }
+
+    public function testContainsAnExceptionFromTheHttpApiWithoutOutputOrTokenLeak(): void
+    {
+        Functions\expect('wp_safe_remote_post')
+            ->once()
+            ->andThrow(new RuntimeException('request failed for token ' . self::TOKEN));
+        $channel = new TelegramFailureNotificationChannel();
+
+        $this->expectOutputString('');
+        $this->assertFalse($channel->send(FailureNotification::forTest(), [
+            'bot_token' => self::TOKEN,
+            'chat_id'   => '123456789',
+        ]));
     }
 
     public function testReturnsFalseForANon2xxOrOkFalseProviderResponse(): void

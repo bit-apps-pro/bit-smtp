@@ -53,6 +53,33 @@ final class FailureNotificationMessageTest extends BaseUnitTestCase
         $this->assertStringStartsWith('[TEST] ', FailureNotificationMessage::plainText($notification));
     }
 
+    public function testKeepsUtf8ValidAtADynamicFieldByteBoundary(): void
+    {
+        $notification = FailureNotification::fromError(new WP_Error('wp_mail_failed', 'Failed', [
+            'subject' => str_repeat('a', 296) . '€' . 'abcd',
+        ]));
+
+        $text = FailureNotificationMessage::plainText($notification);
+
+        $this->assertLessThanOrEqual(FailureNotificationMessage::MAX_LENGTH, \strlen($text));
+        $this->assertSame(1, preg_match('//u', $text));
+        $this->assertStringContainsString('Subject: ' . str_repeat('a', 296) . '...', $text);
+    }
+
+    public function testKeepsUtf8ValidWhenTheTotalByteLimitTruncates(): void
+    {
+        $notification = FailureNotification::fromError(new WP_Error('wp_mail_failed', 'Failed', [
+            'to'      => array_fill(0, 10, str_repeat('é', 150)),
+            'subject' => str_repeat('a', 300),
+        ]));
+
+        $text = FailureNotificationMessage::plainText($notification);
+
+        $this->assertLessThanOrEqual(FailureNotificationMessage::MAX_LENGTH, \strlen($text));
+        $this->assertStringEndsWith('...', $text);
+        $this->assertSame(1, preg_match('//u', $text));
+    }
+
     public function testNormalErrorNotificationIsNotMarkedAsTest(): void
     {
         $notification = FailureNotification::fromError(new WP_Error('wp_mail_failed', 'Failed'));

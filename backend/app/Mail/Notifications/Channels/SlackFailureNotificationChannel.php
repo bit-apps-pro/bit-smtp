@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Mail\Notifications\Channels;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
 use BitApps\SMTP\Mail\Notifications\FailureNotification;
 use BitApps\SMTP\Mail\Notifications\FailureNotificationMessage;
+use Throwable;
 
 final class SlackFailureNotificationChannel implements FailureNotificationChannelInterface
 {
@@ -28,12 +29,16 @@ final class SlackFailureNotificationChannel implements FailureNotificationChanne
             return false;
         }
 
-        $response = wp_safe_remote_post($url, [
-            'headers'     => ['Content-Type' => 'application/json'],
-            'body'        => $body,
-            'timeout'     => 5,
-            'redirection' => 0,
-        ]);
+        try {
+            $response = wp_safe_remote_post($url, [
+                'headers'     => ['Content-Type' => 'application/json'],
+                'body'        => $body,
+                'timeout'     => 5,
+                'redirection' => 0,
+            ]);
+        } catch (Throwable) {
+            return false;
+        }
         if (is_wp_error($response)) {
             return false;
         }
@@ -60,7 +65,11 @@ final class SlackFailureNotificationChannel implements FailureNotificationChanne
 
         return ($parts['scheme'] ?? '') === 'https'
             && ($parts['host'] ?? '')   === 'hooks.slack.com'
-            && !isset($parts['port'], $parts['user'], $parts['pass'], $parts['query'], $parts['fragment'])
+            && !isset($parts['port'])
+            && !isset($parts['user'])
+            && !isset($parts['pass'])
+            && !isset($parts['query'])
+            && !isset($parts['fragment'])
             && isset($parts['path'])
             && str_starts_with($parts['path'], '/services/')
             && \strlen($parts['path']) > \strlen('/services/');

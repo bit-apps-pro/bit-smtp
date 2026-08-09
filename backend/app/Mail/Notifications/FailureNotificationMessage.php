@@ -119,6 +119,11 @@ final class FailureNotificationMessage
             return $value;
         }
 
-        return substr($value, 0, $limit - 3) . '...';
+        $prefix = substr($value, 0, $limit - 3);
+        while ($prefix !== '' && preg_match('//u', $prefix) !== 1) {
+            $prefix = substr($prefix, 0, -1);
+        }
+
+        return $prefix . '...';
     }
 }

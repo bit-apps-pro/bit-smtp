@@ -7,6 +7,8 @@ use BitApps\SMTP\Mail\Notifications\FailureNotification;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Throwable;
 use WP_Error;
 
@@ -67,6 +69,27 @@ final class SlackFailureNotificationChannelTest extends BaseUnitTestCase
         }
     }
 
+    #[DataProvider('disallowedWebhookUrlComponents')]
+    public function testRejectsWebhookUrlsWithDisallowedComponents(string $url): void
+    {
+        Functions\expect('wp_safe_remote_post')->never();
+
+        $this->assertFalse((new SlackFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => $url]));
+    }
+
+    /**
+     * @return array<string,array{string}>
+     */
+    public static function disallowedWebhookUrlComponents(): array
+    {
+        return [
+            'explicit port' => ['https://hooks.slack.com:443/services/T/B/X'],
+            'userinfo'      => ['https://user@hooks.slack.com/services/T/B/X'],
+            'query'         => ['https://hooks.slack.com/services/T/B/X?token=secret'],
+            'fragment'      => ['https://hooks.slack.com/services/T/B/X#secret'],
+        ];
+    }
+
     public function testReturnsFalseForRemoteAndNonSuccessResponsesWithoutLeakingWebhookCredential(): void
     {
         $secretUrl = self::WEBHOOK_URL;
@@ -83,6 +106,17 @@ final class SlackFailureNotificationChannelTest extends BaseUnitTestCase
 
             throw $exception;
         }
+    }
+
+    public function testContainsAnExceptionFromTheHttpApiWithoutOutputOrCredentialLeak(): void
+    {
+        Functions\expect('wp_safe_remote_post')
+            ->once()
+            ->andThrow(new RuntimeException('request failed for ' . self::WEBHOOK_URL));
+        $channel = new SlackFailureNotificationChannel();
+
+        $this->expectOutputString('');
+        $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]));
     }
 
     public function testReturnsFalseForANon2xxResponse(): void
