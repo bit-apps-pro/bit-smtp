@@ -369,6 +369,47 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
         $this->assertSame('', $result['features']['alerts']['telegram']['bot_token']);
     }
 
+    public function testPartialTelegramChannelPreservesOmittedFieldsWhileExplicitBlankClearsChatId(): void
+    {
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'telegram' => [
+                        'enabled'   => true,
+                        'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+                        'chat_id'   => '-1001234567890',
+                    ],
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'telegram' => ['enabled' => false],
+                ],
+            ],
+        ];
+
+        $preserved = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(false, $preserved['features']['alerts']['telegram']['enabled']);
+        $this->assertSame(
+            '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+            $preserved['features']['alerts']['telegram']['bot_token']
+        );
+        $this->assertSame('-1001234567890', $preserved['features']['alerts']['telegram']['chat_id']);
+
+        $incoming['features']['alerts']['telegram']['chat_id']  = '';
+        $cleared                                                = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame('', $cleared['features']['alerts']['telegram']['chat_id']);
+    }
+
     public function testOmittedAlertChannelsPreserveTheirEntireStoredConfiguration(): void
     {
         $storedSlack = [

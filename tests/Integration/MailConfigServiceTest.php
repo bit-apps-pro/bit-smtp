@@ -431,6 +431,35 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz', $loaded['telegram']['bot_token']);
     }
 
+    public function testPartialTelegramSavePreservesOmittedTargetFieldsWhileExplicitBlankClearsChatId(): void
+    {
+        $stored                       = $this->v2SettingsArray('conn_1', 'smtp-secret');
+        $stored['features']['alerts'] = [
+            'telegram' => [
+                'enabled'   => true,
+                'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+                'chat_id'   => '-1001234567890',
+            ],
+        ];
+        $this->freshService()->saveSettings($stored);
+
+        $partial                       = $this->v2SettingsArray('conn_1', 'smtp-secret');
+        $partial['features']['alerts'] = [
+            'telegram' => ['enabled' => false],
+        ];
+        $this->freshService()->saveSettings($partial);
+
+        $preserved = $this->freshService()->load()->getFeatures()['alerts']['telegram'];
+        $this->assertSame(false, $preserved['enabled']);
+        $this->assertSame('123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz', $preserved['bot_token']);
+        $this->assertSame('-1001234567890', $preserved['chat_id']);
+
+        $partial['features']['alerts']['telegram']['chat_id'] = '';
+        $this->freshService()->saveSettings($partial);
+
+        $this->assertSame('', $this->freshService()->load()->getFeatures()['alerts']['telegram']['chat_id']);
+    }
+
     public function testEncryptSecretsMigrationEncryptsExistingPlaintextInstall(): void
     {
         // Seed the raw option exactly as a pre-encryption install would have it: v2 shape, but the

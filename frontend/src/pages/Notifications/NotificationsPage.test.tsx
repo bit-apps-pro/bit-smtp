@@ -165,8 +165,52 @@ describe('NotificationsPage', () => {
     await user.click(screen.getByRole('switch', { name: 'Failure notifications' }))
 
     expect(slackUrl).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Test Slack notification' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Test Telegram notification' })).toBeDisabled()
+  })
+
+  it('allows testing valid saved channels while global failure alerts are off', () => {
+    const { alerts } = settings.features
+    if (!alerts || Array.isArray(alerts)) {
+      throw new Error('Expected alert settings fixture')
+    }
+    ;(useMailSettings as Mock).mockReturnValue({
+      data: {
+        ...settings,
+        features: {
+          ...settings.features,
+          alerts: { ...alerts, enabled: false }
+        }
+      },
+      isPending: false
+    })
+
+    render(<NotificationsPage />)
+
+    expect(screen.getByRole('button', { name: 'Test Slack notification' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Test Telegram notification' })).toBeEnabled()
+  })
+
+  it('disables only the channel test whose saved target has unsaved changes', async () => {
+    const user = userEvent.setup()
+    render(<NotificationsPage />)
+
+    const slackTest = screen.getByRole('button', { name: 'Test Slack notification' })
+    const telegramTest = screen.getByRole('button', { name: 'Test Telegram notification' })
+    expect(slackTest).toBeEnabled()
+    expect(telegramTest).toBeEnabled()
+
+    await user.clear(screen.getByLabelText('Slack webhook URL'))
+    await user.type(
+      screen.getByLabelText('Slack webhook URL'),
+      'https://hooks.slack.com/services/T00000000/B00000000/new-target'
+    )
+
+    expect(slackTest).toBeDisabled()
+    expect(telegramTest).toBeEnabled()
+
+    await user.clear(screen.getByLabelText('Telegram chat ID'))
+    await user.type(screen.getByLabelText('Telegram chat ID'), '-1007654321000')
+
+    expect(telegramTest).toBeDisabled()
   })
 
   it('blocks saving invalid Slack and Telegram configuration', async () => {

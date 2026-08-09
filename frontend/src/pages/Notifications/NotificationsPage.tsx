@@ -150,7 +150,10 @@ export default function NotificationsPage() {
   const emailEnabled = Form.useWatch('emailEnabled', form) ?? false
   const webhookEnabled = Form.useWatch('webhookEnabled', form) ?? false
   const slackEnabled = Form.useWatch('slackEnabled', form) ?? false
+  const slackWebhookUrl = Form.useWatch('slackWebhookUrl', form) ?? ''
   const telegramEnabled = Form.useWatch('telegramEnabled', form) ?? false
+  const telegramBotToken = Form.useWatch('telegramBotToken', form) ?? ''
+  const telegramChatId = Form.useWatch('telegramChatId', form) ?? ''
   const testNotification = useTestNotification()
 
   useEffect(() => {
@@ -265,17 +268,22 @@ export default function NotificationsPage() {
   }
 
   const savedAlerts = readAlerts(settings)
+  const slackTargetIsUnsaved =
+    slackEnabled !== savedAlerts.slack.enabled ||
+    slackWebhookUrl.trim() !== savedAlerts.slack.webhook_url
+  const telegramTargetIsUnsaved =
+    telegramEnabled !== savedAlerts.telegram.enabled ||
+    telegramBotToken.trim() !== savedAlerts.telegram.bot_token ||
+    telegramChatId.trim() !== savedAlerts.telegram.chat_id
   const canTestSlack =
-    alertsEnabled &&
-    slackEnabled &&
     savedAlerts.slack.enabled &&
-    isSlackIncomingWebhookUrl(savedAlerts.slack.webhook_url)
+    isSlackIncomingWebhookUrl(savedAlerts.slack.webhook_url) &&
+    !slackTargetIsUnsaved
   const canTestTelegram =
-    alertsEnabled &&
-    telegramEnabled &&
     savedAlerts.telegram.enabled &&
     isTelegramBotToken(savedAlerts.telegram.bot_token) &&
-    TELEGRAM_CHAT_ID_PATTERN.test(savedAlerts.telegram.chat_id)
+    TELEGRAM_CHAT_ID_PATTERN.test(savedAlerts.telegram.chat_id) &&
+    !telegramTargetIsUnsaved
 
   const handleTest = (channel: NotificationChannel) => {
     testNotification.mutate(

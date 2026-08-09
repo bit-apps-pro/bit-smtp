@@ -11,6 +11,8 @@ final class MaskedSecretResolver
      * from an existing connection's editable payload, while keeping genuine new values.
      *
      * @param array<string,mixed> $incomingV2
+     *
+     * @return array<string,mixed>
      */
     public static function apply(array $incomingV2, MailSettings $current): array
     {
@@ -54,6 +56,11 @@ final class MaskedSecretResolver
         return $incomingV2;
     }
 
+    /**
+     * @param array<string,mixed> $incomingV2
+     *
+     * @return array<string,mixed>
+     */
     private static function resolveAlertSecrets(array $incomingV2, MailSettings $current): array
     {
         if (!isset($incomingV2['features']['alerts']) || !\is_array($incomingV2['features']['alerts'])) {
@@ -62,16 +69,31 @@ final class MaskedSecretResolver
 
         $storedAlerts = $current->getFeatures()['alerts'] ?? [];
 
-        foreach (MailSettingsSerializer::ALERT_SECRET_KEYS as $channel => $secretKeys) {
+        foreach ($storedAlerts as $channel => $storedChannel) {
+            if (!\is_array($storedChannel)) {
+                continue;
+            }
+
             if (!\array_key_exists($channel, $incomingV2['features']['alerts'])) {
-                if (isset($storedAlerts[$channel]) && \is_array($storedAlerts[$channel])) {
-                    $incomingV2['features']['alerts'][$channel] = $storedAlerts[$channel];
-                }
+                $incomingV2['features']['alerts'][$channel] = $storedChannel;
 
                 continue;
             }
 
             if (!\is_array($incomingV2['features']['alerts'][$channel])) {
+                continue;
+            }
+
+            // Keep fields a partial editor does not submit (for example Telegram's chat_id), while
+            // allowing an explicitly supplied empty value to clear its stored counterpart.
+            $incomingV2['features']['alerts'][$channel] += $storedChannel;
+        }
+
+        foreach (MailSettingsSerializer::ALERT_SECRET_KEYS as $channel => $secretKeys) {
+            if (
+                !isset($incomingV2['features']['alerts'][$channel])
+                || !\is_array($incomingV2['features']['alerts'][$channel])
+            ) {
                 continue;
             }
 

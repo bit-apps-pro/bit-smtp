@@ -34,6 +34,9 @@ final class MailSettingsSanitizer
      * @param null|callable(string):string[] $secretKeyResolver Maps a provider key to its secret
      *                                                          field keys; defaults to the live
      *                                                          provider registry when omitted
+     * @param array<string,mixed>            $v2
+     *
+     * @return array<string,mixed>
      */
     public static function sanitize(array $v2, ?callable $secretKeyResolver = null): array
     {
@@ -82,6 +85,11 @@ final class MailSettingsSanitizer
         return $out;
     }
 
+    /**
+     * @param array<string,mixed> $conn
+     *
+     * @return array<string,mixed>
+     */
     private static function sanitizeConnection(array $conn, ?callable $secretKeyResolver): array
     {
         $stringFields = ['id', 'provider', 'kind', 'name', 'fromEmail', 'fromName', 'replyToEmail'];
@@ -111,6 +119,8 @@ final class MailSettingsSanitizer
     /**
      * @param mixed $entry Normally {source,value}; a raw scalar (malformed client payload) is
      *                     coerced into that shape rather than fataling the request
+     *
+     * @return array{source:string,value:string}
      */
     private static function sanitizeCredentialEntry($entry): array
     {
@@ -133,8 +143,11 @@ final class MailSettingsSanitizer
      * future non-secret fields) as a trimmed string. Array/object values are dropped: settings
      * only ever hold scalars. Credentials are sanitized separately and stay whitelisted.
      *
-     * @param string[] $secretKeys provider secret field keys, stripped before the pass-through so a
-     *                             client cannot smuggle a secret into `settings` to bypass encryption
+     * @param string[]            $secretKeys provider secret field keys, stripped before the pass-through so a
+     *                                        client cannot smuggle a secret into `settings` to bypass encryption
+     * @param array<string,mixed> $settings
+     *
+     * @return array<string,mixed>
      */
     private static function sanitizeConnectionSettings(array $settings, array $secretKeys = []): array
     {
@@ -186,6 +199,11 @@ final class MailSettingsSanitizer
         return $sanitized;
     }
 
+    /**
+     * @param array<string,mixed> $features
+     *
+     * @return array<string,mixed>
+     */
     private static function sanitizeFeatures(array $features): array
     {
         $out = [];
@@ -206,6 +224,8 @@ final class MailSettingsSanitizer
     }
 
     /**
+     * @param array<string,mixed> $alerts
+     *
      * @return array{enabled:bool,email:array{enabled:bool,recipients:string[]},webhook:array{enabled:bool,url:string,signing_secret:string},slack:array{enabled:bool,webhook_url:string},telegram:array{enabled:bool,bot_token:string,chat_id:string}}
      */
     private static function sanitizeAlerts(array $alerts): array
@@ -292,6 +312,9 @@ final class MailSettingsSanitizer
         ];
     }
 
+    /**
+     * @param array<string,mixed> $settings
+     */
     private static function scalarString(array $settings, string $key): string
     {
         return isset($settings[$key]) && \is_scalar($settings[$key]) ? trim((string) $settings[$key]) : '';
@@ -319,6 +342,10 @@ final class MailSettingsSanitizer
     /**
      * Whitelist the smart-routing rules: each surviving rule needs a connection id and at least one
      * condition whose field and operator are known enums. Malformed rules and conditions are dropped.
+     *
+     * @param array<int,mixed> $rules
+     *
+     * @return array<int,array{connectionId:string,conditions:array<int,array{field:string,operator:string,value:string}>}>
      */
     private static function sanitizeRoutingRules(array $rules): array
     {
@@ -348,6 +375,9 @@ final class MailSettingsSanitizer
         return $sanitized;
     }
 
+    /**
+     * @param array<string,mixed> $rule
+     */
     private static function routingConnectionId(array $rule): string
     {
         // RoutingRule::fromArray reads camelCase `connectionId`; accept the snake_case alias too.
@@ -356,6 +386,11 @@ final class MailSettingsSanitizer
         return \is_scalar($id) ? trim((string) $id) : '';
     }
 
+    /**
+     * @param array<int,mixed> $conditions
+     *
+     * @return array<int,array{field:string,operator:string,value:string}>
+     */
     private static function sanitizeRoutingConditions(array $conditions): array
     {
         $sanitized = [];

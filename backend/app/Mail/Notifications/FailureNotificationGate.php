@@ -17,10 +17,12 @@ class FailureNotificationGate
 
     public function reset(): void
     {
-        // notifySuccess() runs on every successful send; delete_option() always issues a DB SELECT,
-        // so skip it when the (non-autoloaded) flag isn't set — the common case for sites without alerts.
-        if (Config::getOption(self::OPTION, null) !== null) {
-            Config::deleteOption(self::OPTION);
+        // Compare-and-delete the exact marker we observed. A plain get_option() followed by
+        // delete_option() can otherwise erase a new failure streak after another request resets
+        // the old marker and the new streak acquires its own one.
+        $marker = Config::getOption(self::OPTION, false);
+        if ($marker !== false) {
+            Config::deleteOptionIfUnchanged(self::OPTION, $marker);
         }
     }
 }
