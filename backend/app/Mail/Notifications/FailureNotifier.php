@@ -4,7 +4,6 @@ namespace BitApps\SMTP\Mail\Notifications;
 
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Connections\Connection;
-use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotifierInterface;
 use Throwable;
 use WP_Error;
@@ -15,22 +14,13 @@ class FailureNotifier implements FailureNotifierInterface
 
     private FailureNotificationGate $gate;
 
-    /**
-     * @var array<string,FailureNotificationChannelInterface>
-     */
-    private array $channels = [];
-
-    /**
-     * @param FailureNotificationChannelInterface[] $channels
-     */
-    public function __construct(MailConfigService $config, FailureNotificationGate $gate, array $channels)
-    {
+    public function __construct(
+        MailConfigService $config,
+        FailureNotificationGate $gate,
+        private FailureNotificationChannelRegistry $channels
+    ) {
         $this->config = $config;
         $this->gate   = $gate;
-
-        foreach ($channels as $channel) {
-            $this->channels[$channel->key()] = $channel;
-        }
     }
 
     public function notifyFailure(WP_Error $error, ?Connection $connection = null): void
@@ -45,7 +35,7 @@ class FailureNotifier implements FailureNotifierInterface
             return;
         }
 
-        foreach ($this->channels as $key => $channel) {
+        foreach ($this->channels->all() as $key => $channel) {
             $settings = isset($alerts[$key]) && \is_array($alerts[$key]) ? $alerts[$key] : [];
             if (empty($settings['enabled'])) {
                 continue;
@@ -53,9 +43,8 @@ class FailureNotifier implements FailureNotifierInterface
 
             try {
                 $channel->send($notification, $settings);
-            } catch (Throwable $e) {
-                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- notification failure must not break wp_mail
-                error_log('Bit SMTP failure notification error: ' . $e->getMessage());
+            } catch (Throwable) {
+                // Notification failures are intentionally isolated from wp_mail and never expose provider output.
             }
         }
     }
@@ -79,7 +68,7 @@ class FailureNotifier implements FailureNotifierInterface
             return false;
         }
 
-        foreach (array_keys($this->channels) as $key) {
+        foreach (array_keys($this->channels->all()) as $key) {
             if (!empty($alerts[$key]['enabled'])) {
                 return true;
             }

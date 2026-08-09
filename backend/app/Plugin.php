@@ -29,9 +29,13 @@ use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
 use BitApps\SMTP\Mail\Notifications\Channels\EmailFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\Channels\SlackFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\Channels\TelegramFailureNotificationChannel;
 use BitApps\SMTP\Mail\Notifications\Channels\WebhookFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\FailureNotificationChannelRegistry;
 use BitApps\SMTP\Mail\Notifications\FailureNotificationGate;
 use BitApps\SMTP\Mail\Notifications\FailureNotifier;
+use BitApps\SMTP\Mail\Notifications\NotificationChannelTester;
 use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
@@ -162,6 +166,13 @@ final class Plugin
         $registry->register(new Microsoft365Provider(new Microsoft365Transport($apiClient, $tokenProvider, $mimeBuilder)));
         $this->_container['providerRegistry'] = $registry;
 
+        $this->_container['failureNotificationChannelRegistry'] = new FailureNotificationChannelRegistry([
+            new EmailFailureNotificationChannel(),
+            new WebhookFailureNotificationChannel(),
+            new SlackFailureNotificationChannel(),
+            new TelegramFailureNotificationChannel(),
+        ]);
+
         $this->_container['smtpProvider'] = new WpMailBridge(
             $registry,
             new ConnectionResolver(),
@@ -171,10 +182,7 @@ final class Plugin
             new FailureNotifier(
                 $this->mailConfigService(),
                 new FailureNotificationGate(),
-                [
-                    new EmailFailureNotificationChannel(),
-                    new WebhookFailureNotificationChannel(),
-                ]
+                $this->_container['failureNotificationChannelRegistry']
             )
         );
     }
@@ -210,6 +218,18 @@ final class Plugin
         }
 
         return $this->_container['mailConfigService'];
+    }
+
+    public function notificationChannelTester(): NotificationChannelTester
+    {
+        if (!isset($this->_container['notificationChannelTester'])) {
+            $this->_container['notificationChannelTester'] = new NotificationChannelTester(
+                $this->mailConfigService(),
+                $this->_container['failureNotificationChannelRegistry']
+            );
+        }
+
+        return $this->_container['notificationChannelTester'];
     }
 
     public function apiClient(): ApiClient

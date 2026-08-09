@@ -8,6 +8,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Route;
 use BitApps\SMTP\HTTP\Controllers\ConnectionController;
 use BitApps\SMTP\HTTP\Controllers\LogController;
 use BitApps\SMTP\HTTP\Controllers\MailSettingsController;
+use BitApps\SMTP\HTTP\Controllers\NotificationController;
 use BitApps\SMTP\HTTP\Controllers\OAuthController;
 use BitApps\SMTP\HTTP\Controllers\ProviderController;
 use BitApps\SMTP\HTTP\Controllers\SMTPController;
@@ -32,6 +33,7 @@ Route::group(function () {
 
     Route::get('mail/settings', [MailSettingsController::class, 'index']);
     Route::post('mail/settings/save', [MailSettingsController::class, 'save']);
+    Route::post('mail/notifications/test', [NotificationController::class, 'test']);
     Route::get('mail/providers', [ProviderController::class, 'index']);
     Route::post('mail/connections/save', [ConnectionController::class, 'save']);
     Route::post('mail/connections/webhook/create', [ConnectionController::class, 'createWebhook']);
