@@ -1,4 +1,4 @@
-import { type Page, expect, test } from '@playwright/test'
+import { type Page, type Request, expect, test } from '@playwright/test'
 import { gotoSmtp } from './helpers'
 
 const MASK_SENTINEL = '********'
@@ -6,6 +6,7 @@ const TEST_SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/T00000000/B0000
 const TEST_TELEGRAM_BOT_TOKEN = '123456:abcdefghijklmnopqrstuvwxyz'
 const TEST_TELEGRAM_CHAT_ID = '-1001234567890'
 const NOTIFICATION_TEST_ENDPOINT = '/wp-json/bit-smtp/v1/mail/notifications/test'
+type NotificationChannel = 'slack' | 'telegram'
 
 interface AlertState {
   enabled: boolean
@@ -104,13 +105,19 @@ async function restoreAlertState(page: Page, state: AlertState): Promise<void> {
   await save(page)
 }
 
-async function testNotificationChannel(page: Page, channel: 'slack' | 'telegram'): Promise<void> {
-  const request = page.waitForRequest(candidate => {
-    if (candidate.method() !== 'POST' || !candidate.url().endsWith(NOTIFICATION_TEST_ENDPOINT)) {
-      return false
-    }
+function assertNotificationTestRequest(request: Request, channel: NotificationChannel): void {
+  const payload: unknown = JSON.parse(request.postData() || '{}')
 
-    return JSON.parse(candidate.postData() || '{}').channel === channel
+  expect(request.method()).toBe('POST')
+  expect(new URL(request.url()).pathname).toBe(NOTIFICATION_TEST_ENDPOINT)
+  expect(payload).toEqual({ channel })
+}
+
+async function testNotificationChannel(page: Page, channel: NotificationChannel): Promise<void> {
+  const request = page.waitForRequest(candidate => {
+    return (
+      candidate.method() === 'POST' && new URL(candidate.url()).pathname === NOTIFICATION_TEST_ENDPOINT
+    )
   })
 
   await page
@@ -170,15 +177,15 @@ test.describe('Failure-notification alerts', () => {
 
   test('saves masked Slack and Telegram settings and tests both channels locally', async ({ page }) => {
     const interceptedChannels: string[] = []
+    let expectedChannel: NotificationChannel | null = null
     await page.route(`**${NOTIFICATION_TEST_ENDPOINT}`, async route => {
       const request = route.request()
-      const payload = JSON.parse(request.postData() || '{}') as { channel?: string }
-
-      if (request.method() !== 'POST' || !['slack', 'telegram'].includes(payload.channel || '')) {
+      if (!expectedChannel) {
         throw new Error(`Unexpected notification test request: ${request.method()} ${request.url()}`)
       }
 
-      interceptedChannels.push(payload.channel as string)
+      assertNotificationTestRequest(request, expectedChannel)
+      interceptedChannels.push(expectedChannel)
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -212,8 +219,10 @@ test.describe('Failure-notification alerts', () => {
       originalAlerts?.telegramChatId || TEST_TELEGRAM_CHAT_ID
     )
 
-    await testNotificationChannel(page, 'slack')
-    await testNotificationChannel(page, 'telegram')
+    expectedChannel = 'slack'
+    await testNotificationChannel(page, expectedChannel)
+    expectedChannel = 'telegram'
+    await testNotificationChannel(page, expectedChannel)
     expect(interceptedChannels).toEqual(['slack', 'telegram'])
   })
 })
