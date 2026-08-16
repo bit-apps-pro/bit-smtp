@@ -18,7 +18,6 @@ use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingDecision;
-use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
@@ -351,27 +350,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->setLoggingEnabled($bridge, true);
 
         $this->invokeDispatch($bridge, [$this->connection(['provider' => 'postmark'])], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
-    }
-
-    public function testProvidersOwnAcceptedStatusStillWinsWhenNoWebhookApplies(): void
-    {
-        // SES has no inbound webhook adapter at all; it self-reports `accepted` straight from its send
-        // API response. Removing the webhook gate must not disturb that confirmatory branch.
-        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), DeliveryStatus::ACCEPTED, 'amazon_ses');
-
-        $logService = Mockery::mock(LogService::class);
-        $logService->shouldReceive('bulkInsert')
-            ->once()
-            ->with(Mockery::on(function (array $logs): bool {
-                return $logs[0]['delivery_status'] === 'accepted';
-            }));
-        $this->setEventLogger($bridge, $logService);
-        $this->setContext($bridge, new SendContext());
-        $this->setLoggingEnabled($bridge, true);
-
-        $succeeded = $this->invokeDispatch($bridge, [$this->connection(['provider' => 'amazon_ses'])], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
-
-        $this->assertTrue($succeeded);
     }
 
     public function testWebhookDisabledApiAcceptedSendDoesNotEnterAVerifiedDeliveryOutcome(): void

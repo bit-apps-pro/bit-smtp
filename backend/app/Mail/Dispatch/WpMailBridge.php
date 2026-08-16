@@ -307,21 +307,17 @@ class WpMailBridge
 
     /**
      * Delivery status to stamp on a successful transport hand-off. A hand-off is not recipient
-     * delivery, but every successful one is floored at `accepted` regardless of webhook expectation:
-     * a non-public install may never receive the inbound webhook, so a permanently-null row is worse
-     * than a floor that `DeliveryRollup` overwrites the instant a real webhook event resolves a
-     * stronger or negative outcome.
+     * delivery, but every successful one is floored at the non-terminal `accepted` regardless of
+     * webhook expectation: a non-public install may never receive the inbound webhook, so a
+     * permanently-null row is worse than a floor that `DeliveryRollup` overwrites the instant a real
+     * webhook event resolves a stronger or negative outcome. Only `accepted` is ever stamped here — a
+     * provider response alone is never proof of delivery, and the LogService accepted-only gate clamps
+     * any terminal value a provider might report.
      */
     private function resolveAcceptedDeliveryStatus(bool $succeeded, ?ProviderInterface $provider): ?string
     {
         if (!$succeeded || $provider === null) {
             return null;
-        }
-
-        // Providers may only contribute the non-terminal `accepted` state here. Normalize any legacy
-        // terminal value defensively: a provider response alone is never proof of recipient delivery.
-        if ($provider->deliveryStatusOnAccept() === DeliveryStatus::ACCEPTED) {
-            return DeliveryStatus::ACCEPTED;
         }
 
         return DeliveryStatus::ACCEPTED;
