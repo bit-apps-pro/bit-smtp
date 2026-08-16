@@ -24,4 +24,16 @@ describe('EmailDetailsTab', () => {
     expect(screen.getByText('Provider Message ID:')).toBeInTheDocument()
     expect(screen.getByText('gmail-message-123')).toBeInTheDocument()
   })
+
+  it('shows the connection-applied sender', () => {
+    render(<EmailDetailsTab log={{ ...log, sender: 'Store <store@example.com>' }} />)
+
+    expect(screen.getByText('Store <store@example.com>')).toBeInTheDocument()
+  })
+
+  it('shows a placeholder when no sender was captured', () => {
+    render(<EmailDetailsTab log={log} />)
+
+    expect(screen.getByText('—')).toBeInTheDocument()
+  })
 })

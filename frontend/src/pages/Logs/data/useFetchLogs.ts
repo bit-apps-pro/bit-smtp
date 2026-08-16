@@ -38,6 +38,7 @@ export type LogType = {
   debug_info: Array<string>
   retry_count: number
   connection: string | null
+  sender?: string | null
   message_id?: string | null
   tracking_id?: string | null
   // Real provider delivery status, only trustworthy when `delivery_verified` is true.
