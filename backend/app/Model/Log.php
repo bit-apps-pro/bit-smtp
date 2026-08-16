@@ -10,6 +10,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
  * @property int         $status
  * @property string      $subject
  * @property array       $to_addr
+ * @property null|string $sender
  * @property array       $details
  * @property array       $debug_info
  * @property int         $retry_count
@@ -38,6 +39,7 @@ class Log extends Model
         'status'              => 'int',
         'subject'             => 'string',
         'to_addr'             => 'array',
+        'sender'              => 'string',
         'details'             => 'array',
         'debug_info'          => 'array',
         'retry_count'         => 'int',
@@ -60,6 +62,7 @@ class Log extends Model
     protected $fillable = [
         'status',
         'message',
+        'sender',
         'details',
         'retry_count',
         'connection',

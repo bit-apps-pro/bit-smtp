@@ -278,7 +278,9 @@ class WpMailBridge
             // One log row per message: the final outcome on the winning (or last-tried) connection,
             // carrying the whole attempt trail so the fallback chain (failed -> failed -> sent) is
             // visible in the log detail rather than split across a row per attempt.
-            $outcomeMailData = $this->withAttempts($mailData, $attempts);
+            $winningMessage  = $lastConnection !== null ? $this->applyConnectionFrom($lastConnection, $message) : $message;
+            $sender          = SenderFormatter::format($winningMessage->getFrom(), $winningMessage->getFromName());
+            $outcomeMailData = $this->withSender($this->withAttempts($mailData, $attempts), $sender);
             $this->logOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus);
             $this->notifyOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection);
 
@@ -547,6 +549,18 @@ class WpMailBridge
     private function withAttempts(array $mailData, array $attempts): array
     {
         $mailData['attempts'] = $attempts;
+
+        return $mailData;
+    }
+
+    /**
+     * @param array<string,mixed> $mailData
+     *
+     * @return array<string,mixed>
+     */
+    private function withSender(array $mailData, string $sender): array
+    {
+        $mailData['from'] = $sender;
 
         return $mailData;
     }

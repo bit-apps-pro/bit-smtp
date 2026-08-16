@@ -104,6 +104,7 @@ class LogService
         $log->routing_type       = $routingType;
         $log->routing_rule_index = $routingRuleIndex;
         $log->created_at_utc     = gmdate('Y-m-d H:i:s');
+        $log->sender             = sanitize_text_field((string) Arr::get($details, 'from', ''));
 
         unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
         $log->details    = $details;
@@ -153,6 +154,7 @@ class LogService
         // subject/to_addr are content-stable across a resend, but details must be refreshed so the
         // attempt trail reflects this resend's outcome rather than the original send's stale trail.
         if (\is_array($details)) {
+            $log->sender = sanitize_text_field((string) Arr::get($details, 'from', ''));
             unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
             $log->details = $details;
         }
@@ -466,6 +468,7 @@ class LogService
             $record['to_addr']         = wp_json_encode(Arr::get($details, 'to', []));
             $record['subject_pattern'] = $this->subjectPattern((string) $record['subject']);
             $record['recipient_count'] = $this->recipientCount(Arr::get($details, 'to', []));
+            $record['sender']          = sanitize_text_field((string) Arr::get($details, 'from', ''));
 
             unset(
                 $details['subject'],
