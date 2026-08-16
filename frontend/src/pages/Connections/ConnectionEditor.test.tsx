@@ -240,6 +240,22 @@ describe('ConnectionEditor', () => {
     ;(useTestConnection as Mock).mockReturnValue({ mutate: vi.fn(), isPending: false, data: undefined })
   })
 
+  it('renders the test result above the sticky action bar, not nested inside it (#32)', () => {
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    ;(useTestConnection as Mock).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      data: { ok: true, debug: ['Connected'], delivery: null }
+    })
+
+    render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />)
+
+    const alert = screen.getByRole('alert')
+    const actionsBar = screen.getByTestId('connection-actions-bar')
+
+    expect(actionsBar).not.toContainElement(alert)
+  })
+
   it('saves a v2 connection payload; untouched password stays sentinel', async () => {
     const save = vi.fn().mockResolvedValue({})
     ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })

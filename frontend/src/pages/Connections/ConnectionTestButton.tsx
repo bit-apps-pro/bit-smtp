@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import DebugOutput from '@components/DebugOutput/DebugOutput'
 import notify from '@components/Toaster/Toaster'
@@ -8,8 +9,10 @@ import useTestConnection, { type ConnectionTestResult } from './data/useTestConn
 interface ConnectionTestButtonProps {
   getConnection: () => Connection
   to: string
+  onResult?: (result: ConnectionTestResult | undefined) => void
 }
 
+/** Maps a test-send delivery outcome to an Alert type + message. */
 function connectionTestFeedback(result: ConnectionTestResult): {
   type: 'success' | 'warning' | 'error'
   message: string
@@ -35,13 +38,24 @@ function connectionTestFeedback(result: ConnectionTestResult): {
   }
 }
 
+/** Shows a toast reflecting the delivery outcome of a test send. */
 function notifyDeliveryOutcome(result: ConnectionTestResult) {
   const feedback = connectionTestFeedback(result)
   notify[feedback.type](feedback.message)
 }
 
-export default function ConnectionTestButton({ getConnection, to }: ConnectionTestButtonProps) {
+/** Sticky-bar action: triggers a test send and hands the result to the parent to render. */
+export default function ConnectionTestButton({
+  getConnection,
+  to,
+  onResult
+}: ConnectionTestButtonProps) {
   const { mutate, isPending, data } = useTestConnection()
+
+  // Bubble the mutation result up so the caller can render it outside the sticky bar (#32).
+  useEffect(() => {
+    onResult?.(data)
+  }, [data, onResult])
 
   const handleTest = () => {
     mutate(
@@ -55,16 +69,26 @@ export default function ConnectionTestButton({ getConnection, to }: ConnectionTe
     )
   }
 
-  const debugLog: unknown = data?.debug
+  return (
+    <Button type="primary" onClick={handleTest} loading={isPending}>
+      {__('Test Connection')}
+    </Button>
+  )
+}
+
+/** Renders the last test result (Alert + debug log) — kept out of the sticky action bar. */
+export function ConnectionTestOutcome({ result }: { result?: ConnectionTestResult }) {
+  const debugLog: unknown = result?.debug
   const log = Array.isArray(debugLog) ? debugLog : []
-  const feedback = data ? connectionTestFeedback(data) : null
+  const feedback = result ? connectionTestFeedback(result) : null
+
+  if (!feedback) {
+    return null
+  }
 
   return (
-    <Space direction="vertical" size="small">
-      <Button type="primary" onClick={handleTest} loading={isPending}>
-        {__('Test Connection')}
-      </Button>
-      {feedback ? <Alert type={feedback.type} message={feedback.message} showIcon /> : null}
+    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+      <Alert type={feedback.type} message={feedback.message} showIcon />
       {log.length > 0 ? <DebugOutput log={log as string[]} /> : null}
     </Space>
   )

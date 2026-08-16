@@ -5,10 +5,11 @@ import notify from '@components/Toaster/Toaster'
 import config from '@config/config'
 import { type Connection, type ProviderMeta } from '@pages/Connections/types'
 import { Button, Flex, Form, Input, Switch, Typography, theme } from 'antd'
-import ConnectionTestButton from './ConnectionTestButton'
+import ConnectionTestButton, { ConnectionTestOutcome } from './ConnectionTestButton'
 import OAuthConnectButton from './OAuthConnectButton'
 import ProviderFields from './ProviderFields'
 import useSaveConnection from './data/useSaveConnection'
+import { type ConnectionTestResult } from './data/useTestConnection'
 import { getProviderVisual } from './providerVisuals'
 
 const { Text, Paragraph } = Typography
@@ -229,6 +230,7 @@ export default function ConnectionEditor({
   const { token } = theme.useToken()
   const [form] = Form.useForm<ConnectionFormValues>()
   const { mutateAsync, isPending } = useSaveConnection()
+  const [testResult, setTestResult] = useState<ConnectionTestResult>()
 
   const secretValues = Object.fromEntries(
     provider.fields
@@ -344,13 +346,21 @@ export default function ConnectionEditor({
           </FormSection>
         ) : null}
 
+        {testResult ? (
+          <div style={{ marginTop: token.margin }}>
+            <ConnectionTestOutcome result={testResult} />
+          </div>
+        ) : null}
+
         <Flex
           gap="small"
           justify="space-between"
           align="center"
+          data-testid="connection-actions-bar"
           style={{
             position: 'sticky',
             bottom: 0,
+            width: '100%',
             backgroundColor: token.colorBgContainer,
             borderTop: `1px solid ${token.colorBorderSecondary}`,
             boxShadow: token.boxShadowSecondary,
@@ -359,7 +369,7 @@ export default function ConnectionEditor({
             zIndex: 10
           }}
         >
-          <ConnectionTestButton getConnection={buildPayload} to={fromEmail} />
+          <ConnectionTestButton getConnection={buildPayload} to={fromEmail} onResult={setTestResult} />
           <Button type="primary" htmlType="submit" size="large" loading={isPending}>
             {__('Save')}
           </Button>

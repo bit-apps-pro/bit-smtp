@@ -3,7 +3,7 @@ import { type Connection } from '@pages/Connections/types'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
-import ConnectionTestButton from './ConnectionTestButton'
+import ConnectionTestButton, { ConnectionTestOutcome } from './ConnectionTestButton'
 import useTestConnection, { type ConnectionTestResult } from './data/useTestConnection'
 
 vi.mock('./data/useTestConnection', () => ({ default: vi.fn() }))
@@ -37,17 +37,20 @@ describe('ConnectionTestButton', () => {
     vi.clearAllMocks()
   })
 
-  it('shows the returned debug output', () => {
+  it('reports the test result to the parent via onResult instead of rendering it inline', () => {
+    const onResult = vi.fn()
     ;(useTestConnection as Mock).mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
       data: { ok: true, debug: ['Connected', 'Message sent'] }
     })
 
-    render(<ConnectionTestButton getConnection={() => connection} to="test@example.com" />)
+    render(
+      <ConnectionTestButton getConnection={() => connection} to="test@example.com" onResult={onResult} />
+    )
 
-    expect(screen.getByText('Connected')).toBeInTheDocument()
-    expect(screen.getByText('Message sent')).toBeInTheDocument()
+    expect(onResult).toHaveBeenCalledWith({ ok: true, debug: ['Connected', 'Message sent'] })
+    expect(screen.queryByText('Connected')).not.toBeInTheDocument()
   })
 
   it('tests the current connection values on click', async () => {
@@ -94,16 +97,25 @@ describe('ConnectionTestButton', () => {
     expect(notify.error).not.toHaveBeenCalled()
     expect(notify.warning).not.toHaveBeenCalled()
   })
+})
+
+describe('ConnectionTestOutcome', () => {
+  it('renders the debug log entries', () => {
+    render(<ConnectionTestOutcome result={{ ok: true, debug: ['Connected', 'Message sent'] }} />)
+
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+    expect(screen.getByText('Message sent')).toBeInTheDocument()
+  })
 
   it('renders a persistent generic success result', () => {
-    ;(useTestConnection as Mock).mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: { ok: true, debug: {}, delivery: null }
-    })
-
-    render(<ConnectionTestButton getConnection={() => connection} to="test@example.com" />)
+    render(<ConnectionTestOutcome result={{ ok: true, debug: {}, delivery: null }} />)
 
     expect(screen.getByRole('alert')).toHaveTextContent('Connection test successful')
+  })
+
+  it('renders nothing when there is no result yet', () => {
+    const { container } = render(<ConnectionTestOutcome />)
+
+    expect(container).toBeEmptyDOMElement()
   })
 })
