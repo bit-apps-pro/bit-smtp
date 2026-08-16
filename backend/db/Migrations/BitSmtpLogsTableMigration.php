@@ -106,6 +106,9 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->removeUnusedAnalyticsIndexes($table);
     }
 
+    /**
+     * Add the sender column on installs upgrading from a DB_VERSION that predates it.
+     */
     private function addSenderColumnIfMissing()
     {
         $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';

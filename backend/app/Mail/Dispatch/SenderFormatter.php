@@ -22,4 +22,14 @@ class SenderFormatter
 
         return $name === '' ? $email : $name . ' <' . $email . '>';
     }
+
+    /**
+     * Strips control characters (including CR/LF) from an assembled sender string while keeping its
+     * literal "Name <email>" bracket — unlike sanitize_text_field(), which treats the angle brackets
+     * as an HTML tag and drops the address. Pure: no WordPress dependency.
+     */
+    public static function sanitize(string $sender): string
+    {
+        return trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $sender));
+    }
 }

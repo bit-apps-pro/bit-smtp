@@ -8,6 +8,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Deps\BitApps\WPKit\Helpers\Arr;
 use BitApps\SMTP\Mail\Analytics\SubjectPatternNormalizer;
+use BitApps\SMTP\Mail\Dispatch\SenderFormatter;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
@@ -535,14 +536,13 @@ class LogService
     }
 
     /**
-     * Defense-in-depth against log-view header/markup injection for a From display name, which is
-     * attacker-influenceable free text: strips control characters (including CR/LF) only.
-     * sanitize_text_field() is deliberately NOT used here — it treats the sender's literal
-     * "Name <email>" bracket as an HTML tag and silently strips it.
+     * Defense-in-depth for a persisted From display name (attacker-influenceable free text): drop
+     * invalid UTF-8 via WordPress, then strip control chars (incl. CR/LF) while preserving the
+     * literal "Name <email>" bracket that sanitize_text_field() would wrongly strip as an HTML tag.
      */
     private function sanitizeSender(string $sender): string
     {
-        return trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $sender));
+        return SenderFormatter::sanitize(wp_check_invalid_utf8($sender));
     }
 
     /**

@@ -36,4 +36,24 @@ class SenderFormatterTest extends BaseUnitTestCase
     {
         $this->assertSame('Store <a@x.test>', SenderFormatter::format('  a@x.test  ', '  Store  '));
     }
+
+    public function testSanitizeStripsCrLfWhilePreservingTheBracketedEmail(): void
+    {
+        $this->assertSame('AB <a@x.test>', SenderFormatter::sanitize("A\r\nB <a@x.test>"));
+    }
+
+    public function testSanitizeRemovesOtherControlCharactersButKeepsTheAngleBrackets(): void
+    {
+        $this->assertSame('Store <a@x.test>', SenderFormatter::sanitize("Store\t\x07 <a@x.test>"));
+    }
+
+    public function testSanitizeTrimsSurroundingWhitespace(): void
+    {
+        $this->assertSame('Store <a@x.test>', SenderFormatter::sanitize('  Store <a@x.test>  '));
+    }
+
+    public function testSanitizeReturnsAnEmptyStringForEmptyInput(): void
+    {
+        $this->assertSame('', SenderFormatter::sanitize(''));
+    }
 }
