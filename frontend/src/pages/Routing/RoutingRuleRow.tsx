@@ -1,5 +1,6 @@
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
+import { type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core'
 import { type ProviderVisual, getProviderVisual } from '@pages/Connections/providerVisuals'
 import { type Connection } from '@pages/Connections/types'
 import { type EditableRoutingCondition, type EditableRoutingRule } from '@pages/Routing/types'
@@ -62,13 +63,17 @@ export default function RoutingRuleRow({
   connections,
   priority,
   onChange,
-  onRemove
+  onRemove,
+  dragHandleAttributes,
+  dragHandleListeners
 }: {
   rule: EditableRoutingRule
   connections: Connection[]
   priority?: number
   onChange: (rule: EditableRoutingRule) => void
   onRemove: () => void
+  dragHandleAttributes?: DraggableAttributes
+  dragHandleListeners?: DraggableSyntheticListeners
 }) {
   const { token } = theme.useToken()
   const connectionOptions = connections.map(connection => ({
@@ -94,7 +99,20 @@ export default function RoutingRuleRow({
     <Card
       size="small"
       title={
-        <Text strong>{typeof priority === 'number' ? `${__('Rule')} ${priority}` : __('Rule')}</Text>
+        <Flex align="center" gap="small">
+          <Button
+            type="text"
+            size="small"
+            icon={<HolderOutlined />}
+            aria-label={__('Drag to reorder')}
+            style={{ cursor: 'grab' }}
+            // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
+            {...dragHandleAttributes}
+            // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
+            {...dragHandleListeners}
+          />
+          <Text strong>{typeof priority === 'number' ? `${__('Rule')} ${priority}` : __('Rule')}</Text>
+        </Flex>
       }
       extra={
         <Popconfirm

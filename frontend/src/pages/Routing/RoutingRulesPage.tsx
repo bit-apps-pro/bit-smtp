@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type MailSettings } from '@pages/Connections/types'
@@ -44,11 +54,51 @@ function toStoredRules(rules: EditableRoutingRule[]): RoutingRule[] {
   }))
 }
 
+/** Draggable wrapper: plumbs @dnd-kit's sortable handle into RoutingRuleRow, keyed on the rule's stable id. */
+function SortableRuleRow({
+  rule,
+  connections,
+  priority,
+  onChange,
+  onRemove
+}: {
+  rule: EditableRoutingRule
+  connections: MailSettings['connections']
+  priority: number
+  onChange: (rule: EditableRoutingRule) => void
+  onRemove: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: rule.id
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <RoutingRuleRow
+        rule={rule}
+        connections={connections}
+        priority={priority}
+        onChange={onChange}
+        onRemove={onRemove}
+        dragHandleAttributes={attributes}
+        dragHandleListeners={listeners}
+      />
+    </div>
+  )
+}
+
 export default function RoutingRulesPage() {
   const { token } = theme.useToken()
   const { data: settings, isPending } = useMailSettings()
   const updateSettings = useUpdateSettings()
   const [rules, setRules] = useState<EditableRoutingRule[]>([])
+  const sensors = useSensors(useSensor(PointerSensor))
 
   useEffect(() => {
     if (settings) {
@@ -80,6 +130,21 @@ export default function RoutingRulesPage() {
     setRules([...rules, emptyRule()])
   }
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    const oldIndex = rules.findIndex(rule => rule.id === active.id)
+    const newIndex = rules.findIndex(rule => rule.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) {
+      return
+    }
+
+    setRules(arrayMove(rules, oldIndex, newIndex))
+  }
+
   const handleSave = () => {
     updateSettings.mutate(
       { features: { ...settings.features, routing: toStoredRules(rules) } },
@@ -100,18 +165,25 @@ export default function RoutingRulesPage() {
       <Text type="secondary">
         {__('The first matching rule wins. If no rule matches, mail uses the default connection.')}
       </Text>
-      <Flex vertical gap="middle">
-        {rules.map((rule, index) => (
-          <RoutingRuleRow
-            key={rule.id}
-            rule={rule}
-            connections={settings.connections}
-            priority={index + 1}
-            onChange={updated => updateRule(index, updated)}
-            onRemove={() => removeRule(index)}
-          />
-        ))}
-      </Flex>
+      <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+        {__('Drag rules to reorder — rules are evaluated top to bottom.')}
+      </Text>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={rules.map(rule => rule.id)} strategy={verticalListSortingStrategy}>
+          <Flex vertical gap="middle">
+            {rules.map((rule, index) => (
+              <SortableRuleRow
+                key={rule.id}
+                rule={rule}
+                connections={settings.connections}
+                priority={index + 1}
+                onChange={updated => updateRule(index, updated)}
+                onRemove={() => removeRule(index)}
+              />
+            ))}
+          </Flex>
+        </SortableContext>
+      </DndContext>
       <Button type="dashed" onClick={addRule}>
         {__('Add rule')}
       </Button>

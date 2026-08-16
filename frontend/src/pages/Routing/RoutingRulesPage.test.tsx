@@ -1,14 +1,43 @@
 import { renderWithProviders } from '@config/test-utils'
+import type * as DndKitCore from '@dnd-kit/core'
+import type * as DndKitSortable from '@dnd-kit/sortable'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type MailSettings } from '@pages/Connections/types'
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import RoutingRulesPage from './RoutingRulesPage'
 
 vi.mock('@pages/Connections/data/useMailSettings', () => ({ default: vi.fn() }))
 vi.mock('@pages/Connections/data/useUpdateSettings', () => ({ default: vi.fn() }))
+
+// dnd-kit needs real pointer events to drag in jsdom, so DndContext/SortableContext are
+// swapped for pass-throughs that capture onDragEnd and the live sortable ids for tests to drive.
+const { capturedOnDragEnd, capturedItems } = vi.hoisted(() => ({
+  capturedOnDragEnd: { current: undefined as ((event: DndKitCore.DragEndEvent) => void) | undefined },
+  capturedItems: { current: [] as string[] }
+}))
+vi.mock('@dnd-kit/core', async importOriginal => {
+  const actual = await importOriginal<typeof DndKitCore>()
+  return {
+    ...actual,
+    DndContext: ({ children, onDragEnd }: DndKitCore.DndContextProps) => {
+      capturedOnDragEnd.current = onDragEnd
+      return children
+    }
+  }
+})
+vi.mock('@dnd-kit/sortable', async importOriginal => {
+  const actual = await importOriginal<typeof DndKitSortable>()
+  return {
+    ...actual,
+    SortableContext: ({ children, items }: DndKitSortable.SortableContextProps) => {
+      capturedItems.current = items as string[]
+      return children
+    }
+  }
+})
 
 const settings: MailSettings = {
   schema_version: 2,
@@ -56,6 +85,8 @@ describe('RoutingRulesPage', () => {
 
   beforeEach(() => {
     updateSettingsMutate.mockClear()
+    capturedOnDragEnd.current = undefined
+    capturedItems.current = []
     ;(useMailSettings as Mock).mockReturnValue({ data: settings, isPending: false })
     ;(useUpdateSettings as Mock).mockReturnValue({ mutate: updateSettingsMutate, isPending: false })
   })
@@ -151,6 +182,32 @@ describe('RoutingRulesPage', () => {
             conditions: [{ field: 'subject', operator: 'contains', value: 'invoice' }]
           },
           { connectionId: '', conditions: [{ field: 'recipient', operator: 'equals', value: '' }] }
+        ]
+      }
+    })
+  })
+
+  it('reorders rules on drag and includes the new order in the Save payload', async () => {
+    renderWithProviders(<RoutingRulesPage />)
+    await userEvent.click(screen.getByRole('button', { name: /Add rule/ }))
+
+    act(() => {
+      capturedOnDragEnd.current?.({
+        active: { id: capturedItems.current[1] },
+        over: { id: capturedItems.current[0] }
+      } as DndKitCore.DragEndEvent)
+    })
+    await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+
+    const [payload] = updateSettingsMutate.mock.calls[0]
+    expect(payload).toEqual({
+      features: {
+        routing: [
+          { connectionId: '', conditions: [{ field: 'recipient', operator: 'equals', value: '' }] },
+          {
+            connectionId: 'conn_2',
+            conditions: [{ field: 'subject', operator: 'contains', value: 'invoice' }]
+          }
         ]
       }
     })
