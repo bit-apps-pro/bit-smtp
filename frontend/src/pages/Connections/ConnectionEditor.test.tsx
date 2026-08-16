@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
 import { type Connection, type ProviderMeta } from '@pages/Connections/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import ConnectionEditor from './ConnectionEditor'
@@ -463,6 +463,92 @@ describe('ConnectionEditor', () => {
         credentials: {}
       })
     )
+  })
+
+  describe('webhook health indicator (#35)', () => {
+    beforeEach(() => {
+      ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    })
+
+    it('shows an active/verified message with the last event time when registered and verified', () => {
+      const conn: Connection = {
+        ...sendGridConnection,
+        settings: {
+          ...sendGridConnection.settings,
+          webhook_verified: true,
+          webhook_last_event_at: '2026-08-15 10:00:00'
+        },
+        webhook_provisioning: { status: 'registered', reason: null, updated_at: 1755250800 }
+      }
+
+      render(<ConnectionEditor connection={conn} provider={sendGridMeta} onSaved={() => {}} />)
+
+      expect(screen.getByText(/verified/i)).toBeInTheDocument()
+      expect(screen.getByText(/2026-08-15 10:00:00/)).toBeInTheDocument()
+    })
+
+    it('shows an awaiting-first-event message when registered but not yet verified', () => {
+      const conn: Connection = {
+        ...sendGridConnection,
+        webhook_provisioning: { status: 'registered', reason: null, updated_at: 1755250800 }
+      }
+
+      render(<ConnectionEditor connection={conn} provider={sendGridMeta} onSaved={() => {}} />)
+
+      expect(screen.getByText(/awaiting first event/i)).toBeInTheDocument()
+      expect(screen.queryByText(/webhook active/i)).not.toBeInTheDocument()
+    })
+
+    it('renders a warning alert with the redacted failure reason and a re-check hint', () => {
+      const conn: Connection = {
+        ...sendGridConnection,
+        webhook_provisioning: { status: 'failed', reason: 'Invalid API key', updated_at: 1755250800 }
+      }
+
+      render(<ConnectionEditor connection={conn} provider={sendGridMeta} onSaved={() => {}} />)
+
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveTextContent('Invalid API key')
+      expect(alert).toHaveTextContent(/re-check|re-save/i)
+    })
+
+    it('renders an info notice naming the provider for unsupported auto-provisioning', () => {
+      const conn: Connection = {
+        ...sendGridConnection,
+        webhook_provisioning: { status: 'unsupported', reason: null, updated_at: null }
+      }
+
+      render(<ConnectionEditor connection={conn} provider={sendGridMeta} onSaved={() => {}} />)
+
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveClass('ant-alert-info')
+      expect(within(alert).getByText(/SendGrid/)).toBeInTheDocument()
+      expect(alert).toHaveTextContent(/manually/i)
+    })
+
+    it('shows the public-HTTPS notice mentioning Accepted-only status when unavailable', () => {
+      const conn: Connection = {
+        ...sendGridConnection,
+        webhook_provisioning: {
+          status: 'unavailable',
+          reason: 'Site is not publicly reachable',
+          updated_at: null
+        }
+      }
+
+      render(<ConnectionEditor connection={conn} provider={sendGridMeta} onSaved={() => {}} />)
+
+      expect(screen.getByText(/HTTPS/)).toBeInTheDocument()
+      expect(screen.getByText(/Accepted/)).toBeInTheDocument()
+    })
+
+    it('falls back to the plain verified/waiting text when webhook_provisioning is absent (pre-#35 connections)', () => {
+      render(
+        <ConnectionEditor connection={sendGridConnection} provider={sendGridMeta} onSaved={() => {}} />
+      )
+
+      expect(screen.getByText(/waiting for first event/i)).toBeInTheDocument()
+    })
   })
 
   it('posts a draft connection through the existing save endpoint when Connect is clicked on an unsaved connection', async () => {

@@ -3,8 +3,8 @@ import { __ } from '@common/helpers/i18nwrap'
 import request from '@common/helpers/request'
 import notify from '@components/Toaster/Toaster'
 import config from '@config/config'
-import { type Connection, type ProviderMeta } from '@pages/Connections/types'
-import { Button, Flex, Form, Input, Switch, Typography, theme } from 'antd'
+import { type Connection, type ProviderMeta, type WebhookProvisioning } from '@pages/Connections/types'
+import { Alert, Button, Flex, Form, Input, Switch, Typography, theme } from 'antd'
 import ConnectionTestButton, { ConnectionTestOutcome } from './ConnectionTestButton'
 import OAuthConnectButton from './OAuthConnectButton'
 import ProviderFields from './ProviderFields'
@@ -146,6 +146,78 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
   )
 }
 
+/** Renders webhook health: provisioning outcome, verification state, and last received event. */
+function WebhookHealth({
+  provisioning,
+  verified,
+  lastEventAt,
+  providerLabel
+}: {
+  provisioning: WebhookProvisioning | null | undefined
+  verified: boolean
+  lastEventAt: string | undefined
+  providerLabel: string
+}) {
+  const { token } = theme.useToken()
+
+  switch (provisioning?.status) {
+    case 'registered':
+      return verified ? (
+        <>
+          <Text style={{ display: 'block', color: token.colorSuccess }}>
+            {__('✓ Webhook active — verified')}
+          </Text>
+          {lastEventAt ? (
+            <Text type="secondary" style={{ display: 'block', fontSize: '0.85em' }}>
+              {__('Last event: %s').replace('%s', lastEventAt)}
+            </Text>
+          ) : null}
+        </>
+      ) : (
+        <Text style={{ color: token.colorWarning }}>{__('Registered — awaiting first event')}</Text>
+      )
+    case 'failed':
+      return (
+        <Alert
+          type="warning"
+          showIcon
+          message={__('Webhook registration failed')}
+          description={`${provisioning.reason ?? __('Unknown error')} — ${__(
+            'Re-check the API key and save again.'
+          )}`}
+        />
+      )
+    case 'unsupported':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={__('Manual setup needed for %s').replace('%s', providerLabel)}
+          description={__(
+            'Automatic webhook registration isn’t available for this provider — register the URL above manually in its dashboard.'
+          )}
+        />
+      )
+    case 'unavailable':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={__('Delivery webhooks unavailable')}
+          description={__(
+            'Delivery webhooks require a public HTTPS site; delivery status will show Accepted only.'
+          )}
+        />
+      )
+    default:
+      return (
+        <Text style={{ color: verified ? token.colorSuccess : token.colorWarning }}>
+          {verified ? __('✓ Verified — receiving events') : __('Waiting for first event')}
+        </Text>
+      )
+  }
+}
+
 function WebhookPanel({ connection, provider }: { connection: Connection; provider: ProviderMeta }) {
   const { token } = theme.useToken()
   const secret = (connection.settings?.webhook_secret as string | undefined) ?? ''
@@ -195,9 +267,12 @@ function WebhookPanel({ connection, provider }: { connection: Connection; provid
           {__('Save this connection to generate its webhook URL.')}
         </Text>
       )}
-      <Text style={{ color: verified ? token.colorSuccess : token.colorWarning }}>
-        {verified ? __('✓ Verified — receiving events') : __('Waiting for first event')}
-      </Text>
+      <WebhookHealth
+        provisioning={connection.webhook_provisioning}
+        verified={verified}
+        lastEventAt={connection.settings?.webhook_last_event_at as string | undefined}
+        providerLabel={provider.label}
+      />
       {provider.supports_webhook_provisioning === true && connection.id && (
         <Button
           type="primary"

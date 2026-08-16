@@ -40,6 +40,14 @@ export interface ConnectionCredential {
   value: string
 }
 
+export type WebhookProvisioningStatus = 'registered' | 'failed' | 'unsupported' | 'unavailable'
+
+export interface WebhookProvisioning {
+  status: WebhookProvisioningStatus
+  reason: string | null
+  updated_at: number | null
+}
+
 export interface Connection {
   id: string
   provider: string
@@ -54,6 +62,9 @@ export interface Connection {
   // Derived, read-only: the full delivery-webhook URL to paste into the provider dashboard. Present
   // only for providers with a live webhook receiver; never persisted back.
   webhook_url?: string
+  // Derived, read-only: outcome of the most recent auto-provision attempt for the URL above. `null`
+  // once provisioning was never attempted; absent for providers without webhook support at all.
+  webhook_provisioning?: WebhookProvisioning | null
 }
 
 export interface FailureAlertSettings {
