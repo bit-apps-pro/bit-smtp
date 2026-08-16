@@ -132,6 +132,14 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
                 'webhook_public_key'        => 'PK',
             ])
             ->andReturn(true);
+        $this->config->shouldReceive('persistConnectionProvisioning')
+            ->once()
+            ->with('conn_1', [], Mockery::on(static function (array $settings): bool {
+                return ($settings['webhook_provisioning_status'] ?? null) === 'registered'
+                    && ($settings['webhook_provisioning_reason'] ?? null) === ''
+                    && \is_int($settings['webhook_provisioning_updated_at'] ?? null);
+            }))
+            ->andReturn(true);
 
         $result = $this->service()->provisionOnSave($this->connection());
 

@@ -31,6 +31,12 @@ final class MailSettingsSanitizer
     private const ROUTING_OPERATORS = ['equals', 'contains', 'domain', 'matches'];
 
     /**
+     * The only outcomes WebhookProvisioningService::recordOutcome ever writes; anything else
+     * (e.g. a crafted connection-save payload trying to fake "provider confirmed") is dropped.
+     */
+    private const WEBHOOK_PROVISIONING_STATUSES = ['registered', 'failed', 'unsupported', 'unavailable'];
+
+    /**
      * @param null|callable(string):string[] $secretKeyResolver Maps a provider key to its secret
      *                                                          field keys; defaults to the live
      *                                                          provider registry when omitted
@@ -176,6 +182,12 @@ final class MailSettingsSanitizer
             $sanitized['token_expires_at'] = \intval($settings['token_expires_at']);
         }
 
+        // Same integer treatment as token_expires_at, for the same reason: the generic pass-through
+        // below would stringify it.
+        if (isset($settings['webhook_provisioning_updated_at'])) {
+            $sanitized['webhook_provisioning_updated_at'] = \intval($settings['webhook_provisioning_updated_at']);
+        }
+
         // Keep the delivery-webhook toggle a real bool; the generic pass-through would stringify
         // false to "" and defeat the enabled check.
         if (isset($settings['webhook_enabled'])) {
@@ -186,6 +198,21 @@ final class MailSettingsSanitizer
         // webhook_last_event_at are strings and ride the generic scalar pass-through below.
         if (isset($settings['webhook_verified'])) {
             $sanitized['webhook_verified'] = (bool) filter_var($settings['webhook_verified'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        // Whitelist the auto-provision outcome to the known enum: this is a trust signal the UI
+        // renders as "provider confirmed the webhook", so an out-of-enum value (e.g. a crafted
+        // connection-save payload) is dropped rather than stored. webhook_provisioning_reason rides
+        // the generic scalar pass-through below. The key is unset up front so a rejected value can't
+        // be smuggled back in by that same generic pass-through.
+        if (isset($settings['webhook_provisioning_status'])) {
+            $status = \is_scalar($settings['webhook_provisioning_status'])
+                ? trim((string) $settings['webhook_provisioning_status'])
+                : '';
+            unset($settings['webhook_provisioning_status']);
+            if (\in_array($status, self::WEBHOOK_PROVISIONING_STATUSES, true)) {
+                $sanitized['webhook_provisioning_status'] = $status;
+            }
         }
 
         foreach ($settings as $key => $value) {

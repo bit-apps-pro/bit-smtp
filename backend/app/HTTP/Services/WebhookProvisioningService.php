@@ -123,11 +123,26 @@ final class WebhookProvisioningService
             }
 
             $result = $this->ensureFor($connection);
+            $this->recordOutcome($connection, 'registered', null);
 
             return ['status' => 'ok', 'created' => (bool) ($result['created'] ?? false)];
         } catch (Throwable $e) {
             return $this->warning($connection, $e);
         }
+    }
+
+    /**
+     * Best-effort persistence of the last provisioning attempt's outcome, so the UI can surface
+     * webhook health. Failure to persist is swallowed: the outcome is a display aid, not the
+     * signature material recordOutcome's caller already fails loudly on.
+     */
+    private function recordOutcome(Connection $connection, string $status, ?string $reason): void
+    {
+        $this->config->persistConnectionProvisioning($connection->getId(), [], [
+            'webhook_provisioning_status'     => $status,
+            'webhook_provisioning_reason'     => $reason !== null ? mb_substr($reason, 0, 200) : '',
+            'webhook_provisioning_updated_at' => time(),
+        ]);
     }
 
     /**

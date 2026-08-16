@@ -174,6 +174,33 @@ class Connection
         return $value !== null && $value !== '' ? (string) $value : null;
     }
 
+    /**
+     * Outcome of the most recent auto-provision attempt: 'registered'|'failed'|'unsupported'|
+     * 'unavailable', or '' when never attempted.
+     */
+    public function getWebhookProvisioningStatus(): string
+    {
+        return (string) $this->setting('webhook_provisioning_status', '');
+    }
+
+    /**
+     * Short, non-secret explanation for the current provisioning status; '' when none is recorded.
+     */
+    public function getWebhookProvisioningReason(): string
+    {
+        return (string) $this->setting('webhook_provisioning_reason', '');
+    }
+
+    /**
+     * Unix timestamp of the most recent auto-provision attempt, or null when never attempted.
+     */
+    public function getWebhookProvisioningUpdatedAt(): ?int
+    {
+        $value = $this->setting('webhook_provisioning_updated_at', null);
+
+        return $value !== null && $value !== '' ? (int) $value : null;
+    }
+
     public function toArray(): array
     {
         return [

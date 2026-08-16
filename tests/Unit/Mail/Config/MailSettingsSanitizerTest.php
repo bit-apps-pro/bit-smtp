@@ -596,6 +596,71 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         $this->assertArrayNotHasKey('webhook_secret', $settings);
     }
 
+    public function testSanitizeConnectionSettingsCastsWebhookProvisioningUpdatedAtToInt(): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_provisioning_updated_at' => '1700000000']);
+
+        $this->assertSame(1700000000, $settings['webhook_provisioning_updated_at']);
+        $this->assertIsInt($settings['webhook_provisioning_updated_at']);
+    }
+
+    public function testWebhookProvisioningUpdatedAtAbsentOmittedFromSanitized(): void
+    {
+        $settings = $this->sanitizeConnectionSettings([]);
+
+        $this->assertArrayNotHasKey('webhook_provisioning_updated_at', $settings);
+    }
+
+    /**
+     * @param mixed $rawValue
+     */
+    #[DataProvider('validWebhookProvisioningStatusProvider')]
+    public function testWebhookProvisioningStatusKeepsWhitelistedEnumValue($rawValue): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_provisioning_status' => $rawValue]);
+
+        $this->assertSame($rawValue, $settings['webhook_provisioning_status']);
+    }
+
+    /**
+     * @return array<string,array{0:string}>
+     */
+    public static function validWebhookProvisioningStatusProvider(): array
+    {
+        return [
+            'registered'  => ['registered'],
+            'failed'      => ['failed'],
+            'unsupported' => ['unsupported'],
+            'unavailable' => ['unavailable'],
+        ];
+    }
+
+    /**
+     * Guards the "provider confirmed" trust signal Task 3 renders: a value outside the known enum
+     * (e.g. a crafted connection-save payload trying to smuggle an arbitrary status string) must
+     * never survive sanitization.
+     */
+    public function testWebhookProvisioningStatusDropsUnknownValue(): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_provisioning_status' => 'exploited']);
+
+        $this->assertArrayNotHasKey('webhook_provisioning_status', $settings);
+    }
+
+    public function testWebhookProvisioningStatusAbsentOmittedFromSanitized(): void
+    {
+        $settings = $this->sanitizeConnectionSettings([]);
+
+        $this->assertArrayNotHasKey('webhook_provisioning_status', $settings);
+    }
+
+    public function testWebhookProvisioningReasonPassesThroughAsTrimmedString(): void
+    {
+        $settings = $this->sanitizeConnectionSettings(['webhook_provisioning_reason' => '  provider returned 401  ']);
+
+        $this->assertSame('provider returned 401', $settings['webhook_provisioning_reason']);
+    }
+
     public function testWebhookLastEventAtPassesThroughAsTrimmedString(): void
     {
         $settings = $this->sanitizeConnectionSettings(['webhook_last_event_at' => '  2024-01-15 10:30:00  ']);

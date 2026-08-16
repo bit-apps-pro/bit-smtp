@@ -212,6 +212,63 @@ class ConnectionTest extends BaseUnitTestCase
         $this->assertNull($connection->getWebhookLastEventAt());
     }
 
+    public function testGetWebhookProvisioningStatusReturnsEmptyStringWhenAbsent(): void
+    {
+        $connection = Connection::fromArray([
+            'id' => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+        ]);
+
+        $this->assertSame('', $connection->getWebhookProvisioningStatus());
+    }
+
+    public function testGetWebhookProvisioningStatusReturnsValueWhenPresent(): void
+    {
+        $connection = Connection::fromArray([
+            'id'       => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+            'settings' => ['webhook_provisioning_status' => 'registered'],
+        ]);
+
+        $this->assertSame('registered', $connection->getWebhookProvisioningStatus());
+    }
+
+    public function testGetWebhookProvisioningReasonReturnsEmptyStringWhenAbsent(): void
+    {
+        $connection = Connection::fromArray([
+            'id' => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+        ]);
+
+        $this->assertSame('', $connection->getWebhookProvisioningReason());
+    }
+
+    public function testGetWebhookProvisioningReasonReturnsValueWhenPresent(): void
+    {
+        $connection = Connection::fromArray([
+            'id'       => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+            'settings' => ['webhook_provisioning_reason' => 'provider returned 401'],
+        ]);
+
+        $this->assertSame('provider returned 401', $connection->getWebhookProvisioningReason());
+    }
+
+    public function testGetWebhookProvisioningUpdatedAtReturnsNullWhenAbsent(): void
+    {
+        $connection = Connection::fromArray([
+            'id' => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+        ]);
+
+        $this->assertNull($connection->getWebhookProvisioningUpdatedAt());
+    }
+
+    public function testGetWebhookProvisioningUpdatedAtReturnsValueWhenPresent(): void
+    {
+        $connection = Connection::fromArray([
+            'id'       => 'conn-api', 'provider' => 'postmark', 'kind' => 'api',
+            'settings' => ['webhook_provisioning_updated_at' => 1700000000],
+        ]);
+
+        $this->assertSame(1700000000, $connection->getWebhookProvisioningUpdatedAt());
+    }
+
     private function sampleData(): array
     {
         return [
