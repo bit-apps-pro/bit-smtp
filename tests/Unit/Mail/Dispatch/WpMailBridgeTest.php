@@ -331,18 +331,19 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->invokeDispatch($bridge, [$this->connection()], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
     }
 
-    public function testWebhookBackedProviderLeavesDeliveryPendingOnSuccess(): void
+    public function testWebhookBackedProviderIsStampedAcceptedAtSendTimeAsAFloor(): void
     {
-        // A provider with an inbound adapter and the webhook enabled reports delivery asynchronously,
-        // so the row is left unstamped for the inbound event to resolve.
+        // A provider with an inbound adapter and the webhook enabled still gets stamped accepted at
+        // hand-off time: a non-public install may never receive the webhook, so a floor the rollup can
+        // later overwrite is stamped instead of leaving the row permanently null.
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), null, 'postmark');
 
         $logService = Mockery::mock(LogService::class);
         $logService->shouldReceive('bulkInsert')
             ->once()
             ->with(Mockery::on(function (array $logs): bool {
-                return $logs[0]['delivery_status']     === null
-                    && $logs[0]['delivery_updated_at'] === null;
+                return $logs[0]['delivery_status']     === 'accepted'
+                    && $logs[0]['delivery_updated_at'] !== null;
             }));
         $this->setEventLogger($bridge, $logService);
         $this->setContext($bridge, new SendContext());

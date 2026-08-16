@@ -20,7 +20,6 @@ use BitApps\SMTP\Mail\Routing\RoutingDecision;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Routing\RoutingRules;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
-use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
 use BitApps\SMTP\Plugin;
 use InvalidArgumentException;
 use WP_Error;
@@ -267,7 +266,7 @@ class WpMailBridge
                     $winningMessageId  = $lastResult->getMessageId();
                     // A fully-ok send stamps its delivery status straight from the hand-off (an
                     // accepted-but-partial send is a failure row and stays unstamped).
-                    $winningDeliveryStatus = $this->resolveAcceptedDeliveryStatus($succeeded, $provider, $connection);
+                    $winningDeliveryStatus = $this->resolveAcceptedDeliveryStatus($succeeded, $provider);
 
                     break;
                 }
@@ -308,11 +307,12 @@ class WpMailBridge
 
     /**
      * Delivery status to stamp on a successful transport hand-off. A hand-off is not recipient
-     * delivery: only an authenticated, correlated webhook may write terminal delivery values. Keep
-     * webhook-backed connections unstamped pending their callback; represent non-webhook hand-offs as
-     * accepted so analytics can keep them out of its verified-delivery denominator.
+     * delivery, but every successful one is floored at `accepted` regardless of webhook expectation:
+     * a non-public install may never receive the inbound webhook, so a permanently-null row is worse
+     * than a floor that `DeliveryRollup` overwrites the instant a real webhook event resolves a
+     * stronger or negative outcome.
      */
-    private function resolveAcceptedDeliveryStatus(bool $succeeded, ?ProviderInterface $provider, Connection $connection): ?string
+    private function resolveAcceptedDeliveryStatus(bool $succeeded, ?ProviderInterface $provider): ?string
     {
         if (!$succeeded || $provider === null) {
             return null;
@@ -324,17 +324,7 @@ class WpMailBridge
             return DeliveryStatus::ACCEPTED;
         }
 
-        return $this->deliveryWebhookExpected($connection) ? null : DeliveryStatus::ACCEPTED;
-    }
-
-    /**
-     * Whether a delivery webhook can still report an outcome for this connection — true only when the
-     * provider has an inbound adapter AND the connection has the webhook enabled.
-     */
-    private function deliveryWebhookExpected(Connection $connection): bool
-    {
-        return WebhookAdapterFactory::supportsProvider($connection->getProvider())
-            && $connection->isWebhookEnabled();
+        return DeliveryStatus::ACCEPTED;
     }
 
     /**
