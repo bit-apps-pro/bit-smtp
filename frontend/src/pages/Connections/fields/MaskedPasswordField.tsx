@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useState } from 'react'
 import { type FieldMeta, MASK_SENTINEL } from '@pages/Connections/types'
 import { Form, Input } from 'antd'
 import FieldItem from './FieldItem'
@@ -10,15 +10,17 @@ import FieldItem from './FieldItem'
 // focus/blur never wipes the stored credential.
 export default function MaskedPasswordField({ field }: { field: FieldMeta }) {
   const form = Form.useFormInstance()
-  const hadStoredSecret = useRef(form.getFieldValue(field.key) === MASK_SENTINEL).current
+  const [hadStoredSecret] = useState(() => form.getFieldValue(field.key) === MASK_SENTINEL)
   const isMasked = Form.useWatch(field.key) === MASK_SENTINEL
 
+  /** Clears the masked sentinel on focus so the user can type a new secret. */
   const clearOnFocus = () => {
     if (isMasked) {
       form.setFieldValue(field.key, '')
     }
   }
 
+  /** Restores the mask sentinel on blur if the field was left untouched. */
   const restoreOnBlur = () => {
     if (hadStoredSecret && form.getFieldValue(field.key) === '') {
       form.setFieldValue(field.key, MASK_SENTINEL)

@@ -130,6 +130,7 @@ export default function RoutingRulesPage() {
     setRules([...rules, emptyRule()])
   }
 
+  /** Reorders rules locally on drop; persistence happens on the existing Save click. */
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) {

@@ -76,6 +76,25 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertCount(0, LogDeliveryEvent::where('log_id', $logId)->get());
     }
 
+    public function testResendDoesNotBlankAnExistingSenderWhenFromIsAbsentFromDetails(): void
+    {
+        $this->service->save(
+            Log::SUCCESS,
+            ['subject' => 'Subject', 'to' => ['recipient@example.com'], 'from' => 'Jane <jane@example.test>']
+        );
+        $logId = (int) Log::where('connection_id', null)->first()->id;
+
+        // A retry/resend detail payload that carries no 'from' key at all (not merely an empty one).
+        $this->service->update(
+            $logId,
+            Log::SUCCESS,
+            ['subject' => 'Subject', 'to' => ['recipient@example.com']]
+        );
+
+        $reloaded = Log::where('id', $logId)->first();
+        $this->assertSame('Jane <jane@example.test>', $reloaded->sender);
+    }
+
     public function testBulkLoggingRejectsUnverifiedTerminalDeliveryStatus(): void
     {
         $this->assertTrue($this->service->bulkInsert([[

@@ -155,7 +155,11 @@ class LogService
         // subject/to_addr are content-stable across a resend, but details must be refreshed so the
         // attempt trail reflects this resend's outcome rather than the original send's stale trail.
         if (\is_array($details)) {
-            $log->sender = $this->sanitizeSender((string) Arr::get($details, 'from', ''));
+            // Only overwrite sender when this call's details actually carry a 'from': an absent key
+            // must not blank out a sender captured by an earlier save/update.
+            if (Arr::has($details, 'from')) {
+                $log->sender = $this->sanitizeSender((string) Arr::get($details, 'from', ''));
+            }
             unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
             $log->details = $details;
         }
