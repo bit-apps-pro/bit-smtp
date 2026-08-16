@@ -110,6 +110,32 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
         $this->assertSame(['status' => 'skipped'], $result);
     }
 
+    public function testProvisionOnSaveRecordsUnavailableWhenSiteIsNotPublicHttps(): void
+    {
+        // The best-effort path logs the failure via error_log; declare it so the strict-output suite
+        // doesn't flag the write as risky.
+        $this->expectOutputRegex('/webhook auto-provision failed: A public HTTPS site URL is required/');
+
+        Functions\when('home_url')->alias(static fn (string $path = ''): string => 'http://example.test' . $path);
+
+        // Provisioning must bail before ever reaching the provider API when the site has no public
+        // HTTPS URL to compose a webhook URL from.
+        $this->factory->shouldNotReceive('forProvider');
+
+        $this->config->shouldReceive('persistConnectionProvisioning')
+            ->once()
+            ->with('conn_1', [], Mockery::on(static function (array $settings): bool {
+                return ($settings['webhook_provisioning_status'] ?? null) === 'unavailable'
+                    && !empty($settings['webhook_provisioning_reason'] ?? '')
+                    && \is_int($settings['webhook_provisioning_updated_at'] ?? null);
+            }))
+            ->andReturn(true);
+
+        $result = $this->service()->provisionOnSave($this->connection());
+
+        $this->assertSame('warning', $result['status']);
+    }
+
     public function testProvisionOnSaveReturnsWarningWithoutThrowingWhenProvisioningFails(): void
     {
         // The best-effort path logs the failure via error_log; declare it so the strict-output suite

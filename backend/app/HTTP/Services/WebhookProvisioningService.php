@@ -123,9 +123,20 @@ final class WebhookProvisioningService
             return ['status' => 'skipped'];
         }
 
+        // Composed ahead of and separately from the provisioning attempt below, so a non-public/
+        // non-HTTPS site (no provider API ever reached) is recorded as 'unavailable' rather than
+        // conflated with a provider-side 'failed' outcome.
+        try {
+            $webhookUrl = WebhookUrl::forConnection($connection);
+        } catch (Throwable $e) {
+            $this->recordOutcome($connection, 'unavailable', $this->redact($e->getMessage(), $connection));
+
+            return $this->warning($connection, $e);
+        }
+
         try {
             // Already registered for this exact URL: don't re-hit the provider API on every subsequent save.
-            if ((string) $connection->setting('webhook_provisioned_url', '') === WebhookUrl::forConnection($connection)) {
+            if ((string) $connection->setting('webhook_provisioned_url', '') === $webhookUrl) {
                 return ['status' => 'skipped'];
             }
 
