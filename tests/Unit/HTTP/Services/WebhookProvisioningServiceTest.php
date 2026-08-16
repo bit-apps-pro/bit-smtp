@@ -110,6 +110,15 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
         $provisioner->shouldReceive('ensure')->andThrow(new RuntimeException('boom at ' . self::WEBHOOK_URL));
         $this->factory->shouldReceive('forProvider')->andReturn($provisioner);
 
+        $this->config->shouldReceive('persistConnectionProvisioning')
+            ->once()
+            ->with('conn_1', [], Mockery::on(static function (array $settings): bool {
+                return ($settings['webhook_provisioning_status'] ?? null) === 'failed'
+                    && ($settings['webhook_provisioning_reason'] ?? null) === 'boom at [redacted webhook URL]'
+                    && \is_int($settings['webhook_provisioning_updated_at'] ?? null);
+            }))
+            ->andReturn(true);
+
         $result = $this->service()->provisionOnSave($this->connection());
 
         $this->assertSame('warning', $result['status']);

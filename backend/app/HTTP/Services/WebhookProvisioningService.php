@@ -127,6 +127,8 @@ final class WebhookProvisioningService
 
             return ['status' => 'ok', 'created' => (bool) ($result['created'] ?? false)];
         } catch (Throwable $e) {
+            $this->recordOutcome($connection, 'failed', $this->redact($e->getMessage(), $connection));
+
             return $this->warning($connection, $e);
         }
     }
