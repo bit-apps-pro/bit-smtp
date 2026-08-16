@@ -1,8 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, Tag, Tooltip } from 'antd'
+import { Button, Tag } from 'antd'
 import { MAIL_SETTINGS_QUERY_KEY } from './data/useMailSettings'
 import useOAuthAuthorize from './data/useOAuthAuthorize'
 
@@ -26,13 +26,16 @@ function isOAuthCallbackMessage(data: unknown): data is OAuthCallbackMessage {
 export default function OAuthConnectButton({
   connectionId,
   provider,
-  connected
+  connected,
+  ensureConnectionId
 }: {
   connectionId: string
   provider: string
   connected: boolean
+  ensureConnectionId: () => Promise<string>
 }) {
   const { mutateAsync, isPending } = useOAuthAuthorize()
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false)
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -58,24 +61,31 @@ export default function OAuthConnectButton({
     return () => window.removeEventListener('message', handleMessage)
   }, [connectionId, queryClient])
 
+  // Unsaved connections have no id yet: mint a draft via ensureConnectionId before authorizing,
+  // so Connect never requires an explicit Save first. loading (isCreatingDraft) blocks double-submit.
   const handleClick = async () => {
-    const url = await mutateAsync({ connectionId, provider })
+    let id = connectionId
+    if (!id) {
+      setIsCreatingDraft(true)
+      try {
+        id = await ensureConnectionId()
+      } finally {
+        setIsCreatingDraft(false)
+      }
+      if (!id) return
+    }
+
+    const url = await mutateAsync({ connectionId: id, provider })
     if (url) {
       window.open(url, POPUP_NAME, POPUP_FEATURES)
     }
   }
 
-  const button = (
-    <Button onClick={handleClick} loading={isPending} disabled={!connectionId}>
-      {connected ? __('Reconnect') : __('Connect')}
-    </Button>
-  )
-
   return (
     <>
-      <Tooltip title={connectionId ? undefined : __('Save the connection before connecting an account')}>
-        <span>{button}</span>
-      </Tooltip>
+      <Button onClick={handleClick} loading={isPending || isCreatingDraft}>
+        {connected ? __('Reconnect') : __('Connect')}
+      </Button>
       {connected ? (
         <Tag color="success" style={{ marginInlineStart: 8 }}>
           {__('Connected')}

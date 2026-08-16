@@ -464,4 +464,57 @@ describe('ConnectionEditor', () => {
       })
     )
   })
+
+  it('posts a draft connection through the existing save endpoint when Connect is clicked on an unsaved connection', async () => {
+    const save = vi.fn().mockResolvedValue({
+      status: 'success',
+      code: 'SUCCESS',
+      message: 'Connection saved',
+      data: { id: 'conn_new_123' }
+    })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+    const authorize = vi.fn().mockResolvedValue(undefined)
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: authorize, isPending: false })
+
+    renderWithQueryClient(
+      <ConnectionEditor
+        connection={{ ...gmailConnection, id: '' }}
+        provider={gmailMeta}
+        onSaved={() => {}}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: '', provider: 'gmail' }))
+    expect(authorize).toHaveBeenCalledWith({ connectionId: 'conn_new_123', provider: 'gmail' })
+  })
+
+  it('clicking Save after Connect updates the same draft record instead of creating a duplicate', async () => {
+    const save = vi.fn().mockResolvedValue({
+      status: 'success',
+      code: 'SUCCESS',
+      message: 'Connection saved',
+      data: { id: 'conn_new_123' }
+    })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+    ;(useOAuthAuthorize as Mock).mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue(undefined),
+      isPending: false
+    })
+
+    renderWithQueryClient(
+      <ConnectionEditor
+        connection={{ ...gmailConnection, id: '' }}
+        provider={gmailMeta}
+        onSaved={() => {}}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save.mock.calls[1][0]).toEqual(expect.objectContaining({ id: 'conn_new_123' }))
+  })
 })

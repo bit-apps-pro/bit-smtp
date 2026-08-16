@@ -35,21 +35,99 @@ describe('OAuthConnectButton', () => {
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
   })
 
-  it('disables Connect until the connection has been saved', () => {
-    renderWithClient(<OAuthConnectButton connectionId="" provider="gmail" connected={false} />)
+  it('is always enabled, and creates a draft connection before authorizing when unsaved', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(undefined)
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync, isPending: false })
+    const ensureConnectionId = vi.fn().mockResolvedValue('conn_new_1')
 
-    expect(screen.getByRole('button', { name: 'Connect' })).toBeDisabled()
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId=""
+        provider="gmail"
+        connected={false}
+        ensureConnectionId={ensureConnectionId}
+      />
+    )
+
+    const button = screen.getByRole('button', { name: 'Connect' })
+    expect(button).toBeEnabled()
+
+    await userEvent.click(button)
+
+    expect(ensureConnectionId).toHaveBeenCalled()
+    expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'conn_new_1', provider: 'gmail' })
+  })
+
+  it('does not call ensureConnectionId when a connection id already exists', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(undefined)
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync, isPending: false })
+    const ensureConnectionId = vi.fn().mockResolvedValue('conn_should_not_be_used')
+
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        ensureConnectionId={ensureConnectionId}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(ensureConnectionId).not.toHaveBeenCalled()
+    expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'conn_1', provider: 'gmail' })
+  })
+
+  it('shows an error and never opens the popup when creating the draft connection fails', async () => {
+    const mutateAsync = vi.fn()
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync, isPending: false })
+    // Mirrors ConnectionEditor's real ensureConnectionId: it notifies the user itself before
+    // resolving to '', so the button only needs to bail out on an empty id.
+    const ensureConnectionId = vi.fn().mockImplementation(async () => {
+      notify.error('Failed to prepare this connection for OAuth. Please try again.')
+      return ''
+    })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId=""
+        provider="gmail"
+        connected={false}
+        ensureConnectionId={ensureConnectionId}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(notify.error).toHaveBeenCalled()
+    expect(mutateAsync).not.toHaveBeenCalled()
+    expect(openSpy).not.toHaveBeenCalled()
   })
 
   it('enables Connect once a connection id exists', () => {
-    renderWithClient(<OAuthConnectButton connectionId="conn_1" provider="gmail" connected={false} />)
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        ensureConnectionId={vi.fn()}
+      />
+    )
 
     expect(screen.getByRole('button', { name: 'Connect' })).toBeEnabled()
     expect(screen.queryByText('Connected')).not.toBeInTheDocument()
   })
 
   it('shows a Connected tag and offers Reconnect when already connected', () => {
-    renderWithClient(<OAuthConnectButton connectionId="conn_1" provider="gmail" connected />)
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected
+        ensureConnectionId={vi.fn()}
+      />
+    )
 
     expect(screen.getByText('Connected')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reconnect' })).toBeEnabled()
@@ -60,7 +138,14 @@ describe('OAuthConnectButton', () => {
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync, isPending: false })
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
 
-    renderWithClient(<OAuthConnectButton connectionId="conn_1" provider="gmail" connected={false} />)
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        ensureConnectionId={vi.fn()}
+      />
+    )
 
     await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
@@ -74,7 +159,12 @@ describe('OAuthConnectButton', () => {
 
   it('invalidates mail-settings when a matching oauth postMessage arrives', () => {
     const { invalidateQueries } = renderWithClient(
-      <OAuthConnectButton connectionId="conn_1" provider="microsoft365" connected={false} />
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="microsoft365"
+        connected={false}
+        ensureConnectionId={vi.fn()}
+      />
     )
 
     postOAuthMessage({
@@ -90,7 +180,12 @@ describe('OAuthConnectButton', () => {
 
   it('shows a provider-neutral error for a failed Microsoft OAuth callback', () => {
     renderWithClient(
-      <OAuthConnectButton connectionId="conn_1" provider="microsoft365" connected={false} />
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="microsoft365"
+        connected={false}
+        ensureConnectionId={vi.fn()}
+      />
     )
 
     postOAuthMessage({
@@ -105,7 +200,12 @@ describe('OAuthConnectButton', () => {
 
   it('ignores a postMessage for a different connection', () => {
     const { invalidateQueries } = renderWithClient(
-      <OAuthConnectButton connectionId="conn_1" provider="gmail" connected={false} />
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        ensureConnectionId={vi.fn()}
+      />
     )
 
     postOAuthMessage({
@@ -120,7 +220,12 @@ describe('OAuthConnectButton', () => {
 
   it('ignores a postMessage from a foreign origin', () => {
     const { invalidateQueries } = renderWithClient(
-      <OAuthConnectButton connectionId="conn_1" provider="gmail" connected={false} />
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        ensureConnectionId={vi.fn()}
+      />
     )
 
     postOAuthMessage(
@@ -135,7 +240,12 @@ describe('OAuthConnectButton', () => {
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
 
     const { unmount } = renderWithClient(
-      <OAuthConnectButton connectionId="conn_1" provider="gmail" connected={false} />
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        ensureConnectionId={vi.fn()}
+      />
     )
 
     unmount()

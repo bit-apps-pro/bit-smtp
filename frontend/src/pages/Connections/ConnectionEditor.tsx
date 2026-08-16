@@ -231,6 +231,7 @@ export default function ConnectionEditor({
   const [form] = Form.useForm<ConnectionFormValues>()
   const { mutateAsync, isPending } = useSaveConnection()
   const [testResult, setTestResult] = useState<ConnectionTestResult>()
+  const [draftId, setDraftId] = useState(connection.id)
 
   const secretValues = Object.fromEntries(
     provider.fields
@@ -262,10 +263,31 @@ export default function ConnectionEditor({
     provider.oauth_redirect_url !== undefined ||
     supportsWebhook
 
-  const buildPayload = () => buildConnectionPayload(form.getFieldsValue(true), connection, provider)
+  // Lazily persists a draft (id: '') through the existing save endpoint the first time an OAuth
+  // Connect click needs an id, then reuses the minted draftId so a later Save updates, not duplicates.
+  const ensureConnectionId = async (): Promise<string> => {
+    if (draftId) return draftId
+
+    const response = await mutateAsync(
+      buildConnectionPayload(form.getFieldsValue(true), { ...connection, id: draftId }, provider)
+    )
+    const newId = (response?.data as { id?: string } | undefined)?.id ?? ''
+    if (newId === '') {
+      notify.error(__('Failed to prepare this connection for OAuth. Please try again.'))
+      return ''
+    }
+
+    setDraftId(newId)
+    return newId
+  }
+
+  const buildPayload = () =>
+    buildConnectionPayload(form.getFieldsValue(true), { ...connection, id: draftId }, provider)
 
   const handleFinish = async (values: ConnectionFormValues) => {
-    const response = await mutateAsync(buildConnectionPayload(values, connection, provider))
+    const response = await mutateAsync(
+      buildConnectionPayload(values, { ...connection, id: draftId }, provider)
+    )
     notify.success(__('Connection saved'))
 
     const webhook = (response?.data as { webhook?: { status?: string; message?: string } } | undefined)
@@ -320,9 +342,10 @@ export default function ConnectionEditor({
             {oauthField ? (
               <Form.Item label={oauthField.label}>
                 <OAuthConnectButton
-                  connectionId={connection.id}
+                  connectionId={draftId}
                   provider={provider.key}
                   connected={Boolean(connection.credentials?.refresh_token?.value)}
+                  ensureConnectionId={ensureConnectionId}
                 />
               </Form.Item>
             ) : null}
