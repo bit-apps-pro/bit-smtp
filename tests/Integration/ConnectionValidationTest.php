@@ -121,6 +121,20 @@ final class ConnectionValidationTest extends IntegrationTestCase
         $this->assertSame('gclient', $stored->getSettings()['client_id']);
     }
 
+    public function testSaveOfANewConnectionReturnsTheMintedIdInTheResponse(): void
+    {
+        $payload = $this->gmailPayload('', 'gclient', 'gsecret');
+        $request = $this->mockRequest(ConnectionSaveRequest::class, $payload);
+
+        (new ConnectionController())->save($request);
+
+        $this->assertResponseOk();
+        $stored = (new MailConfigService())->load()->getConnections()->first();
+        $this->assertNotNull($stored);
+        $this->assertSame($stored->getId(), $this->responseData()['id']);
+        $this->assertStringStartsWith('conn_', $this->responseData()['id']);
+    }
+
     public function testGmailTestWithoutRefreshTokenReturnsSendReadinessError(): void
     {
         $payload       = $this->gmailPayload('', 'gclient', 'gsecret');

@@ -59,7 +59,7 @@ class ConnectionController
             ? Plugin::instance()->webhookProvisioningService()->provisionOnSave($connection)
             : ['status' => 'skipped'];
 
-        return Response::success(['webhook' => $webhook])->message(__('Connection saved', 'bit-smtp'));
+        return Response::success(['id' => $connId, 'webhook' => $webhook])->message(__('Connection saved', 'bit-smtp'));
     }
 
     public function delete(ConnectionDeleteRequest $request)
