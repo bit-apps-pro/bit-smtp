@@ -112,7 +112,14 @@ final class WebhookProvisioningService
      */
     public function provisionOnSave(Connection $connection): array
     {
-        if (!$connection->isWebhookEnabled() || !WebhookProvisionerFactory::supportsProvider($connection->getProvider())) {
+        // A user opt-out is not a provisioning failure, so it records no outcome.
+        if (!$connection->isWebhookEnabled()) {
+            return ['status' => 'skipped'];
+        }
+
+        if (!WebhookProvisionerFactory::supportsProvider($connection->getProvider())) {
+            $this->recordOutcome($connection, 'unsupported', null);
+
             return ['status' => 'skipped'];
         }
 

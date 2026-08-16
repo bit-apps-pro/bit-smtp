@@ -80,6 +80,18 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
     {
         $this->factory->shouldNotReceive('forProvider');
 
+        // Mockery's array argument matching is a plain `==` compare and does not recurse into
+        // matcher objects nested inside a literal array, so the updated_at timestamp is asserted
+        // via Mockery::on() instead of Mockery::type() nested in the array (as with cycles a/b).
+        $this->config->shouldReceive('persistConnectionProvisioning')
+            ->once()
+            ->with('conn_1', [], Mockery::on(static function (array $settings): bool {
+                return ($settings['webhook_provisioning_status'] ?? null) === 'unsupported'
+                    && ($settings['webhook_provisioning_reason'] ?? null) === ''
+                    && \is_int($settings['webhook_provisioning_updated_at'] ?? null);
+            }))
+            ->andReturn(true);
+
         // 'zeptomail' is webhook-capable (has an inbound adapter) but exposes no registration API,
         // so it has no provisioner and must be left for manual-paste setup.
         $result = $this->service()->provisionOnSave($this->connection([], 'zeptomail'));
