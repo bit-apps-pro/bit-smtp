@@ -395,7 +395,12 @@ class MailConfigService
             // connection holds (or drop it for a new one). webhook_provisioned_url is included so a
             // client can neither wipe the auto-provision short-circuit marker nor forge it to skip
             // provisioning (which would leave signature verification unconfigured).
-            foreach (['webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key', 'webhook_provisioned_url'] as $managed) {
+            // webhook_provisioning_* is included so a crafted save payload can't fake a "provider
+            // confirmed" status — WebhookProvisioningService::recordOutcome is the only writer.
+            foreach ([
+                'webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key', 'webhook_provisioned_url',
+                'webhook_provisioning_status', 'webhook_provisioning_reason', 'webhook_provisioning_updated_at',
+            ] as $managed) {
                 unset($settings[$managed]);
                 if (\array_key_exists($managed, $priorSettings)) {
                     $settings[$managed] = $priorSettings[$managed];

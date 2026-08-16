@@ -732,6 +732,56 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('Gmail Renamed', $reloaded->getName());
     }
 
+    public function testSaveConnectionCannotSpoofWebhookProvisioningStatus(): void
+    {
+        $service = $this->freshService();
+        $connId  = $service->upsertConnection([
+            'id'           => '',
+            'provider'     => 'postmark',
+            'kind'         => 'api',
+            'name'         => 'Postmark',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => [],
+            'credentials'  => ['api_key' => ['source' => 'database', 'value' => 'pm-key']],
+        ]);
+        $this->assertNotNull($connId);
+
+        // Simulate a real recorded outcome, exactly as WebhookProvisioningService::recordOutcome does.
+        $this->freshService()->persistConnectionProvisioning($connId, [], [
+            'webhook_provisioning_status'     => 'failed',
+            'webhook_provisioning_reason'     => 'provider returned 401',
+            'webhook_provisioning_updated_at' => 1700000000,
+        ]);
+
+        // A crafted connection-save payload tries to overwrite the outcome to fake provider
+        // confirmation — this must never survive a normal save.
+        $this->freshService()->saveConnection([
+            'id'           => $connId,
+            'provider'     => 'postmark',
+            'kind'         => 'api',
+            'name'         => 'Postmark',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => [
+                'webhook_provisioning_status'     => 'registered',
+                'webhook_provisioning_reason'     => '',
+                'webhook_provisioning_updated_at' => time(),
+            ],
+            'credentials' => ['api_key' => ['source' => 'database', 'value' => 'pm-key']],
+        ]);
+
+        $conn = $this->freshService()->load()->getConnections()->byId($connId);
+        $this->assertNotNull($conn);
+        $this->assertSame('failed', $conn->getWebhookProvisioningStatus());
+        $this->assertSame('provider returned 401', $conn->getWebhookProvisioningReason());
+        $this->assertSame(1700000000, $conn->getWebhookProvisioningUpdatedAt());
+    }
+
     public function testDeleteConnectionRemovesItAndRepointsDefault(): void
     {
         // Store two connections, conn_1 as default

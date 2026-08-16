@@ -29,7 +29,8 @@
                     "value": "********"
                 }
             },
-            "webhook_url": "http://example.org/bit-smtp/conn_golden_1/golden-webhook-secret-fixed-000000"
+            "webhook_url": "http://example.org/bit-smtp/conn_golden_1/golden-webhook-secret-fixed-000000",
+            "webhook_provisioning": null
         }
     ],
     "features": {
