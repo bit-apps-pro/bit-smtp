@@ -22,6 +22,7 @@ final class BitSmtpLogsTableMigration extends Migration
                 $table->tinyint('status');
                 $table->longtext('subject');
                 $table->longtext('to_addr');
+                $table->varchar('sender', 191)->nullable();
                 $table->longtext('details')->nullable();
                 $table->text('debug_info')->nullable();
                 $table->tinyint('retry_count')->defaultValue(0);
@@ -50,6 +51,7 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addWebhookCorrelationColumnsIfMissing();
         $this->addDeliveryColumnsIfMissing();
         $this->addAnalyticsColumnsIfMissing();
+        $this->addSenderColumnIfMissing();
         $this->createDeliveryEventsTableIfMissing();
         LogService::initializeLoggingContinuity();
     }
@@ -102,6 +104,13 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addIndexIfMissing($table, 'idx_connection_id_created_utc', 'ADD INDEX `idx_connection_id_created_utc` (`connection_id`, `created_at_utc`)');
         $this->addIndexIfMissing($table, 'idx_created_at_utc', 'ADD INDEX `idx_created_at_utc` (`created_at_utc`)');
         $this->removeUnusedAnalyticsIndexes($table);
+    }
+
+    private function addSenderColumnIfMissing()
+    {
+        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
+
+        $this->addColumnIfMissing($table, 'sender', 'ADD COLUMN `sender` VARCHAR(191) NULL');
     }
 
     private function createDeliveryEventsTableIfMissing()

@@ -168,6 +168,11 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertSame('idx_connection_id_created_utc', $plan->key);
     }
 
+    public function testDbVersionConstantIsTwoZero(): void
+    {
+        $this->assertSame('2.0', Config::DB_VERSION);
+    }
+
     public function testMaybeMigrateDbUpgradesAOneSixLogsTableAtTheCurrentPluginVersion(): void
     {
         $this->dropLogsTable();
@@ -184,12 +189,12 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             Plugin::maybeMigrateDB();
 
             $this->assertLegacyAnalyticsUpgrade();
-            $this->assertSame('1.9', Config::getOption('db_version'));
+            $this->assertSame(Config::DB_VERSION, Config::getOption('db_version'));
 
             Plugin::maybeMigrateDB();
 
             $this->assertLegacyAnalyticsUpgrade();
-            $this->assertSame('1.9', Config::getOption('db_version'));
+            $this->assertSame(Config::DB_VERSION, Config::getOption('db_version'));
         } finally {
             wp_set_current_user(0);
             $this->migrateLogs();
@@ -223,7 +228,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
             $this->assertNotFalse($wpdb->query("ALTER TABLE `{$this->logsTable}` MODIFY COLUMN `created_at_utc` DATETIME NULL"));
             Plugin::maybeMigrateDB();
-            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(Config::DB_VERSION, Config::getOption('db_version'));
         } finally {
             $wpdb->suppress_errors($previousSuppressErrors);
             wp_set_current_user(0);
@@ -249,12 +254,12 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
             $this->assertAnalyticsColumnsAreNullable();
             $this->assertExactOneEightIndexSet();
-            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(Config::DB_VERSION, Config::getOption('db_version'));
 
             Plugin::maybeMigrateDB();
 
             $this->assertExactOneEightIndexSet();
-            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(Config::DB_VERSION, Config::getOption('db_version'));
         } finally {
             wp_set_current_user(0);
             $this->migrateLogs();
@@ -302,7 +307,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             Plugin::maybeMigrateDB();
 
             $this->assertExactOneEightIndexSet();
-            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(Config::DB_VERSION, Config::getOption('db_version'));
         } finally {
             $wpdb->query(
                 "ALTER TABLE `{$this->logsTable}` DROP FOREIGN KEY `bit_smtp_source_created_guard`"
@@ -329,12 +334,12 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         try {
             Plugin::maybeMigrateDB();
 
-            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(Config::DB_VERSION, Config::getOption('db_version'));
             self::assertSame(0, LogDeliveryEvent::where('log_id', $orphanLogId)->count());
 
             Plugin::maybeMigrateDB();
 
-            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(Config::DB_VERSION, Config::getOption('db_version'));
             self::assertSame(0, LogDeliveryEvent::where('log_id', $orphanLogId)->count());
         } finally {
             wp_set_current_user(0);
@@ -378,7 +383,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             self::assertNotFalse($wpdb->query("DROP TRIGGER `{$triggerName}`"));
             Plugin::maybeMigrateDB();
 
-            self::assertSame('1.9', Config::getOption('db_version'));
+            self::assertSame(Config::DB_VERSION, Config::getOption('db_version'));
             self::assertSame(0, LogDeliveryEvent::where('log_id', $orphanLogId)->count());
         } finally {
             $wpdb->query("DROP TRIGGER IF EXISTS `{$triggerName}`");
@@ -398,7 +403,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
     {
         global $wpdb;
 
-        foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'subject_pattern', 'recipient_count', 'created_at_utc'] as $column) {
+        foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'subject_pattern', 'recipient_count', 'created_at_utc', 'sender'] as $column) {
             $definition = $wpdb->get_row(
                 $wpdb->prepare("SHOW COLUMNS FROM `{$this->logsTable}` LIKE %s", $column)
             );
