@@ -198,6 +198,24 @@ final class WebhookProvisioningService
             $replacements[$secret] = '[redacted webhook secret]';
         }
 
-        return $replacements === [] ? $message : strtr($message, $replacements);
+        if ($replacements !== []) {
+            $message = strtr($message, $replacements);
+        }
+
+        return $this->scrubSecrets($message);
+    }
+
+    /**
+     * Scrub common secret shapes from an arbitrary provider error body before it is logged or shown
+     * in the admin UI: bearer tokens and long API-key-like runs the connection redaction can't know.
+     */
+    private function scrubSecrets(string $message): string
+    {
+        // "Authorization: Bearer <token>" / bare "Bearer <token>" — keep the label, drop the token.
+        $message = preg_replace('/\bBearer\s+[A-Za-z0-9._~+\/=-]+/i', 'Bearer [redacted]', $message) ?? $message;
+
+        // Any remaining long token-alphabet run (API keys, JWTs, base64url secrets); 20+ chars. The
+        // class omits `=`/`+`/`/` so a `key=<secret>` separator survives while the value is scrubbed.
+        return preg_replace('/[A-Za-z0-9._~-]{20,}/', '[redacted]', $message) ?? $message;
     }
 }

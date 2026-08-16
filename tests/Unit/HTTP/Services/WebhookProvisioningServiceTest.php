@@ -136,6 +136,39 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
         $this->assertSame('warning', $result['status']);
     }
 
+    public function testProvisionOnSaveScrubsSecretsFromFailureReason(): void
+    {
+        // The reason is surfaced in the admin UI, so a bearer token or long key leaked into a raw
+        // provider error body must be scrubbed, not just the per-connection URL/secret.
+        $this->expectOutputRegex('#failed: 401 Unauthorized Bearer \[redacted\] key=\[redacted\]#');
+
+        $this->registry->shouldReceive('get')->with('sendgrid')->andReturn($this->bearerProvider());
+
+        $bearerToken = 'sk-live-abcdefghijklmnopqrstuvwxyz0123456789';
+        $apiKey      = 'AKIAIOSFODNN7EXAMPLEKEY0123456789';
+        $provisioner = Mockery::mock(WebhookProvisionerInterface::class);
+        $provisioner->shouldReceive('ensure')->andThrow(
+            new RuntimeException('401 Unauthorized Bearer ' . $bearerToken . ' key=' . $apiKey)
+        );
+        $this->factory->shouldReceive('forProvider')->andReturn($provisioner);
+
+        $reason = null;
+        $this->config->shouldReceive('persistConnectionProvisioning')
+            ->once()
+            ->with('conn_1', [], Mockery::on(static function (array $settings) use (&$reason): bool {
+                $reason = $settings['webhook_provisioning_reason'] ?? '';
+
+                return ($settings['webhook_provisioning_status'] ?? null) === 'failed';
+            }))
+            ->andReturn(true);
+
+        $this->service()->provisionOnSave($this->connection());
+
+        $this->assertStringNotContainsString($bearerToken, (string) $reason);
+        $this->assertStringNotContainsString($apiKey, (string) $reason);
+        $this->assertStringContainsString('[redacted]', (string) $reason);
+    }
+
     public function testProvisionOnSaveReturnsWarningWithoutThrowingWhenProvisioningFails(): void
     {
         // The best-effort path logs the failure via error_log; declare it so the strict-output suite
