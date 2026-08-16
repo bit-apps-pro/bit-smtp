@@ -782,6 +782,48 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame(1700000000, $conn->getWebhookProvisioningUpdatedAt());
     }
 
+    public function testProviderSwapCannotStageSpoofedWebhookProvisioningStatus(): void
+    {
+        // Step 1: save under a non-webhook provider (gmail) with a client-staged forged status.
+        // Before the fix this bypassed the managed-field strip and persisted the forgery.
+        $connId = $this->freshService()->upsertConnection([
+            'id'           => '',
+            'provider'     => 'gmail',
+            'kind'         => 'api',
+            'name'         => 'Staged',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['webhook_provisioning_status' => 'registered'],
+            'credentials'  => [],
+        ]);
+        $this->assertNotNull($connId);
+
+        // Step 2: re-save the same id as a webhook-capable provider with the webhook disabled, so the
+        // strip runs but would restore the staged forgery from the prior stored connection.
+        $this->freshService()->saveConnection([
+            'id'           => $connId,
+            'provider'     => 'postmark',
+            'kind'         => 'api',
+            'name'         => 'Swapped',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['webhook_enabled' => false],
+            'credentials'  => ['api_key' => ['source' => 'database', 'value' => 'pm-key']],
+        ]);
+
+        $conn = $this->freshService()->load()->getConnections()->byId($connId);
+        $this->assertNotNull($conn);
+        $this->assertSame(
+            '',
+            $conn->getWebhookProvisioningStatus(),
+            'A provider swap must not let a client-staged provisioning status survive.'
+        );
+    }
+
     public function testDeleteConnectionRemovesItAndRepointsDefault(): void
     {
         // Store two connections, conn_1 as default

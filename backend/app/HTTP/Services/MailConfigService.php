@@ -25,6 +25,18 @@ class MailConfigService
     private const LEGACY_BACKUP_OPTION = 'options_v1_backup';
 
     /**
+     * Server-managed webhook setting keys the client may never write: always stripped from an
+     * incoming save and restored from the stored connection (or dropped for a new one). Stripped for
+     * EVERY provider so a forged value can't be staged under a non-webhook provider and later
+     * restored across a provider swap. WebhookProvisioningService::recordOutcome (via
+     * persistConnectionProvisioning, which bypasses this strip) is the only writer.
+     */
+    private const MANAGED_WEBHOOK_SETTING_KEYS = [
+        'webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key', 'webhook_provisioned_url',
+        'webhook_provisioning_status', 'webhook_provisioning_reason', 'webhook_provisioning_updated_at',
+    ];
+
+    /**
      * @var null|MailSettings
      */
     private $settings;
@@ -381,42 +393,35 @@ class MailConfigService
     private function withPreservedWebhookFields(array $connections, MailSettings $prior): array
     {
         foreach ($connections as $i => $connection) {
-            if (!WebhookAdapterFactory::supportsProvider((string) ($connection['provider'] ?? ''))) {
-                continue;
-            }
-
             $settings      = isset($connection['settings']) && \is_array($connection['settings'])
                 ? $connection['settings']
                 : [];
             $priorConn     = $prior->getConnections()->byId($connection['id'] ?? '');
             $priorSettings = $priorConn !== null ? $priorConn->getSettings() : [];
 
-            // Server-managed: never trust an incoming value, always restore whatever the stored
-            // connection holds (or drop it for a new one). webhook_provisioned_url is included so a
-            // client can neither wipe the auto-provision short-circuit marker nor forge it to skip
-            // provisioning (which would leave signature verification unconfigured).
-            // webhook_provisioning_* is included so a crafted save payload can't fake a "provider
-            // confirmed" status — WebhookProvisioningService::recordOutcome is the only writer.
-            foreach ([
-                'webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key', 'webhook_provisioned_url',
-                'webhook_provisioning_status', 'webhook_provisioning_reason', 'webhook_provisioning_updated_at',
-            ] as $managed) {
+            // Strip-and-restore runs for every provider (not just webhook-capable ones): otherwise a
+            // client could stage a forged value under a non-webhook provider — where the strip was
+            // skipped — and have it restored after swapping the same connection to a webhook provider.
+            foreach (self::MANAGED_WEBHOOK_SETTING_KEYS as $managed) {
                 unset($settings[$managed]);
                 if (\array_key_exists($managed, $priorSettings)) {
                     $settings[$managed] = $priorSettings[$managed];
                 }
             }
 
-            // Treat an explicit '' as absent so re-saving a connection can't rotate a live webhook URL:
-            // carry the stored secret forward, minting one only when neither incoming nor stored exists.
-            $secret = $settings['webhook_secret'] ?? '';
-            if ($secret === '') {
-                $secret = $priorSettings['webhook_secret'] ?? '';
+            // Only webhook-capable providers carry a webhook secret; SMTP/non-webhook providers get none.
+            if (WebhookAdapterFactory::supportsProvider((string) ($connection['provider'] ?? ''))) {
+                // Treat an explicit '' as absent so re-saving a connection can't rotate a live webhook URL:
+                // carry the stored secret forward, minting one only when neither incoming nor stored exists.
+                $secret = $settings['webhook_secret'] ?? '';
+                if ($secret === '') {
+                    $secret = $priorSettings['webhook_secret'] ?? '';
+                }
+                if ($secret === '') {
+                    $secret = wp_generate_password(40, false);
+                }
+                $settings['webhook_secret'] = $secret;
             }
-            if ($secret === '') {
-                $secret = wp_generate_password(40, false);
-            }
-            $settings['webhook_secret'] = $secret;
 
             $connections[$i]['settings'] = $settings;
         }
