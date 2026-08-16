@@ -97,6 +97,8 @@ class MailSettingsSerializer
                 $conn['webhook_url'] = $secret !== ''
                     ? home_url('/bit-smtp/' . $conn['id'] . '/' . $secret)
                     : '';
+
+                $conn['webhook_provisioning'] = self::webhookProvisioning($conn['settings'] ?? []);
             }
 
             if (!isset($conn['credentials']) || !\is_array($conn['credentials'])) {
@@ -110,6 +112,31 @@ class MailSettingsSerializer
         unset($conn);
 
         return $data;
+    }
+
+    /**
+     * Assemble the webhook-provisioning outcome from its flat scalar settings (stored that way so
+     * the sanitizer's nested-value drop doesn't discard it); null when never recorded.
+     *
+     * @param array<string,mixed> $settings
+     *
+     * @return null|array{status:string,reason:null|string,updated_at:null|int}
+     */
+    private static function webhookProvisioning(array $settings): ?array
+    {
+        $status = (string) ($settings['webhook_provisioning_status'] ?? '');
+        if ($status === '') {
+            return null;
+        }
+
+        $reason    = (string) ($settings['webhook_provisioning_reason'] ?? '');
+        $updatedAt = (int) ($settings['webhook_provisioning_updated_at'] ?? 0);
+
+        return [
+            'status'     => $status,
+            'reason'     => $reason    !== '' ? $reason : null,
+            'updated_at' => $updatedAt !== 0 ? $updatedAt : null,
+        ];
     }
 
     /**

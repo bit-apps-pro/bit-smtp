@@ -354,6 +354,60 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
         $this->assertArrayNotHasKey('webhook_url', $result['connections'][0]);
     }
 
+    public function testToApiShapeEmitsWebhookProvisioningObjectWithExactKeys(): void
+    {
+        $data                                                                  = $this->v2Array();
+        $data['connections'][0]['kind']                                        = 'api';
+        $data['connections'][0]['provider']                                    = 'postmark';
+        $data['connections'][0]['settings']['webhook_provisioning_status']     = 'registered';
+        $data['connections'][0]['settings']['webhook_provisioning_reason']     = '';
+        $data['connections'][0]['settings']['webhook_provisioning_updated_at'] = 1700000000;
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertSame(
+            ['status' => 'registered', 'reason' => null, 'updated_at' => 1700000000],
+            $result['connections'][0]['webhook_provisioning']
+        );
+    }
+
+    public function testToApiShapeWebhookProvisioningNullWhenNeverAttempted(): void
+    {
+        $data                                = $this->v2Array();
+        $data['connections'][0]['kind']      = 'api';
+        $data['connections'][0]['provider']  = 'postmark';
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertArrayHasKey('webhook_provisioning', $result['connections'][0]);
+        $this->assertNull($result['connections'][0]['webhook_provisioning']);
+    }
+
+    public function testToApiShapeOmitsWebhookProvisioningForSmtpConnection(): void
+    {
+        $data                            = $this->v2Array();
+        $data['connections'][0]['kind']  = 'smtp';
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertArrayNotHasKey('webhook_provisioning', $result['connections'][0]);
+    }
+
+    public function testToApiShapeOmitsWebhookProvisioningForApiProviderWithoutReceiver(): void
+    {
+        $data                                = $this->v2Array();
+        $data['connections'][0]['kind']      = 'api';
+        $data['connections'][0]['provider']  = 'gmail';
+
+        $settings = MailSettings::fromArray($data);
+        $result   = MailSettingsSerializer::toApiShape($settings);
+
+        $this->assertArrayNotHasKey('webhook_provisioning', $result['connections'][0]);
+    }
+
     public function testToApiShapeMasksFailureWebhookSecrets(): void
     {
         $data                       = $this->v2Array();
