@@ -96,7 +96,8 @@ final class SendGridSendTest extends IntegrationTestCase
         $this->assertInstanceOf(Log::class, $log);
         $this->assertSame($trackingId, $log->tracking_id);
         $this->assertSame('sg-response-id', $log->message_id);
-        $this->assertNull($log->delivery_status);
+        // Send-time hand-off floors delivery_status at accepted (#35); a later webhook still upgrades it.
+        $this->assertSame('accepted', $log->delivery_status);
     }
 
     /**
