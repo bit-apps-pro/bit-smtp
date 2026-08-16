@@ -263,14 +263,16 @@ export default function ConnectionEditor({
     provider.oauth_redirect_url !== undefined ||
     supportsWebhook
 
+  const draftConnection: Connection = { ...connection, id: draftId }
+
+  const buildPayload = () => buildConnectionPayload(form.getFieldsValue(true), draftConnection, provider)
+
   // Lazily persists a draft (id: '') through the existing save endpoint the first time an OAuth
   // Connect click needs an id, then reuses the minted draftId so a later Save updates, not duplicates.
   const ensureConnectionId = async (): Promise<string> => {
     if (draftId) return draftId
 
-    const response = await mutateAsync(
-      buildConnectionPayload(form.getFieldsValue(true), { ...connection, id: draftId }, provider)
-    )
+    const response = await mutateAsync(buildPayload())
     const newId = (response?.data as { id?: string } | undefined)?.id ?? ''
     if (newId === '') {
       notify.error(__('Failed to prepare this connection for OAuth. Please try again.'))
@@ -281,13 +283,8 @@ export default function ConnectionEditor({
     return newId
   }
 
-  const buildPayload = () =>
-    buildConnectionPayload(form.getFieldsValue(true), { ...connection, id: draftId }, provider)
-
   const handleFinish = async (values: ConnectionFormValues) => {
-    const response = await mutateAsync(
-      buildConnectionPayload(values, { ...connection, id: draftId }, provider)
-    )
+    const response = await mutateAsync(buildConnectionPayload(values, draftConnection, provider))
     notify.success(__('Connection saved'))
 
     const webhook = (response?.data as { webhook?: { status?: string; message?: string } } | undefined)

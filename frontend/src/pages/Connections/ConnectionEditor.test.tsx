@@ -240,15 +240,15 @@ describe('ConnectionEditor', () => {
     ;(useTestConnection as Mock).mockReturnValue({ mutate: vi.fn(), isPending: false, data: undefined })
   })
 
-  it('renders the test result above the sticky action bar, not nested inside it (#32)', () => {
+  it('renders the test result above the sticky action bar, not nested inside it (#32)', async () => {
     ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
-    ;(useTestConnection as Mock).mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: { ok: true, debug: ['Connected'], delivery: null }
-    })
+    const result = { ok: true, debug: ['Connected'], delivery: null }
+    const mutate = vi.fn((_payload, opts) => opts.onSuccess(result))
+    ;(useTestConnection as Mock).mockReturnValue({ mutate, isPending: false, data: undefined })
 
     render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /test connection/i }))
 
     const alert = screen.getByRole('alert')
     const actionsBar = screen.getByTestId('connection-actions-bar')

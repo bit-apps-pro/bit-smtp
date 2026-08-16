@@ -37,19 +37,18 @@ describe('ConnectionTestButton', () => {
     vi.clearAllMocks()
   })
 
-  it('reports the test result to the parent via onResult instead of rendering it inline', () => {
+  it('reports the test result to the parent via onResult instead of rendering it inline', async () => {
     const onResult = vi.fn()
-    ;(useTestConnection as Mock).mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: { ok: true, debug: ['Connected', 'Message sent'] }
-    })
+    const result = { ok: true, debug: ['Connected', 'Message sent'] }
+    const mutate = vi.fn((_payload, opts) => opts.onSuccess(result))
+    ;(useTestConnection as Mock).mockReturnValue({ mutate, isPending: false, data: undefined })
 
     render(
       <ConnectionTestButton getConnection={() => connection} to="test@example.com" onResult={onResult} />
     )
+    await userEvent.click(screen.getByRole('button', { name: /test connection/i }))
 
-    expect(onResult).toHaveBeenCalledWith({ ok: true, debug: ['Connected', 'Message sent'] })
+    expect(onResult).toHaveBeenCalledWith(result)
     expect(screen.queryByText('Connected')).not.toBeInTheDocument()
   })
 

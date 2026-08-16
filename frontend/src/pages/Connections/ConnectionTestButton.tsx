@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import DebugOutput from '@components/DebugOutput/DebugOutput'
 import notify from '@components/Toaster/Toaster'
@@ -50,18 +49,17 @@ export default function ConnectionTestButton({
   to,
   onResult
 }: ConnectionTestButtonProps) {
-  const { mutate, isPending, data } = useTestConnection()
-
-  // Bubble the mutation result up so the caller can render it outside the sticky bar (#32).
-  useEffect(() => {
-    onResult?.(data)
-  }, [data, onResult])
+  const { mutate, isPending } = useTestConnection()
 
   const handleTest = () => {
     mutate(
       { connection: getConnection(), to },
       {
-        onSuccess: notifyDeliveryOutcome,
+        // Bubble the mutation result up so the caller can render it outside the sticky bar (#32).
+        onSuccess: result => {
+          notifyDeliveryOutcome(result)
+          onResult?.(result)
+        },
         onError: () => {
           notify.error(__('Connection test failed'))
         }
