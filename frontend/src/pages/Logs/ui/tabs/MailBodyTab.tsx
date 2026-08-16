@@ -1,3 +1,4 @@
+import { useTheme } from '@config/themes/theme.provider'
 import { type LogType } from '@pages/Logs/data/useFetchLogs'
 import EmailPreviewer from '@pages/Logs/ui/EmailPreviewer'
 import dompurify from 'dompurify'
@@ -7,6 +8,7 @@ interface MailBodyTabProps {
 }
 
 export default function MailBodyTab({ log }: MailBodyTabProps) {
+  const { isDark } = useTheme()
   const mailBodyHtml = dompurify.sanitize(log?.details?.message || '', {
     ALLOWED_TAGS: [
       'b',
@@ -43,5 +45,5 @@ export default function MailBodyTab({ log }: MailBodyTabProps) {
     ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'style', 'width', 'height', 'align', 'target', 'rel'],
     ADD_ATTR: ['class']
   })
-  return <EmailPreviewer html={mailBodyHtml} />
+  return <EmailPreviewer html={mailBodyHtml} isDark={isDark} />
 }
