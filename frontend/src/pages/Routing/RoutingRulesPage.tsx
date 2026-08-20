@@ -14,7 +14,8 @@ import { CSS } from '@dnd-kit/utilities'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type MailSettings } from '@pages/Connections/types'
-import { type EditableRoutingRule, type RoutingRule } from '@pages/Routing/types'
+import useMailSources from '@pages/Routing/data/useMailSources'
+import { type EditableRoutingRule, type MailSource, type RoutingRule } from '@pages/Routing/types'
 import { Button, Flex, Spin, Typography, theme } from 'antd'
 import RoutingRuleRow from './RoutingRuleRow'
 
@@ -58,12 +59,14 @@ function toStoredRules(rules: EditableRoutingRule[]): RoutingRule[] {
 function SortableRuleRow({
   rule,
   connections,
+  sources,
   priority,
   onChange,
   onRemove
 }: {
   rule: EditableRoutingRule
   connections: MailSettings['connections']
+  sources: MailSource[]
   priority: number
   onChange: (rule: EditableRoutingRule) => void
   onRemove: () => void
@@ -83,6 +86,7 @@ function SortableRuleRow({
       <RoutingRuleRow
         rule={rule}
         connections={connections}
+        sources={sources}
         priority={priority}
         onChange={onChange}
         onRemove={onRemove}
@@ -96,6 +100,7 @@ function SortableRuleRow({
 export default function RoutingRulesPage() {
   const { token } = theme.useToken()
   const { data: settings, isPending } = useMailSettings()
+  const { data: sources } = useMailSources()
   const updateSettings = useUpdateSettings()
   const [rules, setRules] = useState<EditableRoutingRule[]>([])
   const sensors = useSensors(useSensor(PointerSensor))
@@ -177,6 +182,7 @@ export default function RoutingRulesPage() {
                 key={rule.id}
                 rule={rule}
                 connections={settings.connections}
+                sources={sources ?? []}
                 priority={index + 1}
                 onChange={updated => updateRule(index, updated)}
                 onRemove={() => removeRule(index)}

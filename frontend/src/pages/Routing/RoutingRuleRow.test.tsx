@@ -1,5 +1,5 @@
 import { type Connection } from '@pages/Connections/types'
-import { type EditableRoutingRule } from '@pages/Routing/types'
+import { type EditableRoutingRule, type MailSource } from '@pages/Routing/types'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -38,10 +38,18 @@ const rule: EditableRoutingRule = {
   conditions: [{ id: 'condition-1', field: 'recipient', operator: 'equals', value: 'a@b.com' }]
 }
 
+const sources: MailSource[] = [{ value: 'woocommerce', label: 'WooCommerce' }]
+
 describe('RoutingRuleRow', () => {
   it('renders the target connection and one ConditionEditor per condition', () => {
     render(
-      <RoutingRuleRow rule={rule} connections={connections} onChange={vi.fn()} onRemove={vi.fn()} />
+      <RoutingRuleRow
+        rule={rule}
+        connections={connections}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
     )
 
     expect(screen.getByText('Primary SMTP')).toBeInTheDocument()
@@ -51,7 +59,13 @@ describe('RoutingRuleRow', () => {
   it('calls onChange with the new connectionId when the target connection changes', async () => {
     const onChange = vi.fn()
     render(
-      <RoutingRuleRow rule={rule} connections={connections} onChange={onChange} onRemove={vi.fn()} />
+      <RoutingRuleRow
+        rule={rule}
+        connections={connections}
+        sources={sources}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />
     )
 
     await userEvent.click(screen.getByRole('combobox', { name: 'Target connection' }))
@@ -63,7 +77,13 @@ describe('RoutingRuleRow', () => {
   it('adds an empty condition when Add condition is clicked', async () => {
     const onChange = vi.fn()
     render(
-      <RoutingRuleRow rule={rule} connections={connections} onChange={onChange} onRemove={vi.fn()} />
+      <RoutingRuleRow
+        rule={rule}
+        connections={connections}
+        sources={sources}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />
     )
 
     await userEvent.click(screen.getByRole('button', { name: /Add condition/ }))
@@ -81,7 +101,13 @@ describe('RoutingRuleRow', () => {
   it('removes a condition when its remove button is clicked', async () => {
     const onChange = vi.fn()
     render(
-      <RoutingRuleRow rule={rule} connections={connections} onChange={onChange} onRemove={vi.fn()} />
+      <RoutingRuleRow
+        rule={rule}
+        connections={connections}
+        sources={sources}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />
     )
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove condition' }))
@@ -92,7 +118,13 @@ describe('RoutingRuleRow', () => {
   it('calls onRemove when Delete rule is confirmed', async () => {
     const onRemove = vi.fn()
     render(
-      <RoutingRuleRow rule={rule} connections={connections} onChange={vi.fn()} onRemove={onRemove} />
+      <RoutingRuleRow
+        rule={rule}
+        connections={connections}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={onRemove}
+      />
     )
 
     await userEvent.click(screen.getByRole('button', { name: /Delete rule/ }))

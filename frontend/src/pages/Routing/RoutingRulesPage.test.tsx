@@ -4,6 +4,7 @@ import type * as DndKitSortable from '@dnd-kit/sortable'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type MailSettings } from '@pages/Connections/types'
+import useMailSources from '@pages/Routing/data/useMailSources'
 import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +12,7 @@ import RoutingRulesPage from './RoutingRulesPage'
 
 vi.mock('@pages/Connections/data/useMailSettings', () => ({ default: vi.fn() }))
 vi.mock('@pages/Connections/data/useUpdateSettings', () => ({ default: vi.fn() }))
+vi.mock('@pages/Routing/data/useMailSources', () => ({ default: vi.fn() }))
 
 // dnd-kit needs real pointer events to drag in jsdom, so DndContext/SortableContext are
 // swapped for pass-throughs that capture onDragEnd and the live sortable ids for tests to drive.
@@ -89,6 +91,7 @@ describe('RoutingRulesPage', () => {
     capturedItems.current = []
     ;(useMailSettings as Mock).mockReturnValue({ data: settings, isPending: false })
     ;(useUpdateSettings as Mock).mockReturnValue({ mutate: updateSettingsMutate, isPending: false })
+    ;(useMailSources as Mock).mockReturnValue({ data: [{ value: 'woocommerce', label: 'WooCommerce' }] })
   })
 
   it('shows a loading spinner while settings are pending', () => {
@@ -104,6 +107,16 @@ describe('RoutingRulesPage', () => {
 
     expect(screen.getByText('Backup SMTP')).toBeInTheDocument()
     expect(screen.getByLabelText('Value')).toHaveValue('invoice')
+  })
+
+  it('offers the detected source plugins when a condition switches to Source plugin', async () => {
+    renderWithProviders(<RoutingRulesPage />)
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Field' }))
+    await userEvent.click(await screen.findByTitle('Source plugin'))
+    await userEvent.click(screen.getByRole('combobox', { name: 'Value' }))
+
+    expect(await screen.findByTitle('WooCommerce')).toBeInTheDocument()
   })
 
   it('adds a rule row when Add rule is clicked', async () => {

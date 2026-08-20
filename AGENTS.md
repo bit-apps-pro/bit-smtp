@@ -22,6 +22,14 @@
    - Ask for user feedback early to avoid unnecessary work and overuse of tokens.
    - Adjust plan based on feedback before continuing.
 
+## Testing
+
+- PHP suites are split (see `phpunit.xml.dist` vs `phpunit.integration.xml`): `composer test:unit`
+  runs only `tests/Unit` + `tests/Golden` (no WordPress/DB, Brain\Monkey). Tests that touch `$wpdb`,
+  REST routes, or `get_plugins()` belong in `tests/Integration` (`composer test:integration`, needs
+  the docker `db`/`mailpit` services), not in the unit suite.
+- Frontend tests are vitest, colocated as `*.test.tsx`. Gates: `pnpm test`, `pnpm lint`, `pnpm build`.
+
 ## Conventions
 
 - Keep frontend and backend logic separated.
@@ -44,3 +52,10 @@
 ---
 
 **Always plan, implement, lint, check, and test in order. Use feedback to clarify and avoid wasted effort.**
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.

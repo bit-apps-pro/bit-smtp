@@ -165,6 +165,26 @@ class MailAnalyticsRepository
     }
 
     /**
+     * All-time distinct wp_mail source-plugin slugs, excluding empty and unknown senders.
+     *
+     * @return array<int,string>|WP_Error
+     */
+    public function distinctSourcePlugins()
+    {
+        $sql = "SELECT DISTINCT source_plugin FROM `{$this->table}`
+            WHERE source_plugin IS NOT NULL AND source_plugin <> '' AND source_plugin <> 'unknown'
+            ORDER BY source_plugin ASC";
+        $rows = $this->rows($sql, []);
+        if ($rows instanceof WP_Error) {
+            return $rows;
+        }
+
+        return array_map(static function (array $row): string {
+            return (string) ($row['source_plugin'] ?? '');
+        }, $rows);
+    }
+
+    /**
      * @return array<int,array{pattern:string,total:int}>|WP_Error
      */
     public function subjectCounts(AnalyticsQuery $query)

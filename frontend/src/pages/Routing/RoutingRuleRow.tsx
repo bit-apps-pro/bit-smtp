@@ -3,7 +3,11 @@ import { __ } from '@common/helpers/i18nwrap'
 import { type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core'
 import { type ProviderVisual, getProviderVisual } from '@pages/Connections/providerVisuals'
 import { type Connection } from '@pages/Connections/types'
-import { type EditableRoutingCondition, type EditableRoutingRule } from '@pages/Routing/types'
+import {
+  type EditableRoutingCondition,
+  type EditableRoutingRule,
+  type MailSource
+} from '@pages/Routing/types'
 import { Button, Card, Flex, Popconfirm, Select, Typography, theme } from 'antd'
 import ConditionEditor from './ConditionEditor'
 
@@ -61,6 +65,7 @@ function ProviderBadge({ visual }: { visual: ProviderVisual }) {
 export default function RoutingRuleRow({
   rule,
   connections,
+  sources,
   priority,
   onChange,
   onRemove,
@@ -69,6 +74,7 @@ export default function RoutingRuleRow({
 }: {
   rule: EditableRoutingRule
   connections: Connection[]
+  sources: MailSource[]
   priority?: number
   onChange: (rule: EditableRoutingRule) => void
   onRemove: () => void
@@ -149,6 +155,7 @@ export default function RoutingRuleRow({
             <ConditionEditor
               key={condition.id}
               condition={condition}
+              sources={sources}
               onChange={updated => updateCondition(index, updated)}
               onRemove={() => removeCondition(index)}
             />
