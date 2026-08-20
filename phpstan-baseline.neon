@@ -1,0 +1,2629 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Method BitApps\\SMTP\\Config\:\:adButton\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Config\:\:devUrl\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Config\:\:get\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Config\:\:isDev\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Config\:\:pluginPageLinks\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Config\:\:sideBarMenu\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Config\:\:withPrefix\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Config\:\:withPrefix\(\) should return array but returns string\.$#'
+			identifier: return.type
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Parameter \#1 \$option of function add_option expects string, array given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Parameter \#1 \$option of function delete_option expects string, array given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Parameter \#1 \$option of function get_option expects string, array given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Parameter \#1 \$option of function update_option expects string, array given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Parameter \#3 \$autoload of function update_option expects bool\|null, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Parameter \#4 \$autoload of function add_option expects bool\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Config.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\ConnectionController\:\:createWebhook\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/ConnectionController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\ConnectionController\:\:delete\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/ConnectionController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\ConnectionController\:\:deliveryPayload\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/HTTP/Controllers/ConnectionController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\ConnectionController\:\:save\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/ConnectionController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\ConnectionController\:\:test\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/ConnectionController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\ConnectionController\:\:validateConnection\(\) has parameter \$resolved with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/HTTP/Controllers/ConnectionController.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\Deps\\BitApps\\WPKit\\Http\\Request\\Request\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\Deps\\BitApps\\WPKit\\Http\\Request\\Request\:\:\$limit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\Deps\\BitApps\\WPKit\\Http\\Request\\Request\:\:\$pageNo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\Deps\\BitApps\\WPKit\\Http\\Request\\Request\:\:\$period\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\HTTP\\Requests\\DeleteLogRequest\:\:\$ids\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 2
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\LogController\:\:all\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\LogController\:\:delete\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\LogController\:\:details\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\LogController\:\:isEnabled\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\LogController\:\:toggle\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\LogController\:\:updateRetention\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\HTTP\\Controllers\\LogController\:\:\$logger has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/HTTP/Controllers/LogController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\MailSettingsController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/MailSettingsController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\MailSettingsController\:\:save\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/MailSettingsController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\ProviderController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/ProviderController.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\Deps\\BitApps\\WPKit\\Http\\Request\\Request\:\:\$ids\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/HTTP/Controllers/SMTPController.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\Model\\Log\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/HTTP/Controllers/SMTPController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\SMTPController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/SMTPController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\SMTPController\:\:resend\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/SMTPController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\SMTPController\:\:saveMailConfig\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/SMTPController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\SMTPController\:\:sendTestEmail\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/SMTPController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\SMTPController\:\:setContentType\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/SMTPController.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\Deps\\BitApps\\WPKit\\Http\\Request\\Request\:\:\$isChecked\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\TelemetryPopupController\:\:filterTrackingData\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\TelemetryPopupController\:\:filterTrackingData\(\) has parameter \$additional_data with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\TelemetryPopupController\:\:handleTelemetryPermission\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\TelemetryPopupController\:\:isPopupDisabled\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Middleware\\CapabilityCheckerMiddleware\:\:handle\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Middleware/CapabilityCheckerMiddleware.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Middleware\\CapabilityCheckerMiddleware\:\:handle\(\) has parameter \$params with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Middleware/CapabilityCheckerMiddleware.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\ConnectionDeleteRequest\:\:messages\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/ConnectionDeleteRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\ConnectionDeleteRequest\:\:rules\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/ConnectionDeleteRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\ConnectionSaveRequest\:\:messages\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/ConnectionSaveRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\ConnectionSaveRequest\:\:rules\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/ConnectionSaveRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\ConnectionTestRequest\:\:messages\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/ConnectionTestRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\ConnectionTestRequest\:\:rules\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/ConnectionTestRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\ConnectionWebhookCreateRequest\:\:messages\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/ConnectionWebhookCreateRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\ConnectionWebhookCreateRequest\:\:rules\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/ConnectionWebhookCreateRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\DeleteLogRequest\:\:authorize\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/DeleteLogRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\DeleteLogRequest\:\:rules\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/DeleteLogRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\MailConfigStoreRequest\:\:messages\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/MailConfigStoreRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\MailConfigStoreRequest\:\:rules\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/MailConfigStoreRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\MailSettingsSaveRequest\:\:messages\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/MailSettingsSaveRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\MailSettingsSaveRequest\:\:rules\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/MailSettingsSaveRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\MailTestRequest\:\:messages\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/MailTestRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\MailTestRequest\:\:rules\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/MailTestRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\TelemetryAccessRequest\:\:rules\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Requests/TelemetryAccessRequest.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\Model\\Log\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Call to an undefined static method BitApps\\SMTP\\Deps\\BitApps\\WPDatabase\\Connection\:\:esc_like\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Call to an undefined static method BitApps\\SMTP\\Deps\\BitApps\\WPDatabase\\Connection\:\:prepare\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 2
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Call to an undefined static method BitApps\\SMTP\\Deps\\BitApps\\WPDatabase\\Connection\:\:query\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 2
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Found usage of constant DOING_CRON\. Use wp_doing_cron\(\) instead\.$#'
+			identifier: phpstanWP.wpConstant.fetch
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:all\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:all\(\) has parameter \$filters with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:all\(\) has parameter \$skip with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:all\(\) has parameter \$take with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:bulkInsert\(\) has parameter \$logs with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:delete\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:delete\(\) has parameter \$ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:deleteOlder\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:error\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:getBulk\(\) has parameter \$ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:maybeDeleteOlder\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:save\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:save\(\) has parameter \$details with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:save\(\) has parameter \$message with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:save\(\) has parameter \$status with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:success\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:success\(\) has parameter \$mailData with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:toRows\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:update\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:update\(\) has parameter \$details with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:update\(\) has parameter \$id with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:update\(\) has parameter \$message with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:update\(\) has parameter \$status with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:updateRetention\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:updateRetention\(\) has parameter \$days with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Parameter \#2 \$default of static method BitApps\\SMTP\\Config\:\:getOption\(\) expects bool, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Parameter \#2 \$default of static method BitApps\\SMTP\\Config\:\:getOption\(\) expects bool, int\<\-2591999, max\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/HTTP/Services/LogService.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\MailConfigService\:\:updateConnectionSettings\(\) has parameter \$updates with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/HTTP/Services/MailConfigService.php
+
+		-
+			message: '#^Parameter \#2 \$default of static method BitApps\\SMTP\\Config\:\:getOption\(\) expects bool, array given\.$#'
+			identifier: argument.type
+			count: 2
+			path: backend/app/HTTP/Services/MailConfigService.php
+
+		-
+			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: backend/app/HTTP/Webhook/WebhookRouter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\HTTP\\Webhook\\WebhookRouter\:\:headers\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/HTTP/Webhook/WebhookRouter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Auth\\AbstractAuthStrategy\:\:__construct\(\) has parameter \$config with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Auth/AbstractAuthStrategy.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Auth\\AbstractAuthStrategy\:\:\$config type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Auth/AbstractAuthStrategy.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Auth\\AuthorizationResolver\:\:resolveFromConfig\(\) has parameter \$authConfig with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Auth/AuthorizationResolver.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettings\:\:__construct\(\) has parameter \$fallbackConnectionIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettings.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettings\:\:__construct\(\) has parameter \$features with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettings.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettings\:\:fromArray\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettings.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettings\:\:getFallbackConnectionIds\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettings.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettings\:\:getFeatures\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettings.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettings\:\:toArray\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettings.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Config\\MailSettings\:\:\$fallbackConnectionIds type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettings.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Config\\MailSettings\:\:\$features type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettings.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:buildConnectionArray\(\) has parameter \$stored with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:buildConnectionArray\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:emptyFeatures\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:emptyV2Skeleton\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:migrate\(\) has parameter \$stored with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:migrate\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:migrateLegacy\(\) has parameter \$stored with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:migrateLegacy\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:resolveEnabled\(\) has parameter \$stored with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:resolveEncryption\(\) has parameter \$stored with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:resolveTypoKeys\(\) has parameter \$stored with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsMigrator\:\:resolveTypoKeys\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsMigrator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsSerializer\:\:fromLegacyShape\(\) has parameter \$flat with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsSerializer.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsSerializer\:\:fromLegacyShape\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsSerializer.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsSerializer\:\:toApiShape\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsSerializer.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Config\\MailSettingsSerializer\:\:toLegacyShape\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Config/MailSettingsSerializer.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Connections\\Connection\:\:__construct\(\) has parameter \$credentials with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/Connection.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Connections\\Connection\:\:__construct\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/Connection.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Connections\\Connection\:\:fromArray\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/Connection.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Connections\\Connection\:\:getCredentials\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/Connection.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Connections\\Connection\:\:getSettings\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/Connection.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Connections\\Connection\:\:toArray\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/Connection.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Connections\\Connection\:\:\$credentials type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/Connection.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Connections\\Connection\:\:\$settings type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/Connection.php
+
+		-
+			message: '#^Class BitApps\\SMTP\\Mail\\Connections\\ConnectionCollection implements generic interface IteratorAggregate but does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: backend/app/Mail/Connections/ConnectionCollection.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Connections\\ConnectionCollection\:\:__construct\(\) has parameter \$connections with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/ConnectionCollection.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Connections\\ConnectionCollection\:\:all\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Connections/ConnectionCollection.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Connections\\ConnectionCollection\:\:getIterator\(\) return type with generic class ArrayIterator does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: backend/app/Mail/Connections/ConnectionCollection.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Contracts\\ProviderInterface\:\:authConfig\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Contracts/ProviderInterface.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Contracts\\ProviderInterface\:\:defaults\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Contracts/ProviderInterface.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Contracts\\ProviderInterface\:\:fields\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Contracts/ProviderInterface.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Contracts\\ProviderInterface\:\:tracking\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Contracts/ProviderInterface.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Contracts\\ValidatorInterface\:\:validate\(\) has parameter \$credentials with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Contracts/ValidatorInterface.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Contracts\\ValidatorInterface\:\:validate\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Contracts/ValidatorInterface.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Credentials\\Credential\:\:fromArray\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Credentials/Credential.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Credentials\\Credential\:\:toArray\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Credentials/Credential.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:acceptedFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:applyAttachments\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:applyAttachments\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:applyBody\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:applyBody\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:applyMapped\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:applyMapped\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:authHeaders\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:buildBody\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:errorFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:formatAddresses\(\) has parameter \$spec with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:formatAddresses\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:formatAddresses\(\) should return array\|string\|null but empty return statement found\.$#'
+			identifier: return.empty
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:messageIdFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorApiTransport\:\:resolveHost\(\) has parameter \$endpoint with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorProvider\:\:authConfig\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorProvider\:\:defaults\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorProvider\:\:fields\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\DescriptorProvider\:\:tracking\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/DescriptorProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:__construct\(\) has parameter \$auth with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:__construct\(\) has parameter \$endpoint with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:__construct\(\) has parameter \$errorDetectPaths with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:__construct\(\) has parameter \$errorPaths with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:__construct\(\) has parameter \$fields with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:__construct\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:__construct\(\) has parameter \$success with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:__construct\(\) has parameter \$tracking with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:auth\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:endpoint\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:errorDetectPaths\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:errorPaths\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:fields\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:fromArray\(\) has parameter \$config with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:payload\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:success\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:tracking\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:validatedAuth\(\) has parameter \$config with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:validatedAuth\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:\$auth type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:\$endpoint type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:\$errorDetectPaths type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:\$errorPaths type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:\$fields type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:\$payload type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:\$success type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Descriptor\\ProviderDescriptor\:\:\$tracking type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Descriptor/ProviderDescriptor.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Dispatch\\MailEventLogger\:\:logMailSuccess\(\) has parameter \$mailData with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Dispatch/MailEventLogger.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Dispatch\\MailEventLogger\:\:queue\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Dispatch/MailEventLogger.php
+
+		-
+			message: '#^Parameter \#1 \$logs of method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:bulkInsert\(\) expects array\<int, array\{status\: string, data\: array\|WP_Error\}\>, non\-empty\-array\<int, array\{status\: int, data\: array\|WP_Error\}\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Mail/Dispatch/MailEventLogger.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Dispatch\\MailEventLogger\:\:\$pendingLogs type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Dispatch/MailEventLogger.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Dispatch\\WpMailBridge\:\:onPreWpMail\(\) should return bool\|null but empty return statement found\.$#'
+			identifier: return.empty
+			count: 5
+			path: backend/app/Mail/Dispatch/WpMailBridge.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:decodeBody\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:decodeBody\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:delete\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:get\(\) has parameter \$query with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:isJsonContentType\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:normalizeHeaders\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:patch\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:post\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:prepareBody\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:put\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:send\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:setHeaders\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:withHeaders\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Http\\ApiClient\:\:\$headers type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiClient.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiResponse\:\:__construct\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiResponse.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiResponse\:\:__construct\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiResponse.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiResponse\:\:getBody\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiResponse.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Http\\ApiResponse\:\:getHeaders\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiResponse.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Http\\ApiResponse\:\:\$body type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiResponse.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Http\\ApiResponse\:\:\$headers type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Http/ApiResponse.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:__construct\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:fromArray\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:getAttachments\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:getBcc\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:getCc\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:getHeaders\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:getMetadata\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:getTags\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:getTemplateData\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:getTo\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:toArray\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:\$attachments type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:\$bcc type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:\$cc type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:\$headers type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:\$metadata type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:\$tags type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:\$templateData type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Message\\MailMessage\:\:\$to type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/MailMessage.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\SendResult\:\:__construct\(\) has parameter \$debug with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/SendResult.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\SendResult\:\:acceptedWithError\(\) has parameter \$debug with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/SendResult.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\SendResult\:\:failure\(\) has parameter \$debug with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/SendResult.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\SendResult\:\:getDebug\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/SendResult.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Message\\SendResult\:\:success\(\) has parameter \$debug with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/SendResult.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Message\\SendResult\:\:\$debug type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Message/SendResult.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\Channels\\EmailFailureNotificationChannel\:\:send\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/Channels/EmailFailureNotificationChannel.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\Channels\\WebhookFailureNotificationChannel\:\:send\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/Channels/WebhookFailureNotificationChannel.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\Contracts\\FailureNotificationChannelInterface\:\:send\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/Contracts/FailureNotificationChannelInterface.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\FailureNotification\:\:__construct\(\) has parameter \$attempts with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/FailureNotification.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\FailureNotification\:\:__construct\(\) has parameter \$recipients with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/FailureNotification.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\FailureNotification\:\:toArray\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/FailureNotification.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Notifications\\FailureNotification\:\:\$attempts type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/FailureNotification.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Notifications\\FailureNotification\:\:\$recipients type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/FailureNotification.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\FailureNotifier\:\:alerts\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/FailureNotifier.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\FailureNotifier\:\:hasEnabledChannel\(\) has parameter \$alerts with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Notifications/FailureNotifier.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\OAuth\\OAuth2TokenProvider\:\:withRefreshedToken\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/OAuth/OAuth2TokenProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesProvider\:\:authConfig\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesProvider\:\:defaults\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesProvider\:\:fields\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesProvider\:\:tracking\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesTransport\:\:acceptedFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesTransport\:\:authHeaders\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesTransport\:\:buildBody\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesTransport\:\:errorFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesTransport\:\:successFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesValidator\:\:validate\(\) has parameter \$credentials with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\AmazonSes\\SesValidator\:\:validate\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/AmazonSes/SesValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailProvider\:\:authConfig\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailProvider\:\:defaults\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailProvider\:\:fields\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailProvider\:\:tracking\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailTransport\:\:acceptedFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailTransport\:\:buildBody\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailTransport\:\:errorFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailTransport\:\:messageIdFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailTransport\:\:successFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailValidator\:\:validate\(\) has parameter \$credentials with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Gmail\\GmailValidator\:\:validate\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Gmail/GmailValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Provider\:\:authConfig\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Provider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Provider\:\:defaults\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Provider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Provider\:\:fields\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Provider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Provider\:\:tracking\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Provider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Transport\:\:acceptedFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Transport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Transport\:\:buildBody\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Transport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Transport\:\:errorFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Transport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Transport\:\:successFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Transport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Validator\:\:validate\(\) has parameter \$credentials with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Validator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\Microsoft365\\Microsoft365Validator\:\:validate\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/Microsoft365/Microsoft365Validator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\OtherSmtp\\OtherSmtpProvider\:\:authConfig\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/OtherSmtp/OtherSmtpProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\OtherSmtp\\OtherSmtpProvider\:\:defaults\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/OtherSmtp/OtherSmtpProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\OtherSmtp\\OtherSmtpProvider\:\:fields\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/OtherSmtp/OtherSmtpProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\OtherSmtp\\OtherSmtpProvider\:\:tracking\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/OtherSmtp/OtherSmtpProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\OtherSmtp\\OtherSmtpValidator\:\:validate\(\) has parameter \$credentials with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/OtherSmtp/OtherSmtpValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\OtherSmtp\\OtherSmtpValidator\:\:validate\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/OtherSmtp/OtherSmtpValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\PhpSendmail\\PhpSendmailProvider\:\:authConfig\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/PhpSendmail/PhpSendmailProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\PhpSendmail\\PhpSendmailProvider\:\:defaults\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/PhpSendmail/PhpSendmailProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\PhpSendmail\\PhpSendmailProvider\:\:fields\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/PhpSendmail/PhpSendmailProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\PhpSendmail\\PhpSendmailProvider\:\:tracking\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/PhpSendmail/PhpSendmailProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\PhpSendmail\\PhpSendmailValidator\:\:validate\(\) has parameter \$credentials with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/PhpSendmail/PhpSendmailValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\PhpSendmail\\PhpSendmailValidator\:\:validate\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/PhpSendmail/PhpSendmailValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\ProviderRegistry\:\:metadata\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/ProviderRegistry.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridProvider\:\:authConfig\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridProvider\:\:defaults\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridProvider\:\:fields\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridProvider\:\:tracking\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:acceptedFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:addresses\(\) has parameter \$rawAddresses with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:addresses\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:authHeaders\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:buildAttachments\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:buildBody\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:customArgs\(\) has parameter \$metadata with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:customArgs\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:errorFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:fromAddress\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:personalization\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:replyToAddress\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridTransport\:\:successFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridValidator\:\:validate\(\) has parameter \$credentials with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridValidator\:\:validate\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SendGrid/SendGridValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SparkPost\\SparkPostPayloadBuilder\:\:build\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SparkPost/SparkPostPayloadBuilder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SparkPost\\SparkPostPayloadBuilder\:\:buildContent\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SparkPost/SparkPostPayloadBuilder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SparkPost\\SparkPostPayloadBuilder\:\:buildRecipients\(\) has parameter \$metadata with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SparkPost/SparkPostPayloadBuilder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SparkPost\\SparkPostPayloadBuilder\:\:buildRecipients\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Providers/SparkPost/SparkPostPayloadBuilder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\MailSourceDetector\:\:detect\(\) has parameter \$frames with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/MailSourceDetector.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingCondition\:\:fromArray\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/RoutingCondition.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingCondition\:\:toArray\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/RoutingCondition.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingContext\:\:__construct\(\) has parameter \$recipients with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/RoutingContext.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingContext\:\:fromArray\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/RoutingContext.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingRule\:\:__construct\(\) has parameter \$conditions with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/RoutingRule.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingRule\:\:fromArray\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/RoutingRule.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingRule\:\:toArray\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/RoutingRule.php
+
+		-
+			message: '#^Class BitApps\\SMTP\\Mail\\Routing\\RoutingRules implements generic interface IteratorAggregate but does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: backend/app/Mail/Routing/RoutingRules.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingRules\:\:__construct\(\) has parameter \$rules with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/RoutingRules.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingRules\:\:fromArray\(\) has parameter \$rules with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Routing/RoutingRules.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Routing\\RoutingRules\:\:getIterator\(\) return type with generic class ArrayIterator does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: backend/app/Mail/Routing/RoutingRules.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Status\\BrevoStatusChecker\:\:extractEvents\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Status/BrevoStatusChecker.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Status\\StatusCheckerRegistry\:\:messageIdFrom\(\) has parameter \$debug with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Status/StatusCheckerRegistry.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Support\\ApiErrorFormatter\:\:resolveScalarPath\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Support/ApiErrorFormatter.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Support\\ApiRequest\:\:\$headers type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Support/ApiRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Support\\AttachmentBuilder\:\:toShape\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Support/AttachmentBuilder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Support\\EncoderInterface\:\:encode\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Support/EncoderInterface.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Support\\FormEncoder\:\:encode\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Support/FormEncoder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Support\\FormMultipartEncoder\:\:encode\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Support/FormMultipartEncoder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Support\\JsonEncoder\:\:encode\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Support/JsonEncoder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Support\\MimeRawEncoder\:\:encode\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Support/MimeRawEncoder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Support\\MultipartEncoder\:\:encode\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Support/MultipartEncoder.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Transport\\AbstractApiTransport\:\:acceptedFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Transport/AbstractApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Transport\\AbstractApiTransport\:\:authHeaders\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Transport/AbstractApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Transport\\AbstractApiTransport\:\:buildBody\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Transport/AbstractApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Transport\\AbstractApiTransport\:\:errorFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Transport/AbstractApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Transport\\AbstractApiTransport\:\:messageIdFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Transport/AbstractApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Transport\\AbstractApiTransport\:\:successFrom\(\) has parameter \$body with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Transport/AbstractApiTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Transport\\AbstractOAuth2Transport\:\:authHeaders\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Transport/AbstractOAuth2Transport.php
+
+		-
+			message: '#^Constant WPINC not found\.$#'
+			identifier: constant.notFound
+			count: 3
+			path: backend/app/Mail/Transport/PhpSendmailTransport.php
+
+		-
+			message: '#^Constant WPINC not found\.$#'
+			identifier: constant.notFound
+			count: 3
+			path: backend/app/Mail/Transport/SmtpTransport.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Validation\\RequiredFieldsValidator\:\:__construct\(\) has parameter \$fields with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Validation/RequiredFieldsValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Validation\\RequiredFieldsValidator\:\:validate\(\) has parameter \$credentials with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Validation/RequiredFieldsValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Validation\\RequiredFieldsValidator\:\:validate\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Validation/RequiredFieldsValidator.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\AbstractBatchedEventWebhookAdapter\:\:eventFrom\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/AbstractBatchedEventWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\AbstractBatchedEventWebhookAdapter\:\:stringOrNull\(\) has parameter \$value with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/AbstractBatchedEventWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\BrevoWebhookAdapter\:\:stringOrNull\(\) has parameter \$value with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/BrevoWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\MailjetWebhookAdapter\:\:eventFrom\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/MailjetWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\PostmarkWebhookAdapter\:\:bounceEvent\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/PostmarkWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\PostmarkWebhookAdapter\:\:deliveryEvent\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/PostmarkWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\PostmarkWebhookAdapter\:\:messageId\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/PostmarkWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\PostmarkWebhookAdapter\:\:spamEvent\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/PostmarkWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\PostmarkWebhookAdapter\:\:trackingId\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/PostmarkWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\SendGridWebhookAdapter\:\:detail\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/SendGridWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\SendGridWebhookAdapter\:\:eventFrom\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/SendGridWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\SendGridWebhookAdapter\:\:isBlockedBounce\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/SendGridWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\SendGridWebhookAdapter\:\:trackingId\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/SendGridWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\ZeptoWebhookAdapter\:\:detail\(\) has parameter \$message with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/ZeptoWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\ZeptoWebhookAdapter\:\:payload\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/ZeptoWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\Adapters\\ZeptoWebhookAdapter\:\:recipient\(\) has parameter \$info with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/Adapters/ZeptoWebhookAdapter.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\DeliveryEvent\:\:correlationKeys\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/DeliveryEvent.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\DeliveryEvent\:\:fromArray\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/DeliveryEvent.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\DeliveryEvent\:\:normalizeOccurredAt\(\) has parameter \$raw with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/Mail/Webhook/DeliveryEvent.php
+
+		-
+			message: '#^Access to an undefined property BitApps\\SMTP\\Model\\Log\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: backend/app/Mail/Webhook/DeliveryEventRecorder.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: backend/app/Mail/Webhook/DeliveryRollup.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between mixed and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: backend/app/Mail/Webhook/DeliveryRollup.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\WebhookRequest\:\:__construct\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/WebhookRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\WebhookRequest\:\:decoded\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/WebhookRequest.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Webhook\\WebhookRequest\:\:fromRaw\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/WebhookRequest.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Mail\\Webhook\\WebhookRequest\:\:\$headers type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Mail/Webhook/WebhookRequest.php
+
+		-
+			message: '#^Class BitApps\\SMTP\\Model\\Log has PHPDoc tag @property for property \$debug_info with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Model/Log.php
+
+		-
+			message: '#^Class BitApps\\SMTP\\Model\\Log has PHPDoc tag @property for property \$details with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Model/Log.php
+
+		-
+			message: '#^Class BitApps\\SMTP\\Model\\Log has PHPDoc tag @property for property \$to_addr with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Model/Log.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Model\\Log\:\:\$casts has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/Model/Log.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Model\\Log\:\:\$fillable has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/Model/Log.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Model\\LogDeliveryEvent\:\:\$casts has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/Model/LogDeliveryEvent.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Model\\LogDeliveryEvent\:\:\$fillable has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/Model/LogDeliveryEvent.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:actionLinks\(\) has parameter \$links with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:actionLinks\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:getMiddleware\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:getMiddleware\(\) has parameter \$name with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:initWPTelemetry\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:loaded\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:maybeMigrateDB\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:middlewares\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:registerInstaller\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Plugin\:\:registerProviders\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Parameter \#2 \$default of static method BitApps\\SMTP\\Config\:\:getOption\(\) expects bool, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Plugin\:\:\$_container type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Plugin\:\:\$_registeredMiddleware has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/Plugin.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\HookProvider\:\:deactivateReasons\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/HookProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\HookProvider\:\:deactivateReasons\(\) has parameter \$reasons with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/Providers/HookProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\HookProvider\:\:loadApi\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/HookProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\HookProvider\:\:loadAppHooks\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/HookProvider.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Providers\\HookProvider\:\:\$_pluginBackend has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/Providers/HookProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:deactivate\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:deactivate\(\) has parameter \$networkWide with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:drop\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:migration\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:register\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:registerActivator\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:registerActivator\(\) has parameter \$networkWide with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:registerDeactivator\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:registerDeactivator\(\) has parameter \$networkWide with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:registerUninstaller\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Providers\\InstallerProvider\:\:registerUninstaller\(\) has parameter \$networkWide with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Parameter \#2 \$callback of function register_uninstall_hook expects callable\(\)\: void, array\{''BitApps\\\\SMTP\\\\Providers\\\\InstallerProvider'', ''registerUninstaller''\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Parameter \#2 \$default of static method BitApps\\SMTP\\Config\:\:getOption\(\) expects bool, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Providers\\InstallerProvider\:\:\$_activateHook has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Providers\\InstallerProvider\:\:\$_deactivateHook has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Property BitApps\\SMTP\\Providers\\InstallerProvider\:\:\$_uninstallHook has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: backend/app/Providers/InstallerProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Mail\\Dispatch\\WpMailBridge\:\:__construct\(\) invoked with 3 parameters, 5\-6 required\.$#'
+			identifier: arguments.count
+			count: 1
+			path: backend/app/Providers/SmtpProvider.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Views\\EmailTemplate\:\:getPlainTextTemplate\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Views/EmailTemplate.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Views\\EmailTemplate\:\:getTemplate\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: backend/app/Views/EmailTemplate.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Views\\Layout\:\:RemoveAdminNotices\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Views/Layout.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Views\\Layout\:\:body\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Views/Layout.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Views\\Layout\:\:createConfigVariable\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Views/Layout.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Views\\Layout\:\:head\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Views/Layout.php
+
+		-
+			message: '#^Method BitApps\\SMTP\\Views\\Layout\:\:sideBarMenuItem\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: backend/app/Views/Layout.php
+
+		-
+			message: '#^Parameter \#1 \$hook_name of function apply_filters expects non\-empty\-string, array given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Views/Layout.php
+
+		-
+			message: '#^Parameter \#3 \$deps of function wp_enqueue_style expects array\<string\>, null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: backend/app/Views/Layout.php
+
+		-
+			message: '#^Variable \$i18n_strings might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: backend/app/Views/Layout.php

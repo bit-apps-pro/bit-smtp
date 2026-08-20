@@ -1,17 +1,22 @@
 <?xml version="1.0"?>
-<phpunit
-    bootstrap="tests/bootstrap.php"
-    backupGlobals="false"
-    colors="true"
-    convertErrorsToExceptions="true"
-    convertNoticesToExceptions="true"
-    convertWarningsToExceptions="true"
-    >
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap-unit.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         failOnWarning="true"
+         failOnRisky="true"
+         failOnIncomplete="true"
+         beStrictAboutOutputDuringTests="true">
     <testsuites>
-        <testsuite  name="Unit">
-            <directory suffix="Test.php">./tests/</directory>
-            <exclude>./tests/__libs</exclude>
-            <exclude>./tests/BaseTestCase.php</exclude>
+        <testsuite name="unit">
+            <directory>tests/Unit</directory>
+            <directory>tests/Golden</directory>
         </testsuite>
     </testsuites>
+    <source>
+        <include>
+            <directory>backend/app/Mail</directory>
+        </include>
+    </source>
 </phpunit>

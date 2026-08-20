@@ -1,0 +1,13 @@
+{
+    "status": true,
+    "from_email_address": "a@example.test",
+    "from_name": "Sender",
+    "re_email_address": "reply@example.test",
+    "smtp_host": "smtp.example.test",
+    "encryption": "tls",
+    "port": 587,
+    "smtp_auth": true,
+    "smtp_debug": false,
+    "smtp_user_name": "user",
+    "smtp_password": "secret"
+}

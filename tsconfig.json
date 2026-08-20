@@ -12,7 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "module": "ESNext",
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
@@ -38,13 +38,7 @@
       "@static/*": ["./frontend/src/static/*"]
     }
   },
-  "include": [
-    "frontend/cypress",
-    "frontend/src",
-    "frontend/src/types",
-    "vite.config.ts",
-    "vite.config.wp.ts"
-  ],
+  "include": ["frontend/cypress", "frontend/src", "frontend/src/types", "vite.config.mts"],
   "exclude": ["/node_modules/**/*", "/frontend/language/pot-to-php.js"],
   "types": ["cypress", "node", "@4tw/cypress-drag-drop", "vite/client"]
 }

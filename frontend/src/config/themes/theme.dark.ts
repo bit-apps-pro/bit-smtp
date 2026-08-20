@@ -5,10 +5,12 @@ const darkTheme: ThemeConfig = {
   ...commonConfig,
   token: {
     ...commonConfig.token,
-    colorBgContainer: '#1e293b',
-    colorBgElevated: '#0f172a',
+    colorBgLayout: '#0b1020',
+    colorBgContainer: '#131a2c',
+    colorBgElevated: '#1e293b',
     colorTextBase: '#f8fafc',
-    colorBorder: '#334155'
+    colorBorder: '#334155',
+    colorBorderSecondary: '#1f2a3d'
   }
 }
 

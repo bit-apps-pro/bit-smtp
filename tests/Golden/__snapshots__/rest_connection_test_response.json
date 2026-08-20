@@ -1,0 +1,14 @@
+{
+    "body": {
+        "status": "success",
+        "code": "SUCCESS",
+        "data": {
+            "debug": {
+                "status": 202,
+                "body": ""
+            },
+            "delivery": null
+        }
+    },
+    "http_status": 200
+}

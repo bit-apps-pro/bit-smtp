@@ -1,4 +1,28 @@
 /* stylelint-disable comment-whitespace-inside */
+
+/* Vars for legacy .css/.module.css files that can't reach antd's ConfigProvider tokens; kept in sync with the [data-theme] attribute ThemeProvider sets, not the old [color-scheme] system. */
+:root {
+  --font-family: 'Roboto', sans-serif;
+  --accent-color: hsl(290deg, 100%, 9%);
+  --bg: hsl(0deg, 0%, 100%);
+  --bg-5: hsl(0deg, 0%, 95%);
+  --bg-10: hsl(0deg, 0%, 90%);
+  --bg-40: hsl(0deg, 0%, 60%);
+  --danger-txt: hsl(4deg, 90%, 58%);
+  --txt: hsl(0deg, 0%, 0%);
+  --shadow-1: 0 4px 6px 0 hsla(200deg, 15%, 85%, 100%);
+}
+
+[data-theme='dark'] {
+  --accent-color: hsl(325deg, 55%, 67%);
+  --bg: hsl(274deg, 13%, 17%);
+  --bg-5: hsl(274deg, 13%, 22%);
+  --bg-10: hsl(274deg, 13%, 27%);
+  --bg-40: hsl(274deg, 13%, 57%);
+  --txt: rgb(234, 224, 240);
+  --shadow-1: 0 4px 6px 0 hsl(274deg, 13%, 10%);
+}
+
 .ant-notification,
 .ant-notification-wrapper,
 .ant-message,
@@ -40,16 +64,6 @@ body {
 
 #bit-apps-root input {
   min-height: auto;
-}
-
-#bit-apps-root .link {
-  text-decoration: none;
-  cursor: pointer;
-}
-
-#bit-apps-root .link:focus {
-  outline: none;
-  box-shadow: none;
 }
 
 svg {

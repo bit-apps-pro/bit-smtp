@@ -1,0 +1,12 @@
+{
+    "from": "Example Sender <sender@example.test>",
+    "to": "rcpt@example.test",
+    "subject": "Subj",
+    "html": "<p>Hi</p>",
+    "tags": [
+        {
+            "name": "bit_tracking_id",
+            "value": "TRACK123"
+        }
+    ]
+}

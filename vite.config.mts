@@ -1,6 +1,5 @@
 /* eslint-disable import/no-extraneous-dependencies */
 /// <reference types="vite/client" />
-import commonjs from '@rollup/plugin-commonjs'
 import react from '@vitejs/plugin-react'
 import detectPort from 'detect-port'
 import fs from 'node:fs'
@@ -35,8 +34,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: 'frontend/src',
-    base: isDev ? `/wp-content/plugins/${folderName}/frontend/src/` : '',
-    // base: '',
+    // base: isDev ? `/wp-content/plugins/${folderName}/frontend/src/` : '',
+    base: '',
     assetsDir: 'assets',
     plugins: [
       react({
@@ -46,7 +45,6 @@ export default defineConfig(({ mode }) => {
         },
         jsxRuntime: 'automatic'
       }),
-      commonjs(),
       setDevServerConfig()
 
       // babel()
@@ -136,10 +134,9 @@ export default defineConfig(({ mode }) => {
       }
     },
     test: {
-      // globals: true,
+      globals: true,
       environment: 'jsdom',
-      setupFiles: './config/test.setup.ts'
-      // css: true, // since parsing CSS is slow
+      setupFiles: ['./config/test.setup.ts']
     },
     server: {
       cors: true, // required to load scripts from custom host

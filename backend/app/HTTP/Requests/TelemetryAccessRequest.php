@@ -8,8 +8,8 @@ class TelemetryAccessRequest extends Request
 {
     public function rules()
     {
-        [
-            'isChecked' => ['nullable', 'boolean']
+        return [
+            'isChecked' => ['nullable', 'boolean'],
         ];
     }
 }

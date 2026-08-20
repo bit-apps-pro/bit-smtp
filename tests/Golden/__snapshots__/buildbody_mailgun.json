@@ -1,0 +1,7 @@
+{
+    "from": "Example Sender <sender@example.test>",
+    "to": "rcpt@example.test",
+    "subject": "Subj",
+    "html": "<p>Hi</p>",
+    "v:bit_tracking_id": "TRACK123"
+}

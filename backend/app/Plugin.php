@@ -10,19 +10,61 @@ namespace BitApps\SMTP;
 
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection as DB;
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
+use BitApps\SMTP\Deps\BitApps\WPKit\Http\Client\HttpClient;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\RequestType;
 use BitApps\SMTP\Deps\BitApps\WPKit\Migration\MigrationHelper;
 use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
 use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\Telemetry;
 use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\TelemetryConfig;
-use BitApps\SMTP\HTTP\Middleware\NonceCheckerMiddleware;
+use BitApps\SMTP\HTTP\Middleware\CapabilityCheckerMiddleware;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\HTTP\Services\WebhookProvisioningService;
+use BitApps\SMTP\Mail\Abilities\AbilitiesProvider;
+use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
+use BitApps\SMTP\Mail\Aws\SigV4Signer;
+use BitApps\SMTP\Mail\Connections\ConnectionResolver;
+use BitApps\SMTP\Mail\Credentials\DatabaseCredentialResolver;
+use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
+use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\Message\MailMessageFactory;
+use BitApps\SMTP\Mail\Message\MimeBuilder;
+use BitApps\SMTP\Mail\Notifications\Channels\EmailFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\Channels\SlackFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\Channels\TelegramFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\Channels\WebhookFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\FailureNotificationChannelRegistry;
+use BitApps\SMTP\Mail\Notifications\FailureNotificationGate;
+use BitApps\SMTP\Mail\Notifications\FailureNotifier;
+use BitApps\SMTP\Mail\Notifications\NotificationChannelTester;
+use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
+use BitApps\SMTP\Mail\Providers\AmazonSes\SesProvider;
+use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
+use BitApps\SMTP\Mail\Providers\Brevo\BrevoProvider;
+use BitApps\SMTP\Mail\Providers\Cloudflare\CloudflareProvider;
+use BitApps\SMTP\Mail\Providers\Gmail\GmailProvider;
+use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
+use BitApps\SMTP\Mail\Providers\Mailgun\MailgunProvider;
+use BitApps\SMTP\Mail\Providers\Mailjet\MailjetProvider;
+use BitApps\SMTP\Mail\Providers\Microsoft365\Microsoft365Provider;
+use BitApps\SMTP\Mail\Providers\Microsoft365\Microsoft365Transport;
+use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
+use BitApps\SMTP\Mail\Providers\PhpSendmail\PhpSendmailProvider;
+use BitApps\SMTP\Mail\Providers\Postmark\PostmarkProvider;
+use BitApps\SMTP\Mail\Providers\ProviderRegistry;
+use BitApps\SMTP\Mail\Providers\Resend\ResendProvider;
+use BitApps\SMTP\Mail\Providers\SendGrid\SendGridProvider;
+use BitApps\SMTP\Mail\Providers\SendGrid\SendGridTransport;
+use BitApps\SMTP\Mail\Providers\SparkPost\SparkPostProvider;
+use BitApps\SMTP\Mail\Providers\WebhookProvisionerFactory;
+use BitApps\SMTP\Mail\Providers\Zepto\ZeptoProvider;
+use BitApps\SMTP\Mail\Routing\MailSourceDetector;
+use BitApps\SMTP\Mail\Routing\RoutingResolver;
+use BitApps\SMTP\Mail\Transport\PhpSendmailTransport;
+use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Providers\HookProvider;
 use BitApps\SMTP\Providers\InstallerProvider;
-use BitApps\SMTP\Providers\SmtpProvider;
 use BitApps\SMTP\Views\Layout;
-use Exception;
 
 final class Plugin
 {
@@ -45,6 +87,13 @@ final class Plugin
     public function __construct()
     {
         $this->registerInstaller();
+
+        // WordPress before 6.9 does not provide the Abilities API. Do not even attach its hooks
+        // there, so email sending and the rest of the plugin keep their existing behavior.
+        if (\function_exists('wp_register_ability') && \function_exists('wp_register_ability_category')) {
+            (new AbilitiesProvider())->register();
+        }
+
         Hooks::addAction('plugins_loaded', [$this, 'loaded']);
 
         $this->initWPTelemetry();
@@ -70,7 +119,7 @@ final class Plugin
     public function middlewares()
     {
         return [
-            'nonce' => NonceCheckerMiddleware::class,
+            'cap' => CapabilityCheckerMiddleware::class,
         ];
     }
 
@@ -101,17 +150,63 @@ final class Plugin
 
         new HookProvider();
 
-        $this->_container['smtpProvider'] = new SmtpProvider();
+        $apiClient     = new ApiClient(new HttpClient());
+        $mimeBuilder   = new MimeBuilder();
+        $tokenProvider = new OAuth2TokenProvider($apiClient, $this->mailConfigService());
+        $sigV4Signer   = new SigV4Signer();
+        $authResolver  = new AuthorizationResolver($tokenProvider, $sigV4Signer);
+
+        $registry = new ProviderRegistry();
+        $registry->register(new OtherSmtpProvider(new SmtpTransport(new DatabaseCredentialResolver())));
+        $registry->register(new PhpSendmailProvider(new PhpSendmailTransport()));
+        $registry->register(new SendGridProvider(new SendGridTransport($apiClient)));
+        $registry->register(new GmailProvider(new GmailTransport($apiClient, $tokenProvider, $mimeBuilder)));
+        $registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
+        $registry->register(new PostmarkProvider($apiClient, $authResolver));
+        $registry->register(new BrevoProvider($apiClient, $authResolver));
+        $registry->register(new CloudflareProvider($apiClient, $authResolver));
+        $registry->register(new ResendProvider($apiClient, $authResolver));
+        $registry->register(new MailjetProvider($apiClient, $authResolver));
+        $registry->register(new ZeptoProvider($apiClient, $authResolver));
+        $registry->register(new MailgunProvider($apiClient, $authResolver));
+        $registry->register(new SparkPostProvider($apiClient, $authResolver));
+        $registry->register(new Microsoft365Provider(new Microsoft365Transport($apiClient, $tokenProvider, $mimeBuilder)));
+        $this->_container['providerRegistry'] = $registry;
+
+        $this->_container['failureNotificationChannelRegistry'] = new FailureNotificationChannelRegistry([
+            new EmailFailureNotificationChannel(),
+            new WebhookFailureNotificationChannel(),
+            new SlackFailureNotificationChannel(),
+            new TelegramFailureNotificationChannel(),
+        ]);
+
+        $this->_container['smtpProvider'] = new WpMailBridge(
+            $registry,
+            new ConnectionResolver(),
+            new MailMessageFactory(),
+            new RoutingResolver(),
+            new MailSourceDetector(),
+            new FailureNotifier(
+                $this->mailConfigService(),
+                new FailureNotificationGate(),
+                $this->_container['failureNotificationChannelRegistry']
+            )
+        );
     }
 
     /**
-     * Get Mail Config Provider instance.
+     * Get the wp_mail bridge instance. Accessor name kept for backward compatibility.
      *
-     * @return SmtpProvider
+     * @return WpMailBridge
      */
     public function smtpProvider()
     {
         return $this->_container['smtpProvider'];
+    }
+
+    public function providerRegistry(): ProviderRegistry
+    {
+        return $this->_container['providerRegistry'];
     }
 
     public function logger(): LogService
@@ -130,6 +225,58 @@ final class Plugin
         }
 
         return $this->_container['mailConfigService'];
+    }
+
+    public function notificationChannelTester(): NotificationChannelTester
+    {
+        if (!isset($this->_container['notificationChannelTester'])) {
+            $this->_container['notificationChannelTester'] = new NotificationChannelTester(
+                $this->mailConfigService(),
+                $this->_container['failureNotificationChannelRegistry']
+            );
+        }
+
+        return $this->_container['notificationChannelTester'];
+    }
+
+    public function apiClient(): ApiClient
+    {
+        if (!isset($this->_container['apiClient'])) {
+            $this->_container['apiClient'] = new ApiClient(new HttpClient());
+        }
+
+        return $this->_container['apiClient'];
+    }
+
+    /**
+     * Resolves connection-independent HTTP auth strategies. Built lazily (mirroring apiClient) so it
+     * works even before registerProviders() has run and without assuming container build order.
+     */
+    public function authResolver(): AuthorizationResolver
+    {
+        if (!isset($this->_container['authResolver'])) {
+            $this->_container['authResolver'] = new AuthorizationResolver(
+                new OAuth2TokenProvider($this->apiClient(), $this->mailConfigService()),
+                new SigV4Signer()
+            );
+        }
+
+        return $this->_container['authResolver'];
+    }
+
+    public function webhookProvisioningService(): WebhookProvisioningService
+    {
+        if (!isset($this->_container['webhookProvisioningService'])) {
+            $this->_container['webhookProvisioningService'] = new WebhookProvisioningService(
+                $this->mailConfigService(),
+                $this->providerRegistry(),
+                $this->authResolver(),
+                $this->apiClient(),
+                new WebhookProvisionerFactory()
+            );
+        }
+
+        return $this->_container['webhookProvisioningService'];
     }
 
     /**
@@ -160,14 +307,16 @@ final class Plugin
             Config::deleteOption('new_product_nav_btn_hide');
         }
 
-        if (version_compare(Config::getOption('version'), Config::VERSION, '<')) {
-            // here we checked version. updated version number updates to option through this migration
-            try {
-                MigrationHelper::migrate(InstallerProvider::migration());
-            } catch (Exception $e) {
-                //phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- we want to log this error
-                error_log('BIT SMTP Migration Error: ' . $e->getMessage());
-            }
+        // Gate on the schema version too, not just the plugin version: a schema-only migration (e.g.
+        // encrypting stored credentials) ships without a plugin-version bump, so installs already at
+        // Config::VERSION must still run it when their db_version is behind.
+        $behindVersion   = version_compare(Config::getOption('version'), Config::VERSION, '<');
+        $behindDbVersion = version_compare(Config::getOption('db_version', '0'), Config::DB_VERSION, '<');
+
+        if ($behindVersion || $behindDbVersion) {
+            // BitSmtpPluginOptions::up() writes version and db_version only after preceding migrations
+            // complete. Let any schema failure propagate so the version gate remains retryable.
+            MigrationHelper::migrate(InstallerProvider::migration());
         }
     }
 

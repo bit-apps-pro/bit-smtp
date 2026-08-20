@@ -7,6 +7,8 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\RequestType;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Router;
 use BitApps\SMTP\HTTP\Controllers\TelemetryPopupController;
+use BitApps\SMTP\HTTP\OAuth\OAuthCallbackRouter;
+use BitApps\SMTP\HTTP\Webhook\WebhookRouter;
 use BitApps\SMTP\Plugin;
 
 class HookProvider
@@ -18,6 +20,8 @@ class HookProvider
         $this->_pluginBackend = Config::get('BACKEND_PATH') . DIRECTORY_SEPARATOR;
         $this->loadAppHooks();
         Hooks::addAction('rest_api_init', [$this, 'loadApi']);
+        (new OAuthCallbackRouter())->register();
+        Hooks::addAction('template_redirect', [new WebhookRouter(), 'match'], 20);
         Hooks::addFilter(Config::VAR_PREFIX . 'telemetry_additional_data', [new TelemetryPopupController(), 'filterTrackingData']);
         Hooks::addFilter(Config::withPrefix('deactivate_reasons'), [$this, 'deactivateReasons']);
     }

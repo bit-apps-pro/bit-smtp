@@ -1,0 +1,46 @@
+[
+    {
+        "key": "client_id",
+        "label": "Application (client) ID",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "client_secret",
+        "label": "Client Secret",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "tenant",
+        "label": "Directory (tenant) ID",
+        "type": "text",
+        "required": false,
+        "secret": false,
+        "placeholder": "common",
+        "default": "common",
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "oauth",
+        "label": "Microsoft account",
+        "type": "oauth",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    }
+]

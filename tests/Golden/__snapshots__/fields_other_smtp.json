@@ -1,0 +1,87 @@
+[
+    {
+        "key": "host",
+        "label": "SMTP Host",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "smtp.example.com",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "port",
+        "label": "SMTP Port",
+        "type": "number",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": 587,
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "encryption",
+        "label": "Encryption",
+        "type": "select",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": "tls",
+        "options": [
+            {
+                "value": "none",
+                "label": "None"
+            },
+            {
+                "value": "ssl",
+                "label": "SSL"
+            },
+            {
+                "value": "tls",
+                "label": "TLS"
+            }
+        ],
+        "dependsOn": null
+    },
+    {
+        "key": "auth",
+        "label": "Authentication",
+        "type": "switch",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": true,
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "username",
+        "label": "Username",
+        "type": "text",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": {
+            "field": "auth",
+            "value": true
+        }
+    },
+    {
+        "key": "password",
+        "label": "Password",
+        "type": "password",
+        "required": false,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": {
+            "field": "auth",
+            "value": true
+        }
+    }
+]

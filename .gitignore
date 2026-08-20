@@ -19,3 +19,20 @@ locale.pot
 package-lock.json
 port
 build/
+.superpowers/
+.worktrees/
+docs/
+.phpunit.cache/
+docker-compose.test.override.yml
+
+.playwright-mcp/
+bit-smtp-e2e-*.png
+.claude/skills/vuln-scan
+# Playwright E2E artifacts
+tests/e2e/.auth/
+tests/e2e/.results/
+tests/e2e/.report/
+test-results/
+playwright-report/
+
+composer.phar

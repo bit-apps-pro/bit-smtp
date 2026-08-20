@@ -1,0 +1,55 @@
+[
+    {
+        "key": "api_key",
+        "label": "API Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "webhook_signing_key",
+        "label": "Webhook Signing Key",
+        "type": "password",
+        "required": false,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "domain",
+        "label": "Domain",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "mg.example.com",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    },
+    {
+        "key": "region",
+        "label": "Region",
+        "type": "select",
+        "required": false,
+        "secret": false,
+        "placeholder": "",
+        "default": "us",
+        "options": [
+            {
+                "value": "us",
+                "label": "US"
+            },
+            {
+                "value": "eu",
+                "label": "EU"
+            }
+        ],
+        "dependsOn": null
+    }
+]

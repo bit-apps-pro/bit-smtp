@@ -21,6 +21,10 @@ const fileHeader =
 const fileFooter =
   NEWLINE + [');', '/* THIS IS THE END OF THE GENERATED FILE */'].join(NEWLINE) + NEWLINE
 
+// Matches printf-style placeholders (e.g. %s, %d, %1$s) the way the WordPress
+// Coding Standards i18n sniff does, so any flagged string gets a comment.
+const PLACEHOLDER_REGEX = /%(?:\d+\$)?[+-]?(?:[ 0]|'.)?-?\d*(?:\.\d+)?[bcdeEfFgGosuxX]/g
+
 /**
  * Escapes single quotes.
  *
@@ -29,6 +33,26 @@ const fileFooter =
  */
 function escapeSingleQuotes(input) {
   return input.replace(/'/g, "\\'")
+}
+
+/**
+ * Builds the `translators:` comment WordPress requires immediately above any
+ * translation call whose text contains placeholders; empty string when none.
+ *
+ * @param {string} text The translation source string(s) to scan.
+ * @return {string} A comment line ending in a newline, or an empty string.
+ */
+function translatorsComment(text) {
+  // Drop escaped percents first so a literal `%%` is never read as a placeholder.
+  const placeholders = text.replace(/%%/g, '').match(PLACEHOLDER_REGEX)
+
+  if (placeholders === null) {
+    return ''
+  }
+
+  const unique = [...new Set(placeholders)].join(', ')
+
+  return `${TAB}/* translators: ${unique}: value substituted at runtime. */${NEWLINE}`
 }
 
 /**
@@ -46,6 +70,7 @@ function convertTranslationToPHP(translation, textdomain, context = '') {
   let original = translation.msgid
 
   if (original !== '') {
+    php += translatorsComment(`${translation.msgid} ${translation.msgid_plural || ''}`)
     original = escapeSingleQuotes(original)
 
     if (isEmpty(translation.msgid_plural)) {

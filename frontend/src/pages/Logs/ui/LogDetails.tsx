@@ -6,6 +6,8 @@ import useFetchLog from '@pages/Logs/data/useFetchLog'
 import useResendLog from '@pages/Logs/data/useResendLog'
 import { Button, Card, Space, Tabs, Typography, notification } from 'antd'
 import DebugOutputTab from './tabs/DebugOutputTab'
+import DeliveryAttemptsTab from './tabs/DeliveryAttemptsTab'
+import DeliveryStatusTab from './tabs/DeliveryStatusTab'
 import EmailDetailsTab from './tabs/EmailDetailsTab'
 import MailBodyTab from './tabs/MailBodyTab'
 
@@ -100,17 +102,35 @@ export default function LogDetails() {
           items={[
             {
               key: '1',
-              label: 'Email Details',
+              label: __('Email Details'),
               children: <EmailDetailsTab isLoading={isLoading} log={log} />
             },
+            ...(log.details?.attempts && log.details.attempts.length > 1
+              ? [
+                  {
+                    key: '2',
+                    label: __('Delivery Attempts'),
+                    children: <DeliveryAttemptsTab log={log} />
+                  }
+                ]
+              : []),
+            ...(log.delivery_verified
+              ? [
+                  {
+                    key: '5',
+                    label: __('Delivery'),
+                    children: <DeliveryStatusTab log={log} />
+                  }
+                ]
+              : []),
             {
-              key: '2',
-              label: 'Mail Body',
+              key: '3',
+              label: __('Mail Body'),
               children: <MailBodyTab log={log} />
             },
             {
-              key: '3',
-              label: 'Debug Output',
+              key: '4',
+              label: __('Debug Output'),
               children: <DebugOutputTab log={log} />
             }
           ]}

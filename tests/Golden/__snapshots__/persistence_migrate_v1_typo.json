@@ -1,0 +1,39 @@
+{
+    "schema_version": 2,
+    "enabled": true,
+    "default_connection_id": "conn_default",
+    "fallback_connection_ids": [],
+    "connections": [
+        {
+            "id": "conn_default",
+            "provider": "other_smtp",
+            "kind": "smtp",
+            "name": "Primary SMTP",
+            "enabled": true,
+            "fromEmail": "typo@example.test",
+            "fromName": "TypoName",
+            "replyToEmail": "",
+            "settings": {
+                "host": "smtp.example.test",
+                "port": 0,
+                "encryption": "STARTTLS",
+                "auth": false,
+                "username": "",
+                "smtp_debug": false
+            },
+            "credentials": {
+                "password": {
+                    "source": "database",
+                    "value": ""
+                }
+            }
+        }
+    ],
+    "features": {
+        "logging": [],
+        "alerts": [],
+        "routing": [],
+        "tracking": [],
+        "email_controls": []
+    }
+}

@@ -5,7 +5,13 @@ if (!\defined('ABSPATH')) {
 }
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Route;
+use BitApps\SMTP\HTTP\Controllers\ConnectionController;
 use BitApps\SMTP\HTTP\Controllers\LogController;
+use BitApps\SMTP\HTTP\Controllers\MailSettingsController;
+use BitApps\SMTP\HTTP\Controllers\MailSourceController;
+use BitApps\SMTP\HTTP\Controllers\NotificationController;
+use BitApps\SMTP\HTTP\Controllers\OAuthController;
+use BitApps\SMTP\HTTP\Controllers\ProviderController;
 use BitApps\SMTP\HTTP\Controllers\SMTPController;
 use BitApps\SMTP\HTTP\Controllers\TelemetryPopupController;
 
@@ -25,4 +31,15 @@ Route::group(function () {
     Route::post('logs/toggle', [LogController::class, 'toggle']);
 
     Route::post('logs/update_retention', [LogController::class, 'updateRetention']);
-})->middleware('nonce:admin');
+
+    Route::get('mail/settings', [MailSettingsController::class, 'index']);
+    Route::post('mail/settings/save', [MailSettingsController::class, 'save']);
+    Route::post('mail/notifications/test', [NotificationController::class, 'test']);
+    Route::get('mail/providers', [ProviderController::class, 'index']);
+    Route::get('mail/routing/sources', [MailSourceController::class, 'index']);
+    Route::post('mail/connections/save', [ConnectionController::class, 'save']);
+    Route::post('mail/connections/webhook/create', [ConnectionController::class, 'createWebhook']);
+    Route::post('mail/connections/delete', [ConnectionController::class, 'delete']);
+    Route::post('mail/connections/test', [ConnectionController::class, 'test']);
+    Route::get('mail/oauth/authorize', [OAuthController::class, 'authorize']);
+})->middleware('cap:admin');

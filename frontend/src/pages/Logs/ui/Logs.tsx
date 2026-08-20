@@ -14,12 +14,21 @@ import {
   type TableColumnsType,
   type TableProps,
   Typography,
-  notification
+  notification,
+  theme
 } from 'antd'
+import DeliveryStatusTag from './DeliveryStatusTag'
 import LogRetentionSettings from './LogRetentionSettings'
 import LogToggle from './LogToggle'
 
+const { Title, Text } = Typography
+
 type TableRowSelection<T extends object = object> = TableProps<T>['rowSelection']
+
+const failedCount = (attempts?: Array<{ status: string }>) => {
+  if (!attempts) return 0
+  return attempts.filter(a => a.status === 'failed').length
+}
 
 const columns: TableColumnsType<LogType> = [
   {
@@ -28,6 +37,35 @@ const columns: TableColumnsType<LogType> = [
     key: 'status',
     render: status => <Badge status={status ? 'success' : 'error'} text={status ? 'Sent' : 'Failed'} />
   },
+  {
+    // Real provider delivery status, shown only for proven-live webhook connections; blank otherwise.
+    title: __('Delivery'),
+    key: 'delivery',
+    render: (_, record) =>
+      record.delivery_verified ? <DeliveryStatusTag status={record.delivery_status} /> : null
+  },
+  {
+    title: __('Connection'),
+    dataIndex: 'connection',
+    key: 'connection',
+    render: (connection, record) => {
+      const attempts = record.details?.attempts
+      // Only annotate when the send actually fell back; a lone failed attempt is already
+      // conveyed by the Status column.
+      const failed = attempts && attempts.length > 1 ? failedCount(attempts) : 0
+      if (failed > 0) {
+        return (
+          <div>
+            {connection || '—'}
+            <Text type="secondary" style={{ fontSize: '0.85em', marginLeft: '0.5em' }}>
+              · {failed} failed
+            </Text>
+          </div>
+        )
+      }
+      return connection || '—'
+    }
+  },
   { title: __('Subject'), dataIndex: 'subject', key: 'subject' },
   { title: __('To'), dataIndex: 'to_addr', key: 'to_addr' },
   { title: __('Retry'), dataIndex: 'retry_count', key: 'retry_count' },
@@ -35,6 +73,7 @@ const columns: TableColumnsType<LogType> = [
 ]
 
 export default function Logs() {
+  const { token } = theme.useToken()
   const [query, setQuery] = useState<LogQueryType>({
     pageNo: 1,
     limit: 20
@@ -128,16 +167,19 @@ export default function Logs() {
   )
 
   return (
-    <Flex gap="middle" vertical>
-      <Flex align="center" gap="middle" justify="space-between" style={{ paddingInline: 10 }}>
-        <Flex gap="middle" align="center" style={{ padding: 10 }}>
+    <Flex gap="middle" vertical style={{ padding: token.paddingLG }}>
+      <Title level={4} style={{ margin: 0 }}>
+        {__('Logs')}
+      </Title>
+      <Flex align="center" gap="middle" justify="space-between" wrap>
+        <Flex gap="small" align="center">
           <Button type="primary" onClick={handleDelete} disabled={!hasSelected} loading={isLogDeleting}>
-            Delete
+            {__('Delete')}
           </Button>
           <Button type="primary" onClick={handleResend} disabled={!hasSelected} loading={isResending}>
-            Resend
+            {__('Resend')}
           </Button>
-          {hasSelected ? <Typography>Selected {selectedRowKeys.length} items</Typography> : null}
+          {hasSelected ? <Text type="secondary">Selected {selectedRowKeys.length} items</Text> : null}
         </Flex>
         <Flex align="center" gap="small">
           <Input.Search
@@ -148,7 +190,7 @@ export default function Logs() {
             style={{ width: 220 }}
             enterButton={false}
           />
-          {/* date range filter 
+          {/* date range filter
           <DatePicker.RangePicker value={dateRange} onChange={handleDateRangeChange} />
           <Button onClick={clearFilters}>{__('Clear')}</Button>
           */}

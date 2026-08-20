@@ -1,6 +1,11 @@
 frontend
 bin
 node_modules
+tests
+port
+.claude
+.superpowers
+.distignore
 .eslintignore
 .eslintrc.js
 .gitattributes

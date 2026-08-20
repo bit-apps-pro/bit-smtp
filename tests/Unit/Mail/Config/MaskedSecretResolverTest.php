@@ -1,0 +1,511 @@
+<?php
+
+declare(strict_types=1);
+
+namespace BitApps\SMTP\Tests\Unit\Mail\Config;
+
+use BitApps\SMTP\Mail\Config\MailSettings;
+use BitApps\SMTP\Mail\Config\MailSettingsSerializer;
+use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
+use BitApps\SMTP\Tests\BaseUnitTestCase;
+
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
+final class MaskedSecretResolverTest extends BaseUnitTestCase
+{
+    private const SENTINEL = MailSettingsSerializer::MASK_SENTINEL;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        \Brain\Monkey\Functions\when('wp_generate_uuid4')->justReturn('test-uuid-1234');
+    }
+
+    public function testAbsentCredentialsKeyPreservesStoredCredentials(): void
+    {
+        $current = $this->currentSettings();
+
+        // $incomingV2 has conn_abc with NO credentials key at all (not just an empty array).
+        $incoming = [
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_abc',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                [
+                    'id'       => 'conn_abc',
+                    'provider' => 'other_smtp',
+                    'kind'     => 'smtp',
+                    // credentials key is intentionally absent
+                ],
+            ],
+            'features' => [],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            ['password' => ['source' => 'database', 'value' => 'stored-secret']],
+            $result['connections'][0]['credentials'],
+            'Stored credentials must be copied when the update payload omits the credentials key.'
+        );
+    }
+
+    public function testAbsentCredentialsKeyOnNewConnectionIsLeftAsIs(): void
+    {
+        $current = $this->currentSettings();
+
+        // A brand-new connection (id not in $current) with no credentials key stays as-is.
+        $incoming = [
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_new',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                [
+                    'id'       => 'conn_new',
+                    'provider' => 'other_smtp',
+                    'kind'     => 'smtp',
+                    // credentials key is intentionally absent, and there is no stored connection
+                ],
+            ],
+            'features' => [],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertArrayNotHasKey(
+            'credentials',
+            $result['connections'][0],
+            'A brand-new connection with no credentials key must not have one injected.'
+        );
+    }
+
+    public function testSentinelValueIsReplacedWithStoredSecret(): void
+    {
+        $current  = $this->currentSettings();
+        $incoming = $this->incomingV2([
+            'password' => ['source' => 'database', 'value' => self::SENTINEL],
+        ]);
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            'stored-secret',
+            $result['connections'][0]['credentials']['password']['value']
+        );
+    }
+
+    public function testGenuineNewValueOverwritesStoredSecret(): void
+    {
+        $current  = $this->currentSettings();
+        $incoming = $this->incomingV2([
+            'password' => ['source' => 'database', 'value' => 'brand-new-password'],
+        ]);
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            'brand-new-password',
+            $result['connections'][0]['credentials']['password']['value']
+        );
+    }
+
+    public function testOmittedOAuthCredentialsArePreservedAlongsideEditableSecret(): void
+    {
+        $current = $this->currentSettings([
+            'client_secret' => ['source' => 'database', 'value' => 'stored-client-secret'],
+            'access_token'  => ['source' => 'database', 'value' => 'stored-access-token'],
+            'refresh_token' => ['source' => 'database', 'value' => 'stored-refresh-token'],
+        ]);
+        $incoming = $this->incomingV2([
+            'client_secret' => ['source' => 'database', 'value' => self::SENTINEL],
+        ]);
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            [
+                'client_secret' => ['source' => 'database', 'value' => 'stored-client-secret'],
+                'access_token'  => ['source' => 'database', 'value' => 'stored-access-token'],
+                'refresh_token' => ['source' => 'database', 'value' => 'stored-refresh-token'],
+            ],
+            $result['connections'][0]['credentials']
+        );
+    }
+
+    public function testNestedSentinelAtAnyDepthIsPreserved(): void
+    {
+        $current = $this->currentSettings([
+            'token' => ['meta' => ['value' => 'deep-stored-secret']],
+        ]);
+        $incoming = $this->incomingV2([
+            'token' => ['meta' => ['value' => self::SENTINEL]],
+        ]);
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            'deep-stored-secret',
+            $result['connections'][0]['credentials']['token']['meta']['value']
+        );
+    }
+
+    public function testBrandNewConnectionSentinelResolvesToEmptyString(): void
+    {
+        // $current holds conn_abc + conn_other — neither matches conn_new, so the id-lookup-miss
+        // path is genuinely exercised and the sentinel must blank to ''.
+        $current  = $this->currentSettings();
+        $incoming = [
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_new',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                [
+                    'id'          => 'conn_new',
+                    'provider'    => 'other_smtp',
+                    'kind'        => 'smtp',
+                    'credentials' => [
+                        'password' => ['source' => 'database', 'value' => self::SENTINEL],
+                    ],
+                ],
+            ],
+            'features' => [],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            '',
+            $result['connections'][0]['credentials']['password']['value']
+        );
+    }
+
+    public function testNonCredentialFieldsAreUntouched(): void
+    {
+        // $current has two connections; incoming targets conn_abc only.
+        $current  = $this->currentSettings();
+        $incoming = $this->incomingV2([
+            'password' => ['source' => 'database', 'value' => self::SENTINEL],
+        ]);
+        $incoming['connections'][0]['fromEmail'] = 'foo@example.com';
+        $incoming['connections'][0]['settings']  = ['host' => 'smtp.example.com'];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame('foo@example.com', $result['connections'][0]['fromEmail']);
+        $this->assertSame('smtp.example.com', $result['connections'][0]['settings']['host']);
+    }
+
+    /**
+     * Sentinel must be restored by connection id, not array position.
+     *
+     * $current: [conn_A (password="A"), conn_B (password="B")]
+     * $incoming: [conn_B at index 0 with sentinel password]
+     *
+     * A position-based matcher would restore "A" (index 0 → conn_A).
+     * An id-based matcher correctly restores "B" (id conn_B → conn_B).
+     */
+    public function testSentinelRestoredByIdNotPosition(): void
+    {
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_A',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                $this->connectionStub('conn_A', [
+                    'password' => ['source' => 'database', 'value' => 'A'],
+                ]),
+                $this->connectionStub('conn_B', [
+                    'password' => ['source' => 'database', 'value' => 'B'],
+                ]),
+            ],
+            'features' => [],
+        ]);
+
+        // conn_B is at index 0 in the incoming array.
+        $incomingV2 = [
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_A',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                [
+                    'id'          => 'conn_B',
+                    'provider'    => 'other_smtp',
+                    'kind'        => 'smtp',
+                    'credentials' => [
+                        'password' => ['source' => 'database', 'value' => self::SENTINEL],
+                    ],
+                ],
+            ],
+            'features' => [],
+        ];
+
+        $result = MaskedSecretResolver::apply($incomingV2, $current);
+
+        $this->assertSame(
+            'B',
+            $result['connections'][0]['credentials']['password']['value'],
+            'Sentinel must resolve to the secret for conn_B (by id), not conn_A (by position).'
+        );
+    }
+
+    public function testFailureWebhookSentinelsRestoreStoredSecretsWithoutConnections(): void
+    {
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'webhook' => [
+                        'enabled'        => true,
+                        'url'            => 'https://hooks.example.com/secret',
+                        'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+                    ],
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'webhook' => [
+                        'enabled'        => true,
+                        'url'            => self::SENTINEL,
+                        'signing_secret' => self::SENTINEL,
+                    ],
+                ],
+            ],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            'https://hooks.example.com/secret',
+            $result['features']['alerts']['webhook']['url']
+        );
+        $this->assertSame(
+            'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            $result['features']['alerts']['webhook']['signing_secret']
+        );
+    }
+
+    public function testOmittedFailureWebhookUrlPreservesStoredUrl(): void
+    {
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'webhook' => [
+                        'enabled'        => true,
+                        'url'            => 'https://hooks.example.com/secret',
+                        'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+                    ],
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'webhook' => ['enabled' => false],
+                ],
+            ],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            'https://hooks.example.com/secret',
+            $result['features']['alerts']['webhook']['url']
+        );
+        $this->assertSame(
+            'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            $result['features']['alerts']['webhook']['signing_secret']
+        );
+    }
+
+    public function testAlertChannelSentinelsRestoreStoredSecretsWhileExplicitBlanksClearThem(): void
+    {
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'slack'    => ['webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'],
+                    'telegram' => ['bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz'],
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'slack'    => ['webhook_url' => self::SENTINEL],
+                    'telegram' => ['bot_token' => ''],
+                ],
+            ],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(
+            'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+            $result['features']['alerts']['slack']['webhook_url']
+        );
+        $this->assertSame('', $result['features']['alerts']['telegram']['bot_token']);
+    }
+
+    public function testPartialTelegramChannelPreservesOmittedFieldsWhileExplicitBlankClearsChatId(): void
+    {
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'telegram' => [
+                        'enabled'   => true,
+                        'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+                        'chat_id'   => '-1001234567890',
+                    ],
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'telegram' => ['enabled' => false],
+                ],
+            ],
+        ];
+
+        $preserved = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame(false, $preserved['features']['alerts']['telegram']['enabled']);
+        $this->assertSame(
+            '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+            $preserved['features']['alerts']['telegram']['bot_token']
+        );
+        $this->assertSame('-1001234567890', $preserved['features']['alerts']['telegram']['chat_id']);
+
+        $incoming['features']['alerts']['telegram']['chat_id']  = '';
+        $cleared                                                = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame('', $cleared['features']['alerts']['telegram']['chat_id']);
+    }
+
+    public function testOmittedAlertChannelsPreserveTheirEntireStoredConfiguration(): void
+    {
+        $storedSlack = [
+            'enabled'     => true,
+            'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
+        ];
+        $storedTelegram = [
+            'enabled'   => true,
+            'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
+            'chat_id'   => '-1001234567890',
+        ];
+        $current = MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => false,
+            'default_connection_id'   => '',
+            'fallback_connection_ids' => [],
+            'connections'             => [],
+            'features'                => [
+                'alerts' => [
+                    'webhook'  => ['enabled' => true, 'url' => 'https://hooks.example.com/failure'],
+                    'slack'    => $storedSlack,
+                    'telegram' => $storedTelegram,
+                ],
+            ],
+        ]);
+        $incoming = [
+            'features' => [
+                'alerts' => [
+                    'webhook' => ['enabled' => false],
+                ],
+            ],
+        ];
+
+        $result = MaskedSecretResolver::apply($incoming, $current);
+
+        $this->assertSame($storedSlack, $result['features']['alerts']['slack']);
+        $this->assertSame($storedTelegram, $result['features']['alerts']['telegram']);
+    }
+
+    private function connectionStub(string $id, array $credentials): array
+    {
+        return [
+            'id'           => $id,
+            'provider'     => 'other_smtp',
+            'kind'         => 'smtp',
+            'name'         => 'Connection ' . $id,
+            'enabled'      => true,
+            'fromEmail'    => '',
+            'fromName'     => '',
+            'replyToEmail' => '',
+            'settings'     => [],
+            'credentials'  => $credentials,
+        ];
+    }
+
+    /**
+     * Two-connection current settings so id-lookup-miss path is exercised when the
+     * incoming connection id does not match any stored id.
+     */
+    private function currentSettings(array $credentialValue = []): MailSettings
+    {
+        $creds = !empty($credentialValue) ? $credentialValue : [
+            'password' => ['source' => 'database', 'value' => 'stored-secret'],
+        ];
+
+        return MailSettings::fromArray([
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_abc',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                $this->connectionStub('conn_abc', $creds),
+                $this->connectionStub('conn_other', [
+                    'password' => ['source' => 'database', 'value' => 'other-secret'],
+                ]),
+            ],
+            'features' => [],
+        ]);
+    }
+
+    private function incomingV2(array $credentials): array
+    {
+        return [
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_abc',
+            'fallback_connection_ids' => [],
+            'connections'             => [
+                [
+                    'id'          => 'conn_abc',
+                    'provider'    => 'other_smtp',
+                    'kind'        => 'smtp',
+                    'credentials' => $credentials,
+                ],
+            ],
+            'features' => [],
+        ];
+    }
+}

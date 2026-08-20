@@ -1,3 +1,4 @@
+import { __ } from '@common/helpers/i18nwrap'
 import { Button, Card, Col, Flex, Row, Typography, theme } from 'antd'
 import { pluginsData } from './pluginsData'
 
@@ -8,8 +9,11 @@ export default function Others() {
   const { token } = useToken()
 
   return (
-    <div style={{ width: '100%', overflowX: 'auto', padding: token.paddingMD }}>
-      <Row gutter={[16, 16]} className="p-5" style={{ width: '100%', margin: 0, flexWrap: 'wrap' }}>
+    <Flex vertical gap="middle" style={{ padding: token.paddingLG, width: '100%', overflowX: 'auto' }}>
+      <Title level={4} style={{ margin: 0 }}>
+        {__('Others')}
+      </Title>
+      <Row gutter={[16, 16]}>
         {pluginsData.map(plugin => (
           <Col key={plugin.pluginUrl} xs={24} sm={24} md={12} lg={8} xl={8}>
             <Card style={{ height: '100%' }}>
@@ -22,7 +26,7 @@ export default function Others() {
                       width: 80,
                       height: 80,
                       padding: token.paddingXS,
-                      backgroundColor: token.colorBgContainer,
+                      backgroundColor: token.colorFillTertiary,
                       borderRadius: token.borderRadiusLG
                     }}
                   >
@@ -59,16 +63,18 @@ export default function Others() {
                 </Flex>
 
                 <Flex justify="center" style={{ marginTop: 'auto' }}>
-                  <Text type="secondary">Active Installs: {plugin.activeInstalls}</Text>
+                  <Text type="secondary">
+                    {__('Active Installs')}: {plugin.activeInstalls}
+                  </Text>
                 </Flex>
                 <Button key="go-to-plugin" type="link" href={plugin.pluginUrl} target="_blank">
-                  Go to Plugin
+                  {__('Go to Plugin')}
                 </Button>
               </Flex>
             </Card>
           </Col>
         ))}
       </Row>
-    </div>
+    </Flex>
   )
 }

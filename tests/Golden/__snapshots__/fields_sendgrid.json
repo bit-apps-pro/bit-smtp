@@ -1,0 +1,13 @@
+[
+    {
+        "key": "api_key",
+        "label": "API Key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null
+    }
+]

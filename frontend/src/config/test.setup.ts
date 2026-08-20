@@ -1,4 +1,6 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
+import '@testing-library/jest-dom/vitest'
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { vi } from 'vitest'
 
 Object.defineProperty(window, 'matchMedia', {

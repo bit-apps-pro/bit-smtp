@@ -1,0 +1,15 @@
+{
+    "body": {
+        "status": "success",
+        "message": "Connection saved",
+        "code": "SUCCESS",
+        "data": {
+            "id": "conn_golden_1",
+            "webhook": {
+                "status": "warning",
+                "message": "Connection saved, but automatic webhook registration failed. You can register it from the connection's webhook panel."
+            }
+        }
+    },
+    "http_status": 200
+}

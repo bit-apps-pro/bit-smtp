@@ -1,0 +1,11 @@
+includes:
+    - phpstan-baseline.neon
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+parameters:
+    level: 6
+    paths:
+        - backend/app
+    bootstrapFiles:
+        - tests/bootstrap-unit.php
+    treatPhpDocTypesAsCertain: false
+    reportUnmatchedIgnoredErrors: true

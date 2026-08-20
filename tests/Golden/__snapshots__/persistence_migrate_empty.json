@@ -1,0 +1,14 @@
+{
+    "schema_version": 2,
+    "enabled": false,
+    "default_connection_id": "",
+    "fallback_connection_ids": [],
+    "connections": [],
+    "features": {
+        "logging": [],
+        "alerts": [],
+        "routing": [],
+        "tracking": [],
+        "email_controls": []
+    }
+}

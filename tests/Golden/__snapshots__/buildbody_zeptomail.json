@@ -1,0 +1,16 @@
+{
+    "from": {
+        "address": "sender@example.test",
+        "name": "Example Sender"
+    },
+    "to": [
+        {
+            "email_address": {
+                "address": "rcpt@example.test"
+            }
+        }
+    ],
+    "subject": "Subj",
+    "htmlbody": "<p>Hi</p>",
+    "client_reference": "TRACK123"
+}

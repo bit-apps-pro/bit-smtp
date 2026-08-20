@@ -1,3 +1,4 @@
+import { type JSX } from 'react'
 import EditIcon from './EditIcon'
 import cls from './Icons.module.css'
 
