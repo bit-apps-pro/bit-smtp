@@ -4,10 +4,10 @@
 
 - `frontend/src/`: React frontend code. Entry point: `main.tsx`.
 - `backend/`: PHP backend code.
-  - `app/hooks/`: Route definitions.
+  - `hooks/`: Route definitions.
     - `ajax.php`: AJAX routes.
     - `api.php`: REST API routes.
-  - `app/HTTP/Controller/`: PHP controllers for handling requests.
+  - `app/HTTP/Controllers/`: PHP controllers for handling requests.
 
 ## Agent Workflow
 
@@ -40,8 +40,8 @@
 ## Example
 
 - For a new API endpoint:
-  - Add route in `backend/app/hooks/api.php`.
-  - Implement logic in a controller under `backend/app/HTTP/Controller/`.
+  - Add route in `backend/hooks/api.php`.
+  - Implement logic in a controller under `backend/app/HTTP/Controllers/`.
   - Backend Configuration in `backend/app/Config.php`
   - Request validator in `backend/app/HTTP/Requests`
   - Request Middleware in `backend/app/HTTP/Requests`
