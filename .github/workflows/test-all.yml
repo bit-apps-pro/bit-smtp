@@ -7,6 +7,10 @@ on:
       - 'feature/*'
       - 'feat/*'
       - 'fix/*'
+  pull_request:
+    branches:
+      - 'feat/*'
+      - 'feature/*'
 
 jobs:
   setup:
@@ -73,12 +77,40 @@ jobs:
       - name: Run Lefthook
         run: pnpm lefthook run github-actions
 
+  php-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      php: ${{ steps.compute.outputs.php }}
+      min: ${{ steps.compute.outputs.min }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - name: Compute PHP matrix from "Requires PHP" floor up to latest stable
+        id: compute
+        shell: bash
+        run: |
+          # Floor is the plugin's declared minimum in the bit_smtp.php "Requires PHP" header (currently 8.1).
+          floor="$(grep -ioP 'Requires PHP:\s*\K[0-9]+\.[0-9]+' bit_smtp.php | head -n1)"
+          if [ -z "$floor" ]; then echo "Could not parse 'Requires PHP' from bit_smtp.php" >&2; exit 1; fi
+          # Maintained list of stable PHP releases up to today's latest; starting at 8.1 also drops the legacy 8.0 leg.
+          all=(8.1 8.2 8.3 8.4)
+          selected=()
+          for v in "${all[@]}"; do
+            # keep v when floor <= v (version-sorted), i.e. floor is the smaller of the pair
+            if [ "$(printf '%s\n' "$floor" "$v" | sort -V | head -n1)" = "$floor" ]; then selected+=("$v"); fi
+          done
+          json="$(printf '%s\n' "${selected[@]}" | jq -R . | jq -cs .)"
+          echo "php=$json" >> "$GITHUB_OUTPUT"
+          echo "min=$floor" >> "$GITHUB_OUTPUT"
+          echo "PHP matrix: $json (floor $floor)"
+
   php-tests:
+    needs: [php-matrix]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.0', '8.1', '8.3']
+        php: ${{ fromJSON(needs.php-matrix.outputs.php) }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 1 }
@@ -87,19 +119,19 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           tools: composer:v2
-      # phpunit 12 requires PHP >= 8.3, so 8.0/8.1 install with the platform check ignored and skip test:unit/analyse.
-      - name: Install deps (ignore platform for the 8.0/8.1 gate legs)
-        run: composer install --prefer-dist --no-progress ${{ matrix.php != '8.3' && '--ignore-platform-req=php' || '' }}
+      # phpunit 12 requires PHP >= 8.3; legs below that install with the platform check ignored and skip test:unit/analyse.
+      - name: Install deps (ignore platform on legs < 8.3)
+        run: composer install --prefer-dist --no-progress ${{ fromJSON(matrix.php) < 8.3 && '--ignore-platform-req=php' || '' }}
       - name: Gate smoke (all versions)
         run: php tests/gate/gate-smoke.php
-      - name: Bootstrap-chain 8.0 compat
+      - name: Bootstrap-chain compat (minimum supported version leg)
+        if: matrix.php == needs.php-matrix.outputs.min
         run: composer compat:gate
-      - name: Backend 8.1 compat (8.1 and 8.3)
-        if: matrix.php != '8.0'
+      - name: Backend compat (all legs, >= 8.1)
         run: composer compat
-      - name: Full PHP unit suite incl. golden (8.3 only)
-        if: matrix.php == '8.3'
+      - name: Full PHP unit suite incl. golden (>= 8.3)
+        if: ${{ fromJSON(matrix.php) >= 8.3 }}
         run: composer test:unit
-      - name: PHPStan (8.3 only)
-        if: matrix.php == '8.3'
+      - name: PHPStan (>= 8.3)
+        if: ${{ fromJSON(matrix.php) >= 8.3 }}
         run: composer analyse
