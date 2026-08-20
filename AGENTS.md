@@ -44,7 +44,7 @@
   - Implement logic in a controller under `backend/app/HTTP/Controllers/`.
   - Backend Configuration in `backend/app/Config.php`
   - Request validator in `backend/app/HTTP/Requests`
-  - Request Middleware in `backend/app/HTTP/Requests`
+  - Request Middleware in `backend/app/HTTP/Middleware`
   - Services in `backend/app/HTTP/Services`
   - Update frontend in `frontend/src/` as needed.
   - Frontend uses antd, typescript
