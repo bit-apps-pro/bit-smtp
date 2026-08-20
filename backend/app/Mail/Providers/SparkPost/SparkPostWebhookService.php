@@ -67,7 +67,7 @@ final class SparkPostWebhookService extends AbstractWebhookProvisioner
         }
 
         if (!\array_key_exists($region, self::HOST_BY_REGION)) {
-            throw new RuntimeException('Unknown SparkPost region: ' . json_encode($region));
+            throw new RuntimeException(esc_html('Unknown SparkPost region: ' . json_encode($region)));
         }
 
         return self::HOST_BY_REGION[$region] . '/api/v1/webhooks';

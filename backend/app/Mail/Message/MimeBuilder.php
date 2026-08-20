@@ -26,7 +26,8 @@ class MimeBuilder
             $this->applyMessage($mailer, $message);
             $mailer->preSend();
         } catch (PHPMailerException $e) {
-            throw new RuntimeException('Unable to build MIME message: ' . $e->getMessage(), 0, $e);
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Message is escaped; $e is the chained previous exception, not output.
+            throw new RuntimeException(esc_html('Unable to build MIME message: ' . $e->getMessage()), 0, $e);
         }
 
         return $mailer->getSentMIMEMessage();

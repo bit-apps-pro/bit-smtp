@@ -61,7 +61,7 @@ final class AuthorizationResolver
                 return new AwsSigV4Strategy($this->signer, $params['service'] ?? '');
 
             default:
-                throw new InvalidArgumentException("No HTTP auth strategy for type: {$type}");
+                throw new InvalidArgumentException(esc_html("No HTTP auth strategy for type: {$type}"));
         }
     }
 
@@ -70,7 +70,7 @@ final class AuthorizationResolver
         $transport = $provider->transport();
 
         if (!$transport instanceof OAuth2ProviderInterface) {
-            throw new InvalidArgumentException('Provider transport must implement OAuth2ProviderInterface for oauth2 auth type: ' . \get_class($transport));
+            throw new InvalidArgumentException(esc_html('Provider transport must implement OAuth2ProviderInterface for oauth2 auth type: ' . \get_class($transport)));
         }
 
         return new OAuth2Strategy($this->tokens, $transport);

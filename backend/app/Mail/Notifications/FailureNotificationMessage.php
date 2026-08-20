@@ -107,7 +107,7 @@ final class FailureNotificationMessage
             return '';
         }
 
-        $value      = strip_tags((string) $value);
+        $value      = wp_strip_all_tags((string) $value);
         $normalized = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value);
 
         return self::truncate(trim($normalized ?? ''), self::MAX_FIELD_LENGTH);

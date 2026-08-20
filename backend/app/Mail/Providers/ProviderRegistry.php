@@ -20,7 +20,7 @@ class ProviderRegistry
         $key = $provider->key();
 
         if ($this->has($key)) {
-            throw DuplicateProviderException::forKey($key);
+            throw DuplicateProviderException::forKey(esc_html($key));
         }
 
         $this->providers[$key] = $provider;
@@ -29,7 +29,7 @@ class ProviderRegistry
     public function get(string $key): ProviderInterface
     {
         if (!$this->has($key)) {
-            throw ProviderNotFoundException::forKey($key);
+            throw ProviderNotFoundException::forKey(esc_html($key));
         }
 
         return $this->providers[$key];

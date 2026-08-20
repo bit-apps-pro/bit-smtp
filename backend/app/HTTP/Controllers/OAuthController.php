@@ -136,6 +136,7 @@ class OAuthController
             header('Content-Type: text/html; charset=utf-8');
         }
 
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Trusted first-party page; the dynamic parts (heading, JSON payload) are escaped in page().
         echo $html;
 
         exit;
@@ -202,12 +203,14 @@ class OAuthController
     private function oauth2Transport(string $provider): OAuth2ProviderInterface
     {
         if ($provider === '' || !$this->registry()->has($provider)) {
-            throw new InvalidArgumentException(\sprintf(__('Unknown provider: %s', 'bit-smtp'), $provider));
+            // translators: %s: provider slug
+            throw new InvalidArgumentException(esc_html(\sprintf(__('Unknown provider: %s', 'bit-smtp'), $provider)));
         }
 
         $transport = $this->registry()->get($provider)->transport();
         if (!$transport instanceof OAuth2ProviderInterface) {
-            throw new InvalidArgumentException(\sprintf(__('Provider does not support OAuth2: %s', 'bit-smtp'), $provider));
+            // translators: %s: provider slug
+            throw new InvalidArgumentException(esc_html(\sprintf(__('Provider does not support OAuth2: %s', 'bit-smtp'), $provider)));
         }
 
         return $transport;
@@ -239,24 +242,24 @@ class OAuthController
         $payload = (string) json_encode($message, \JSON_HEX_TAG | \JSON_HEX_AMP | \JSON_HEX_APOS | \JSON_HEX_QUOT);
         $heading = htmlspecialchars($heading, \ENT_QUOTES, 'UTF-8');
 
-        return <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Bit SMTP</title></head>
-<body>
-<p>{$heading}</p>
-<script>
-(function () {
-    var message = {$payload};
-    if (window.opener) {
-        window.opener.postMessage(message, window.location.origin);
-    }
-    window.close();
-})();
-</script>
-</body>
-</html>
-HTML;
+        return implode("\n", [
+            '<!DOCTYPE html>',
+            '<html lang="en">',
+            '<head><meta charset="utf-8"><title>Bit SMTP</title></head>',
+            '<body>',
+            '<p>' . $heading . '</p>',
+            '<script>',
+            '(function () {',
+            '    var message = ' . $payload . ';',
+            '    if (window.opener) {',
+            '        window.opener.postMessage(message, window.location.origin);',
+            '    }',
+            '    window.close();',
+            '})();',
+            '</script>',
+            '</body>',
+            '</html>',
+        ]);
     }
 
     private function client(): ApiClient

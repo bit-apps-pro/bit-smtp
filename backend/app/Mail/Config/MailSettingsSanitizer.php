@@ -275,7 +275,7 @@ final class MailSettingsSanitizer
         }
 
         $url    = isset($webhook['url']) && \is_scalar($webhook['url']) ? trim((string) $webhook['url']) : '';
-        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        $scheme = strtolower((string) wp_parse_url($url, PHP_URL_SCHEME));
         if ($url !== '' && (
             \strlen($url) > 2048
             || filter_var($url, FILTER_VALIDATE_URL) === false
@@ -349,7 +349,7 @@ final class MailSettingsSanitizer
 
     private static function isSlackIncomingWebhookUrl(string $url): bool
     {
-        $parts = parse_url($url);
+        $parts = wp_parse_url($url);
         if (!\is_array($parts)) {
             return false;
         }

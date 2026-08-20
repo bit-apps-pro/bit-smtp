@@ -58,7 +58,7 @@ final class SlackFailureNotificationChannel implements FailureNotificationChanne
 
     private static function isIncomingWebhookUrl(string $url): bool
     {
-        $parts = parse_url($url);
+        $parts = wp_parse_url($url);
         if (!\is_array($parts)) {
             return false;
         }

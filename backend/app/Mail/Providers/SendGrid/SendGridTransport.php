@@ -185,7 +185,7 @@ class SendGridTransport extends AbstractApiTransport
         foreach ($message->getAttachments() as $key => $path) {
             $content = @file_get_contents($path);
             if ($content === false) {
-                throw new RuntimeException("Unable to read attachment file: {$path}");
+                throw new RuntimeException(esc_html("Unable to read attachment file: {$path}"));
             }
 
             $attachments[] = [

@@ -59,7 +59,7 @@ class OAuth2TokenProvider
 
         $body = $response->getBody();
         if (!$response->isOk() || !\is_array($body) || empty($body['access_token'])) {
-            throw OAuthException::refreshFailed($this->errorMessage($response));
+            throw OAuthException::refreshFailed(esc_html($this->errorMessage($response)));
         }
 
         $accessToken     = (string) $body['access_token'];

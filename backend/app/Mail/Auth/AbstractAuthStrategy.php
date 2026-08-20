@@ -28,7 +28,7 @@ abstract class AbstractAuthStrategy implements AuthStrategyInterface
         $value = $this->secret($connection, $key);
 
         if ($value === '') {
-            throw AuthConfigException::missing($key);
+            throw AuthConfigException::missing(esc_html($key));
         }
 
         return $value;

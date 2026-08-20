@@ -37,14 +37,14 @@ final class AwsSigV4Strategy extends AbstractAuthStrategy
         $region = (string) $connection->setting('region', '');
 
         if (!preg_match(self::REGION_PATTERN, $region)) {
-            throw AuthConfigException::invalidRegion($region);
+            throw AuthConfigException::invalidRegion(esc_html($region));
         }
 
         $accessKey = (string) $connection->setting('access_key', '');
         $secretKey = $this->secret($connection, 'secret_key');
 
         $baseHeaders = [
-            'Host'                 => (string) parse_url($request->url, \PHP_URL_HOST),
+            'Host'                 => (string) wp_parse_url($request->url, \PHP_URL_HOST),
             'Content-Type'         => $request->contentType,
             'X-Amz-Content-Sha256' => hash('sha256', $request->body),
         ];

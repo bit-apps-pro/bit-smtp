@@ -39,7 +39,8 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     protected function assertProvider(Connection $connection, string $expected): void
     {
         if ($connection->getProvider() !== $expected) {
-            throw new RuntimeException(__(\sprintf('%s webhook creation requires a %s connection.', $expected, $expected), 'bit-smtp'));
+            // translators: 1: provider slug, 2: provider slug
+            throw new RuntimeException(esc_html(\sprintf(__('%1$s webhook creation requires a %2$s connection.', 'bit-smtp'), $expected, $expected)));
         }
     }
 
@@ -73,6 +74,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     protected function assertOk(ApiResponse $response, string $webhookUrl): void
     {
         if (!$response->isOk()) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- apiError() returns a RuntimeException with an internally built, redacted message; the args are not output.
             throw $this->apiError($response, $webhookUrl);
         }
     }
@@ -107,7 +109,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     protected function requireCreatedId(?string $id, string $providerLabel): string
     {
         if ($id === null || $id === '') {
-            throw new RuntimeException(\sprintf('%s created the webhook but returned no webhook ID.', $providerLabel));
+            throw new RuntimeException(esc_html(\sprintf('%s created the webhook but returned no webhook ID.', $providerLabel)));
         }
 
         return $id;

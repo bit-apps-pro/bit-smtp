@@ -32,6 +32,7 @@ class ConnectionController
         $provider = $data['provider'] ?? '';
 
         if (!Plugin::instance()->providerRegistry()->has($provider)) {
+            // translators: %s: provider slug
             return Response::error(\sprintf(__('Unknown provider: %s', 'bit-smtp'), $provider));
         }
 

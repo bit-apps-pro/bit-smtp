@@ -151,7 +151,7 @@ final class BitSmtpLogsTableMigration extends Migration
         if (Connection::query("ALTER TABLE `{$table}` {$alter}") === false) {
             $this->throwOnDatabaseError('add column ' . $column);
 
-            throw new RuntimeException('Unable to add analytics column ' . $column . '.');
+            throw new RuntimeException(esc_html('Unable to add analytics column ' . $column . '.'));
         }
     }
 
@@ -170,7 +170,7 @@ final class BitSmtpLogsTableMigration extends Migration
         if (Connection::query("ALTER TABLE `{$table}` {$alter}") === false) {
             $this->throwOnDatabaseError('add index ' . $index);
 
-            throw new RuntimeException('Unable to add analytics index ' . $index . '.');
+            throw new RuntimeException(esc_html('Unable to add analytics index ' . $index . '.'));
         }
     }
 
@@ -199,7 +199,7 @@ final class BitSmtpLogsTableMigration extends Migration
             if (Connection::query("ALTER TABLE `{$table}` DROP INDEX `{$index}`") === false) {
                 $this->throwOnDatabaseError('remove index ' . $index);
 
-                throw new RuntimeException('Unable to remove unused analytics index ' . $index . '.');
+                throw new RuntimeException(esc_html('Unable to remove unused analytics index ' . $index . '.'));
             }
         }
     }
@@ -208,7 +208,7 @@ final class BitSmtpLogsTableMigration extends Migration
     {
         $error = (string) Connection::prop('last_error');
         if ($error !== '') {
-            throw new RuntimeException('Unable to ' . $operation . ': ' . $error);
+            throw new RuntimeException(esc_html('Unable to ' . $operation . ': ' . $error));
         }
     }
 }

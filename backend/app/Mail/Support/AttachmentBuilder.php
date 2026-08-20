@@ -71,7 +71,7 @@ final class AttachmentBuilder
     private function assertKnownShape(string $shape): void
     {
         if (!\in_array($shape, self::KNOWN_SHAPES, true)) {
-            throw new InvalidArgumentException("Unknown attachment shape: {$shape}");
+            throw new InvalidArgumentException(esc_html("Unknown attachment shape: {$shape}"));
         }
     }
 
@@ -95,7 +95,7 @@ final class AttachmentBuilder
             case self::SHAPE_CLOUDFLARE:
                 return ['content' => $content, 'disposition' => 'attachment', 'filename' => $name, 'type' => $mime];
             default:
-                throw new InvalidArgumentException("Unknown attachment shape: {$shape}");
+                throw new InvalidArgumentException(esc_html("Unknown attachment shape: {$shape}"));
         }
     }
 
@@ -104,7 +104,7 @@ final class AttachmentBuilder
         $bytes = @file_get_contents($path);
 
         if ($bytes === false) {
-            throw new RuntimeException("Unable to read attachment file: {$path}");
+            throw new RuntimeException(esc_html("Unable to read attachment file: {$path}"));
         }
 
         return $bytes;

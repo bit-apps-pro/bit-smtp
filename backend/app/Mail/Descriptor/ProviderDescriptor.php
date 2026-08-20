@@ -88,7 +88,7 @@ final class ProviderDescriptor
     {
         foreach (['key', 'label', 'kind'] as $required) {
             if (empty($config[$required])) {
-                throw new InvalidArgumentException("ProviderDescriptor missing required key: {$required}");
+                throw new InvalidArgumentException(esc_html("ProviderDescriptor missing required key: {$required}"));
             }
         }
 

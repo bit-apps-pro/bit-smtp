@@ -196,7 +196,7 @@ final class DescriptorApiTransport extends AbstractApiTransport
             case 'bcc':
                 return $message->getBcc();
             default:
-                throw new InvalidArgumentException("Unknown address source: {$source}");
+                throw new InvalidArgumentException(esc_html("Unknown address source: {$source}"));
         }
     }
 
@@ -340,7 +340,7 @@ final class DescriptorApiTransport extends AbstractApiTransport
 
         // Closed map: an unknown region is a hard error, never spliced into the host (SSRF guard).
         if (!\array_key_exists($region, $hostByRegion)) {
-            throw new InvalidArgumentException('Unknown region for endpoint host: ' . json_encode($region));
+            throw new InvalidArgumentException(esc_html('Unknown region for endpoint host: ' . json_encode($region)));
         }
 
         return (string) $hostByRegion[$region];
@@ -369,11 +369,11 @@ final class DescriptorApiTransport extends AbstractApiTransport
             }
             $setting = $connection->setting((string) $key, '');
             if (!\is_scalar($setting)) {
-                throw new InvalidArgumentException('Invalid endpoint path setting: ' . $key);
+                throw new InvalidArgumentException(esc_html('Invalid endpoint path setting: ' . $key));
             }
             $value = (string) $setting;
             if (@preg_match((string) $pattern, $value) !== 1) {
-                throw new InvalidArgumentException('Invalid endpoint path setting: ' . $key);
+                throw new InvalidArgumentException(esc_html('Invalid endpoint path setting: ' . $key));
             }
             $path = str_replace($placeholder, rawurlencode($value), $path);
         }

@@ -130,7 +130,7 @@ class DescriptorProvider implements ProviderInterface
             case 'multipart':
                 return new FormMultipartEncoder();
             default:
-                throw new InvalidArgumentException("Unsupported encoder: {$encoder}");
+                throw new InvalidArgumentException(esc_html("Unsupported encoder: {$encoder}"));
         }
     }
 }

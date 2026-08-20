@@ -46,7 +46,7 @@ final class AddressFormatter
             case self::SHAPE_RFC822:
                 return $this->toRfc822($parsed);
             default:
-                throw new InvalidArgumentException("Unknown address shape: {$shape}");
+                throw new InvalidArgumentException(esc_html("Unknown address shape: {$shape}"));
         }
     }
 

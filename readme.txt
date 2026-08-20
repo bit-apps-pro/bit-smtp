@@ -2,7 +2,7 @@
 Contributors: bitpressadmin, akaioum
 Tags: email logs, smtp, email, gmail smtp, wp mail smtp
 Requires at least: 5.7
-Tested up to: 6.9
+Tested up to: 7.1
 Requires PHP: 8.1
 Stable tag: 1.2.4
 License: GPLv2 or later

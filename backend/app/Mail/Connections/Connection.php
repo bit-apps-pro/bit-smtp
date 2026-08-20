@@ -54,7 +54,7 @@ class Connection
     {
         foreach (['id', 'provider', 'kind'] as $required) {
             if (!\array_key_exists($required, $data)) {
-                throw new InvalidArgumentException("Missing required key: {$required}");
+                throw new InvalidArgumentException(esc_html("Missing required key: {$required}"));
             }
         }
 

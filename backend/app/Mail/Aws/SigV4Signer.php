@@ -33,7 +33,7 @@ final class SigV4Signer
         $amzDate   = $amzDate ?? gmdate('Ymd\THis\Z');
         $dateStamp = substr($amzDate, 0, 8);
 
-        $urlParts = parse_url($url);
+        $urlParts = wp_parse_url($url);
         $host     = isset($headers['Host']) ? $headers['Host'] : ($urlParts['host'] ?? '');
         $path     = $urlParts['path']  ?? '/';
         $query    = $urlParts['query'] ?? '';

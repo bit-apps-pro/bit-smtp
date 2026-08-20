@@ -72,7 +72,7 @@ final class MailgunWebhookService extends AbstractWebhookProvisioner
     {
         $domain = (string) $connection->setting('domain', '');
         if (preg_match(self::HOSTNAME_PATTERN, $domain) !== 1) {
-            throw new RuntimeException(__('A valid Mailgun sending domain is required to register a delivery webhook.', 'bit-smtp'));
+            throw new RuntimeException(esc_html__('A valid Mailgun sending domain is required to register a delivery webhook.', 'bit-smtp'));
         }
 
         return $domain;
@@ -84,7 +84,7 @@ final class MailgunWebhookService extends AbstractWebhookProvisioner
 
         // Closed map: an unknown region is a hard error, never spliced into the host (SSRF guard).
         if (!isset(self::HOST_BY_REGION[$region])) {
-            throw new RuntimeException(__('The configured Mailgun region is not supported for delivery webhooks.', 'bit-smtp'));
+            throw new RuntimeException(esc_html__('The configured Mailgun region is not supported for delivery webhooks.', 'bit-smtp'));
         }
 
         return self::HOST_BY_REGION[$region];

@@ -69,7 +69,7 @@ final class WebhookProvisioningService
             $auth
         );
         if ($provisioner === null) {
-            throw new RuntimeException(__('This provider does not support automatic webhook creation.', 'bit-smtp'));
+            throw new RuntimeException(esc_html__('This provider does not support automatic webhook creation.', 'bit-smtp'));
         }
 
         $result = $provisioner->ensure($connection);
@@ -98,7 +98,7 @@ final class WebhookProvisioningService
         // provisioned unless the material persisted — throwing lets the next save retry instead of
         // locking in an unverified webhook.
         if (!$this->config->persistConnectionProvisioning($connection->getId(), $credentials, $settings)) {
-            throw new RuntimeException(__('The webhook was registered but its signature material could not be saved.', 'bit-smtp'));
+            throw new RuntimeException(esc_html__('The webhook was registered but its signature material could not be saved.', 'bit-smtp'));
         }
 
         return $result;
