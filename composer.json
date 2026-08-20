@@ -44,6 +44,9 @@
     "szepeviktor/phpstan-wordpress": "^2.0"
   },
   "config": {
+    "platform": {
+      "php": "8.3"
+    },
     "allow-plugins": {
       "typisttech/imposter-plugin": true,
       "dealerdirect/phpcodesniffer-composer-installer": true
