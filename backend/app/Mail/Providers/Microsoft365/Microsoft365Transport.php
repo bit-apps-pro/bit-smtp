@@ -60,7 +60,7 @@ class Microsoft365Transport extends AbstractOAuth2Transport implements OAuth2Pro
      */
     protected function buildBody(MailMessage $message, Connection $connection)
     {
-        return ['raw' => base64_encode($this->mime->fromMailMessage($message))];
+        return ['raw' => base64_encode($this->mime->fromMailMessage($message, $connection))];
     }
 
     /**

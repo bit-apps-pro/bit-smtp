@@ -123,7 +123,7 @@ class SesTransportTest extends BaseUnitTestCase
 
         $this->mimeBuilder->shouldReceive('fromMailMessage')
             ->once()
-            ->with($message)
+            ->with($message, Mockery::type(Connection::class))
             ->andReturn('raw-mime');
 
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();

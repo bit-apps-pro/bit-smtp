@@ -57,7 +57,7 @@ class GmailTransport extends AbstractOAuth2Transport
      */
     protected function buildBody(MailMessage $message, Connection $connection)
     {
-        return ['raw' => $this->base64url($this->mime->fromMailMessage($message))];
+        return ['raw' => $this->base64url($this->mime->fromMailMessage($message, $connection))];
     }
 
     /**

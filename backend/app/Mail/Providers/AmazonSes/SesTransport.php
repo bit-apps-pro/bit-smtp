@@ -38,7 +38,7 @@ class SesTransport extends AbstractApiTransport
         return [
             'Content' => [
                 'Raw' => [
-                    'Data' => base64_encode($this->mime->fromMailMessage($message)),
+                    'Data' => base64_encode($this->mime->fromMailMessage($message, $connection)),
                 ],
             ],
         ];

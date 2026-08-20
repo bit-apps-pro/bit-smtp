@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Unit\Mail\Message;
 
+use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
@@ -37,8 +38,10 @@ class MimeBuilderTest extends BaseUnitTestCase
             'fromName' => 'Sender Name',
         ]);
 
+        $connection = Connection::fromArray(['id' => 'conn_1', 'provider' => 'amazon_ses', 'kind' => 'api']);
+
         try {
-            $mime = $this->builder->fromMailMessage($message);
+            $mime = $this->builder->fromMailMessage($message, $connection);
         } catch (RuntimeException $e) {
             $this->markTestSkipped(
                 'WP-bundled PHPMailer is unavailable in the unit tier (no WordPress runtime): '

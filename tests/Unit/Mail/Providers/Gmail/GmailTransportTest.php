@@ -110,7 +110,7 @@ class GmailTransportTest extends BaseUnitTestCase
 
         $this->mimeBuilder->shouldReceive('fromMailMessage')
             ->once()
-            ->with($message)
+            ->with($message, Mockery::type(Connection::class))
             ->andReturn('raw-mime');
         $this->tokenProvider->shouldReceive('accessToken')->once()->andReturn('tok123');
 

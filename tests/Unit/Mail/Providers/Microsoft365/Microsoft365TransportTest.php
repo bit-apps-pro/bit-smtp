@@ -175,7 +175,7 @@ class Microsoft365TransportTest extends BaseUnitTestCase
     {
         $message = $this->message();
 
-        $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->with($message)->andReturn('raw-mime');
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->with($message, Mockery::type(Connection::class))->andReturn('raw-mime');
         $this->tokenProvider->shouldReceive('accessToken')->once()->andReturn('tok');
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(202, ''));

@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
 
@@ -29,7 +30,9 @@ final class MimeBuilderTest extends IntegrationTestCase
             'headers'  => ['X-Custom' => "safe-value\r\nBcc: attacker@evil.test"],
         ]);
 
-        $mime = (new MimeBuilder())->fromMailMessage($message);
+        $connection = Connection::fromArray(['id' => 'conn_1', 'provider' => 'amazon_ses', 'kind' => 'api']);
+
+        $mime = (new MimeBuilder())->fromMailMessage($message, $connection);
 
         $this->assertStringContainsString('Subject: Hello there', $mime);
         $this->assertStringContainsString('sender@example.com', $mime);

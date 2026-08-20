@@ -2,6 +2,8 @@
 
 namespace BitApps\SMTP\Mail\Message;
 
+use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Support\SenderResolver;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
 use PHPMailer\PHPMailer\PHPMailer;
 use RuntimeException;
@@ -15,7 +17,7 @@ class MimeBuilder
     /**
      * @throws RuntimeException when PHPMailer built the message but a field failed validation
      */
-    public function fromMailMessage(MailMessage $message): string
+    public function fromMailMessage(MailMessage $message, Connection $connection): string
     {
         $this->requirePhpMailer();
 
@@ -23,7 +25,7 @@ class MimeBuilder
         $mailer->isMail();
 
         try {
-            $this->applyMessage($mailer, $message);
+            $this->applyMessage($mailer, $message, $connection);
             $mailer->preSend();
         } catch (PHPMailerException $e) {
             // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Message is escaped; $e is the chained previous exception, not output.
@@ -36,7 +38,7 @@ class MimeBuilder
     /**
      * @throws PHPMailerException
      */
-    private function applyMessage(PHPMailer $mailer, MailMessage $message): void
+    private function applyMessage(PHPMailer $mailer, MailMessage $message, Connection $connection): void
     {
         foreach ($message->getTo() as $address) {
             $this->addRecipient($mailer, 'addAddress', $address);
@@ -52,14 +54,19 @@ class MimeBuilder
         $mailer->Body    = $message->getBody();
         $mailer->isHTML($message->getContentType() === 'text/html');
 
-        $from = $message->getFrom();
-        if ($from !== null && $from !== '') {
-            $mailer->setFrom($from, (string) $message->getFromName(), false);
+        // From/Reply-To follow the shared message-wins, connection-fallback policy so raw-MIME
+        // transports (SES/Gmail/M365) never emit an empty From — SES rejects that outright with
+        // "There can be only one From address."
+        $sender = new SenderResolver();
+
+        foreach ($sender->from($message, $connection) as $from) {
+            [$fromEmail, $fromName] = $this->splitAddress($from);
+            $mailer->setFrom($fromEmail, $fromName, false);
         }
 
-        $replyTo = $message->getReplyTo();
-        if ($replyTo !== null && $replyTo !== '') {
-            $this->addRecipient($mailer, 'addReplyTo', $replyTo);
+        foreach ($sender->replyTo($message, $connection) as $replyTo) {
+            [$replyEmail, $replyName] = $this->splitAddress($replyTo);
+            $mailer->addReplyTo($replyEmail, $replyName);
         }
 
         foreach ($message->getHeaders() as $name => $content) {
@@ -79,10 +86,21 @@ class MimeBuilder
     }
 
     /**
-     * Split an RFC822 "Name <addr>" address the way core does before handing it to PHPMailer,
-     * so display names on to/cc/bcc/reply-to are preserved instead of failing validation.
+     * Add a recipient through the given PHPMailer method, preserving any "Name <addr>" display name.
      */
     private function addRecipient(PHPMailer $mailer, string $method, string $address): void
+    {
+        [$email, $name] = $this->splitAddress($address);
+        $mailer->{$method}($email, $name);
+    }
+
+    /**
+     * Split an RFC822 "Name <addr>" string into [address, display name], mirroring core, so a
+     * display name survives instead of failing PHPMailer validation.
+     *
+     * @return array{0:string,1:string}
+     */
+    private function splitAddress(string $address): array
     {
         $name = '';
         if (preg_match('/(.*)<(.+)>/', $address, $matches) && \count($matches) === 3) {
@@ -90,7 +108,7 @@ class MimeBuilder
             $address = trim($matches[2]);
         }
 
-        $mailer->{$method}($address, $name);
+        return [trim($address), $name];
     }
 
     /**
