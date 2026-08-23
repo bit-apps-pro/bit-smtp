@@ -119,9 +119,12 @@ final class AnalyticsQueryFactory
      */
     private function parseIso($value): ?DateTimeImmutable
     {
-        if (!\is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/', $value)) {
+        if (!\is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/', $value)) {
             return null;
         }
+
+        // Fractional seconds (e.g. JS Date.toISOString()) are validated but discarded; second precision is enough for bucketing.
+        $value = preg_replace('/\.\d+(?=Z|[+-]\d{2}:\d{2}$)/', '', $value);
 
         $parsed = DateTimeImmutable::createFromFormat(
             '!Y-m-d\\TH:i:sP',

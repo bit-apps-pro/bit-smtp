@@ -77,6 +77,50 @@ final class AnalyticsQueryFactoryTest extends BaseUnitTestCase
         self::assertSame('bit_smtp_invalid_analytics_range', $tooLong->get_error_code());
     }
 
+    public function testAcceptsJsToIsoStringFractionalSecondsAtSecondPrecision(): void
+    {
+        $factory = $this->factory('2026-08-24T23:59:59.999Z', 30);
+
+        $query = $factory->fromInput([
+            'start' => '2026-08-01T00:00:00.000Z',
+            'end'   => '2026-08-24T23:59:59.999Z',
+        ]);
+
+        self::assertInstanceOf(AnalyticsQuery::class, $query);
+        self::assertSame('2026-08-01T00:00:00+00:00', $query->start()->format(DATE_ATOM));
+        self::assertSame('2026-08-24T23:59:59+00:00', $query->end()->format(DATE_ATOM));
+    }
+
+    public function testAcceptsFractionalSecondsWithNumericOffset(): void
+    {
+        $factory = $this->factory('2026-08-24T23:59:59+05:00', 30);
+
+        $query = $factory->fromInput([
+            'start' => '2026-08-01T00:00:00.123+05:00',
+            'end'   => '2026-08-24T23:59:59.987+05:00',
+        ]);
+
+        self::assertInstanceOf(AnalyticsQuery::class, $query);
+        self::assertSame('2026-07-31T19:00:00+00:00', $query->start()->format(DATE_ATOM));
+        self::assertSame('2026-08-24T18:59:59+00:00', $query->end()->format(DATE_ATOM));
+    }
+
+    public function testStillRejectsBareDatesAndGarbageAsFractionalSecondsAreNowAllowed(): void
+    {
+        $factory = $this->factory('2026-08-24T23:59:59.999Z', 30);
+
+        $bareDate    = $factory->fromInput(['start' => '2026-08-24']);
+        $garbage     = $factory->fromInput(['start' => 'not-a-timestamp']);
+        $badFraction = $factory->fromInput(['start' => '2026-08-24T00:00:00.abcZ']);
+
+        self::assertInstanceOf(WP_Error::class, $bareDate);
+        self::assertSame('bit_smtp_invalid_analytics_range', $bareDate->get_error_code());
+        self::assertInstanceOf(WP_Error::class, $garbage);
+        self::assertSame('bit_smtp_invalid_analytics_range', $garbage->get_error_code());
+        self::assertInstanceOf(WP_Error::class, $badFraction);
+        self::assertSame('bit_smtp_invalid_analytics_range', $badFraction->get_error_code());
+    }
+
     public function testUsesOnlyTheFixedBucketsAndValidatedExactFilters(): void
     {
         $factory = $this->factory('2026-04-01T00:00:00+00:00', 200);
