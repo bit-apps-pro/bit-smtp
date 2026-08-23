@@ -1,6 +1,6 @@
 <?php
 
-namespace BitApps\SMTP\Tests\Unit\HTTP;
+namespace BitApps\SMTP\Tests\Unit\HTTP\Controllers;
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
@@ -75,6 +75,37 @@ final class PreferencesControllerTest extends BaseUnitTestCase
         $this->assertSame(Response::SUCCESS, Response::getStatus());
         $data = (array) Response::getData();
         $this->assertSame(14, $data['preferences']['log_retention_days']);
+    }
+
+    public function testExportedEnvelopeRoundTripsBackThroughImport(): void
+    {
+        // In-memory store so export() reads real data and import() writes to the same place.
+        $store = ['log_retention_days' => 90];
+        Functions\when('get_option')->alias(static function ($name, $default = false) use (&$store) {
+            return $name === 'bit_smtp_preferences' ? $store : $default;
+        });
+        Functions\when('update_option')->alias(static function ($name, $value) use (&$store) {
+            if ($name === 'bit_smtp_preferences') {
+                $store = $value;
+            }
+
+            return true;
+        });
+
+        (new PreferencesController())->export();
+        $exported = (array) Response::getData();
+        $this->assertSame(90, $exported['preferences']['log_retention_days']);
+
+        // Re-import that exact envelope into a fresh store; the exported value must survive.
+        $store                  = [];
+        $request                = new Request();
+        $request['preferences'] = $exported['preferences'];
+
+        (new PreferencesController())->import($request);
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+        $this->assertSame(90, $store['log_retention_days']);
+        $this->assertSame(90, ((array) Response::getData())['preferences']['log_retention_days']);
     }
 
     public function testSavePreferencesRequestRulesRejectAnInvalidEnumValue(): void

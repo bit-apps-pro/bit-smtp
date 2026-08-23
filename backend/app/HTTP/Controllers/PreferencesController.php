@@ -42,10 +42,17 @@ class PreferencesController
 
     /**
      * Validate an imported preferences blob with the same rules save() uses, then persist it.
+     * Accepts both export()'s `{preferences: {...}}` envelope and a flat body so an exported file
+     * round-trips as-is.
      */
     public function import(Request $request)
     {
-        $request->make($request->all(), (new SavePreferencesRequest())->rules());
+        $payload = $request->all();
+        if (isset($payload['preferences']) && \is_array($payload['preferences'])) {
+            $payload = $payload['preferences'];
+        }
+
+        $request->make($payload, (new SavePreferencesRequest())->rules());
 
         if ($request->fails()) {
             return Response::error(['errors' => $request->errors()])->message(__('Validation failed', 'bit-smtp'));
