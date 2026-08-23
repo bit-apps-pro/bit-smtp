@@ -28,6 +28,8 @@ class Config
 
     public const LOGGING_CONTINUITY_FROM_OPTION = 'logging_continuity_from';
 
+    public const RETENTION_GC_HOOK = 'bit_smtp_retention_gc';
+
     public const REQUIRED_PHP_VERSION = '8.0';
 
     public const REQUIRED_WP_VERSION = '5.0';

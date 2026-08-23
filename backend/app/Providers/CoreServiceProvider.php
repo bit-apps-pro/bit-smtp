@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Providers;
 
+use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Cache\CacheManager;
 use BitApps\SMTP\Deps\BitApps\WPKit\Container\Container;
 use BitApps\SMTP\Deps\BitApps\WPKit\Container\ServiceProvider;
@@ -26,7 +27,8 @@ use BitApps\SMTP\Settings\PluginSettings;
 class CoreServiceProvider extends ServiceProvider
 {
     /**
-     * Register core singleton bindings; pure wiring, no side effects.
+     * Register core singleton bindings and the retention cron job spec; no WordPress hook or DB
+     * side effects happen here -- those are deferred to boot().
      */
     public function register(): void
     {
@@ -53,6 +55,8 @@ class CoreServiceProvider extends ServiceProvider
 
         $this->app->singleton(Scheduler::class, static fn (): Scheduler => new Scheduler());
 
+        $this->configureRetentionCron();
+
         $this->app->singleton(
             WebhookProvisioningService::class,
             static fn (Container $app): WebhookProvisioningService => new WebhookProvisioningService(
@@ -62,6 +66,34 @@ class CoreServiceProvider extends ServiceProvider
                 $app->make(ApiClient::class),
                 new WebhookProvisionerFactory()
             )
+        );
+    }
+
+    /**
+     * Wire the Scheduler onto WP cron: filters/actions/scheduled events every request (init:11).
+     * register() only configured the job spec; the actual add_action()/wp_schedule_event() calls
+     * are side effects that belong here, not in register().
+     */
+    public function boot(): void
+    {
+        $this->app->make(Scheduler::class)->boot();
+    }
+
+    /**
+     * Configure the daily log-retention cleanup job on the Scheduler. LogService is resolved from
+     * the container lazily, inside the job callback, so this stays free of the option/DB side
+     * effects LogService's constructor performs -- those happen only when the job actually fires.
+     */
+    private function configureRetentionCron(): void
+    {
+        $container = $this->app;
+
+        $this->app->make(Scheduler::class)->job(
+            Config::RETENTION_GC_HOOK,
+            'daily',
+            static function () use ($container): void {
+                $container->make(LogService::class)->deleteOlder();
+            }
         );
     }
 }

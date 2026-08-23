@@ -26,10 +26,6 @@ class LogService
     public function __construct()
     {
         self::initializeLoggingContinuity();
-
-        if (\defined('DOING_CRON') && DOING_CRON) {
-            $this->maybeDeleteOlder();
-        }
     }
 
     public function all($skip = 0, $take = 20, $filters = [])
@@ -307,6 +303,13 @@ class LogService
 
     public function maybeDeleteOlder()
     {
+        // The bit_smtp_retention_gc cron job (CoreServiceProvider) owns retention cleanup; this
+        // opportunistic throttle-based path is only a bounded fallback for sites where WP-Cron
+        // isn't scheduled to run it (e.g. WP_CRON disabled/broken).
+        if (wp_next_scheduled(Config::RETENTION_GC_HOOK)) {
+            return;
+        }
+
         $currentTime  = time();
         $logDeletedAt = Config::getOption('log_deleted_at', ($currentTime - (DAY_IN_SECONDS * 30)));
         if ((abs($logDeletedAt - $currentTime) / DAY_IN_SECONDS) > 30) {
@@ -437,10 +440,8 @@ class LogService
             return false;
         }
 
-        /**
-         * This is fallback to delete older log. as we only invoke deleteOlder in cron,
-         * site may not have working cron.
-         */
+        // See maybeDeleteOlder(): no-op when the retention cron is scheduled, bounded fallback
+        // otherwise.
         $this->maybeDeleteOlder();
 
         $records = [];

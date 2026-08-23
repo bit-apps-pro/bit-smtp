@@ -22,5 +22,10 @@ final class WpStubs
         Functions\when('__')->returnArg(1);
         Functions\when('sanitize_text_field')->returnArg(1);
         Functions\when('sanitize_email')->returnArg(1);
+
+        // Cron API: CoreServiceProvider::boot() wires the retention job through Scheduler::boot()
+        // on every Application boot, so any test that boots the container touches these.
+        Functions\when('wp_next_scheduled')->justReturn(false);
+        Functions\when('wp_schedule_event')->justReturn(true);
     }
 }

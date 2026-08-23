@@ -54,7 +54,10 @@ class InstallerProvider
 
     public function deactivate($networkWide)
     {
-        // TODO: things to when plugin is deactivate
+        // Clear by explicit hook name: a deactivation request may not have booted the service
+        // providers that call Scheduler::job() this request, so a Scheduler instance's own
+        // bookkeeping can't be relied on here -- WordPress's cron API is the only sure handle.
+        wp_clear_scheduled_hook(Config::RETENTION_GC_HOOK);
     }
 
     public function registerActivator($networkWide)
