@@ -1,3 +1,16 @@
+/* Centered reading column; caps at 720px on wide screens, goes full-width below it.
+   Keep this width in sync with CONTENT_MAX_WIDTH in SettingsPage.tsx (save bar). */
+.panel {
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.intro {
+  max-width: 58ch;
+  line-height: 1.55;
+}
+
 .panel :global(.ant-form-item-label) > :global(label) {
   font-size: 14px;
   font-weight: 500;
@@ -5,4 +18,10 @@
 
 .panel :global(.ant-form-item) {
   margin-bottom: 0;
+}
+
+.panel :global(.ant-form-item-extra) {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
 }

@@ -4,6 +4,7 @@ import notify from '@components/Toaster/Toaster'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type MailSettings } from '@pages/Connections/types'
+import StatusStrip from '@pages/Settings/components/StatusStrip'
 import TabLabel, { StatusDot } from '@pages/Settings/components/TabLabel'
 import usePreferences, { useSavePreferences } from '@pages/Settings/data/usePreferences'
 import GeneralLogging from '@pages/Settings/sections/GeneralLogging'
@@ -21,6 +22,10 @@ import { Button, Flex, Form, Spin, Tabs, Typography, theme } from 'antd'
 import { Activity, Bell, Gauge, Lock, ScrollText } from 'lucide-react'
 
 const { Title, Text } = Typography
+
+// Reading-column width shared by the tab panels and the save bar; keep in sync with
+// SettingsPanel.module.css `.panel` max-width so the bar aligns under the content column.
+const CONTENT_MAX_WIDTH = 720
 
 /** A single store's save outcome, normalized from either mutation's echoed response. */
 interface SaveOutcome {
@@ -71,8 +76,15 @@ export default function SettingsPage() {
 
   const loggingEnabled = Form.useWatch('logging_enabled', prefsForm) ?? true
   const retryEnabled = Form.useWatch('retry_enabled', prefsForm) ?? false
-  const healthCheckEnabled = Form.useWatch('health_check_enabled', prefsForm) ?? false
-  const alertsEnabled = Form.useWatch('enabled', alertsForm) ?? false
+  // Raw watches (undefined until the owning tab pane first mounts) drive both the tab dots — via the
+  // legacy `?? false` collapse, whose pre-visit behavior must stay unchanged — and the status strip,
+  // which instead falls back to the saved value below so the readout is correct before any visit.
+  const rawHealthEnabled = Form.useWatch('health_check_enabled', prefsForm)
+  const healthCheckEnabled = rawHealthEnabled ?? false
+  const rawAlertsEnabled = Form.useWatch('enabled', alertsForm)
+  const alertsEnabled = rawAlertsEnabled ?? false
+  const watchedRetention = Form.useWatch('log_retention_days', prefsForm)
+  const watchedTimeout = Form.useWatch('send_timeout_seconds', prefsForm)
 
   // `preserve: true` reads all store values, not just fields whose Form.Item has mounted — tab
   // panes other than the active one are rendered lazily (antd Tabs default), so most fields aren't
@@ -100,6 +112,12 @@ export default function SettingsPage() {
   }
 
   const prefsInitialValues = toPreferencesFormValues(preferences)
+  // Status-strip readouts: prefer the live edited value, fall back to the loaded/saved value (so a
+  // never-visited tab still reads correctly). `preferences`/`settings` are defined past the guard.
+  const retentionDays = watchedRetention ?? preferences.log_retention_days
+  const timeoutSeconds = watchedTimeout ?? preferences.send_timeout_seconds
+  const healthEnabled = rawHealthEnabled ?? preferences.health_check_enabled
+  const notificationsEnabled = rawAlertsEnabled ?? toAlertsFormValues(settings).enabled
 
   /** Build a save payload for the mail-settings store from the alerts channels form. */
   const buildAlertsPayload = (): Partial<MailSettings> => ({
@@ -198,12 +216,20 @@ export default function SettingsPage() {
           </Flex>
         </Flex>
 
+        <div style={{ marginBottom: token.marginLG }}>
+          <StatusStrip
+            loggingEnabled={loggingEnabled}
+            retentionDays={retentionDays}
+            timeoutSeconds={timeoutSeconds}
+            notificationsEnabled={notificationsEnabled}
+            healthEnabled={healthEnabled}
+          />
+        </div>
+
         <Tabs type="line" items={items} />
       </Flex>
 
-      <Flex
-        justify="space-between"
-        align="center"
+      <div
         style={{
           position: 'sticky',
           bottom: 0,
@@ -215,16 +241,30 @@ export default function SettingsPage() {
           zIndex: 10
         }}
       >
-        <Flex align="center" gap={8}>
-          {isDirty && <StatusDot active />}
-          <Text type="secondary">
-            {isDirty ? __('You have unsaved changes') : __('All changes saved')}
-          </Text>
+        <Flex
+          justify="space-between"
+          align="center"
+          gap="middle"
+          style={{ maxWidth: CONTENT_MAX_WIDTH, marginInline: 'auto' }}
+        >
+          <Flex align="center" gap={8}>
+            {/* Amber (not success) dot: unsaved changes are an attention state, not a healthy one. */}
+            {isDirty && <StatusDot active activeColor={token.colorWarning} />}
+            <Text type={isDirty ? undefined : 'secondary'}>
+              {isDirty ? __('You have unsaved changes') : __('All changes saved')}
+            </Text>
+          </Flex>
+          <Button
+            type="primary"
+            size="large"
+            loading={isSaving}
+            disabled={!isDirty}
+            onClick={handleSave}
+          >
+            {__('Save changes')}
+          </Button>
         </Flex>
-        <Button type="primary" size="large" loading={isSaving} disabled={!isDirty} onClick={handleSave}>
-          {__('Save changes')}
-        </Button>
-      </Flex>
+      </div>
     </Form>
   )
 }

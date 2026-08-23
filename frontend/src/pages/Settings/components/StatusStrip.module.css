@@ -1,0 +1,44 @@
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border: 1px solid var(--chip-border);
+  border-radius: 999px;
+  background: var(--chip-bg);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--chip-label);
+}
+
+.value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--chip-value);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chips animate as their underlying setting flips; disabled for reduced-motion users. */
+@media (prefers-reduced-motion: no-preference) {
+  .chip {
+    transition: background-color 160ms ease, border-color 160ms ease;
+  }
+
+  .value {
+    transition: color 160ms ease;
+  }
+}

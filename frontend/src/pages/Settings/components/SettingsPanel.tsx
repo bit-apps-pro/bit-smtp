@@ -14,8 +14,8 @@ export default function SettingsPanel({ intro, children }: SettingsPanelProps) {
   const { token } = theme.useToken()
 
   return (
-    <Flex vertical className={cls.panel} style={{ maxWidth: 640, paddingBlock: token.paddingLG }}>
-      <Text type="secondary" style={{ marginBottom: token.marginLG }}>
+    <Flex vertical className={cls.panel} style={{ paddingBlock: token.paddingLG }}>
+      <Text type="secondary" className={cls.intro} style={{ marginBottom: token.marginLG }}>
         {intro}
       </Text>
       <Flex vertical>{children}</Flex>

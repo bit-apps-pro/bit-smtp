@@ -3,10 +3,12 @@ import { type LucideIcon } from 'lucide-react'
 
 interface StatusDotProps {
   active: boolean
+  // Override the "on" color (e.g. a warning tone); defaults to success. Off is always muted.
+  activeColor?: string
 }
 
 /** 6px status dot: success color when the feature it labels is on, quaternary muted when off. */
-export function StatusDot({ active }: StatusDotProps) {
+export function StatusDot({ active, activeColor }: StatusDotProps) {
   const { token } = theme.useToken()
 
   return (
@@ -17,7 +19,7 @@ export function StatusDot({ active }: StatusDotProps) {
         height: 6,
         borderRadius: '50%',
         display: 'inline-block',
-        backgroundColor: active ? token.colorSuccess : token.colorTextQuaternary
+        backgroundColor: active ? activeColor ?? token.colorSuccess : token.colorTextQuaternary
       }}
     />
   )

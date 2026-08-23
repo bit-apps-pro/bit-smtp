@@ -9,7 +9,7 @@ import usePreferences, {
 } from '@pages/Settings/data/usePreferences'
 import useTestNotification from '@pages/Settings/data/useTestNotification'
 import { type Preferences } from '@pages/Settings/types'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsPage from './SettingsPage'
@@ -102,6 +102,33 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('tab', { name: /^health/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /privacy & data/i })).toBeInTheDocument()
+  })
+
+  it('summarizes preferences in the status strip from loaded state', () => {
+    renderWithProviders(<SettingsPage />)
+
+    const strip = screen.getByRole('group', { name: /settings status/i })
+    expect(within(strip).getByText('Logging')).toBeInTheDocument()
+    expect(within(strip).getByText('Retention')).toBeInTheDocument()
+    expect(within(strip).getByText('Timeout')).toBeInTheDocument()
+    expect(within(strip).getByText('Notifications')).toBeInTheDocument()
+    expect(within(strip).getByText('Health')).toBeInTheDocument()
+    expect(within(strip).getByText('30d')).toBeInTheDocument()
+    expect(within(strip).getByText('30s')).toBeInTheDocument()
+    // Logging + notifications are on in the fixture, health is off — and notifications reads on from
+    // saved settings without visiting its (lazily-mounted) tab, proving the loaded-value fallback.
+    expect(within(strip).getAllByText('On')).toHaveLength(2)
+    expect(within(strip).getByText('Off')).toBeInTheDocument()
+  })
+
+  it('reflects a live edit in the status strip', async () => {
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.clear(screen.getByLabelText('Log retention (days)'))
+    await userEvent.type(screen.getByLabelText('Log retention (days)'), '60')
+
+    const strip = screen.getByRole('group', { name: /settings status/i })
+    expect(within(strip).getByText('60d')).toBeInTheDocument()
   })
 
   it('shows the failure-alert channel fields on the Notifications tab', async () => {
