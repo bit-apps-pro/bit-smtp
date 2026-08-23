@@ -4,21 +4,12 @@ import usePrefersReducedMotion from '@pages/Analytics/hooks/usePrefersReducedMot
 import { volumeSeriesColors } from '@pages/Analytics/palette'
 import { type SeriesBucket } from '@pages/Analytics/types'
 import { Typography, theme } from 'antd'
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ReferenceDot,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from 'recharts'
+import { Legend, Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip } from 'recharts'
 import ChartCard from './ChartCard'
 import ChartLegend from './ChartLegend'
 import ChartTooltip from './ChartTooltip'
 import DataTable from './DataTable'
+import { CHART_MARGIN, ChartGrid, ChartXAxis, ChartYAxis } from './chartConfig'
 
 interface SeriesDef {
   key: 'total' | 'accepted' | 'delivered' | 'failed'
@@ -60,22 +51,10 @@ export default function VolumeChart({ series }: { series: Array<SeriesBucket> })
   return (
     <ChartCard title={__('Volume over time')} tableView={tableView}>
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={series} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid vertical={false} stroke={token.colorBorderSecondary} />
-          <XAxis
-            dataKey="label"
-            tickLine={false}
-            axisLine={{ stroke: token.colorBorder }}
-            tick={{ fontSize: 11, fill: token.colorTextTertiary }}
-            interval={tickInterval}
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tick={{ fontSize: 11, fill: token.colorTextTertiary }}
-            width={40}
-            allowDecimals={false}
-          />
+        <LineChart data={series} margin={CHART_MARGIN}>
+          <ChartGrid />
+          <ChartXAxis dataKey="label" interval={tickInterval} />
+          <ChartYAxis width={40} />
           <Tooltip content={<ChartTooltip />} cursor={{ stroke: token.colorBorder, strokeWidth: 1 }} />
           <Legend content={<ChartLegend />} />
           {seriesDefs.map(def => (

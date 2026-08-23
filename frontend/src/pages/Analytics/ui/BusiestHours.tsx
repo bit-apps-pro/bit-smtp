@@ -4,10 +4,11 @@ import usePrefersReducedMotion from '@pages/Analytics/hooks/usePrefersReducedMot
 import { rankingHue } from '@pages/Analytics/palette'
 import { type BusyTimeSlot } from '@pages/Analytics/types'
 import { Typography, theme } from 'antd'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, ResponsiveContainer, Tooltip } from 'recharts'
 import ChartCard from './ChartCard'
 import ChartTooltip from './ChartTooltip'
 import DataTable from './DataTable'
+import { CHART_MARGIN, ChartGrid, ChartXAxis, ChartYAxis } from './chartConfig'
 
 /** One accent hue, uniform fill - a single-series magnitude-by-hour chart needs no per-bar identity color. */
 export default function BusiestHours({ hours }: { hours: Array<BusyTimeSlot> }) {
@@ -41,21 +42,10 @@ export default function BusiestHours({ hours }: { hours: Array<BusyTimeSlot> }) 
   return (
     <ChartCard title={__('Busiest hours')} subtitle={__('Local site time.')} tableView={tableView}>
       <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={chronological} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid vertical={false} stroke={token.colorBorderSecondary} />
-          <XAxis
-            dataKey="label"
-            tickLine={false}
-            axisLine={{ stroke: token.colorBorder }}
-            tick={{ fontSize: 11, fill: token.colorTextTertiary }}
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tick={{ fontSize: 11, fill: token.colorTextTertiary }}
-            width={36}
-            allowDecimals={false}
-          />
+        <BarChart data={chronological} margin={CHART_MARGIN}>
+          <ChartGrid />
+          <ChartXAxis dataKey="label" />
+          <ChartYAxis width={36} />
           <Tooltip content={<ChartTooltip />} cursor={{ fill: token.colorFillTertiary }} />
           <Bar
             dataKey="total"

@@ -140,6 +140,19 @@ describe('AnalyticsPage', () => {
     expect(screen.queryByText('Total sent')).not.toBeInTheDocument()
   })
 
+  it('renders the no-data empty state, not the charts, when the range has zero sends', () => {
+    ;(useOverview as Mock).mockReturnValue(readyResult({ ...overviewFixture, total: 0 }))
+
+    renderWithProviders(<AnalyticsPage />)
+
+    expect(screen.getByText('No sends in this range. Try widening the date range.')).toBeInTheDocument()
+    expect(screen.queryByText('Volume over time')).not.toBeInTheDocument()
+    expect(screen.queryByText('Delivery breakdown')).not.toBeInTheDocument()
+    expect(screen.queryByText('Anomalies')).not.toBeInTheDocument()
+    // Stat tiles (all zero) still render above the empty state - they read the total directly.
+    expect(screen.getByText('Total sent')).toBeInTheDocument()
+  })
+
   it('requests a new bucket - and therefore a new query key - when the filter changes', async () => {
     const user = userEvent.setup()
     renderWithProviders(<AnalyticsPage />)
