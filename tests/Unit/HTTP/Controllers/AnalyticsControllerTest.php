@@ -12,6 +12,7 @@ use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
+use WP_Error;
 
 /**
  * MailAnalyticsService is `final`, so Mockery cannot subclass it for a strictly-typed constructor
@@ -89,6 +90,70 @@ final class AnalyticsControllerTest extends BaseUnitTestCase
         $this->assertSame(Response::ERROR, Response::getStatus());
         $this->assertSame('bit_smtp_invalid_analytics_range', Response::getCode());
         $this->assertSame(422, Response::getHttpStatusCode());
+    }
+
+    public function testDeliverabilityReturnsTheServiceResultOnValidInput(): void
+    {
+        $this->stubLoggingEnabled(true);
+
+        $request           = new Request();
+        $request['start']  = '2026-03-01T00:00:00+00:00';
+        $request['end']    = '2026-03-04T00:00:00+00:00';
+        $request['bucket'] = 'day';
+
+        $controller = new AnalyticsController($this->service($this->repository()));
+
+        $controller->deliverability($request);
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+        $data = (array) Response::getData();
+        $this->assertSame(2, $data['acceptance']['accepted']);
+        $this->assertSame(1, $data['delivery']['delivered']);
+        $this->assertSame([], $data['sources']);
+        $this->assertSame([], $data['connections']);
+    }
+
+    public function testAnomaliesReturnsTheServiceResultOnValidInput(): void
+    {
+        $this->stubLoggingEnabled(true);
+
+        $request           = new Request();
+        $request['start']  = '2026-03-01T00:00:00+00:00';
+        $request['end']    = '2026-03-04T00:00:00+00:00';
+        $request['bucket'] = 'day';
+
+        $controller = new AnalyticsController($this->service($this->repository()));
+
+        $controller->anomalies($request);
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+        $data = (array) Response::getData();
+        $this->assertSame(3, $data['current']['total']);
+        $this->assertSame(3, $data['prior']['total']);
+        $this->assertArrayHasKey('observations', $data);
+    }
+
+    public function testOverviewReturns500WhenTheServiceReturnsANonLoggingDisabledError(): void
+    {
+        $this->stubLoggingEnabled(true);
+
+        // A repository failure (e.g. the aggregate query itself erroring) is the "anything else"
+        // case the controller docblock maps to 500, as opposed to the logging-disabled short circuit.
+        $repository = Mockery::mock(MailAnalyticsRepository::class);
+        $repository->shouldReceive('summary')->andReturn(
+            new WP_Error('bit_smtp_analytics_database_error', 'The retained-log aggregate query failed.')
+        );
+        $repository->shouldReceive('timeSeries')->andReturn([]);
+        $repository->shouldReceive('groups')->andReturn([]);
+        $repository->shouldReceive('retainedRecordBounds')->andReturn(['earliest' => null, 'latest' => null]);
+
+        $controller = new AnalyticsController($this->service($repository));
+
+        $controller->overview(new Request());
+
+        $this->assertSame(Response::ERROR, Response::getStatus());
+        $this->assertSame('bit_smtp_analytics_database_error', Response::getCode());
+        $this->assertSame(500, Response::getHttpStatusCode());
     }
 
     /**
