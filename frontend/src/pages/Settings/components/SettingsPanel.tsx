@@ -4,6 +4,10 @@ import cls from './SettingsPanel.module.css'
 
 const { Text } = Typography
 
+// Reading-column cap (px), shared with SettingsPage's sticky save bar so it aligns under this
+// column; SettingsPage imports this constant rather than duplicating the number.
+export const CONTENT_MAX_WIDTH = 720
+
 interface SettingsPanelProps {
   intro: string
   children: ReactNode
@@ -14,7 +18,11 @@ export default function SettingsPanel({ intro, children }: SettingsPanelProps) {
   const { token } = theme.useToken()
 
   return (
-    <Flex vertical className={cls.panel} style={{ paddingBlock: token.paddingLG }}>
+    <Flex
+      vertical
+      className={cls.panel}
+      style={{ paddingBlock: token.paddingLG, maxWidth: CONTENT_MAX_WIDTH }}
+    >
       <Text type="secondary" className={cls.intro} style={{ marginBottom: token.marginLG }}>
         {intro}
       </Text>

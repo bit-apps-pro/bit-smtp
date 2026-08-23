@@ -4,6 +4,7 @@ import notify from '@components/Toaster/Toaster'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type MailSettings } from '@pages/Connections/types'
+import { CONTENT_MAX_WIDTH } from '@pages/Settings/components/SettingsPanel'
 import StatusStrip from '@pages/Settings/components/StatusStrip'
 import TabLabel, { StatusDot } from '@pages/Settings/components/TabLabel'
 import usePreferences, { useSavePreferences } from '@pages/Settings/data/usePreferences'
@@ -22,10 +23,6 @@ import { Button, Flex, Form, Spin, Tabs, Typography, theme } from 'antd'
 import { Activity, Bell, Gauge, Lock, ScrollText } from 'lucide-react'
 
 const { Title, Text } = Typography
-
-// Reading-column width shared by the tab panels and the save bar; keep in sync with
-// SettingsPanel.module.css `.panel` max-width so the bar aligns under the content column.
-const CONTENT_MAX_WIDTH = 720
 
 /** A single store's save outcome, normalized from either mutation's echoed response. */
 interface SaveOutcome {
@@ -91,13 +88,6 @@ export default function SettingsPage() {
   // registered until their tab is first visited.
   const watchedPrefs = Form.useWatch([], { form: prefsForm, preserve: true })
   const watchedAlerts = Form.useWatch([], { form: alertsForm, preserve: true })
-  const prefsDirty = Boolean(
-    preferences && watchedPrefs && !valuesEqual(watchedPrefs, toPreferencesFormValues(preferences))
-  )
-  const alertsDirty = Boolean(
-    settings && watchedAlerts && !valuesEqual(watchedAlerts, toAlertsFormValues(settings))
-  )
-  const isDirty = prefsDirty || alertsDirty
 
   if (preferencesPending || settingsPending) {
     return (
@@ -111,13 +101,20 @@ export default function SettingsPage() {
     return null
   }
 
+  // Single per-store snapshot of the loaded values, reused for both the dirty check (compared
+  // against the live watch) and, below, the status-strip fallback / Form initialValues.
   const prefsInitialValues = toPreferencesFormValues(preferences)
+  const alertsInitialValues = toAlertsFormValues(settings)
+  const prefsDirty = Boolean(watchedPrefs && !valuesEqual(watchedPrefs, prefsInitialValues))
+  const alertsDirty = Boolean(watchedAlerts && !valuesEqual(watchedAlerts, alertsInitialValues))
+  const isDirty = prefsDirty || alertsDirty
+
   // Status-strip readouts: prefer the live edited value, fall back to the loaded/saved value (so a
-  // never-visited tab still reads correctly). `preferences`/`settings` are defined past the guard.
+  // never-visited tab still reads correctly).
   const retentionDays = watchedRetention ?? preferences.log_retention_days
   const timeoutSeconds = watchedTimeout ?? preferences.send_timeout_seconds
   const healthEnabled = rawHealthEnabled ?? preferences.health_check_enabled
-  const notificationsEnabled = rawAlertsEnabled ?? toAlertsFormValues(settings).enabled
+  const notificationsEnabled = rawAlertsEnabled ?? alertsInitialValues.enabled
 
   /** Build a save payload for the mail-settings store from the alerts channels form. */
   const buildAlertsPayload = (): Partial<MailSettings> => ({

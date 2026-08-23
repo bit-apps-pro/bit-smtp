@@ -1,8 +1,7 @@
-/* Centered reading column; caps at 720px on wide screens, goes full-width below it.
-   Keep this width in sync with CONTENT_MAX_WIDTH in SettingsPage.tsx (save bar). */
+/* Centered reading column; max-width is set inline from CONTENT_MAX_WIDTH (SettingsPanel.tsx),
+   the single source of truth also imported by SettingsPage's save bar. */
 .panel {
   width: 100%;
-  max-width: 720px;
   margin-inline: auto;
 }
 

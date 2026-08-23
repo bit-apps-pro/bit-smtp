@@ -131,6 +131,38 @@ describe('SettingsPage', () => {
     expect(within(strip).getByText('60d')).toBeInTheDocument()
   })
 
+  it("reads a never-visited tab's saved on-state instead of defaulting to off", () => {
+    // Regression for the dirty-tracking fix: the Health tab's own field-level fallback (`?? false`)
+    // only governs the tab dot's pre-visit appearance. The status strip must instead fall back to
+    // the loaded value, or a true saved flag would misreport as Off here — the Health tab is never
+    // opened in this test, so health_check_enabled only reaches the strip via that loaded-value path.
+    ;(usePreferences as Mock).mockReturnValue({
+      data: { ...preferences, health_check_enabled: true },
+      isPending: false
+    })
+
+    renderWithProviders(<SettingsPage />)
+
+    const strip = screen.getByRole('group', { name: /settings status/i })
+    expect(within(strip).getAllByText('On')).toHaveLength(3) // logging, notifications, health
+    expect(within(strip).queryByText('Off')).not.toBeInTheDocument()
+    // Merely loading a true saved flag must not itself mark the form dirty.
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  it('enables the Save changes button once a field is edited', async () => {
+    renderWithProviders(<SettingsPage />)
+
+    const saveButton = screen.getByRole('button', { name: /save changes/i })
+    expect(saveButton).toBeDisabled()
+
+    await userEvent.clear(screen.getByLabelText('Log retention (days)'))
+    await userEvent.type(screen.getByLabelText('Log retention (days)'), '60')
+
+    expect(saveButton).toBeEnabled()
+    expect(screen.getByText('You have unsaved changes')).toBeInTheDocument()
+  })
+
   it('shows the failure-alert channel fields on the Notifications tab', async () => {
     renderWithProviders(<SettingsPage />)
 
