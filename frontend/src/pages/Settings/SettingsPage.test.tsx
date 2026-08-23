@@ -150,6 +150,50 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
   })
 
+  it('marks the Health and Notifications tab dots active from saved state, not just the strip, without visiting either tab', () => {
+    // Regression: the tab dots used to collapse the raw (pre-mount) watch with `?? false` instead of
+    // falling back to the saved value like the strip does, so a saved-on feature whose tab was never
+    // opened rendered a gray dot while the strip correctly showed On — a visible contradiction.
+    ;(usePreferences as Mock).mockReturnValue({
+      data: { ...preferences, health_check_enabled: true },
+      isPending: false
+    })
+
+    renderWithProviders(<SettingsPage />)
+
+    const dotColor = (tabName: RegExp) => {
+      const dots = screen.getByRole('tab', { name: tabName }).querySelectorAll('[aria-hidden="true"]')
+      return (dots[dots.length - 1] as HTMLElement).style.backgroundColor
+    }
+
+    // Logging (saved on) and Reliability (retry_enabled: false, saved off) are known-good references,
+    // since their tab dots already collapsed the raw watch correctly before this fix.
+    const onColor = dotColor(/general & logging/i)
+    const offColor = dotColor(/^reliability/i)
+    expect(onColor).not.toBe(offColor)
+
+    // Health (forced saved-on above) and Notifications (saved on via the settings fixture) must read
+    // as active even though neither tab was ever mounted.
+    expect(dotColor(/^health/i)).toBe(onColor)
+    expect(dotColor(/notifications/i)).toBe(onColor)
+  })
+
+  it('shows the Logging strip chip as Off when logging is saved disabled, instead of the true-biased default', () => {
+    // Regression: the Logging chip's live value used to fall back to `?? true`, so a saved-disabled
+    // logging state flashed On on first paint, before the field was ever touched.
+    ;(usePreferences as Mock).mockReturnValue({
+      data: { ...preferences, logging_enabled: false },
+      isPending: false
+    })
+
+    renderWithProviders(<SettingsPage />)
+
+    const strip = screen.getByRole('group', { name: /settings status/i })
+    const loggingChip = within(strip).getByText('Logging').parentElement as HTMLElement
+    expect(within(loggingChip).getByText('Off')).toBeInTheDocument()
+    expect(within(loggingChip).queryByText('On')).not.toBeInTheDocument()
+  })
+
   it('enables the Save changes button once a field is edited', async () => {
     renderWithProviders(<SettingsPage />)
 

@@ -71,15 +71,14 @@ export default function SettingsPage() {
     }
   }, [alertsForm, settings])
 
-  const loggingEnabled = Form.useWatch('logging_enabled', prefsForm) ?? true
-  const retryEnabled = Form.useWatch('retry_enabled', prefsForm) ?? false
-  // Raw watches (undefined until the owning tab pane first mounts) drive both the tab dots — via the
-  // legacy `?? false` collapse, whose pre-visit behavior must stay unchanged — and the status strip,
-  // which instead falls back to the saved value below so the readout is correct before any visit.
+  // Raw watches (undefined until the owning tab pane first mounts, since antd Tabs mounts panes
+  // lazily) drive both the tab dots and the status strip. Both collapse the same way, below (after
+  // the loaded-preferences null check): fall back to the saved value so a saved-ON feature reads
+  // correctly before its tab is ever visited, instead of misreporting as off.
+  const rawLoggingEnabled = Form.useWatch('logging_enabled', prefsForm)
+  const rawRetryEnabled = Form.useWatch('retry_enabled', prefsForm)
   const rawHealthEnabled = Form.useWatch('health_check_enabled', prefsForm)
-  const healthCheckEnabled = rawHealthEnabled ?? false
   const rawAlertsEnabled = Form.useWatch('enabled', alertsForm)
-  const alertsEnabled = rawAlertsEnabled ?? false
   const watchedRetention = Form.useWatch('log_retention_days', prefsForm)
   const watchedTimeout = Form.useWatch('send_timeout_seconds', prefsForm)
 
@@ -109,10 +108,12 @@ export default function SettingsPage() {
   const alertsDirty = Boolean(watchedAlerts && !valuesEqual(watchedAlerts, alertsInitialValues))
   const isDirty = prefsDirty || alertsDirty
 
-  // Status-strip readouts: prefer the live edited value, fall back to the loaded/saved value (so a
-  // never-visited tab still reads correctly).
+  // Shared by the status strip and the tab dots: prefer the live edited value, fall back to the
+  // loaded/saved value (so a never-visited tab still reads correctly).
   const retentionDays = watchedRetention ?? preferences.log_retention_days
   const timeoutSeconds = watchedTimeout ?? preferences.send_timeout_seconds
+  const loggingEnabled = rawLoggingEnabled ?? preferences.logging_enabled
+  const retryEnabled = rawRetryEnabled ?? preferences.retry_enabled
   const healthEnabled = rawHealthEnabled ?? preferences.health_check_enabled
   const notificationsEnabled = rawAlertsEnabled ?? alertsInitialValues.enabled
 
@@ -172,12 +173,12 @@ export default function SettingsPage() {
     },
     {
       key: 'health',
-      label: <TabLabel icon={Activity} label={__('Health')} dotActive={healthCheckEnabled} />,
+      label: <TabLabel icon={Activity} label={__('Health')} dotActive={healthEnabled} />,
       children: <Health form={prefsForm} />
     },
     {
       key: 'notifications',
-      label: <TabLabel icon={Bell} label={__('Notifications')} dotActive={alertsEnabled} />,
+      label: <TabLabel icon={Bell} label={__('Notifications')} dotActive={notificationsEnabled} />,
       children: (
         <NotificationsChannels
           alertsForm={alertsForm}
