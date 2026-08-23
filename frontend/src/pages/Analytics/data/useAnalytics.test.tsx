@@ -97,6 +97,13 @@ describe('useOverview', () => {
   })
 })
 
+describe('useDeliverability', () => {
+  it('is no longer exported - Top sources/connections read overview.top_sources/top_connections instead', async () => {
+    const module: Record<string, unknown> = await import('./useAnalytics')
+    expect('useDeliverability' in module).toBe(false)
+  })
+})
+
 describe('analyticsQueryState', () => {
   it('maps loading/error/logging-disabled/ready in that precedence', () => {
     expect(analyticsQueryState({ isPending: true, isError: false } as never)).toEqual({

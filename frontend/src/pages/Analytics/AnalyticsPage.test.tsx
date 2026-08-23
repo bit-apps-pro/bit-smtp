@@ -1,6 +1,6 @@
 import { renderWithProviders } from '@config/test-utils'
-import { useAnomalies, useDeliverability, useOverview } from '@pages/Analytics/data/useAnalytics'
-import { type Anomalies, type Deliverability, type Overview } from '@pages/Analytics/types'
+import { AnalyticsApiError, useAnomalies, useOverview } from '@pages/Analytics/data/useAnalytics'
+import { type Anomalies, type Overview } from '@pages/Analytics/types'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +13,6 @@ vi.mock('@pages/Analytics/data/useAnalytics', async importOriginal => {
   return {
     ...(actual as object),
     useOverview: vi.fn(),
-    useDeliverability: vi.fn(),
     useAnomalies: vi.fn()
   }
 })
@@ -71,16 +70,6 @@ const overviewFixture: Overview = {
   ]
 }
 
-const deliverabilityFixture: Deliverability = {
-  range: overviewFixture.range,
-  timezone: 'UTC',
-  total: 120,
-  acceptance: overviewFixture.acceptance,
-  delivery: overviewFixture.delivery,
-  sources: overviewFixture.top_sources,
-  connections: overviewFixture.top_connections
-}
-
 const anomaliesFixture: Anomalies = {
   range: overviewFixture.range,
   timezone: 'UTC',
@@ -106,7 +95,6 @@ describe('AnalyticsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ;(useOverview as Mock).mockReturnValue(readyResult(overviewFixture))
-    ;(useDeliverability as Mock).mockReturnValue(readyResult(deliverabilityFixture))
     ;(useAnomalies as Mock).mockReturnValue(readyResult(anomaliesFixture))
   })
 
@@ -123,6 +111,15 @@ describe('AnalyticsPage', () => {
     expect(screen.getByText('Top connections')).toBeInTheDocument()
     expect(screen.getByText('Busiest hours')).toBeInTheDocument()
     expect(screen.getByText('Anomalies')).toBeInTheDocument()
+  })
+
+  it('renders Top sources/Top connections straight from the overview response - no separate deliverability query', () => {
+    renderWithProviders(<AnalyticsPage />)
+
+    // Only overviewFixture.top_sources/top_connections feed these panels; there is no deliverability
+    // fixture in this suite at all, so this content can only have come from the overview response.
+    expect(screen.getByText('wordpress')).toBeInTheDocument()
+    expect(screen.getByText('conn_1')).toBeInTheDocument()
   })
 
   it('renders the "enable logging" empty state, not an error, when code is bit_smtp_logging_disabled', () => {
@@ -162,7 +159,43 @@ describe('AnalyticsPage', () => {
     await user.click(screen.getByText('Day'))
 
     expect((useOverview as Mock).mock.calls.at(-1)?.[0].bucket).toBe('day')
-    expect((useDeliverability as Mock).mock.calls.at(-1)?.[0].bucket).toBe('day')
     expect((useAnomalies as Mock).mock.calls.at(-1)?.[0].bucket).toBe('day')
+  })
+
+  it('renders an inline error with a retry option for the anomalies panel - not an infinite spinner - when its query fails', async () => {
+    const refetch = vi.fn()
+    ;(useAnomalies as Mock).mockReturnValue({
+      isPending: false,
+      isError: true,
+      error: new AnalyticsApiError('bit_smtp_analytics_error', 'Could not compute anomalies.'),
+      data: undefined,
+      refetch
+    })
+
+    const user = userEvent.setup()
+    const { container } = renderWithProviders(<AnalyticsPage />)
+
+    expect(screen.getByText('Could not load analytics')).toBeInTheDocument()
+    expect(screen.getByText('Could not compute anomalies.')).toBeInTheDocument()
+    expect(container.querySelector('.ant-spin')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('still shows the volume/delivery/ranking panels while only the anomalies query is loading', () => {
+    ;(useAnomalies as Mock).mockReturnValue({
+      isPending: true,
+      isError: false,
+      error: null,
+      data: undefined
+    })
+
+    const { container } = renderWithProviders(<AnalyticsPage />)
+
+    expect(screen.getByText('Volume over time')).toBeInTheDocument()
+    expect(screen.getByText('Top sources')).toBeInTheDocument()
+    expect(container.querySelector('.ant-spin')).toBeInTheDocument()
+    expect(screen.queryByText('Could not load analytics')).not.toBeInTheDocument()
   })
 })

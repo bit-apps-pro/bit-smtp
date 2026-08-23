@@ -1,5 +1,10 @@
 import { __ } from '@common/helpers/i18nwrap'
-import { formatExactNumber, formatSignedPercent, formatSignedPoints } from '@pages/Analytics/format'
+import {
+  formatExactNumber,
+  formatPercent,
+  formatSignedPercent,
+  formatSignedPoints
+} from '@pages/Analytics/format'
 import { type StatusKey } from '@pages/Analytics/palette'
 import { type AnomalyObservation } from '@pages/Analytics/types'
 
@@ -19,15 +24,23 @@ export type Direction = 'up' | 'down'
 export interface ObservationDescription {
   label: string
   detail: string
-  direction: Direction
+  /** `null` = no meaningful shift to point an arrow at (e.g. an exact zero-point change). */
+  direction: Direction | null
   /** `null` = informational only, no status color/icon (the shift isn't inherently good or bad). */
   severity: StatusKey | null
 }
 
-/** Failure-rate severity: worse is bad, better is good, and a big jump escalates to critical. */
-function failureRateSeverity(pointChange: number): StatusKey {
-  if (pointChange <= 0) return 'good'
+/** Failure-rate severity: unchanged is informational, worse is bad, better is good, and a big jump escalates to critical. */
+function failureRateSeverity(pointChange: number): StatusKey | null {
+  if (pointChange === 0) return null
+  if (pointChange < 0) return 'good'
   return pointChange >= 10 ? 'critical' : 'warning'
+}
+
+/** Arrow direction for a signed point-change value; `null` when it's exactly zero (nothing to point at). */
+function directionFromPointChange(pointChange: number): Direction | null {
+  if (pointChange === 0) return null
+  return pointChange > 0 ? 'up' : 'down'
 }
 
 /** Translate one backend anomaly observation into label/detail/direction/severity for the card UI. */
@@ -45,10 +58,10 @@ export function describeObservation(observation: AnomalyObservation): Observatio
     case 'failure_rate_change':
       return {
         label: `${__('Failure rate')} ${formatSignedPoints(observation.percentage_point_change)}`,
-        detail: `${observation.current_failure_rate}% ${__('now vs')} ${
+        detail: `${formatPercent(observation.current_failure_rate)} ${__('now vs')} ${formatPercent(
           observation.prior_failure_rate
-        }% ${__('prior')}`,
-        direction: observation.percentage_point_change >= 0 ? 'up' : 'down',
+        )} ${__('prior')}`,
+        direction: directionFromPointChange(observation.percentage_point_change),
         severity: failureRateSeverity(observation.percentage_point_change)
       }
     case 'connection_failure_rate_change':
@@ -56,10 +69,10 @@ export function describeObservation(observation: AnomalyObservation): Observatio
         label: `${observation.connection} ${__('failure rate')} ${formatSignedPoints(
           observation.percentage_point_change
         )}`,
-        detail: `${observation.current_failure_rate}% ${__('now vs')} ${
+        detail: `${formatPercent(observation.current_failure_rate)} ${__('now vs')} ${formatPercent(
           observation.prior_failure_rate
-        }% ${__('prior')}`,
-        direction: observation.percentage_point_change >= 0 ? 'up' : 'down',
+        )} ${__('prior')}`,
+        direction: directionFromPointChange(observation.percentage_point_change),
         severity: failureRateSeverity(observation.percentage_point_change)
       }
     case 'newly_active_source':
@@ -85,9 +98,9 @@ export function describeObservation(observation: AnomalyObservation): Observatio
         label: `${String(observation.hour).padStart(2, '0')}:00 ${__('share')} ${formatSignedPoints(
           observation.percentage_point_change
         )}`,
-        detail: `${observation.current_percentage}% ${__('now vs')} ${
+        detail: `${formatPercent(observation.current_percentage)} ${__('now vs')} ${formatPercent(
           observation.prior_percentage
-        }% ${__('prior')}`,
+        )} ${__('prior')}`,
         direction: observation.percentage_point_change >= 0 ? 'up' : 'down',
         severity: null
       }
@@ -96,9 +109,9 @@ export function describeObservation(observation: AnomalyObservation): Observatio
         label: `${WEEKDAY_LABELS[observation.weekday - 1] ?? observation.weekday} ${__(
           'share'
         )} ${formatSignedPoints(observation.percentage_point_change)}`,
-        detail: `${observation.current_percentage}% ${__('now vs')} ${
+        detail: `${formatPercent(observation.current_percentage)} ${__('now vs')} ${formatPercent(
           observation.prior_percentage
-        }% ${__('prior')}`,
+        )} ${__('prior')}`,
         direction: observation.percentage_point_change >= 0 ? 'up' : 'down',
         severity: null
       }

@@ -5,10 +5,9 @@ import {
   type AnalyticsQueryState,
   analyticsQueryState,
   useAnomalies,
-  useDeliverability,
   useOverview
 } from '@pages/Analytics/data/useAnalytics'
-import { type AnalyticsRangeParams, type Anomalies, type Deliverability } from '@pages/Analytics/types'
+import { type AnalyticsRangeParams, type Anomalies } from '@pages/Analytics/types'
 import AnomaliesList from '@pages/Analytics/ui/AnomaliesList'
 import BusiestHours from '@pages/Analytics/ui/BusiestHours'
 import ChartCard from '@pages/Analytics/ui/ChartCard'
@@ -37,7 +36,7 @@ function toParams(range: [Dayjs, Dayjs], bucket: BucketChoice): AnalyticsRangePa
   }
 }
 
-/** A supplementary panel's placeholder while its own query is loading or failing, independent of overview's gate. */
+/** A supplementary panel's placeholder while its own query is still loading, independent of overview's gate. */
 function PendingPanel({ title }: { title: string }) {
   return (
     <ChartCard title={title} tableView={<Spin size="small" />}>
@@ -48,30 +47,28 @@ function PendingPanel({ title }: { title: string }) {
   )
 }
 
-function SourcesPanel({ state }: { state: AnalyticsQueryState<Deliverability> }) {
-  if (state.status !== 'ready') return <PendingPanel title={__('Top sources')} />
-  return (
-    <TopList
-      title={__('Top sources')}
-      emptyLabel={__('No source activity in this range.')}
-      groups={state.data.sources}
-    />
-  )
-}
-
-function ConnectionsPanel({ state }: { state: AnalyticsQueryState<Deliverability> }) {
-  if (state.status !== 'ready') return <PendingPanel title={__('Top connections')} />
-  return (
-    <TopList
-      title={__('Top connections')}
-      emptyLabel={__('No connection activity in this range.')}
-      groups={state.data.connections}
-    />
-  )
-}
-
-function AnomaliesPanel({ state }: { state: AnalyticsQueryState<Anomalies> }) {
-  if (state.status !== 'ready') return <PendingPanel title={__('Anomalies')} />
+/** The anomalies query's own loading/error/ready states, distinct from overview's - a failure here must not spin forever. */
+function AnomaliesPanel({
+  state,
+  onRetry
+}: {
+  state: AnalyticsQueryState<Anomalies>
+  onRetry: () => void
+}) {
+  if (state.status === 'loading') return <PendingPanel title={__('Anomalies')} />
+  if (state.status === 'error') {
+    return (
+      <ChartCard
+        title={__('Anomalies')}
+        tableView={<AnalyticsErrorState message={state.message} onRetry={onRetry} />}
+      >
+        <AnalyticsErrorState message={state.message} onRetry={onRetry} />
+      </ChartCard>
+    )
+  }
+  // 'logging-disabled' can't happen here in practice (overview already gates the whole page on it),
+  // but the union must still be handled exhaustively.
+  if (state.status !== 'ready') return null
   return <AnomaliesList anomalies={state.data} />
 }
 
@@ -83,11 +80,9 @@ export default function AnalyticsPage() {
   const params = useMemo(() => toParams(range, bucket), [range, bucket])
 
   const overviewQuery = useOverview(params)
-  const deliverabilityQuery = useDeliverability(params)
   const anomaliesQuery = useAnomalies(params)
 
   const overviewState = analyticsQueryState(overviewQuery)
-  const deliverabilityState = analyticsQueryState(deliverabilityQuery)
   const anomaliesState = analyticsQueryState(anomaliesQuery)
 
   return (
@@ -120,13 +115,26 @@ export default function AnalyticsPage() {
               <DeliveryBreakdown delivery={overviewState.data.delivery} />
 
               <div className={cls.twoCol}>
-                <SourcesPanel state={deliverabilityState} />
-                <ConnectionsPanel state={deliverabilityState} />
+                <TopList
+                  title={__('Top sources')}
+                  emptyLabel={__('No source activity in this range.')}
+                  groups={overviewState.data.top_sources}
+                />
+                <TopList
+                  title={__('Top connections')}
+                  emptyLabel={__('No connection activity in this range.')}
+                  groups={overviewState.data.top_connections}
+                />
               </div>
 
               <BusiestHours hours={overviewState.data.busiest_hours} />
 
-              <AnomaliesPanel state={anomaliesState} />
+              <AnomaliesPanel
+                state={anomaliesState}
+                onRetry={() => {
+                  anomaliesQuery.refetch()
+                }}
+              />
             </>
           )}
         </div>

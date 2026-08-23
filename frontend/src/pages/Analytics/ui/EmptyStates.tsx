@@ -52,8 +52,8 @@ export function NoDataState() {
   )
 }
 
-/** A genuine failure (invalid range, DB error) - inline, not a full-page replacement. */
-export function AnalyticsErrorState({ message }: { message: string }) {
+/** A genuine failure (invalid range, DB error) - inline, not a full-page replacement; `onRetry` adds a retry button. */
+export function AnalyticsErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <Empty
       image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -64,7 +64,9 @@ export function AnalyticsErrorState({ message }: { message: string }) {
         </Flex>
       }
       style={{ padding: '64px 0' }}
-    />
+    >
+      {onRetry ? <Button onClick={onRetry}>{__('Retry')}</Button> : null}
+    </Empty>
   )
 }
 

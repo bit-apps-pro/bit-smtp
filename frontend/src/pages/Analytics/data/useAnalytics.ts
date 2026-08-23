@@ -1,11 +1,6 @@
 import { __ } from '@common/helpers/i18nwrap'
 import request from '@common/helpers/request'
-import {
-  type AnalyticsRangeParams,
-  type Anomalies,
-  type Deliverability,
-  type Overview
-} from '@pages/Analytics/types'
+import { type AnalyticsRangeParams, type Anomalies, type Overview } from '@pages/Analytics/types'
 import { type UseQueryResult, keepPreviousData, useQuery } from '@tanstack/react-query'
 
 /**
@@ -68,11 +63,6 @@ function useAnalyticsQuery<T>(endpoint: string, params: AnalyticsRangeParams) {
 /** Volume/acceptance/delivery summary, time series, and top sources/connections for the filtered range. */
 export function useOverview(params: AnalyticsRangeParams) {
   return useAnalyticsQuery<Overview>('overview', params)
-}
-
-/** Send acceptance and verified delivery outcomes, broken down by source and connection. */
-export function useDeliverability(params: AnalyticsRangeParams) {
-  return useAnalyticsQuery<Deliverability>('deliverability', params)
 }
 
 /** Current-vs-prior-equal-period comparison observations (volume, failure rate, timing shifts). */

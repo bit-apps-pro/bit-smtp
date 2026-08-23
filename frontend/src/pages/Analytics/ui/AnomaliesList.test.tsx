@@ -83,6 +83,28 @@ describe('AnomaliesList', () => {
     expect(screen.getByText('Info')).toBeInTheDocument()
   })
 
+  it('renders a zero-point failure-rate change as informational (Info), never "Improved", and with no direction arrow', () => {
+    const { container } = renderWithProviders(
+      <AnomaliesList
+        anomalies={anomaliesFixture({
+          observations: [
+            {
+              type: 'failure_rate_change',
+              current_failure_rate: 10,
+              prior_failure_rate: 10,
+              percentage_point_change: 0
+            }
+          ]
+        })}
+      />
+    )
+
+    expect(screen.getByText('Info')).toBeInTheDocument()
+    expect(screen.queryByText('Improved')).not.toBeInTheDocument()
+    expect(container.querySelector('.lucide-arrow-up-right')).not.toBeInTheDocument()
+    expect(container.querySelector('.lucide-arrow-down-right')).not.toBeInTheDocument()
+  })
+
   it('table view exposes the same observations as label — detail text, independent of the severity map', async () => {
     const user = userEvent.setup()
     renderWithProviders(

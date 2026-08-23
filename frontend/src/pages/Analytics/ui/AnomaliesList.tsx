@@ -1,6 +1,6 @@
 import { type CSSProperties } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
-import { describeObservation } from '@pages/Analytics/anomalies'
+import { type Direction, describeObservation } from '@pages/Analytics/anomalies'
 import { STATUS, type StatusKey } from '@pages/Analytics/palette'
 import { type Anomalies } from '@pages/Analytics/types'
 import { Flex, Tag, Typography, theme } from 'antd'
@@ -23,6 +23,13 @@ const SEVERITY_LABEL: Record<StatusKey, string> = {
   warning: __('Watch'),
   serious: __('Notable'),
   critical: __('Critical')
+}
+
+/** Arrow icon for a described observation's direction; `null` (no icon) when there's no meaningful shift. */
+function directionIcon(direction: Direction | null): typeof ArrowUpRight | null {
+  if (direction === 'up') return ArrowUpRight
+  if (direction === 'down') return ArrowDownRight
+  return null
 }
 
 type CardVars = CSSProperties & Record<`--card-${string}`, string>
@@ -68,7 +75,7 @@ export default function AnomaliesList({ anomalies }: { anomalies: Anomalies }) {
       <div className={cls.grid} style={cardVars}>
         {anomalies.observations.map((observation, index) => {
           const described = describeObservation(observation)
-          const DirectionIcon = described.direction === 'up' ? ArrowUpRight : ArrowDownRight
+          const DirectionIcon = directionIcon(described.direction)
           const SeverityIcon = described.severity ? SEVERITY_ICON[described.severity] : Info
           const severityColor = described.severity ? STATUS[described.severity] : token.colorTextTertiary
           const severityLabel = described.severity ? SEVERITY_LABEL[described.severity] : __('Info')
@@ -77,7 +84,9 @@ export default function AnomaliesList({ anomalies }: { anomalies: Anomalies }) {
             // eslint-disable-next-line react/no-array-index-key
             <div key={index} className={cls.card}>
               <Flex align="center" gap={8}>
-                <DirectionIcon size={16} color={token.colorTextSecondary} aria-hidden="true" />
+                {DirectionIcon ? (
+                  <DirectionIcon size={16} color={token.colorTextSecondary} aria-hidden="true" />
+                ) : null}
                 <Text strong style={{ fontSize: 13 }}>
                   {described.label}
                 </Text>
