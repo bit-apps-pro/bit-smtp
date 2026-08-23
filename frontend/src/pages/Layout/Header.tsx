@@ -33,6 +33,7 @@ export default function Header() {
     { label: __('Notifications'), path: '/notifications' },
     { label: __('Test'), path: '/test-mail' },
     { label: __('Logs'), path: '/logs' },
+    { label: __('Settings'), path: '/settings' },
     { label: __('Others'), path: '/others' }
   ]
 

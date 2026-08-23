@@ -11,6 +11,7 @@ import MailSendTest from '@pages/MailSendTest/MailSendTest'
 import NotificationsPage from '@pages/Notifications/NotificationsPage'
 import Others from '@pages/Others/Others'
 import RoutingRulesPage from '@pages/Routing/RoutingRulesPage'
+import SettingsPage from '@pages/Settings/SettingsPage'
 import { message, notification } from 'antd'
 
 export default function AppRoutes() {
@@ -32,6 +33,7 @@ export default function AppRoutes() {
             <Route path="/test-mail" element={<MailSendTest />} />
             <Route path="/logs" element={<Logs />} />
             <Route path="/logs/:id" element={<LogDetails />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/others" element={<Others />} />
             <Route path="*" element={<ConnectionsListPage />} />
           </Route>
