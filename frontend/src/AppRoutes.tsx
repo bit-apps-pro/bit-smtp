@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { StyleProvider } from '@ant-design/cssinjs'
 import ThemeProvider from '@config/themes/theme.provider'
+import AnalyticsPage from '@pages/Analytics/AnalyticsPage'
 import ConnectionDetailPage from '@pages/Connections/ConnectionDetailPage'
 import ConnectionsListPage from '@pages/Connections/ConnectionsListPage'
 import NewConnectionPage from '@pages/Connections/NewConnectionPage'
@@ -25,6 +26,7 @@ export default function AppRoutes() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<ConnectionsListPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/connection/new" element={<NewConnectionPage />} />
             <Route path="/connection/:id" element={<ConnectionDetailPage />} />
             <Route path="/routing" element={<RoutingRulesPage />} />

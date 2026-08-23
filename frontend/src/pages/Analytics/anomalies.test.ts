@@ -1,0 +1,90 @@
+import { describe, expect, it } from 'vitest'
+import { describeObservation } from './anomalies'
+
+describe('describeObservation', () => {
+  it('volume_change is informational (no status color) and directional by sign', () => {
+    const up = describeObservation({
+      type: 'volume_change',
+      current: 120,
+      prior: 100,
+      percentage_change: 20
+    })
+    expect(up.direction).toBe('up')
+    expect(up.severity).toBeNull()
+
+    const down = describeObservation({
+      type: 'volume_change',
+      current: 80,
+      prior: 100,
+      percentage_change: -20
+    })
+    expect(down.direction).toBe('down')
+  })
+
+  it('failure_rate_change escalates to critical past a 10-point jump, warning below it, good when it falls', () => {
+    const worse = describeObservation({
+      type: 'failure_rate_change',
+      current_failure_rate: 25,
+      prior_failure_rate: 10,
+      percentage_point_change: 15
+    })
+    expect(worse.severity).toBe('critical')
+    expect(worse.direction).toBe('up')
+
+    const slightlyWorse = describeObservation({
+      type: 'failure_rate_change',
+      current_failure_rate: 12,
+      prior_failure_rate: 10,
+      percentage_point_change: 2
+    })
+    expect(slightlyWorse.severity).toBe('warning')
+
+    const better = describeObservation({
+      type: 'failure_rate_change',
+      current_failure_rate: 5,
+      prior_failure_rate: 10,
+      percentage_point_change: -5
+    })
+    expect(better.severity).toBe('good')
+    expect(better.direction).toBe('down')
+  })
+
+  it('newly_active_source / inactive_source carry the source name and a fixed direction', () => {
+    const arrived = describeObservation({
+      type: 'newly_active_source',
+      source: 'woocommerce',
+      total: 42
+    })
+    expect(arrived.label).toContain('woocommerce')
+    expect(arrived.direction).toBe('up')
+
+    const quiet = describeObservation({ type: 'inactive_source', source: 'wpforms', total: 7 })
+    expect(quiet.label).toContain('wpforms')
+    expect(quiet.direction).toBe('down')
+  })
+
+  it('weekday_distribution_shift resolves the 1-7 weekday number to a name', () => {
+    const monday = describeObservation({
+      type: 'weekday_distribution_shift',
+      weekday: 1,
+      current: 10,
+      prior: 5,
+      current_percentage: 20,
+      prior_percentage: 10,
+      percentage_point_change: 10
+    })
+    expect(monday.label).toContain('Monday')
+  })
+
+  it('connection_failure_rate_change names the connection and applies the same severity rule', () => {
+    const described = describeObservation({
+      type: 'connection_failure_rate_change',
+      connection: 'ses-primary',
+      current_failure_rate: 30,
+      prior_failure_rate: 5,
+      percentage_point_change: 25
+    })
+    expect(described.label).toContain('ses-primary')
+    expect(described.severity).toBe('critical')
+  })
+})

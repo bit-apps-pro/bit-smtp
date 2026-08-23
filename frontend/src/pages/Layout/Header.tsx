@@ -28,6 +28,7 @@ export default function Header() {
   const { token } = useToken()
 
   const navItems = [
+    { label: __('Analytics'), path: '/analytics' },
     { label: __('Configuration'), path: '/' },
     { label: __('Routing'), path: '/routing' },
     { label: __('Test'), path: '/test-mail' },

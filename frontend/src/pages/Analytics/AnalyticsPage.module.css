@@ -1,0 +1,22 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* auto-fit/minmax collapses to one column as the container narrows - no breakpoint needed (and
+   sidesteps a real conflict between this repo's stylelint range-notation rule and its postcss-csso
+   build step, which parses two different, mutually-exclusive media-query syntaxes). */
+.twoCol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

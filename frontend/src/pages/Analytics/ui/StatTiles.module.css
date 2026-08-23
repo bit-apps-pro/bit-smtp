@@ -1,0 +1,41 @@
+/* auto-fit/minmax collapses columns as the container narrows - no breakpoint needed (and sidesteps a
+   real conflict between this repo's stylelint range-notation rule and its postcss-csso build step,
+   which parses two different, mutually-exclusive media-query syntaxes). */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 20px;
+  border: 1px solid var(--tile-border);
+  border-radius: 12px;
+  background: var(--tile-bg);
+}
+
+.valueRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.value {
+  font-variant-numeric: proportional-nums;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+/* The one hero figure a dashboard leads with is >=48px per the dataviz mark spec. */
+.heroValue {
+  font-size: 48px;
+}
+
+.tileValue {
+  font-size: 26px;
+}

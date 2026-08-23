@@ -12,6 +12,7 @@ frontend/locale.pot
 .php-cs-fixer.cache
 tests.config.php
 .phpunit.result.cache
+tsconfig.tsbuildinfo
 eslint-cache/
 .husky/
 locale.pot
