@@ -11,6 +11,7 @@ use BitApps\SMTP\HTTP\Controllers\MailSettingsController;
 use BitApps\SMTP\HTTP\Controllers\MailSourceController;
 use BitApps\SMTP\HTTP\Controllers\NotificationController;
 use BitApps\SMTP\HTTP\Controllers\OAuthController;
+use BitApps\SMTP\HTTP\Controllers\PreferencesController;
 use BitApps\SMTP\HTTP\Controllers\ProviderController;
 use BitApps\SMTP\HTTP\Controllers\SMTPController;
 use BitApps\SMTP\HTTP\Controllers\TelemetryPopupController;
@@ -42,4 +43,9 @@ Route::group(function () {
     Route::post('mail/connections/delete', [ConnectionController::class, 'delete']);
     Route::post('mail/connections/test', [ConnectionController::class, 'test']);
     Route::get('mail/oauth/authorize', [OAuthController::class, 'authorize']);
+
+    Route::get('preferences', [PreferencesController::class, 'index']);
+    Route::post('preferences/save', [PreferencesController::class, 'save']);
+    Route::get('preferences/export', [PreferencesController::class, 'export']);
+    Route::post('preferences/import', [PreferencesController::class, 'import']);
 })->middleware('cap:admin');
