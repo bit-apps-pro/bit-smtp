@@ -9,9 +9,8 @@ namespace BitApps\SMTP;
  */
 
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection as DB;
+use BitApps\SMTP\Deps\BitApps\WPKit\Container\Application;
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
-use BitApps\SMTP\Deps\BitApps\WPKit\Http\Client\HttpClient;
-use BitApps\SMTP\Deps\BitApps\WPKit\Http\RequestType;
 use BitApps\SMTP\Deps\BitApps\WPKit\Migration\MigrationHelper;
 use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
 use BitApps\SMTP\Deps\BitApps\WPTelemetry\Telemetry\Telemetry;
@@ -20,51 +19,18 @@ use BitApps\SMTP\HTTP\Middleware\CapabilityCheckerMiddleware;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\HTTP\Services\WebhookProvisioningService;
-use BitApps\SMTP\Mail\Abilities\AbilitiesProvider;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
-use BitApps\SMTP\Mail\Aws\SigV4Signer;
-use BitApps\SMTP\Mail\Connections\ConnectionResolver;
-use BitApps\SMTP\Mail\Credentials\DatabaseCredentialResolver;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
 use BitApps\SMTP\Mail\Http\ApiClient;
-use BitApps\SMTP\Mail\Message\MailMessageFactory;
-use BitApps\SMTP\Mail\Message\MimeBuilder;
-use BitApps\SMTP\Mail\Notifications\Channels\EmailFailureNotificationChannel;
-use BitApps\SMTP\Mail\Notifications\Channels\SlackFailureNotificationChannel;
-use BitApps\SMTP\Mail\Notifications\Channels\TelegramFailureNotificationChannel;
-use BitApps\SMTP\Mail\Notifications\Channels\WebhookFailureNotificationChannel;
-use BitApps\SMTP\Mail\Notifications\FailureNotificationChannelRegistry;
-use BitApps\SMTP\Mail\Notifications\FailureNotificationGate;
-use BitApps\SMTP\Mail\Notifications\FailureNotifier;
 use BitApps\SMTP\Mail\Notifications\NotificationChannelTester;
-use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
-use BitApps\SMTP\Mail\Providers\AmazonSes\SesProvider;
-use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
-use BitApps\SMTP\Mail\Providers\Brevo\BrevoProvider;
-use BitApps\SMTP\Mail\Providers\Cloudflare\CloudflareProvider;
-use BitApps\SMTP\Mail\Providers\Gmail\GmailProvider;
-use BitApps\SMTP\Mail\Providers\Gmail\GmailTransport;
-use BitApps\SMTP\Mail\Providers\Mailgun\MailgunProvider;
-use BitApps\SMTP\Mail\Providers\Mailjet\MailjetProvider;
-use BitApps\SMTP\Mail\Providers\Microsoft365\Microsoft365Provider;
-use BitApps\SMTP\Mail\Providers\Microsoft365\Microsoft365Transport;
-use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
-use BitApps\SMTP\Mail\Providers\PhpSendmail\PhpSendmailProvider;
-use BitApps\SMTP\Mail\Providers\Postmark\PostmarkProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
-use BitApps\SMTP\Mail\Providers\Resend\ResendProvider;
-use BitApps\SMTP\Mail\Providers\SendGrid\SendGridProvider;
-use BitApps\SMTP\Mail\Providers\SendGrid\SendGridTransport;
-use BitApps\SMTP\Mail\Providers\SparkPost\SparkPostProvider;
-use BitApps\SMTP\Mail\Providers\WebhookProvisionerFactory;
-use BitApps\SMTP\Mail\Providers\Zepto\ZeptoProvider;
-use BitApps\SMTP\Mail\Routing\MailSourceDetector;
-use BitApps\SMTP\Mail\Routing\RoutingResolver;
-use BitApps\SMTP\Mail\Transport\PhpSendmailTransport;
-use BitApps\SMTP\Mail\Transport\SmtpTransport;
-use BitApps\SMTP\Providers\HookProvider;
+use BitApps\SMTP\Providers\AbilitiesServiceProvider;
+use BitApps\SMTP\Providers\CoreServiceProvider;
+use BitApps\SMTP\Providers\HttpServiceProvider;
 use BitApps\SMTP\Providers\InstallerProvider;
-use BitApps\SMTP\Views\Layout;
+use BitApps\SMTP\Providers\InstallerServiceProvider;
+use BitApps\SMTP\Providers\MailServiceProvider;
+use BitApps\SMTP\Providers\NotificationServiceProvider;
 
 final class Plugin
 {
@@ -79,26 +45,40 @@ final class Plugin
 
     private $_registeredMiddleware = [];
 
-    private array $_container = [];
+    private Application $app;
 
     /**
      * Initialize the Plugin with hooks.
      */
     public function __construct()
     {
-        $this->registerInstaller();
-
-        // WordPress before 6.9 does not provide the Abilities API. Do not even attach its hooks
-        // there, so email sending and the rest of the plugin keep their existing behavior.
-        if (\function_exists('wp_register_ability') && \function_exists('wp_register_ability_category')) {
-            (new AbilitiesProvider())->register();
-        }
+        $this->app = new Application();
+        $this->app->register(new CoreServiceProvider($this->app));
+        $this->app->register(new MailServiceProvider($this->app));
+        $this->app->register(new NotificationServiceProvider($this->app));
+        $this->app->register(new HttpServiceProvider($this->app));
+        // Installer/Abilities register() calls are side-effecting (WP hook wiring): they must run
+        // here, at load time, not deferred to boot() -- activation fires before init:11 ever runs.
+        $this->app->register(new InstallerServiceProvider($this->app));
+        $this->app->register(new AbilitiesServiceProvider($this->app));
 
         Hooks::addAction('plugins_loaded', [$this, 'loaded']);
 
         $this->initWPTelemetry();
     }
 
+    /**
+     * The wp-kit container/application backing this plugin's services.
+     */
+    public function app(): Application
+    {
+        return $this->app;
+    }
+
+    /**
+     * Kept for backward compatibility with external callers; installer hooks now wire via
+     * InstallerServiceProvider::register() at load time, not through this method.
+     */
     public function registerInstaller()
     {
         $installerProvider = new InstallerProvider();
@@ -140,58 +120,12 @@ final class Plugin
     }
 
     /**
-     * Instantiate the Provider class.
+     * Boots all registered service providers. Kept as the init:11 hook target (name and timing
+     * unchanged) for backward compatibility.
      */
     public function registerProviders()
     {
-        if (RequestType::is('admin')) {
-            new Layout();
-        }
-
-        new HookProvider();
-
-        $apiClient     = new ApiClient(new HttpClient());
-        $mimeBuilder   = new MimeBuilder();
-        $tokenProvider = new OAuth2TokenProvider($apiClient, $this->mailConfigService());
-        $sigV4Signer   = new SigV4Signer();
-        $authResolver  = new AuthorizationResolver($tokenProvider, $sigV4Signer);
-
-        $registry = new ProviderRegistry();
-        $registry->register(new OtherSmtpProvider(new SmtpTransport(new DatabaseCredentialResolver())));
-        $registry->register(new PhpSendmailProvider(new PhpSendmailTransport()));
-        $registry->register(new SendGridProvider(new SendGridTransport($apiClient)));
-        $registry->register(new GmailProvider(new GmailTransport($apiClient, $tokenProvider, $mimeBuilder)));
-        $registry->register(new SesProvider(new SesTransport($apiClient, $sigV4Signer, $mimeBuilder)));
-        $registry->register(new PostmarkProvider($apiClient, $authResolver));
-        $registry->register(new BrevoProvider($apiClient, $authResolver));
-        $registry->register(new CloudflareProvider($apiClient, $authResolver));
-        $registry->register(new ResendProvider($apiClient, $authResolver));
-        $registry->register(new MailjetProvider($apiClient, $authResolver));
-        $registry->register(new ZeptoProvider($apiClient, $authResolver));
-        $registry->register(new MailgunProvider($apiClient, $authResolver));
-        $registry->register(new SparkPostProvider($apiClient, $authResolver));
-        $registry->register(new Microsoft365Provider(new Microsoft365Transport($apiClient, $tokenProvider, $mimeBuilder)));
-        $this->_container['providerRegistry'] = $registry;
-
-        $this->_container['failureNotificationChannelRegistry'] = new FailureNotificationChannelRegistry([
-            new EmailFailureNotificationChannel(),
-            new WebhookFailureNotificationChannel(),
-            new SlackFailureNotificationChannel(),
-            new TelegramFailureNotificationChannel(),
-        ]);
-
-        $this->_container['smtpProvider'] = new WpMailBridge(
-            $registry,
-            new ConnectionResolver(),
-            new MailMessageFactory(),
-            new RoutingResolver(),
-            new MailSourceDetector(),
-            new FailureNotifier(
-                $this->mailConfigService(),
-                new FailureNotificationGate(),
-                $this->_container['failureNotificationChannelRegistry']
-            )
-        );
+        $this->app->boot();
     }
 
     /**
@@ -201,82 +135,45 @@ final class Plugin
      */
     public function smtpProvider()
     {
-        return $this->_container['smtpProvider'];
+        return $this->app->make(WpMailBridge::class);
     }
 
     public function providerRegistry(): ProviderRegistry
     {
-        return $this->_container['providerRegistry'];
+        return $this->app->make(ProviderRegistry::class);
     }
 
     public function logger(): LogService
     {
-        if (!isset($this->_container['logService'])) {
-            $this->_container['logService'] = new LogService();
-        }
-
-        return $this->_container['logService'];
+        return $this->app->make(LogService::class);
     }
 
     public function mailConfigService(): MailConfigService
     {
-        if (!isset($this->_container['mailConfigService'])) {
-            $this->_container['mailConfigService'] = new MailConfigService();
-        }
-
-        return $this->_container['mailConfigService'];
+        return $this->app->make(MailConfigService::class);
     }
 
     public function notificationChannelTester(): NotificationChannelTester
     {
-        if (!isset($this->_container['notificationChannelTester'])) {
-            $this->_container['notificationChannelTester'] = new NotificationChannelTester(
-                $this->mailConfigService(),
-                $this->_container['failureNotificationChannelRegistry']
-            );
-        }
-
-        return $this->_container['notificationChannelTester'];
+        return $this->app->make(NotificationChannelTester::class);
     }
 
     public function apiClient(): ApiClient
     {
-        if (!isset($this->_container['apiClient'])) {
-            $this->_container['apiClient'] = new ApiClient(new HttpClient());
-        }
-
-        return $this->_container['apiClient'];
+        return $this->app->make(ApiClient::class);
     }
 
     /**
-     * Resolves connection-independent HTTP auth strategies. Built lazily (mirroring apiClient) so it
-     * works even before registerProviders() has run and without assuming container build order.
+     * Resolves connection-independent HTTP auth strategies.
      */
     public function authResolver(): AuthorizationResolver
     {
-        if (!isset($this->_container['authResolver'])) {
-            $this->_container['authResolver'] = new AuthorizationResolver(
-                new OAuth2TokenProvider($this->apiClient(), $this->mailConfigService()),
-                new SigV4Signer()
-            );
-        }
-
-        return $this->_container['authResolver'];
+        return $this->app->make(AuthorizationResolver::class);
     }
 
     public function webhookProvisioningService(): WebhookProvisioningService
     {
-        if (!isset($this->_container['webhookProvisioningService'])) {
-            $this->_container['webhookProvisioningService'] = new WebhookProvisioningService(
-                $this->mailConfigService(),
-                $this->providerRegistry(),
-                $this->authResolver(),
-                $this->apiClient(),
-                new WebhookProvisionerFactory()
-            );
-        }
-
-        return $this->_container['webhookProvisioningService'];
+        return $this->app->make(WebhookProvisioningService::class);
     }
 
     /**

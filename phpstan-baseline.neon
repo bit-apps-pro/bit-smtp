@@ -2425,12 +2425,6 @@ parameters:
 			path: backend/app/Plugin.php
 
 		-
-			message: '#^Property BitApps\\SMTP\\Plugin\:\:\$_container type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: backend/app/Plugin.php
-
-		-
 			message: '#^Property BitApps\\SMTP\\Plugin\:\:\$_registeredMiddleware has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
