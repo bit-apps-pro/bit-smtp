@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Abilities;
 
-use BitApps\SMTP\Deps\BitApps\WPKit\Cache\Repository as CacheRepository;
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
 use BitApps\SMTP\Mail\Analytics\AnalyticsQueryFactory;
-use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Mail\Analytics\RoutingExplainer;
+use BitApps\SMTP\Plugin;
 use Throwable;
 use WP_Error;
 
@@ -45,18 +44,14 @@ final class AbilitiesProvider
 
     private ?RoutingExplainer $routing;
 
-    private ?CacheRepository $cache;
-
     public function __construct(
         ?AnalyticsQueryFactory $queryFactory = null,
         ?MailAnalyticsService $analytics = null,
-        ?RoutingExplainer $routing = null,
-        ?CacheRepository $cache = null
+        ?RoutingExplainer $routing = null
     ) {
         $this->queryFactory = $queryFactory;
         $this->analytics    = $analytics;
         $this->routing      = $routing;
-        $this->cache        = $cache;
     }
 
     /**
@@ -269,9 +264,14 @@ final class AbilitiesProvider
         return $this->queryFactory ?? new AnalyticsQueryFactory();
     }
 
+    /**
+     * The injected MailAnalyticsService, or the plugin's shared container singleton on first use --
+     * resolved lazily (only when an ability actually executes) so its dependencies are never built
+     * before Plugin::load() has finished its own setup (see AbilitiesServiceProvider::register()).
+     */
     private function analyticsService(): MailAnalyticsService
     {
-        return $this->analytics ??= new MailAnalyticsService(new MailAnalyticsRepository(), $this->cache);
+        return $this->analytics ??= Plugin::instance()->app()->make(MailAnalyticsService::class);
     }
 
     private function routing(): RoutingExplainer

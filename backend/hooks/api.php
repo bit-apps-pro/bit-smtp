@@ -5,6 +5,7 @@ if (!\defined('ABSPATH')) {
 }
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Route;
+use BitApps\SMTP\HTTP\Controllers\AnalyticsController;
 use BitApps\SMTP\HTTP\Controllers\ConnectionController;
 use BitApps\SMTP\HTTP\Controllers\LogController;
 use BitApps\SMTP\HTTP\Controllers\MailSettingsController;
@@ -48,4 +49,8 @@ Route::group(function () {
     Route::post('preferences/save', [PreferencesController::class, 'save']);
     Route::get('preferences/export', [PreferencesController::class, 'export']);
     Route::post('preferences/import', [PreferencesController::class, 'import']);
+
+    Route::get('analytics/overview', [AnalyticsController::class, 'overview']);
+    Route::get('analytics/deliverability', [AnalyticsController::class, 'deliverability']);
+    Route::get('analytics/anomalies', [AnalyticsController::class, 'anomalies']);
 })->middleware('cap:admin');

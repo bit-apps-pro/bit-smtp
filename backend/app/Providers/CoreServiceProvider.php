@@ -12,6 +12,8 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Settings\SettingsRepository;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\HTTP\Services\WebhookProvisioningService;
+use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
+use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
 use BitApps\SMTP\Mail\Http\ApiClient;
@@ -50,6 +52,18 @@ class CoreServiceProvider extends ServiceProvider
             'default' => 'transient',
             'prefix'  => 'bit_smtp_',
         ]));
+
+        $this->app->singleton(MailAnalyticsRepository::class, static fn (): MailAnalyticsRepository => new MailAnalyticsRepository());
+
+        // Shared by AnalyticsController and AbilitiesProvider so both read through the same overview
+        // cache instead of each maintaining an independent (and independently stale) copy.
+        $this->app->singleton(
+            MailAnalyticsService::class,
+            static fn (Container $app): MailAnalyticsService => new MailAnalyticsService(
+                $app->make(MailAnalyticsRepository::class),
+                $app->make(CacheManager::class)->store('transient')
+            )
+        );
 
         $this->app->singleton(SettingsRepository::class, static fn (): SettingsRepository => PluginSettings::make());
 
