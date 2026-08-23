@@ -207,7 +207,7 @@ class ApiClientTest extends BaseUnitTestCase
     public function testWpErrorProducesFailureApiResponseWithZeroStatus(): void
     {
         Functions\when('is_wp_error')->justReturn(true);
-        Functions\when('wp_remote_request')->justReturn(new WP_Error('http_request_failed', 'Could not resolve host'));
+        Functions\when('wp_safe_remote_request')->justReturn(new WP_Error('http_request_failed', 'Could not resolve host'));
 
         $response = $this->client->get('https://api.example.com');
 
@@ -219,12 +219,14 @@ class ApiClientTest extends BaseUnitTestCase
     private function stubRemoteRequest(?callable $assertion, string $return = 'response-fixture'): void
     {
         if ($assertion === null) {
-            Functions\when('wp_remote_request')->justReturn($return);
+            // ApiClient's HttpClient runs with unsafe URLs disabled, so it always dispatches through
+            // wp_safe_remote_request() (the SSRF-hardened path), never plain wp_remote_request().
+            Functions\when('wp_safe_remote_request')->justReturn($return);
 
             return;
         }
 
-        Functions\expect('wp_remote_request')
+        Functions\expect('wp_safe_remote_request')
             ->once()
             ->andReturnUsing(static function ($url, $options) use ($assertion, $return) {
                 $assertion($url, $options);

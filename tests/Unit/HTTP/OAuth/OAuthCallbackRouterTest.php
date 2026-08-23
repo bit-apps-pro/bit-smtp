@@ -72,7 +72,7 @@ final class OAuthCallbackRouterTest extends BaseUnitTestCase
                 $this->assertRequest = $assertRequest;
             }
 
-            public function handleRequest()
+            public function handleRequest(): void
             {
                 ($this->assertRequest)();
             }
@@ -121,7 +121,7 @@ final class OAuthCallbackRouterTest extends BaseUnitTestCase
                 $this->assertRequest = $assertRequest;
             }
 
-            public function handleRequest()
+            public function handleRequest(): void
             {
                 ($this->assertRequest)();
             }
@@ -291,7 +291,7 @@ final class OAuthCallbackStaticRouterSpy extends StaticRouter
         $this->onHandleRequest = $onHandleRequest;
     }
 
-    public function handleRequest()
+    public function handleRequest(): void
     {
         ++$this->handleRequestCalls;
 

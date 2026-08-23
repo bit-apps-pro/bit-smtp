@@ -4,7 +4,7 @@
     "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
     "This file is @generated automatically"
   ],
-  "content-hash": "0193be30ef291c78e6f2ace8d4a59d85",
+  "content-hash": "c1dca93e1765a2df189110ee967a0d93",
   "packages": [
     {
       "name": "bitapps/wp-database",
@@ -69,21 +69,26 @@
       "source": {
         "type": "git",
         "url": "https://github.com/bit-apps-pro/wp-kit.git",
-        "reference": "f27a354f423984e9a61dd960acbcc4cc939298e8"
+        "reference": "c8c94fdc0de285881a13e06a0f24c5508c2852b4"
       },
       "dist": {
         "type": "zip",
-        "url": "https://api.github.com/repos/bit-apps-pro/wp-kit/zipball/f27a354f423984e9a61dd960acbcc4cc939298e8",
-        "reference": "f27a354f423984e9a61dd960acbcc4cc939298e8",
+        "url": "https://api.github.com/repos/bit-apps-pro/wp-kit/zipball/c8c94fdc0de285881a13e06a0f24c5508c2852b4",
+        "reference": "c8c94fdc0de285881a13e06a0f24c5508c2852b4",
         "shasum": ""
       },
       "require": {
-        "bitapps/wp-validator": "^1.0"
+        "bitapps/wp-validator": "^1.0",
+        "php": ">=8.0"
       },
       "require-dev": {
+        "captainhook/captainhook": "^5.29",
+        "captainhook/hook-installer": "^1.0",
         "dealerdirect/phpcodesniffer-composer-installer": "^0.7",
         "friendsofphp/php-cs-fixer": "^3.10",
         "phpcompatibility/phpcompatibility-wp": "*",
+        "phpunit/phpunit": "^9.6",
+        "rector/rector": "^2.5",
         "sirbrillig/phpcs-variable-analysis": "*"
       },
       "type": "library",
@@ -111,7 +116,7 @@
         "issues": "https://github.com/bit-apps-pro/wp-kit/issues",
         "source": "https://github.com/bit-apps-pro/wp-kit/tree/feat/static-router"
       },
-      "time": "2026-07-25T08:56:52+00:00"
+      "time": "2026-08-23T06:38:58+00:00"
     },
     {
       "name": "bitapps/wp-telemetry",
