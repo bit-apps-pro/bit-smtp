@@ -78,6 +78,7 @@ class InstallerProvider
         // migration leaves the version gate open to retry (each migration is idempotent).
         $migrations = [
             'BitSmtpLogsTableMigration',
+            'BitSmtpSettingsSeed',
             'BitSmtpEncryptSecrets',
             'BitSmtpCleanupOrphanDeliveryEvents',
             'BitSmtpPluginOptions',
@@ -99,6 +100,7 @@ class InstallerProvider
         $migrations = [
             'BitSmtpPluginOptions',
             'BitSmtpCleanupOrphanDeliveryEvents',
+            'BitSmtpSettingsSeed',
             'BitSmtpLogsTableMigration',
             'BitSmtpEncryptSecrets',
         ];
