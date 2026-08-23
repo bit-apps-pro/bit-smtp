@@ -57,11 +57,20 @@ final class MailAnalyticsService
             return $this->computeOverview($query);
         }
 
-        return $this->cache->remember(
-            $this->overviewCacheKey($query),
-            self::OVERVIEW_CACHE_TTL,
-            fn () => $this->computeOverview($query)
-        );
+        $key    = $this->overviewCacheKey($query);
+        $cached = $this->cache->get($key);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        // Cache successes only: a transient DB failure surfaces as a WP_Error, and freezing it for
+        // the full TTL would keep serving the outage to every request long after it recovered.
+        $result = $this->computeOverview($query);
+        if (!($result instanceof WP_Error)) {
+            $this->cache->put($key, $result, self::OVERVIEW_CACHE_TTL);
+        }
+
+        return $result;
     }
 
     /**
