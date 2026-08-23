@@ -3,8 +3,11 @@ import { AnalyticsApiError, useAnomalies, useOverview } from '@pages/Analytics/d
 import { type Anomalies, type Overview } from '@pages/Analytics/types'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
+import dayjs from 'dayjs'
+import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AnalyticsPage from './AnalyticsPage'
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
 // Keep the real analyticsQueryState/AnalyticsApiError - only the network-touching hooks are stubbed,
 // so the page's loading/error/logging-off/ready branching runs for real against these mocks.
@@ -96,6 +99,26 @@ describe('AnalyticsPage', () => {
     vi.clearAllMocks()
     ;(useOverview as Mock).mockReturnValue(readyResult(overviewFixture))
     ;(useAnomalies as Mock).mockReturnValue(readyResult(anomaliesFixture))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('defaults the requested range to strictly within the 30-day retention floor - regression for the day-boundary bug', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-02-15T12:34:56.000Z'))
+
+    renderWithProviders(<AnalyticsPage />)
+
+    const params = (useOverview as Mock).mock.calls.at(-1)?.[0]
+    const spanMs = dayjs(params.end).diff(dayjs(params.start))
+
+    // startOf('day')/endOf('day') widen the span past the raw day count, so it must stay
+    // strictly under 30x24h even though the default still covers 30 calendar days.
+    expect(spanMs).toBeLessThan(THIRTY_DAYS_MS)
+    expect(params.start).toBe(dayjs().subtract(29, 'day').startOf('day').toISOString())
+    expect(params.end).toBe(dayjs().endOf('day').toISOString())
   })
 
   it('renders stat tiles and the chart grid from a fixture overview', () => {

@@ -13,6 +13,15 @@ const BUCKET_OPTIONS: Array<{ label: string; value: BucketChoice }> = [
   { label: __('Week'), value: 'week' }
 ]
 
+/**
+ * Guards manual calendar selection against the default 30-day retention floor (backend rejects any
+ * start earlier than `end - 30d`). Presets bypass this - they call onChange directly - so "Last 90
+ * days" still relies on the existing over-range error state for sites on the default retention.
+ */
+function isBeforeDefaultRetentionFloor(date: Dayjs): boolean {
+  return date.isBefore(dayjs().subtract(29, 'day').startOf('day'))
+}
+
 function rangePresets(): Array<{ label: string; value: [Dayjs, Dayjs] }> {
   const now = dayjs()
   return [
@@ -43,6 +52,7 @@ export default function AnalyticsFilters({
         value={range}
         presets={rangePresets()}
         allowClear={false}
+        disabledDate={isBeforeDefaultRetentionFloor}
         onChange={dates => {
           if (dates && dates[0] && dates[1]) {
             onRangeChange([dates[0], dates[1]])

@@ -74,7 +74,9 @@ function AnomaliesPanel({
 
 /** Analytics dashboard: filters row + stat tiles, volume trend, delivery/ranking breakdowns, and anomalies. */
 export default function AnalyticsPage() {
-  const [range, setRange] = useState<[Dayjs, Dayjs]>(() => [dayjs().subtract(30, 'day'), dayjs()])
+  // 29 days back (not 30): toParams() snaps to startOf/endOf day, so a 30-day-back start would
+  // land exactly 1ms inside the backend's 30-day retention floor and fail on first load.
+  const [range, setRange] = useState<[Dayjs, Dayjs]>(() => [dayjs().subtract(29, 'day'), dayjs()])
   const [bucket, setBucket] = useState<BucketChoice>('auto')
 
   const params = useMemo(() => toParams(range, bucket), [range, bucket])
