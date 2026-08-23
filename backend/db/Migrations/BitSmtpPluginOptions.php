@@ -3,6 +3,7 @@
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Migration\Migration;
 use BitApps\SMTP\Settings\PluginSettings;
+use BitApps\SMTP\Settings\UninstallPurge;
 
 if (!\defined('ABSPATH')) {
     exit;
@@ -46,7 +47,7 @@ final class BitSmtpPluginOptions extends Migration
      */
     public function down()
     {
-        if (!self::shouldPurge()) {
+        if (!UninstallPurge::shouldPurge()) {
             return;
         }
 
@@ -57,18 +58,5 @@ final class BitSmtpPluginOptions extends Migration
         delete_option(PluginSettings::OPTION_NAME);
 
         wp_clear_scheduled_hook(Config::RETENTION_GC_HOOK);
-    }
-
-    /**
-     * Resolve the uninstall-purge preference before the preferences blob is deleted, defaulting to
-     * true (purge) — the schema default and the security-safe choice — if it can't be read.
-     */
-    private static function shouldPurge(): bool
-    {
-        try {
-            return (bool) PluginSettings::make()->get('uninstall_purge', true);
-        } catch (\Throwable $e) {
-            return true;
-        }
     }
 }

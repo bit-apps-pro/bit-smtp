@@ -6,6 +6,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Schema;
 use BitApps\SMTP\Deps\BitApps\WPKit\Migration\Migration;
 use BitApps\SMTP\HTTP\Services\LogService;
+use BitApps\SMTP\Settings\UninstallPurge;
 
 if (! \defined('ABSPATH')) {
     exit;
@@ -58,6 +59,10 @@ final class BitSmtpLogsTableMigration extends Migration
 
     public function down()
     {
+        if (!UninstallPurge::shouldPurge()) {
+            return;
+        }
+
         Schema::drop('log_delivery_events');
         Schema::drop('logs');
     }

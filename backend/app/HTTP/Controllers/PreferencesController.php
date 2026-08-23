@@ -2,10 +2,13 @@
 
 namespace BitApps\SMTP\HTTP\Controllers;
 
+use BitApps\SMTP\Deps\BitApps\WPKit\Helpers\Arr;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\Deps\BitApps\WPKit\Settings\SettingField;
 use BitApps\SMTP\HTTP\Requests\SavePreferencesRequest;
+use BitApps\SMTP\HTTP\Services\LogService;
+use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
@@ -13,6 +16,24 @@ use BitApps\SMTP\Settings\PluginSettings;
  */
 class PreferencesController
 {
+    /**
+     * Preference keys backed by a canonical side-effecting writer on LogService, rather than the
+     * blob-only fill(); routed separately in persist() so their continuity/legacy-option side
+     * effects fire regardless of which endpoint (save/import) persists them.
+     */
+    private const LOG_SERVICE_MANAGED_KEYS = ['logging_enabled', 'log_retention_days'];
+
+    /**
+     * Lazily resolved so index()/export() and any save() payload without a managed key never force
+     * LogService's construction (it side-effects via initializeLoggingContinuity()).
+     */
+    private ?LogService $logger;
+
+    public function __construct(?LogService $logger = null)
+    {
+        $this->logger = $logger;
+    }
+
     /**
      * Return the current preferences plus schema-derived field metadata for the settings UI.
      */
@@ -62,16 +83,53 @@ class PreferencesController
     }
 
     /**
-     * Fill and persist the given (already-validated) preference values, returning the full blob.
+     * Persist the given (already-validated) preference values, returning the full resulting blob.
+     * LOG_SERVICE_MANAGED_KEYS are routed through LogService's canonical writers instead of the
+     * blob-only fill(), so their continuity-marker/legacy-option side effects stay correct; every
+     * other key is fill()->save()'d as before.
      *
      * @param array<string, mixed> $validated
      */
     private function persist(array $validated): Response
     {
-        $settings = PluginSettings::make()->fill($validated);
-        $settings->save();
+        $this->applyLogServiceManagedKeys($validated);
 
-        return Response::success(['preferences' => $settings->all()]);
+        $remaining = Arr::except($validated, self::LOG_SERVICE_MANAGED_KEYS);
+        if ($remaining !== []) {
+            PluginSettings::make()->fill($remaining)->save();
+        }
+
+        return Response::success(['preferences' => PluginSettings::make()->all()]);
+    }
+
+    /**
+     * Route logging_enabled/log_retention_days through LogService::setEnabled()/updateRetention()
+     * when present in the payload. logging_enabled is only forwarded when it actually changes: both
+     * to avoid needlessly resetting the logging-continuity marker and to match fill()'s existing
+     * "unsent key is left untouched" semantics.
+     *
+     * @param array<string, mixed> $validated
+     */
+    private function applyLogServiceManagedKeys(array $validated): void
+    {
+        if (\array_key_exists('logging_enabled', $validated)) {
+            $enabled = (bool) $validated['logging_enabled'];
+            if ($enabled !== $this->logger()->isEnabled()) {
+                $this->logger()->setEnabled($enabled);
+            }
+        }
+
+        if (\array_key_exists('log_retention_days', $validated)) {
+            $this->logger()->updateRetention((int) $validated['log_retention_days']);
+        }
+    }
+
+    /**
+     * The injected LogService, or the plugin's shared instance on first use.
+     */
+    private function logger(): LogService
+    {
+        return $this->logger ??= Plugin::instance()->logger();
     }
 
     /**

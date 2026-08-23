@@ -3,6 +3,7 @@
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Migration\Migration;
 use BitApps\SMTP\Settings\PluginSettings;
+use BitApps\SMTP\Settings\UninstallPurge;
 
 if (! \defined('ABSPATH')) {
     exit;
@@ -38,6 +39,11 @@ final class BitSmtpSettingsSeed extends Migration
 
     public function down()
     {
+        // Read the purge flag before this method's own delete_option() below can remove it.
+        if (!UninstallPurge::shouldPurge()) {
+            return;
+        }
+
         delete_option(PluginSettings::OPTION_NAME);
     }
 }

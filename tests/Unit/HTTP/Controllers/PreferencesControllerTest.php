@@ -6,6 +6,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Controllers\PreferencesController;
 use BitApps\SMTP\HTTP\Requests\SavePreferencesRequest;
+use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Settings\PluginSettings;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
@@ -48,22 +49,21 @@ final class PreferencesControllerTest extends BaseUnitTestCase
 
     public function testSavePersistsValidatedValuesAndEchoesThemBack(): void
     {
-        Functions\when('get_option')->justReturn([]);
-        Functions\expect('update_option')
-            ->once()
-            ->with('bit_smtp_preferences', Mockery::on(static function (array $values): bool {
-                return $values['log_retention_days'] === 60;
-            }), 'yes')
-            ->andReturn(true);
+        $store = [];
+        $this->stubOptionsStore($store);
 
         $request = Mockery::mock(SavePreferencesRequest::class);
         $request->shouldReceive('validated')->once()->andReturn(['log_retention_days' => 60]);
 
-        (new PreferencesController())->save($request);
+        (new PreferencesController(new LogService()))->save($request);
 
         $this->assertSame(Response::SUCCESS, Response::getStatus());
         $data = (array) Response::getData();
         $this->assertSame(60, $data['preferences']['log_retention_days']);
+        // log_retention_days is routed through LogService::updateRetention(), which dual-writes the
+        // legacy standalone option alongside the preferences blob.
+        $this->assertSame(60, $store['bit_smtp_log_retention']);
+        $this->assertSame(60, $store[PluginSettings::OPTION_NAME]['log_retention_days']);
     }
 
     public function testExportReturnsTheCurrentlyStoredPreferences(): void
@@ -80,18 +80,10 @@ final class PreferencesControllerTest extends BaseUnitTestCase
     public function testExportedEnvelopeRoundTripsBackThroughImport(): void
     {
         // In-memory store so export() reads real data and import() writes to the same place.
-        $store = ['log_retention_days' => 90];
-        Functions\when('get_option')->alias(static function ($name, $default = false) use (&$store) {
-            return $name === 'bit_smtp_preferences' ? $store : $default;
-        });
-        Functions\when('update_option')->alias(static function ($name, $value) use (&$store) {
-            if ($name === 'bit_smtp_preferences') {
-                $store = $value;
-            }
+        $store = [PluginSettings::OPTION_NAME => ['log_retention_days' => 90]];
+        $this->stubOptionsStore($store);
 
-            return true;
-        });
-
+        // export() never touches logging_enabled/log_retention_days's LogService side effects.
         (new PreferencesController())->export();
         $exported = (array) Response::getData();
         $this->assertSame(90, $exported['preferences']['log_retention_days']);
@@ -101,10 +93,10 @@ final class PreferencesControllerTest extends BaseUnitTestCase
         $request                = new Request();
         $request['preferences'] = $exported['preferences'];
 
-        (new PreferencesController())->import($request);
+        (new PreferencesController(new LogService()))->import($request);
 
         $this->assertSame(Response::SUCCESS, Response::getStatus());
-        $this->assertSame(90, $store['log_retention_days']);
+        $this->assertSame(90, $store[PluginSettings::OPTION_NAME]['log_retention_days']);
         $this->assertSame(90, ((array) Response::getData())['preferences']['log_retention_days']);
     }
 
@@ -131,24 +123,103 @@ final class PreferencesControllerTest extends BaseUnitTestCase
 
     public function testImportIgnoresUnknownKeysAndPersistsOnlyKnownOnes(): void
     {
-        Functions\when('get_option')->justReturn([]);
-        Functions\expect('update_option')
-            ->once()
-            ->with('bit_smtp_preferences', Mockery::on(static function (array $values): bool {
-                return !\array_key_exists('unknown_field', $values) && $values['logging_enabled'] === false;
-            }), 'yes')
-            ->andReturn(true);
+        $store = [];
+        $this->stubOptionsStore($store);
 
         $request                      = new Request();
         $request['unknown_field']     = 'should-be-dropped';
         $request['logging_enabled']   = false;
 
-        (new PreferencesController())->import($request);
+        (new PreferencesController(new LogService()))->import($request);
 
         $this->assertSame(Response::SUCCESS, Response::getStatus());
         $data = (array) Response::getData();
         $this->assertArrayNotHasKey('unknown_field', $data['preferences']);
         $this->assertFalse($data['preferences']['logging_enabled']);
+        // logging_enabled changed (default true -> false) -> routed through the canonical
+        // LogService::setEnabled() writer: legacy option dual-written, continuity marker cleared.
+        $this->assertSame(0, $store['bit_smtp_logging_enabled']);
+        $this->assertArrayNotHasKey('bit_smtp_logging_continuity_from', $store);
+    }
+
+    /**
+     * FIX 1 regression guard: a changed logging_enabled must go through LogService::setEnabled(),
+     * which clears the logging-continuity marker on disable (not just fill()->save() the blob).
+     */
+    public function testSaveWithChangedLoggingEnabledDisablesLoggingAndClearsContinuityMarker(): void
+    {
+        $store = [
+            PluginSettings::OPTION_NAME        => ['logging_enabled' => true],
+            'bit_smtp_logging_enabled'         => 1,
+            'bit_smtp_logging_continuity_from' => '2026-03-01 00:00:00',
+        ];
+        $this->stubOptionsStore($store);
+
+        $request = Mockery::mock(SavePreferencesRequest::class);
+        $request->shouldReceive('validated')->once()->andReturn(['logging_enabled' => false]);
+
+        (new PreferencesController(new LogService()))->save($request);
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+        $data = (array) Response::getData();
+        $this->assertFalse($data['preferences']['logging_enabled']);
+        $this->assertSame(0, $store['bit_smtp_logging_enabled']);
+        $this->assertArrayNotHasKey('bit_smtp_logging_continuity_from', $store);
+    }
+
+    /**
+     * FIX 1 regression guard: re-enabling logging must (re)initialize the continuity marker, proving
+     * the toggle is routed through LogService::setEnabled() rather than the blob-only fill().
+     */
+    public function testSaveWithChangedLoggingEnabledEnablesLoggingAndInitializesContinuityMarker(): void
+    {
+        $store = [
+            PluginSettings::OPTION_NAME => ['logging_enabled' => false],
+            'bit_smtp_logging_enabled'  => 0,
+        ];
+        $this->stubOptionsStore($store);
+
+        $request = Mockery::mock(SavePreferencesRequest::class);
+        $request->shouldReceive('validated')->once()->andReturn(['logging_enabled' => true]);
+
+        (new PreferencesController(new LogService()))->save($request);
+
+        $data = (array) Response::getData();
+        $this->assertTrue($data['preferences']['logging_enabled']);
+        $this->assertSame(1, $store['bit_smtp_logging_enabled']);
+        $this->assertArrayHasKey('bit_smtp_logging_continuity_from', $store);
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+            $store['bit_smtp_logging_continuity_from']
+        );
+    }
+
+    /**
+     * FIX 1: sending back the same logging_enabled value must not needlessly call setEnabled() and
+     * reset the continuity marker; other preference keys in the same payload still persist.
+     */
+    public function testSaveWithUnchangedLoggingEnabledDoesNotResetContinuityMarker(): void
+    {
+        $store = [
+            PluginSettings::OPTION_NAME        => ['logging_enabled' => true],
+            'bit_smtp_logging_enabled'         => 1,
+            'bit_smtp_logging_continuity_from' => '2026-03-01 00:00:00',
+        ];
+        $this->stubOptionsStore($store);
+
+        $request = Mockery::mock(SavePreferencesRequest::class);
+        $request->shouldReceive('validated')->once()->andReturn([
+            'logging_enabled' => true,
+            'log_store_body'  => 'redacted',
+        ]);
+
+        (new PreferencesController(new LogService()))->save($request);
+
+        $data = (array) Response::getData();
+        $this->assertTrue($data['preferences']['logging_enabled']);
+        $this->assertSame('redacted', $data['preferences']['log_store_body']);
+        // Unchanged logging_enabled must never re-touch setEnabled()'s continuity side effect.
+        $this->assertSame('2026-03-01 00:00:00', $store['bit_smtp_logging_continuity_from']);
     }
 
     /**
@@ -173,5 +244,29 @@ final class PreferencesControllerTest extends BaseUnitTestCase
         }
 
         $this->fail(\sprintf('Field "%s" not found in group "%s"', $fieldKey, $groupName));
+    }
+
+    /**
+     * Wire get_option/update_option/delete_option against a single in-memory map keyed by the full
+     * (prefixed) option name, mirroring how the preferences blob and LogService's legacy dual-writes
+     * actually land -- lets tests assert on real persisted state instead of mocking LogService.
+     *
+     * @param array<string,mixed> $store
+     */
+    private function stubOptionsStore(array &$store): void
+    {
+        Functions\when('get_option')->alias(static function (string $key, $default = false) use (&$store) {
+            return \array_key_exists($key, $store) ? $store[$key] : $default;
+        });
+        Functions\when('update_option')->alias(static function (string $key, $value) use (&$store): bool {
+            $store[$key] = $value;
+
+            return true;
+        });
+        Functions\when('delete_option')->alias(static function (string $key) use (&$store): bool {
+            unset($store[$key]);
+
+            return true;
+        });
     }
 }
