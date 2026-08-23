@@ -1,11 +1,15 @@
 import { renderWithProviders } from '@config/test-utils'
+import useMailSettings from '@pages/Connections/data/useMailSettings'
+import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
+import { type MailSettings } from '@pages/Connections/types'
 import usePreferences, {
   useExportPreferences,
   useImportPreferences,
   useSavePreferences
 } from '@pages/Settings/data/usePreferences'
+import useTestNotification from '@pages/Settings/data/useTestNotification'
 import { type Preferences } from '@pages/Settings/types'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsPage from './SettingsPage'
@@ -16,6 +20,9 @@ vi.mock('@pages/Settings/data/usePreferences', () => ({
   useExportPreferences: vi.fn(),
   useImportPreferences: vi.fn()
 }))
+vi.mock('@pages/Connections/data/useMailSettings', () => ({ default: vi.fn() }))
+vi.mock('@pages/Connections/data/useUpdateSettings', () => ({ default: vi.fn() }))
+vi.mock('@pages/Settings/data/useTestNotification', () => ({ default: vi.fn() }))
 
 const preferences: Preferences = {
   logging_enabled: true,
@@ -34,18 +41,52 @@ const preferences: Preferences = {
   tracking_enabled: false
 }
 
+const settings: MailSettings = {
+  schema_version: 2,
+  enabled: true,
+  default_connection_id: 'conn_1',
+  fallback_connection_ids: [],
+  connections: [],
+  features: {
+    logging: { enabled: true },
+    alerts: {
+      enabled: true,
+      email: { enabled: true, recipients: ['ops@example.org'] },
+      webhook: { enabled: false, url: '', signing_secret: '' },
+      slack: { enabled: false, webhook_url: '' },
+      telegram: { enabled: false, bot_token: '', chat_id: '' }
+    }
+  }
+}
+
+function apiResponse<T>(data: T) {
+  return { status: 'success' as const, code: 'SUCCESS' as const, message: undefined, data }
+}
+
 describe('SettingsPage', () => {
-  const saveMutate = vi.fn()
+  const savePreferencesMutateAsync = vi.fn()
+  const updateSettingsMutateAsync = vi.fn()
 
   beforeEach(() => {
     vi.clearAllMocks()
     ;(usePreferences as Mock).mockReturnValue({ data: preferences, isPending: false })
-    ;(useSavePreferences as Mock).mockReturnValue({ mutate: saveMutate, isPending: false })
+    ;(useSavePreferences as Mock).mockReturnValue({
+      mutateAsync: savePreferencesMutateAsync,
+      isPending: false
+    })
     ;(useExportPreferences as Mock).mockReturnValue({ mutate: vi.fn(), isPending: false })
     ;(useImportPreferences as Mock).mockReturnValue({ mutate: vi.fn(), isPending: false })
+    ;(useMailSettings as Mock).mockReturnValue({ data: settings, isPending: false })
+    ;(useUpdateSettings as Mock).mockReturnValue({
+      mutateAsync: updateSettingsMutateAsync,
+      isPending: false
+    })
+    ;(useTestNotification as Mock).mockReturnValue({ mutate: vi.fn(), isPending: false })
+    savePreferencesMutateAsync.mockResolvedValue(apiResponse({ preferences }))
+    updateSettingsMutateAsync.mockResolvedValue(apiResponse({ settings }))
   })
 
-  it('shows a loading spinner while preferences are pending', () => {
+  it('shows a loading spinner while preferences or mail settings are pending', () => {
     ;(usePreferences as Mock).mockReturnValue({ data: undefined, isPending: true })
 
     const { container } = renderWithProviders(<SettingsPage />)
@@ -53,30 +94,67 @@ describe('SettingsPage', () => {
     expect(container.querySelector('.ant-spin')).toBeInTheDocument()
   })
 
-  it('renders the four preference group cards', () => {
+  it('renders all five settings tabs', () => {
     renderWithProviders(<SettingsPage />)
 
-    expect(screen.getByText('General & Logging')).toBeInTheDocument()
-    expect(screen.getByText('Reliability')).toBeInTheDocument()
-    expect(screen.getByText('Health & Notifications')).toBeInTheDocument()
-    expect(screen.getByText('Privacy & Data')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /general & logging/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^reliability/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^health/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /notifications/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /privacy & data/i })).toBeInTheDocument()
   })
 
-  it('saves the edited value, carrying the untouched array fields through unchanged', async () => {
+  it('shows the failure-alert channel fields on the Notifications tab', async () => {
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+
+    expect(screen.getByLabelText('Recipients')).toBeInTheDocument()
+    expect(screen.getByLabelText('Webhook URL')).toBeInTheDocument()
+    expect(screen.getByLabelText('Slack webhook URL')).toBeInTheDocument()
+    expect(screen.getByLabelText('Telegram bot token')).toBeInTheDocument()
+    expect(screen.getByLabelText('Notification cooldown (minutes)')).toBeInTheDocument()
+  })
+
+  it('saves only the preferences store when a General field changes', async () => {
     renderWithProviders(<SettingsPage />)
 
     await userEvent.clear(screen.getByLabelText('Log retention (days)'))
     await userEvent.type(screen.getByLabelText('Log retention (days)'), '60')
-    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
-    expect(saveMutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        log_retention_days: 60,
-        retry_on_classes: ['TransportException'],
-        notify_events: ['connection.failed']
-      }),
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
-    )
+    await waitFor(() => {
+      expect(savePreferencesMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          log_retention_days: 60,
+          retry_on_classes: ['TransportException'],
+          notify_events: ['connection.failed']
+        })
+      )
+    })
+    expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('saves only the mail-settings store when a Notifications channel field changes', async () => {
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+    await userEvent.type(screen.getByLabelText('Recipients'), 'oncall@example.org{enter}')
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(updateSettingsMutateAsync).toHaveBeenCalledWith({
+        features: {
+          logging: { enabled: true },
+          alerts: expect.objectContaining({
+            email: expect.objectContaining({
+              recipients: ['ops@example.org', 'oncall@example.org']
+            })
+          })
+        }
+      })
+    })
+    expect(savePreferencesMutateAsync).not.toHaveBeenCalled()
   })
 
   it('blocks save and shows inline validation when log_retention_days is out of range', async () => {
@@ -84,20 +162,15 @@ describe('SettingsPage', () => {
 
     await userEvent.clear(screen.getByLabelText('Log retention (days)'))
     await userEvent.type(screen.getByLabelText('Log retention (days)'), '500')
-    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
     expect(await screen.findByText('Enter a number of days between 1 and 200')).toBeInTheDocument()
-    expect(saveMutate).not.toHaveBeenCalled()
+    expect(savePreferencesMutateAsync).not.toHaveBeenCalled()
   })
 
-  it('blocks save when log_retention_days is cleared to zero', async () => {
+  it('disables the Save changes button until a field is edited', () => {
     renderWithProviders(<SettingsPage />)
 
-    await userEvent.clear(screen.getByLabelText('Log retention (days)'))
-    await userEvent.type(screen.getByLabelText('Log retention (days)'), '0')
-    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
-
-    expect(await screen.findByText('Enter a number of days between 1 and 200')).toBeInTheDocument()
-    expect(saveMutate).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
   })
 })

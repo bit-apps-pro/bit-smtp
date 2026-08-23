@@ -1,0 +1,8 @@
+.panel :global(.ant-form-item-label) > :global(label) {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.panel :global(.ant-form-item) {
+  margin-bottom: 0;
+}

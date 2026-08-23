@@ -1,8 +1,9 @@
 import { type ChangeEvent, useRef } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
+import SettingsPanel, { PanelDivider } from '@pages/Settings/components/SettingsPanel'
 import { useExportPreferences, useImportPreferences } from '@pages/Settings/data/usePreferences'
-import { Button, Card, Flex, Form, Switch, Typography } from 'antd'
+import { Button, Flex, Form, Switch, Typography } from 'antd'
 import { Download, Upload } from 'lucide-react'
 
 const { Text } = Typography
@@ -83,7 +84,11 @@ export default function PrivacyData() {
   }
 
   return (
-    <Card title={__('Privacy & Data')}>
+    <SettingsPanel
+      intro={__(
+        'Control what happens to your data on uninstall, and export or import these preferences.'
+      )}
+    >
       <Form.Item
         name="uninstall_purge"
         label={__('Purge data on uninstall')}
@@ -96,6 +101,7 @@ export default function PrivacyData() {
       >
         <Switch />
       </Form.Item>
+      <PanelDivider />
       <Form.Item
         name="tracking_enabled"
         label={__('Enable open/click tracking')}
@@ -108,6 +114,7 @@ export default function PrivacyData() {
       >
         <Switch />
       </Form.Item>
+      <PanelDivider />
       <Flex gap="small" wrap>
         <Button
           icon={<Download size={16} />}
@@ -132,6 +139,6 @@ export default function PrivacyData() {
           aria-label={__('Import preferences file')}
         />
       </Flex>
-    </Card>
+    </SettingsPanel>
   )
 }

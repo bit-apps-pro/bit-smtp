@@ -1,6 +1,7 @@
 import { __ } from '@common/helpers/i18nwrap'
+import SettingsPanel, { PanelDivider } from '@pages/Settings/components/SettingsPanel'
 import { type PreferencesFormValues } from '@pages/Settings/types'
-import { Card, Form, type FormInstance, InputNumber, Select, Switch, Typography } from 'antd'
+import { Form, type FormInstance, InputNumber, Select, Switch, Typography } from 'antd'
 
 const { Text } = Typography
 
@@ -9,10 +10,11 @@ export default function GeneralLogging({ form }: { form: FormInstance<Preference
   const loggingEnabled = Form.useWatch('logging_enabled', form) ?? true
 
   return (
-    <Card title={__('General & Logging')}>
+    <SettingsPanel intro={__('Control whether sends are logged and how long log entries are kept.')}>
       <Form.Item name="logging_enabled" label={__('Enable logging')} valuePropName="checked">
         <Switch />
       </Form.Item>
+      <PanelDivider />
       <Form.Item
         name="log_retention_days"
         label={__('Log retention (days)')}
@@ -32,6 +34,7 @@ export default function GeneralLogging({ form }: { form: FormInstance<Preference
         {/* No min/max prop here: InputNumber would silently clamp on blur, pre-empting the rule above. */}
         <InputNumber disabled={!loggingEnabled} style={{ width: '100%' }} />
       </Form.Item>
+      <PanelDivider />
       <Form.Item
         name="log_store_body"
         label={__('Message body storage')}
@@ -48,6 +51,6 @@ export default function GeneralLogging({ form }: { form: FormInstance<Preference
           ]}
         />
       </Form.Item>
-    </Card>
+    </SettingsPanel>
   )
 }

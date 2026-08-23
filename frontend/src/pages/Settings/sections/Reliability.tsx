@@ -1,6 +1,7 @@
 import { __ } from '@common/helpers/i18nwrap'
+import SettingsPanel, { PanelDivider } from '@pages/Settings/components/SettingsPanel'
 import { type PreferencesFormValues } from '@pages/Settings/types'
-import { Card, Form, type FormInstance, InputNumber, Select, Switch, Typography } from 'antd'
+import { Form, type FormInstance, InputNumber, Select, Switch, Typography } from 'antd'
 
 const { Text } = Typography
 
@@ -9,7 +10,11 @@ export default function Reliability({ form }: { form: FormInstance<PreferencesFo
   const retryEnabled = Form.useWatch('retry_enabled', form) ?? false
 
   return (
-    <Card title={__('Reliability')}>
+    <SettingsPanel
+      intro={__(
+        'Tune how long BitSMTP waits for a provider to respond, and whether failed sends retry automatically.'
+      )}
+    >
       <Form.Item
         name="send_timeout_seconds"
         label={__('Send timeout (seconds)')}
@@ -21,9 +26,11 @@ export default function Reliability({ form }: { form: FormInstance<PreferencesFo
         {/* No min prop here: InputNumber would silently clamp on blur, pre-empting the rule above. */}
         <InputNumber style={{ width: '100%' }} />
       </Form.Item>
+      <PanelDivider />
       <Form.Item name="retry_enabled" label={__('Enable automatic retry')} valuePropName="checked">
         <Switch />
       </Form.Item>
+      <PanelDivider />
       <Form.Item
         name="retry_max_attempts"
         label={__('Max retry attempts')}
@@ -31,6 +38,7 @@ export default function Reliability({ form }: { form: FormInstance<PreferencesFo
       >
         <InputNumber disabled={!retryEnabled} style={{ width: '100%' }} />
       </Form.Item>
+      <PanelDivider />
       <Form.Item name="retry_backoff" label={__('Retry backoff strategy')}>
         <Select
           disabled={!retryEnabled}
@@ -40,6 +48,6 @@ export default function Reliability({ form }: { form: FormInstance<PreferencesFo
           ]}
         />
       </Form.Item>
-    </Card>
+    </SettingsPanel>
   )
 }
