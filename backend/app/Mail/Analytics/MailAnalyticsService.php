@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Analytics;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Deps\BitApps\WPKit\Cache\Repository as CacheRepository;
 use BitApps\SMTP\Settings\PluginSettings;
 use DateInterval;
 use DateTimeImmutable;
@@ -27,11 +28,19 @@ final class MailAnalyticsService
 
     private const CONTACT_FORM_PLUGINS = ['contact-form-7', 'wpforms', 'wpforms-lite', 'gravityforms', 'ninja-forms'];
 
+    /**
+     * Overview aggregates are read-mostly; a short TTL bounds staleness without event-based invalidation.
+     */
+    private const OVERVIEW_CACHE_TTL = 300;
+
     private MailAnalyticsRepository $repository;
 
-    public function __construct(MailAnalyticsRepository $repository)
+    private ?CacheRepository $cache;
+
+    public function __construct(MailAnalyticsRepository $repository, ?CacheRepository $cache = null)
     {
-        $this->repository = $repository;
+        $this->repository  = $repository;
+        $this->cache       = $cache;
     }
 
     /**
@@ -44,34 +53,15 @@ final class MailAnalyticsService
             return $loggingError;
         }
 
-        $summary     = $this->repository->summary($query);
-        $series      = $this->repository->timeSeries($query);
-        $sources     = $this->repository->groups($query, 'source', self::TOP_LIMIT);
-        $connections = $this->repository->groups($query, 'connection', self::TOP_LIMIT);
-        $bounds      = $this->repository->retainedRecordBounds();
-        $error       = $this->firstError([$summary, $series, $sources, $connections, $bounds]);
-        if ($error !== null) {
-            return $error;
+        if ($this->cache === null) {
+            return $this->computeOverview($query);
         }
 
-        $busyTimes = $this->busyTimes($query, $series);
-
-        return array_merge($this->metadata($query, $summary), [
-            'logging_enabled'  => $this->loggingEnabled(),
-            'retained_records' => [
-                'earliest' => $this->utcTimestamp($bounds['earliest'] ?? null),
-                'latest'   => $this->utcTimestamp($bounds['latest'] ?? null),
-            ],
-            'timestamp_coverage' => $this->timestampCoverage($bounds),
-            'recipients'         => (int) ($summary['recipient_count'] ?? 0),
-            'acceptance'         => $this->acceptance($summary),
-            'delivery'           => $this->delivery($summary),
-            'busiest_hours'      => $busyTimes['hours'],
-            'busiest_weekdays'   => $busyTimes['weekdays'],
-            'series'             => $this->fillBuckets($query, $series),
-            'top_sources'        => $sources,
-            'top_connections'    => $connections,
-        ]);
+        return $this->cache->remember(
+            $this->overviewCacheKey($query),
+            self::OVERVIEW_CACHE_TTL,
+            fn () => $this->computeOverview($query)
+        );
     }
 
     /**
@@ -224,6 +214,58 @@ final class MailAnalyticsService
         );
 
         return $response;
+    }
+
+    /**
+     * @return array<string,mixed>|WP_Error
+     */
+    private function computeOverview(AnalyticsQuery $query)
+    {
+        $summary     = $this->repository->summary($query);
+        $series      = $this->repository->timeSeries($query);
+        $sources     = $this->repository->groups($query, 'source', self::TOP_LIMIT);
+        $connections = $this->repository->groups($query, 'connection', self::TOP_LIMIT);
+        $bounds      = $this->repository->retainedRecordBounds();
+        $error       = $this->firstError([$summary, $series, $sources, $connections, $bounds]);
+        if ($error !== null) {
+            return $error;
+        }
+
+        $busyTimes = $this->busyTimes($query, $series);
+
+        return array_merge($this->metadata($query, $summary), [
+            'logging_enabled'  => $this->loggingEnabled(),
+            'retained_records' => [
+                'earliest' => $this->utcTimestamp($bounds['earliest'] ?? null),
+                'latest'   => $this->utcTimestamp($bounds['latest'] ?? null),
+            ],
+            'timestamp_coverage' => $this->timestampCoverage($bounds),
+            'recipients'         => (int) ($summary['recipient_count'] ?? 0),
+            'acceptance'         => $this->acceptance($summary),
+            'delivery'           => $this->delivery($summary),
+            'busiest_hours'      => $busyTimes['hours'],
+            'busiest_weekdays'   => $busyTimes['weekdays'],
+            'series'             => $this->fillBuckets($query, $series),
+            'top_sources'        => $sources,
+            'top_connections'    => $connections,
+        ]);
+    }
+
+    /**
+     * Stable cache key for an overview query: derived only from the range/timezone/bucket and
+     * filters that change the underlying aggregate, never from volatile data.
+     */
+    private function overviewCacheKey(AnalyticsQuery $query): string
+    {
+        return 'analytics_overview_' . md5(serialize([
+            $query->start()->format(DATE_ATOM),
+            $query->end()->format(DATE_ATOM),
+            $query->timezone()->getName(),
+            $query->bucket(),
+            $query->plugin(),
+            $query->connectionId(),
+            $query->retainedFrom() === null ? null : $query->retainedFrom()->format(DATE_ATOM),
+        ]));
     }
 
     /**

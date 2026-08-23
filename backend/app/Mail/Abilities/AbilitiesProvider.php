@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Abilities;
 
+use BitApps\SMTP\Deps\BitApps\WPKit\Cache\Repository as CacheRepository;
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
 use BitApps\SMTP\Mail\Analytics\AnalyticsQueryFactory;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
@@ -44,14 +45,18 @@ final class AbilitiesProvider
 
     private ?RoutingExplainer $routing;
 
+    private ?CacheRepository $cache;
+
     public function __construct(
         ?AnalyticsQueryFactory $queryFactory = null,
         ?MailAnalyticsService $analytics = null,
-        ?RoutingExplainer $routing = null
+        ?RoutingExplainer $routing = null,
+        ?CacheRepository $cache = null
     ) {
         $this->queryFactory = $queryFactory;
         $this->analytics    = $analytics;
         $this->routing      = $routing;
+        $this->cache        = $cache;
     }
 
     /**
@@ -266,7 +271,7 @@ final class AbilitiesProvider
 
     private function analyticsService(): MailAnalyticsService
     {
-        return $this->analytics ??= new MailAnalyticsService(new MailAnalyticsRepository());
+        return $this->analytics ??= new MailAnalyticsService(new MailAnalyticsRepository(), $this->cache);
     }
 
     private function routing(): RoutingExplainer

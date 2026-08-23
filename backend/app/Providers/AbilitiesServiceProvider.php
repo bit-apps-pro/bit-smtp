@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Providers;
 
+use BitApps\SMTP\Deps\BitApps\WPKit\Cache\CacheManager;
 use BitApps\SMTP\Deps\BitApps\WPKit\Container\ServiceProvider;
 use BitApps\SMTP\Mail\Abilities\AbilitiesProvider;
 
@@ -17,7 +18,8 @@ class AbilitiesServiceProvider extends ServiceProvider
     public function register(): void
     {
         if (\function_exists('wp_register_ability') && \function_exists('wp_register_ability_category')) {
-            (new AbilitiesProvider())->register();
+            $cache = $this->app->make(CacheManager::class)->store('transient');
+            (new AbilitiesProvider(null, null, null, $cache))->register();
         }
     }
 }
