@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Settings\PluginSettings;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -23,6 +24,9 @@ abstract class IntegrationTestCase extends TestCase
         parent::setUp();
         Config::deleteOption('options');
         Config::deleteOption('failure_notification_active');
+        // Preferences are seeded once at install time and otherwise untouched by this reset, so a
+        // test that relies on the legacy-option fallback (no blob written yet) needs a clean slate.
+        delete_option(PluginSettings::OPTION_NAME);
         $this->clearMailpit();
     }
 

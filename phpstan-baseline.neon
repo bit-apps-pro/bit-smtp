@@ -427,12 +427,6 @@ parameters:
 			path: backend/app/HTTP/Services/LogService.php
 
 		-
-			message: '#^Found usage of constant DOING_CRON\. Use wp_doing_cron\(\) instead\.$#'
-			identifier: phpstanWP.wpConstant.fetch
-			count: 1
-			path: backend/app/HTTP/Services/LogService.php
-
-		-
 			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:all\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -579,12 +573,6 @@ parameters:
 		-
 			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:updateRetention\(\) has parameter \$days with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: backend/app/HTTP/Services/LogService.php
-
-		-
-			message: '#^Parameter \#2 \$default of static method BitApps\\SMTP\\Config\:\:getOption\(\) expects bool, int given\.$#'
-			identifier: argument.type
 			count: 1
 			path: backend/app/HTTP/Services/LogService.php
 

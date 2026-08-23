@@ -15,8 +15,10 @@ class SavePreferencesRequest extends Request
     /**
      * Build one nullable rule set per schema field, keyed by field key, so any key the client sends
      * that isn't in the schema is dropped from validated() rather than persisted.
+     *
+     * @return array<string, array<int,mixed>>
      */
-    public function rules()
+    public function rules(): array
     {
         $rules = [];
 

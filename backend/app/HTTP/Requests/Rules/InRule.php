@@ -28,7 +28,7 @@ final class InRule extends Rule
     /**
      * Failure message; ":attribute" is filled in by the validator's ErrorBag.
      */
-    public function message()
+    public function message(): string
     {
         return \sprintf('The :attribute must be one of: %s', implode(', ', $this->choices));
     }

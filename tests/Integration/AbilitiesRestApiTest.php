@@ -220,7 +220,14 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
         $previousSuppressErrors = $wpdb->suppress_errors(true);
 
         try {
-            $response = $this->runAbility('bit-smtp/get-email-analytics', $this->range);
+            // A range distinct from $this->range: the overview is cached for 5 minutes, and reusing
+            // an already-queried range would return the earlier successful (cached) response instead
+            // of hitting this test's offline table.
+            $response = $this->runAbility('bit-smtp/get-email-analytics', [
+                'start'  => '2026-08-03T00:00:00+06:00',
+                'end'    => '2026-08-04T00:00:00+06:00',
+                'bucket' => 'hour',
+            ]);
 
             self::assertSame(500, $response->get_status());
             self::assertSame('bit_smtp_analytics_database_error', $response->get_data()['code']);

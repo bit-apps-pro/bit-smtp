@@ -168,9 +168,9 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertSame('idx_connection_id_created_utc', $plan->key);
     }
 
-    public function testDbVersionConstantIsTwoZero(): void
+    public function testDbVersionConstantIsTwoPointOne(): void
     {
-        $this->assertSame('2.0', Config::DB_VERSION);
+        $this->assertSame('2.1', Config::DB_VERSION);
     }
 
     public function testMaybeMigrateDbUpgradesAOneSixLogsTableAtTheCurrentPluginVersion(): void

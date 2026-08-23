@@ -16,7 +16,7 @@ class PreferencesController
     /**
      * Return the current preferences plus schema-derived field metadata for the settings UI.
      */
-    public function index()
+    public function index(): Response
     {
         return Response::success([
             'preferences' => PluginSettings::make()->all(),
@@ -27,7 +27,7 @@ class PreferencesController
     /**
      * Persist a validated partial or full preferences payload and echo back the resulting blob.
      */
-    public function save(SavePreferencesRequest $request)
+    public function save(SavePreferencesRequest $request): Response
     {
         return $this->persist($request->validated());
     }
@@ -35,7 +35,7 @@ class PreferencesController
     /**
      * Return the current preferences as a JSON payload suitable for download/re-import.
      */
-    public function export()
+    public function export(): Response
     {
         return Response::success(['preferences' => PluginSettings::make()->all()]);
     }
@@ -45,7 +45,7 @@ class PreferencesController
      * Accepts both export()'s `{preferences: {...}}` envelope and a flat body so an exported file
      * round-trips as-is.
      */
-    public function import(Request $request)
+    public function import(Request $request): Response
     {
         $payload = $request->all();
         if (isset($payload['preferences']) && \is_array($payload['preferences'])) {
@@ -63,6 +63,8 @@ class PreferencesController
 
     /**
      * Fill and persist the given (already-validated) preference values, returning the full blob.
+     *
+     * @param array<string, mixed> $validated
      */
     private function persist(array $validated): Response
     {

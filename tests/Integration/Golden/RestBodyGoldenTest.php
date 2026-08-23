@@ -14,7 +14,6 @@ use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Tests\Golden\Support\MatchesGolden;
 use BitApps\SMTP\Tests\Integration\IntegrationTestCase;
 use Mockery;
-use ReflectionClass;
 
 /**
  * Freezes the end-to-end REST response shape for a seeded SendGrid connection: MailConfigService::
@@ -248,10 +247,6 @@ final class RestBodyGoldenTest extends IntegrationTestCase
      */
     private function resetResponseSingleton(): void
     {
-        $reflection = new ReflectionClass(Response::class);
-        foreach (['_instance', '_message', '_status', '_code', '_data', '_httpStatus'] as $prop) {
-            $reflection->getProperty($prop)->setValue(null, null);
-        }
-        $reflection->getProperty('_headers')->setValue(null, []);
+        Response::reset();
     }
 }
