@@ -22,9 +22,12 @@ class SmtpTransport implements TransportInterface
 
     private CredentialResolverInterface $credentialResolver;
 
-    public function __construct(CredentialResolverInterface $credentialResolver)
+    private int $timeoutSeconds;
+
+    public function __construct(CredentialResolverInterface $credentialResolver, int $timeoutSeconds = 30)
     {
         $this->credentialResolver = $credentialResolver;
+        $this->timeoutSeconds     = $timeoutSeconds;
     }
 
     /**
@@ -35,6 +38,9 @@ class SmtpTransport implements TransportInterface
         $mailer->Mailer = 'smtp';
         $mailer->Host   = (string) $connection->setting('host', '');
         $mailer->Port   = (int) $connection->setting('port', 0);
+        // PHPMailer defaults to a 300s socket timeout; without this, a dead/unreachable host hangs
+        // the whole request instead of failing within the configured send_timeout_seconds pref.
+        $mailer->Timeout = $this->timeoutSeconds;
 
         if ($connection->setting('auth')) {
             $mailer->SMTPAuth = true;

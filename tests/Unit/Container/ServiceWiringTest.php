@@ -7,6 +7,7 @@ namespace BitApps\SMTP\Tests\Unit\Container;
 use BitApps\SMTP\Deps\BitApps\WPKit\Container\Application;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
+use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Providers\CoreServiceProvider;
 use BitApps\SMTP\Providers\MailServiceProvider;
@@ -65,6 +66,21 @@ final class ServiceWiringTest extends BaseUnitTestCase
         $plugin = $this->bootedPlugin();
 
         self::assertInstanceOf(WpMailBridge::class, $plugin->smtpProvider());
+    }
+
+    /**
+     * Task 18: MailServiceProvider reads the `send_timeout_seconds` pref via PluginSettings and
+     * threads it into SmtpTransport's constructor; get_option is stubbed false here (blanket
+     * setUp() stub), so PluginSettings falls back to the schema default (30).
+     */
+    public function testOtherSmtpTransportReceivesTheDefaultSendTimeoutSecondsFromPluginSettings(): void
+    {
+        $plugin = $this->bootedPlugin();
+
+        $transport = $plugin->providerRegistry()->get('other_smtp')->transport();
+
+        self::assertInstanceOf(SmtpTransport::class, $transport);
+        self::assertSame(30, (new ReflectionProperty(SmtpTransport::class, 'timeoutSeconds'))->getValue($transport));
     }
 
     public function testLoggerAccessorReturnsTheSameSingletonInstanceAcrossCalls(): void

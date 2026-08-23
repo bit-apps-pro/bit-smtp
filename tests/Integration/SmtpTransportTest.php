@@ -134,6 +134,20 @@ final class SmtpTransportTest extends IntegrationTestCase
         $this->assertSame('sender@example.org', $mailer->Sender);
         $replyToAddresses = array_column($mailer->getReplyToAddresses(), 0);
         $this->assertContains('reply@example.org', $replyToAddresses);
+        // $this->transport (setUp) was built without an explicit timeout, so configure() must fall
+        // back to the 30s default rather than leaving PHPMailer's own 300s default in place.
+        $this->assertSame(30, $mailer->Timeout);
+    }
+
+    public function testConfigureAppliesAnInjectedTimeoutSecondsOntoPhpmailer(): void
+    {
+        $transport  = new SmtpTransport(new DatabaseCredentialResolver(), 15);
+        $connection = $this->mailpitConnection();
+
+        $mailer = new PHPMailer(true);
+        $transport->configure($mailer, $connection);
+
+        $this->assertSame(15, $mailer->Timeout);
     }
 
     public function testSendStripsHeaderNameCrlf(): void

@@ -38,6 +38,7 @@ use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Transport\PhpSendmailTransport;
 use BitApps\SMTP\Mail\Transport\SmtpTransport;
+use BitApps\SMTP\Settings\PluginSettings;
 
 /**
  * Binds the mail-sending stack: shared HTTP/auth/mime deps, all 14 provider registrations, and the
@@ -97,14 +98,19 @@ class MailServiceProvider extends ServiceProvider
      */
     private static function buildProviderRegistry(Container $app): ProviderRegistry
     {
-        $apiClient     = $app->make(ApiClient::class);
+        $sendTimeoutSeconds = (int) PluginSettings::make()->get('send_timeout_seconds', 30);
+
+        // A clone (not the shared singleton, see ApiClient::withTimeout()) so every API transport
+        // built below fails within the configured window instead of hanging on a dead host; other
+        // ApiClient consumers (e.g. OAuth2TokenProvider) keep resolving the untouched singleton.
+        $apiClient     = $app->make(ApiClient::class)->withTimeout($sendTimeoutSeconds);
         $mimeBuilder   = $app->make(MimeBuilder::class);
         $tokenProvider = $app->make(OAuth2TokenProvider::class);
         $sigV4Signer   = $app->make(SigV4Signer::class);
         $authResolver  = $app->make(AuthorizationResolver::class);
 
         $registry = new ProviderRegistry();
-        $registry->register(new OtherSmtpProvider(new SmtpTransport(new DatabaseCredentialResolver())));
+        $registry->register(new OtherSmtpProvider(new SmtpTransport(new DatabaseCredentialResolver(), $sendTimeoutSeconds)));
         $registry->register(new PhpSendmailProvider(new PhpSendmailTransport()));
         $registry->register(new SendGridProvider(new SendGridTransport($apiClient)));
         $registry->register(new GmailProvider(new GmailTransport($apiClient, $tokenProvider, $mimeBuilder)));
