@@ -13,6 +13,7 @@ use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
+use BitApps\SMTP\Settings\PluginSettings;
 use DateTime;
 use RuntimeException;
 use Throwable;
@@ -315,7 +316,7 @@ class LogService
 
     public function deleteOlder()
     {
-        $logRetention = Config::getOption('log_retention', 30);
+        $logRetention = self::retentionDaysPreference();
         if ($logRetention > 200) {
             $logRetention = 200;
         }
@@ -362,7 +363,7 @@ class LogService
      */
     public function isEnabled()
     {
-        return (bool) Config::getOption('logging_enabled', true);
+        return self::loggingEnabledPreference();
     }
 
     /**
@@ -397,7 +398,7 @@ class LogService
      */
     public static function initializeLoggingContinuity(): ?string
     {
-        if (!(bool) Config::getOption('logging_enabled', true)) {
+        if (!self::loggingEnabledPreference()) {
             return null;
         }
 
@@ -537,6 +538,32 @@ class LogService
     private function subjectPattern(string $subject): string
     {
         return (new SubjectPatternNormalizer())->normalize($subject);
+    }
+
+    /**
+     * Whether logging is enabled: the seeded preferences store when present, else the pre-migration
+     * legacy option (honored until BitSmtpSettingsSeed, which is manage_options-gated, has run).
+     */
+    private static function loggingEnabledPreference(): bool
+    {
+        if (PluginSettings::exists()) {
+            return (bool) PluginSettings::make()->get('logging_enabled');
+        }
+
+        return (bool) Config::getOption('logging_enabled', true);
+    }
+
+    /**
+     * Configured log retention in days: the seeded preferences store when present, else the
+     * pre-migration legacy option (honored until BitSmtpSettingsSeed has run).
+     */
+    private static function retentionDaysPreference(): int
+    {
+        if (PluginSettings::exists()) {
+            return (int) PluginSettings::make()->get('log_retention_days');
+        }
+
+        return (int) Config::getOption('log_retention', 30);
     }
 
     /**

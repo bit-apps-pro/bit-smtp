@@ -57,4 +57,13 @@ class PluginSettings
     {
         return new SettingsRepository(self::OPTION_NAME, self::schema(), true);
     }
+
+    /**
+     * Whether the preferences blob has been seeded yet, so readers can fall back to legacy options
+     * for the window between an update and BitSmtpSettingsSeed running (manage_options-gated).
+     */
+    public static function exists(): bool
+    {
+        return !empty(get_option(self::OPTION_NAME, false));
+    }
 }

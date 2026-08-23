@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Analytics;
 
+use BitApps\SMTP\Config;
+use BitApps\SMTP\Settings\PluginSettings;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -161,7 +163,7 @@ final class MailAnalyticsService
         }
 
         $actualRetainedFrom = $this->utcTimestamp($bounds['earliest'] ?? null);
-        $continuityFrom     = $this->utcTimestamp(\BitApps\SMTP\Config::getOption(\BitApps\SMTP\Config::LOGGING_CONTINUITY_FROM_OPTION, false));
+        $continuityFrom     = $this->utcTimestamp(Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, false));
         // Retention and continuity define what *could* be compared. The earliest retained event is
         // observational metadata only: a sparse (or zero-volume) prior period still has complete
         // coverage when logging was continuous throughout its configured retention window.
@@ -623,13 +625,21 @@ final class MailAnalyticsService
         return $this->utcDate($first) >= $this->utcDate($second) ? $first : $second;
     }
 
+    /**
+     * Whether logging is enabled: the seeded preferences store when present, else the pre-migration
+     * legacy option (honored until BitSmtpSettingsSeed, which is manage_options-gated, has run).
+     */
     private function loggingEnabled(): bool
     {
         if (!\function_exists('get_option')) {
             return true;
         }
 
-        return (bool) \BitApps\SMTP\Config::getOption('logging_enabled', true);
+        if (PluginSettings::exists()) {
+            return (bool) PluginSettings::make()->get('logging_enabled');
+        }
+
+        return (bool) Config::getOption('logging_enabled', true);
     }
 
     private function loggingDisabledError(): ?WP_Error
