@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Analytics;
 
-use BitApps\SMTP\Config;
 use BitApps\SMTP\Settings\PluginSettings;
 use DateInterval;
 use DateTimeImmutable;
@@ -108,25 +107,11 @@ final class AnalyticsQueryFactory
     {
         $days = $configured;
         if ($days === null && \function_exists('get_option')) {
-            $days = $this->configuredRetentionDays();
+            $stored = PluginSettings::getWithLegacyFallback('log_retention_days', 'log_retention', self::DEFAULT_RANGE_DAYS);
+            $days   = is_numeric($stored) ? (int) $stored : self::DEFAULT_RANGE_DAYS;
         }
 
         return max(1, min(self::MAX_RANGE_DAYS, $days ?? self::DEFAULT_RANGE_DAYS));
-    }
-
-    /**
-     * Configured log retention: the seeded preferences store when present, else the pre-migration
-     * legacy option (honored until BitSmtpSettingsSeed, which is manage_options-gated, has run).
-     */
-    private function configuredRetentionDays(): int
-    {
-        if (PluginSettings::exists()) {
-            return (int) PluginSettings::make()->get('log_retention_days');
-        }
-
-        $stored = Config::getOption('log_retention');
-
-        return is_numeric($stored) ? (int) $stored : self::DEFAULT_RANGE_DAYS;
     }
 
     /**

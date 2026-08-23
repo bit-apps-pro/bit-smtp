@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Settings;
 
+use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Settings\SettingField;
 use BitApps\SMTP\Deps\BitApps\WPKit\Settings\SettingsRepository;
 use BitApps\SMTP\Deps\BitApps\WPKit\Settings\SettingsSchema;
@@ -59,11 +60,23 @@ class PluginSettings
     }
 
     /**
-     * Whether the preferences blob has been seeded yet, so readers can fall back to legacy options
-     * for the window between an update and BitSmtpSettingsSeed running (manage_options-gated).
+     * Read a preference, preferring the seeded blob (read once, cast via schema) and falling back to
+     * the legacy standalone option for the window before BitSmtpSettingsSeed (manage_options-gated) runs.
+     *
+     * @param mixed $default
+     *
+     * @return mixed
      */
-    public static function exists(): bool
+    public static function getWithLegacyFallback(string $prefKey, string $legacyKey, $default)
     {
-        return !empty(get_option(self::OPTION_NAME, false));
+        $blob = get_option(self::OPTION_NAME, false);
+        if (\is_array($blob) && $blob !== []) {
+            $field = self::schema()->field($prefKey);
+            if ($field !== null) {
+                return \array_key_exists($prefKey, $blob) ? $field->cast($blob[$prefKey]) : $field->default();
+            }
+        }
+
+        return Config::getOption($legacyKey, $default);
     }
 }

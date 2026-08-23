@@ -316,7 +316,7 @@ class LogService
 
     public function deleteOlder()
     {
-        $logRetention = self::retentionDaysPreference();
+        $logRetention = (int) PluginSettings::getWithLegacyFallback('log_retention_days', 'log_retention', 30);
         if ($logRetention > 200) {
             $logRetention = 200;
         }
@@ -351,9 +351,11 @@ class LogService
             $days = 200;
         }
 
-        $status = Config::updateOption('log_retention', $days);
+        // Write-through: the prefs blob is the source of truth the retention reader consults; keep
+        // the legacy option coherent for any external legacy reader.
+        PluginSettings::make()->set('log_retention_days', $days)->save();
 
-        return (bool) ($status);
+        return (bool) Config::updateOption('log_retention', $days);
     }
 
     /**
@@ -363,7 +365,7 @@ class LogService
      */
     public function isEnabled()
     {
-        return self::loggingEnabledPreference();
+        return (bool) PluginSettings::getWithLegacyFallback('logging_enabled', 'logging_enabled', true);
     }
 
     /**
@@ -376,8 +378,14 @@ class LogService
     public function setEnabled(bool $enable)
     {
         $wasEnabled = $this->isEnabled();
-        if ($wasEnabled !== $enable && !Config::updateOption('logging_enabled', $enable ? 1 : 0, true)) {
-            return false;
+        if ($wasEnabled !== $enable) {
+            if (!Config::updateOption('logging_enabled', $enable ? 1 : 0, true)) {
+                return false;
+            }
+
+            // Write-through: the prefs blob is the source of truth isEnabled() consults, so the
+            // toggle must land there too, not only in the legacy option.
+            PluginSettings::make()->set('logging_enabled', $enable)->save();
         }
 
         if (!$enable) {
@@ -398,7 +406,7 @@ class LogService
      */
     public static function initializeLoggingContinuity(): ?string
     {
-        if (!self::loggingEnabledPreference()) {
+        if (!(bool) PluginSettings::getWithLegacyFallback('logging_enabled', 'logging_enabled', true)) {
             return null;
         }
 
@@ -538,32 +546,6 @@ class LogService
     private function subjectPattern(string $subject): string
     {
         return (new SubjectPatternNormalizer())->normalize($subject);
-    }
-
-    /**
-     * Whether logging is enabled: the seeded preferences store when present, else the pre-migration
-     * legacy option (honored until BitSmtpSettingsSeed, which is manage_options-gated, has run).
-     */
-    private static function loggingEnabledPreference(): bool
-    {
-        if (PluginSettings::exists()) {
-            return (bool) PluginSettings::make()->get('logging_enabled');
-        }
-
-        return (bool) Config::getOption('logging_enabled', true);
-    }
-
-    /**
-     * Configured log retention in days: the seeded preferences store when present, else the
-     * pre-migration legacy option (honored until BitSmtpSettingsSeed has run).
-     */
-    private static function retentionDaysPreference(): int
-    {
-        if (PluginSettings::exists()) {
-            return (int) PluginSettings::make()->get('log_retention_days');
-        }
-
-        return (int) Config::getOption('log_retention', 30);
     }
 
     /**

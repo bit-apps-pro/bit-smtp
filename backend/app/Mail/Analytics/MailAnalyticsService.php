@@ -635,11 +635,7 @@ final class MailAnalyticsService
             return true;
         }
 
-        if (PluginSettings::exists()) {
-            return (bool) PluginSettings::make()->get('logging_enabled');
-        }
-
-        return (bool) Config::getOption('logging_enabled', true);
+        return (bool) PluginSettings::getWithLegacyFallback('logging_enabled', 'logging_enabled', true);
     }
 
     private function loggingDisabledError(): ?WP_Error
