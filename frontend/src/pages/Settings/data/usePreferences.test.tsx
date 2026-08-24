@@ -72,6 +72,30 @@ describe('useSavePreferences', () => {
       data: { log_retention_days: 60 }
     })
   })
+
+  it('invalidates the retry-queue cache on success so the panel reflects the saved retry_enabled', async () => {
+    ;(request as Mock).mockResolvedValue({
+      status: 'success',
+      code: 'SUCCESS',
+      message: undefined,
+      data: { preferences: { ...preferences, retry_enabled: true } }
+    })
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries')
+    const clientWrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+
+    const { result } = renderHook(() => useSavePreferences(), { wrapper: clientWrapper })
+    result.current.mutate({ retry_enabled: true })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['retry_queue'] })
+  })
 })
 
 describe('useExportPreferences', () => {

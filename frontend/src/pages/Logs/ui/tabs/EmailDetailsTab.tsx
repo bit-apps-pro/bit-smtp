@@ -1,3 +1,4 @@
+import { formatTimestamp } from '@common/helpers/datetime'
 import { type LogType } from '@pages/Logs/data/useFetchLogs'
 import { Typography } from 'antd'
 
@@ -10,14 +11,7 @@ interface EmailDetailsTabProps {
 
 export default function EmailDetailsTab({ log, isLoading }: EmailDetailsTabProps) {
   if (isLoading || !log) return <Text>Loading...</Text>
-  let localSentAt = ''
-  if (log?.created_at) {
-    try {
-      localSentAt = new Date(log.created_at).toLocaleString()
-    } catch (e) {
-      localSentAt = log.created_at
-    }
-  }
+  const localSentAt = log.created_at ? formatTimestamp(log.created_at) : ''
   return (
     <div>
       <Text strong>Sent At: </Text>

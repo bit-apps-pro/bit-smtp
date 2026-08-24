@@ -65,8 +65,11 @@ final class BitSmtpLogsTableMigration extends Migration
             return;
         }
 
-        Schema::drop('log_delivery_events');
-        Schema::drop('logs');
+        // withWpPrefix(), not a bare Schema::drop(): the static form leaves the prefix null and
+        // emits an unprefixed `DROP TABLE logs`, matching nothing and leaving the real tables (with
+        // recipient/subject content) behind on uninstall-with-purge.
+        Schema::withWpPrefix()->drop('log_delivery_events');
+        Schema::withWpPrefix()->drop('logs');
     }
 
     private function addConnectionColumnIfMissing()

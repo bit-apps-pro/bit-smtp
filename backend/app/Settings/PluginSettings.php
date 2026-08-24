@@ -35,7 +35,11 @@ class PluginSettings
             ->add(
                 SettingField::int('send_timeout_seconds', 30, 'reliability'),
                 SettingField::bool('retry_enabled', false, 'reliability'),
-                SettingField::int('retry_max_attempts', 3, 'reliability'),
+                SettingField::int('retry_max_attempts', 3, 'reliability', static function ($value) {
+                    // Clamp to the queue's max_attempts tinyint-unsigned column range; an out-of-range
+                    // value makes the row INSERT fail silently under MySQL strict mode, dropping the retry.
+                    return max(1, min(255, (int) $value));
+                }),
                 SettingField::enum('retry_backoff', ['exponential', 'fixed'], 'exponential', 'reliability'),
                 SettingField::arr('retry_on_classes', [], 'reliability')
             )

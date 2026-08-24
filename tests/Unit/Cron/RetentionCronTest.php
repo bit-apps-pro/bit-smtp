@@ -110,6 +110,9 @@ final class RetentionCronTest extends BaseUnitTestCase
         Functions\expect('wp_clear_scheduled_hook')
             ->once()
             ->with(Config::RETENTION_GC_HOOK);
+        Functions\expect('wp_clear_scheduled_hook')
+            ->once()
+            ->with(Config::RETRY_QUEUE_HOOK);
 
         // A fresh InstallerProvider, never touching CoreServiceProvider/Scheduler: proves the clear
         // doesn't depend on a Scheduler instance having had job() called this request (fixes M5).

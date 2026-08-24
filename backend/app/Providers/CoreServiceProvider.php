@@ -16,6 +16,8 @@ use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
+use BitApps\SMTP\Mail\Dispatch\RetryQueue;
+use BitApps\SMTP\Mail\Dispatch\RetryWorker;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
@@ -71,6 +73,10 @@ class CoreServiceProvider extends ServiceProvider
 
         $this->configureRetentionCron();
 
+        $this->app->singleton(RetryQueue::class, static fn (): RetryQueue => new RetryQueue());
+
+        $this->configureRetryCron();
+
         $this->app->singleton(
             WebhookProvisioningService::class,
             static fn (Container $app): WebhookProvisioningService => new WebhookProvisioningService(
@@ -109,5 +115,29 @@ class CoreServiceProvider extends ServiceProvider
                 $container->make(LogService::class)->deleteOlder();
             }
         );
+    }
+
+    /**
+     * Configure the every-5-minutes retry-queue processing job on the Scheduler. The retry_enabled
+     * check happens inside the job callback (not by skipping registration), so toggling the
+     * preference off/on takes effect immediately without re-scheduling/clearing the WP cron event.
+     */
+    private function configureRetryCron(): void
+    {
+        $container = $this->app;
+
+        $this->app->make(Scheduler::class)
+            ->addSchedule('bit_smtp_five_minutes', 300, 'Every 5 minutes')
+            ->job(
+                Config::RETRY_QUEUE_HOOK,
+                'bit_smtp_five_minutes',
+                static function () use ($container): void {
+                    if (!PluginSettings::make()->get('retry_enabled', false)) {
+                        return;
+                    }
+
+                    $container->make(RetryWorker::class)->process();
+                }
+            );
     }
 }

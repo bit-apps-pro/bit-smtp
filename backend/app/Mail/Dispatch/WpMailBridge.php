@@ -21,6 +21,7 @@ use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Routing\RoutingRules;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Plugin;
+use BitApps\SMTP\Settings\PluginSettings;
 use InvalidArgumentException;
 use WP_Error;
 
@@ -36,6 +37,8 @@ class WpMailBridge
     private SendContext $context;
 
     private MailEventLogger $eventLogger;
+
+    private RetryQueue $retryQueue;
 
     private FailureClassifier $classifier;
 
@@ -76,6 +79,7 @@ class WpMailBridge
         $this->failureNotifier    = $failureNotifier;
         $this->context            = new SendContext();
         $this->eventLogger        = new MailEventLogger(Plugin::instance()->logger());
+        $this->retryQueue         = new RetryQueue();
         $this->classifier         = new FailureClassifier();
         $this->loggingEnabled     = Plugin::instance()->logger()->isEnabled();
         $this->stamper            = new TrackingIdStamper();
@@ -186,7 +190,31 @@ class WpMailBridge
             return;
         }
 
-        return $this->dispatch($connections, $message, $this->buildMailData($atts));
+        return $this->dispatch($connections, $message, $this->buildMailData($atts))['succeeded'];
+    }
+
+    /**
+     * Re-dispatch a previously-queued retry through the ordinary failover loop, over the same
+     * connections (by id) it was originally enqueued with.
+     *
+     * @param array<string,mixed> $mailData
+     * @param string[]            $connectionIds
+     *
+     * @return array{succeeded: bool, failure_class: ?string}
+     */
+    public function dispatchRetry(MailMessage $message, array $mailData, array $connectionIds): array
+    {
+        $this->context->setRetrying(true);
+
+        $connections = [];
+        foreach ($connectionIds as $id) {
+            $connection = Plugin::instance()->mailConfigService()->connectionById($id);
+            if ($connection !== null) {
+                $connections[] = $connection;
+            }
+        }
+
+        return $this->dispatch($connections, $message, $mailData, true);
     }
 
     /**
@@ -233,8 +261,10 @@ class WpMailBridge
      *
      * @param Connection[]        $connections
      * @param array<string,mixed> $mailData
+     *
+     * @return array{succeeded: bool, failure_class: ?string}
      */
-    private function dispatch(array $connections, MailMessage $message, array $mailData): bool
+    private function dispatch(array $connections, MailMessage $message, array $mailData, bool $isWorkerRedispatch = false): array
     {
         $this->dispatching = true;
 
@@ -243,19 +273,21 @@ class WpMailBridge
             $lastResult            = null;
             $lastConnection        = null;
             $attempts              = [];
+            $connectionIdsTried    = [];
             $winningMessageId      = null;
             $winningTrackingId     = null;
             $winningDeliveryStatus = null;
 
             foreach ($connections as $connection) {
                 $this->advanceRoutingDecision($connection);
-                $provider       = $this->resolveProvider($connection);
-                $tracking       = ($provider !== null && $connection->isWebhookEnabled()) ? $provider->tracking() : [];
-                $trackingId     = $tracking !== [] ? $this->stamper->generate() : null;
-                $lastResult     = $this->sendVia($provider, $connection, $message, $tracking, $trackingId);
-                $lastConnection = $connection;
+                $provider             = $this->resolveProvider($connection);
+                $tracking             = ($provider !== null && $connection->isWebhookEnabled()) ? $provider->tracking() : [];
+                $trackingId           = $tracking !== [] ? $this->stamper->generate() : null;
+                $lastResult           = $this->sendVia($provider, $connection, $message, $tracking, $trackingId);
+                $lastConnection       = $connection;
                 $this->appendDebug($lastResult);
-                $attempts[]     = $this->attemptEntry($connection, $lastResult);
+                $attempts[]           = $this->attemptEntry($connection, $lastResult);
+                $connectionIdsTried[] = $connection->getId();
 
                 // Fall back only when NOT accepted: an accepted-but-partial send (e.g. a 2xx with a
                 // per-message error) was already handed off, so retrying via the next connection
@@ -295,10 +327,41 @@ class WpMailBridge
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
 
-            return $succeeded;
+            // A worker-driven re-dispatch (dispatchRetry) must never re-enqueue: the worker already
+            // owns rescheduling via RetryQueue::reschedule(), so enqueuing again here would create a
+            // duplicate, orphaned queue row retrying forever in parallel with the worker's own row.
+            // Gated on an explicit param, NOT SendContext::isRetrying — logOutcome() above resets that
+            // flag to false before we reach here, so it can never block.
+            if (!$succeeded && !$isWorkerRedispatch && $failureClass !== null && FailureCategory::isRetryable($failureClass)) {
+                $this->maybeEnqueueRetry($message, $mailData, $connectionIdsTried, $failureClass);
+            }
+
+            return ['succeeded' => $succeeded, 'failure_class' => $failureClass];
         } finally {
             $this->dispatching = false;
         }
+    }
+
+    /**
+     * Enqueue a retryable failure onto the retry queue when the reliability preferences allow it.
+     * The queued row carries no log id (a fresh log row is written per retry attempt instead): the
+     * buffered MailEventLogger write doesn't expose the inserted row id back to this call.
+     *
+     * @param array<string,mixed> $mailData
+     * @param string[]            $connectionIds
+     */
+    private function maybeEnqueueRetry(MailMessage $message, array $mailData, array $connectionIds, string $failureClass): void
+    {
+        $settings = PluginSettings::make();
+        if (!$settings->get('retry_enabled', false)) {
+            return;
+        }
+
+        $maxAttempts = (int) $settings->get('retry_max_attempts', 3);
+        $backoffMode = (string) $settings->get('retry_backoff', 'exponential');
+        $firstDelay  = RetryWorker::computeDelay(1, $backoffMode);
+
+        $this->retryQueue->enqueue($message, $mailData, $connectionIds, $failureClass, null, $maxAttempts, $firstDelay);
     }
 
     /**

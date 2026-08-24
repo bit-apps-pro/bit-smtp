@@ -20,7 +20,9 @@ const __ = (text: string, domain = 'bitapp') => {
 }
 
 const sprintf = (text: string, ...vars: any) => {
-  if (!wp?.i18n) {
+  // Guard `wp` with typeof like __ above: a bare `wp?.i18n` throws ReferenceError when the global is
+  // absent (test env, or a page where wp-i18n isn't enqueued) instead of falling back.
+  if (typeof wp === 'undefined' || !wp?.i18n) {
     const matches: any = text.match(/%[s d u c o x X bg G e E f F]/g)
     let str = text
     vars.map((val: any, idx: number) => {

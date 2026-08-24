@@ -14,6 +14,7 @@ use BitApps\SMTP\HTTP\Controllers\NotificationController;
 use BitApps\SMTP\HTTP\Controllers\OAuthController;
 use BitApps\SMTP\HTTP\Controllers\PreferencesController;
 use BitApps\SMTP\HTTP\Controllers\ProviderController;
+use BitApps\SMTP\HTTP\Controllers\RetryController;
 use BitApps\SMTP\HTTP\Controllers\SMTPController;
 use BitApps\SMTP\HTTP\Controllers\TelemetryPopupController;
 
@@ -53,4 +54,7 @@ Route::group(function () {
     Route::get('analytics/overview', [AnalyticsController::class, 'overview']);
     Route::get('analytics/deliverability', [AnalyticsController::class, 'deliverability']);
     Route::get('analytics/anomalies', [AnalyticsController::class, 'anomalies']);
+
+    Route::get('mail/retry-queue', [RetryController::class, 'status']);
+    Route::post('mail/retry-queue/flush', [RetryController::class, 'flush']);
 })->middleware('cap:admin');

@@ -58,6 +58,7 @@ class InstallerProvider
         // providers that call Scheduler::job() this request, so a Scheduler instance's own
         // bookkeeping can't be relied on here -- WordPress's cron API is the only sure handle.
         wp_clear_scheduled_hook(Config::RETENTION_GC_HOOK);
+        wp_clear_scheduled_hook(Config::RETRY_QUEUE_HOOK);
     }
 
     public function registerActivator($networkWide)
@@ -77,13 +78,15 @@ class InstallerProvider
 
     public static function migration()
     {
-        // Schema/data migrations run first; the db_version bump runs LAST so a failed schema
-        // migration leaves the version gate open to retry (each migration is idempotent).
+        // BitSmtpPluginOptions (the db_version bump) always runs LAST so a failed schema migration
+        // leaves the version gate open to retry (each migration is idempotent); new schema
+        // migrations are inserted before it, not appended after.
         $migrations = [
             'BitSmtpLogsTableMigration',
             'BitSmtpSettingsSeed',
             'BitSmtpEncryptSecrets',
             'BitSmtpCleanupOrphanDeliveryEvents',
+            'BitSmtpRetryQueueMigration',
             'BitSmtpPluginOptions',
         ];
 
@@ -104,6 +107,7 @@ class InstallerProvider
             'BitSmtpPluginOptions',
             'BitSmtpCleanupOrphanDeliveryEvents',
             'BitSmtpSettingsSeed',
+            'BitSmtpRetryQueueMigration',
             'BitSmtpLogsTableMigration',
             'BitSmtpEncryptSecrets',
         ];

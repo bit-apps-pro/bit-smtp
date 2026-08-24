@@ -58,5 +58,6 @@ final class BitSmtpPluginOptions extends Migration
         delete_option(PluginSettings::OPTION_NAME);
 
         wp_clear_scheduled_hook(Config::RETENTION_GC_HOOK);
+        wp_clear_scheduled_hook(Config::RETRY_QUEUE_HOOK);
     }
 }

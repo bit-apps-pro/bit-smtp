@@ -10,6 +10,7 @@ use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Mail\Dispatch\FailureClassifier;
 use BitApps\SMTP\Mail\Dispatch\MailEventLogger;
+use BitApps\SMTP\Mail\Dispatch\RetryQueue;
 use BitApps\SMTP\Mail\Dispatch\SendContext;
 use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
@@ -38,6 +39,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
     {
         parent::setUp();
         Functions\when('wp_generate_uuid4')->justReturn('track-uuid');
+        // dispatch()'s retry-enqueue guard reads PluginSettings::make(), which always hits
+        // get_option() on construction; no preferences blob means retry_enabled defaults to false,
+        // so every pre-existing dispatch() test below is unaffected unless it overrides this stub.
+        Functions\when('get_option')->justReturn(false);
     }
 
     public function testSendViaOverridesMessageFromWithTheConnectionsFromEmailAndName(): void
@@ -362,6 +367,76 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertSame(2, $transport->callCount, 'a retryable failure must still try the next connection');
     }
 
+    public function testDispatchDoesNotEnqueueRetryWhenPreferenceIsDisabled(): void
+    {
+        // setUp()'s default get_option stub yields retry_enabled = false (the schema default).
+        $transport = new ScriptedTransport([SendResult::failure('Connection refused')]);
+        $bridge    = $this->dispatchableBridge($transport);
+
+        $retryQueue = Mockery::mock(RetryQueue::class);
+        $retryQueue->shouldNotReceive('enqueue');
+        $this->setRetryQueue($bridge, $retryQueue);
+
+        $succeeded = $this->invokeDispatch($bridge, [$this->connection(['id' => 'conn_1'])], $this->message(), []);
+
+        $this->assertFalse($succeeded);
+    }
+
+    public function testDispatchDoesNotEnqueueRetryOnWorkerRedispatch(): void
+    {
+        // retry_enabled is true specifically so this proves the worker-redispatch param blocks the
+        // enqueue -- not merely that the preference happens to be off. The param (not
+        // SendContext::isRetrying, which logOutcome resets) is the authoritative guard: a worker's
+        // own re-dispatch must never enqueue a second, orphaned queue row.
+        Functions\when('get_option')->justReturn([
+            'retry_enabled'      => true,
+            'retry_max_attempts' => 5,
+            'retry_backoff'      => 'exponential',
+        ]);
+
+        $transport = new ScriptedTransport([SendResult::failure('Connection refused')]);
+        $bridge    = $this->dispatchableBridge($transport);
+
+        $retryQueue = Mockery::mock(RetryQueue::class);
+        $retryQueue->shouldNotReceive('enqueue');
+        $this->setRetryQueue($bridge, $retryQueue);
+
+        $result = $this->invokeDispatchFull($bridge, [$this->connection(['id' => 'conn_1'])], $this->message(), [], true);
+
+        $this->assertFalse($result['succeeded']);
+    }
+
+    public function testDispatchEnqueuesRetryWhenEnabledAndFailureIsRetryable(): void
+    {
+        Functions\when('get_option')->justReturn([
+            'retry_enabled'      => true,
+            'retry_max_attempts' => 5,
+            'retry_backoff'      => 'exponential',
+        ]);
+
+        $transport = new ScriptedTransport([SendResult::failure('Connection refused')]);
+        $bridge    = $this->dispatchableBridge($transport);
+
+        $retryQueue = Mockery::mock(RetryQueue::class);
+        $retryQueue->shouldReceive('enqueue')
+            ->once()
+            ->with(
+                Mockery::type(MailMessage::class),
+                [],
+                ['conn_1'],
+                FailureCategory::TRANSIENT,
+                null,
+                5,
+                Mockery::type('int')
+            );
+        $this->setRetryQueue($bridge, $retryQueue);
+
+        $outcome = $this->invokeDispatchFull($bridge, [$this->connection(['id' => 'conn_1'])], $this->message(), []);
+
+        $this->assertFalse($outcome['succeeded']);
+        $this->assertSame(FailureCategory::TRANSIENT, $outcome['failure_class']);
+    }
+
     public function testSuccessfulSendRecordsNoFailureClass(): void
     {
         $transport = new ScriptedTransport([
@@ -637,14 +712,29 @@ class WpMailBridgeTest extends BaseUnitTestCase
     }
 
     /**
+     * dispatch() now returns array{succeeded: bool, failure_class: ?string}; every pre-existing
+     * caller here only ever cared about the bool, so that shape is unwrapped in one place rather
+     * than touching each call site. testDispatchEnqueuesRetryWhenEnabledAndFailureIsRetryable below
+     * invokes dispatch() directly (via invokeDispatchFull()) when it needs the failure_class too.
+     *
      * @param Connection[] $connections
      */
     private function invokeDispatch(WpMailBridge $bridge, array $connections, MailMessage $message, array $mailData): bool
     {
+        return $this->invokeDispatchFull($bridge, $connections, $message, $mailData)['succeeded'];
+    }
+
+    /**
+     * @param Connection[] $connections
+     *
+     * @return array{succeeded: bool, failure_class: ?string}
+     */
+    private function invokeDispatchFull(WpMailBridge $bridge, array $connections, MailMessage $message, array $mailData, bool $isWorkerRedispatch = false): array
+    {
         $method = new ReflectionMethod(WpMailBridge::class, 'dispatch');
         $method->setAccessible(true);
 
-        return $method->invoke($bridge, $connections, $message, $mailData);
+        return $method->invoke($bridge, $connections, $message, $mailData, $isWorkerRedispatch);
     }
 
     private function setEventLogger(WpMailBridge $bridge, LogService $logService): void
@@ -682,6 +772,13 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $property->setValue($bridge, $notifier);
     }
 
+    private function setRetryQueue(WpMailBridge $bridge, RetryQueue $retryQueue): void
+    {
+        $property = (new ReflectionClass(WpMailBridge::class))->getProperty('retryQueue');
+        $property->setAccessible(true);
+        $property->setValue($bridge, $retryQueue);
+    }
+
     /**
      * A bridge wired to also run dispatch() (not just sendVia()): dispatch touches $context and
      * $loggingEnabled, which bridgeWithTransport() leaves uninitialized.
@@ -716,6 +813,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $classifierProperty = $refClass->getProperty('classifier');
         $classifierProperty->setAccessible(true);
         $classifierProperty->setValue($bridge, new FailureClassifier());
+
+        $retryQueueProperty = $refClass->getProperty('retryQueue');
+        $retryQueueProperty->setAccessible(true);
+        $retryQueueProperty->setValue($bridge, new RetryQueue());
 
         $stamperProperty = $refClass->getProperty('stamper');
         $stamperProperty->setAccessible(true);

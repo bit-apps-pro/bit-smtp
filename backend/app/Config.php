@@ -24,11 +24,13 @@ class Config
 
     public const VERSION = '1.2.4';
 
-    public const DB_VERSION = '2.2';
+    public const DB_VERSION = '2.3';
 
     public const LOGGING_CONTINUITY_FROM_OPTION = 'logging_continuity_from';
 
     public const RETENTION_GC_HOOK = 'bit_smtp_retention_gc';
+
+    public const RETRY_QUEUE_HOOK = 'bit_smtp_process_retry_queue';
 
     public const REQUIRED_PHP_VERSION = '8.0';
 
