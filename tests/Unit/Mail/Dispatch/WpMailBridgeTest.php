@@ -7,6 +7,8 @@ use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
+use BitApps\SMTP\Mail\Dispatch\FailureCategory;
+use BitApps\SMTP\Mail\Dispatch\FailureClassifier;
 use BitApps\SMTP\Mail\Dispatch\MailEventLogger;
 use BitApps\SMTP\Mail\Dispatch\SendContext;
 use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
@@ -246,6 +248,144 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
         $this->assertTrue($succeeded);
         $this->assertSame(1, $transport->callCount, 'a full success must never try the next connection');
+    }
+
+    public function testPermanentFailureStillFallsBackToTheNextConnection(): void
+    {
+        // A permanent (content/reputation/policy) rejection is connection-scoped — a different,
+        // clean-reputation connection may still deliver — so failover must still try it
+        // (FailureCategory::STOPS_FAILOVER is INVALID_RECIPIENT only).
+        $transport = new ScriptedTransport([
+            SendResult::failure('Message blocked due to policy'),
+            SendResult::success(),
+        ]);
+        $bridge = $this->dispatchableBridge($transport);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertTrue($succeeded);
+        $this->assertSame(2, $transport->callCount, 'a permanent failure must still try the next connection');
+    }
+
+    public function testAllConnectionsPermanentlyFailingRecordsThePermanentFailureClass(): void
+    {
+        // When every connection exhausts with a PERMANENT rejection, the final (non-stopping)
+        // outcome must still surface as PERMANENT on the log row.
+        $transport = new ScriptedTransport([
+            SendResult::failure('Message blocked due to policy'),
+            SendResult::failure('554 blocked as spam'),
+        ]);
+        $bridge = $this->bridgeWithTransport($transport);
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return $logs[0]['failure_class'] === FailureCategory::PERMANENT;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertFalse($succeeded);
+        $this->assertSame(2, $transport->callCount, 'a permanent failure must still try every connection');
+    }
+
+    public function testInvalidRecipientFailureStopsTheFallbackChain(): void
+    {
+        $transport = new ScriptedTransport([
+            SendResult::failure('No such user here'),
+            SendResult::success(),
+        ]);
+        $bridge = $this->dispatchableBridge($transport);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertFalse($succeeded);
+        $this->assertSame(1, $transport->callCount, 'an invalid-recipient failure must never try the next connection');
+    }
+
+    public function testAuthFailureStillFallsBackToTheNextConnection(): void
+    {
+        // Bad credentials on one connection say nothing about an independent connection, so
+        // failover must still try it (FailureCategory::STOPS_FAILOVER deliberately excludes AUTH).
+        $transport = new ScriptedTransport([
+            SendResult::failure('Invalid username or password'),
+            SendResult::success(),
+        ]);
+        $bridge = $this->dispatchableBridge($transport);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertTrue($succeeded);
+        $this->assertSame(2, $transport->callCount, 'an auth failure must still try the next connection');
+    }
+
+    public function testAllRetryableFailuresRecordTheFinalFailureClassOnTheLog(): void
+    {
+        $transport = new ScriptedTransport([
+            SendResult::failure('Connection refused'),
+            SendResult::failure('Too many requests, please try again'),
+        ]);
+        $bridge = $this->bridgeWithTransport($transport);
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return $logs[0]['failure_class'] === FailureCategory::RATE_LIMITED;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertFalse($succeeded);
+        $this->assertSame(2, $transport->callCount, 'a retryable failure must still try the next connection');
+    }
+
+    public function testSuccessfulSendRecordsNoFailureClass(): void
+    {
+        $transport = new ScriptedTransport([
+            SendResult::failure('Connection refused'),
+            SendResult::success(),
+        ]);
+        $bridge = $this->bridgeWithTransport($transport);
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(function (array $logs): bool {
+                return \array_key_exists('failure_class', $logs[0]) && $logs[0]['failure_class'] === null;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertTrue($succeeded);
     }
 
     public function testWebhookEnabledSendThreadsMessageIdAndTrackingIdOntoTheLog(): void
@@ -572,6 +712,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $eventLoggerProperty = $refClass->getProperty('eventLogger');
         $eventLoggerProperty->setAccessible(true);
         $eventLoggerProperty->setValue($bridge, new MailEventLogger(Mockery::mock(LogService::class)));
+
+        $classifierProperty = $refClass->getProperty('classifier');
+        $classifierProperty->setAccessible(true);
+        $classifierProperty->setValue($bridge, new FailureClassifier());
 
         $stamperProperty = $refClass->getProperty('stamper');
         $stamperProperty->setAccessible(true);

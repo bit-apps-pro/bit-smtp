@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
+use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 
@@ -132,6 +133,124 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertCount(2, $attempts, 'the trail records every failed attempt');
         $this->assertSame(['conn_primary', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
         $this->assertSame(['conn_fallback', 'failed'], [$attempts[1]['connection'], $attempts[1]['status']]);
+    }
+
+    public function testPermanentFailureStillReachesTheSmtpFallback(): void
+    {
+        // A permanent rejection (SendGrid HTTP 400, no recipient-specific detail) is connection-scoped
+        // — a differently-credentialed/reputationed connection may still deliver — so dispatch must
+        // still try the SMTP fallback rather than stop after the primary.
+        $apiKey = 'SG.test-key-permanent';
+        $filter = static function ($preempt, $args, $url) {
+            if (strpos($url, 'api.sendgrid.com') === false) {
+                return $preempt;
+            }
+
+            return [
+                'headers'  => [],
+                'body'     => '',
+                'response' => ['code' => 400, 'message' => 'Bad Request'],
+                'cookies'  => [],
+                'filename' => null,
+            ];
+        };
+        add_filter('pre_http_request', $filter, 10, 3);
+
+        try {
+            $this->storeV2([
+                $this->sendGridConnection('conn_sendgrid', $apiKey),
+                $this->connection('conn_fallback', self::SMTP_HOST, self::SMTP_PORT),
+            ], 'conn_sendgrid', ['conn_fallback']);
+
+            $sent = wp_mail('to@example.org', 'Blocked But Retried', 'Body');
+        } finally {
+            remove_filter('pre_http_request', $filter, 10);
+        }
+
+        $this->assertTrue($sent, 'a permanent rejection on the primary must still try the SMTP fallback');
+        $this->assertNotEmpty($this->mailpitMessages(), 'the SMTP fallback should deliver');
+        $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
+
+        $logs = $this->logs();
+        $this->assertCount(1, $logs);
+        $this->assertSame(Log::SUCCESS, $logs[0]->status);
+        $this->assertSame('conn_fallback', $logs[0]->connection, 'the winning fallback connection is recorded');
+        $this->assertNull($logs[0]->failure_class, 'a final success carries no failure class');
+
+        $attempts = $logs[0]->details['attempts'] ?? [];
+        $this->assertCount(2, $attempts, 'the permanently-rejected primary and the successful fallback are both recorded');
+        $this->assertSame(['conn_sendgrid', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
+        $this->assertSame(['conn_fallback', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
+    }
+
+    public function testInvalidRecipientFailureStopsTheFallbackChain(): void
+    {
+        // Only an invalid/nonexistent recipient is undeliverable on every connection alike
+        // (FailureCategory::STOPS_FAILOVER is INVALID_RECIPIENT only), so this is the one category
+        // that must still stop dispatch after the primary rather than waste the SMTP fallback.
+        $apiKey = 'SG.test-key-invalid-recipient';
+        $filter = static function ($preempt, $args, $url) {
+            if (strpos($url, 'api.sendgrid.com') === false) {
+                return $preempt;
+            }
+
+            return [
+                'headers'  => [],
+                'body'     => wp_json_encode(['errors' => [['message' => 'The recipient address was rejected: no such user']]]),
+                'response' => ['code' => 400, 'message' => 'Bad Request'],
+                'cookies'  => [],
+                'filename' => null,
+            ];
+        };
+        add_filter('pre_http_request', $filter, 10, 3);
+
+        try {
+            $this->storeV2([
+                $this->sendGridConnection('conn_sendgrid', $apiKey),
+                $this->connection('conn_fallback', self::SMTP_HOST, self::SMTP_PORT),
+            ], 'conn_sendgrid', ['conn_fallback']);
+
+            $sent = wp_mail('to@example.org', 'Bad Recipient', 'Body');
+        } finally {
+            remove_filter('pre_http_request', $filter, 10);
+        }
+
+        $this->assertFalse($sent);
+        $this->assertEmpty($this->mailpitMessages(), 'an invalid-recipient primary must never try the SMTP fallback');
+        $this->assertTrue(Plugin::instance()->smtpProvider()->isFailed());
+
+        $logs = $this->logs();
+        $this->assertCount(1, $logs);
+        $this->assertSame(Log::ERROR, $logs[0]->status);
+        $this->assertSame('conn_sendgrid', $logs[0]->connection, 'only the primary was ever attempted');
+        $this->assertSame(FailureCategory::INVALID_RECIPIENT, $logs[0]->failure_class);
+
+        $attempts = $logs[0]->details['attempts'] ?? [];
+        $this->assertCount(1, $attempts, 'the fallback connection must never be attempted');
+        $this->assertSame(['conn_sendgrid', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
+    }
+
+    public function testRetryableFailuresStillTryEveryConnectionAndRecordTheFinalFailureClass(): void
+    {
+        // Both connections fail with a genuine (non-accepted), retryable-category error: dispatch
+        // must still try every connection, and the log row must carry the LAST attempt's category.
+        $this->storeV2([
+            $this->connection('conn_primary', '127.0.0.1', 2),
+            $this->connection('conn_fallback', '127.0.0.1', 3),
+        ], 'conn_primary', ['conn_fallback']);
+
+        $sent = wp_mail('to@example.org', 'Doomed Retryable', 'Body');
+
+        $this->assertFalse($sent);
+        $this->assertEmpty($this->mailpitMessages());
+
+        $logs = $this->logs();
+        $this->assertCount(1, $logs);
+        $this->assertSame(Log::ERROR, $logs[0]->status);
+        $this->assertSame(FailureCategory::TRANSIENT, $logs[0]->failure_class);
+
+        $attempts = $logs[0]->details['attempts'] ?? [];
+        $this->assertCount(2, $attempts, 'a retryable failure must still try every connection');
     }
 
     public function testSingleConnectionDeliversPreservingBackwardCompatibility(): void

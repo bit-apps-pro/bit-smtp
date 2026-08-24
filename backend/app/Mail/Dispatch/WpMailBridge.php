@@ -37,6 +37,8 @@ class WpMailBridge
 
     private MailEventLogger $eventLogger;
 
+    private FailureClassifier $classifier;
+
     private TrackingIdStamper $stamper;
 
     private ProviderRegistry $registry;
@@ -74,6 +76,7 @@ class WpMailBridge
         $this->failureNotifier    = $failureNotifier;
         $this->context            = new SendContext();
         $this->eventLogger        = new MailEventLogger(Plugin::instance()->logger());
+        $this->classifier         = new FailureClassifier();
         $this->loggingEnabled     = Plugin::instance()->logger()->isEnabled();
         $this->stamper            = new TrackingIdStamper();
 
@@ -270,9 +273,16 @@ class WpMailBridge
 
                     break;
                 }
+
+                // A permanently-undeliverable message/recipient fails on every connection alike; stop wasting the fallback chain.
+                if (FailureCategory::stopsFailover($this->classifier->classify($lastResult))) {
+                    break;
+                }
             }
 
             $this->context->setFailed(!$succeeded);
+
+            $failureClass = $lastResult !== null && !$succeeded ? $this->classifier->classify($lastResult) : null;
 
             // One log row per message: the final outcome on the winning (or last-tried) connection,
             // carrying the whole attempt trail so the fallback chain (failed -> failed -> sent) is
@@ -280,7 +290,7 @@ class WpMailBridge
             $winningMessage  = $lastConnection !== null ? $this->applyConnectionFrom($lastConnection, $message) : $message;
             $sender          = SenderFormatter::format($winningMessage->getFrom(), $winningMessage->getFromName());
             $outcomeMailData = $this->withSender($this->withAttempts($mailData, $attempts), $sender);
-            $this->logOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus);
+            $this->logOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus, $failureClass);
             $this->notifyOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection);
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
@@ -554,7 +564,7 @@ class WpMailBridge
     /**
      * @param array<string,mixed> $mailData
      */
-    private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection, ?string $messageId = null, ?string $trackingId = null, ?string $deliveryStatus = null): void
+    private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection, ?string $messageId = null, ?string $trackingId = null, ?string $deliveryStatus = null, ?string $failureClass = null): void
     {
         if (!$this->loggingEnabled) {
             return;
@@ -571,7 +581,7 @@ class WpMailBridge
             return;
         }
 
-        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel, $messageId, $trackingId, $connectionId);
+        $this->eventLogger->logMailFailed($this->toError($result, $mailData), $this->context, $connectionLabel, $messageId, $trackingId, $connectionId, $failureClass);
     }
 
     /**

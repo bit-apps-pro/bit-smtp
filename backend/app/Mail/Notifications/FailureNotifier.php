@@ -35,6 +35,7 @@ class FailureNotifier implements FailureNotifierInterface
             return;
         }
 
+        $delivered = false;
         foreach ($this->channels->all() as $key => $channel) {
             $settings = isset($alerts[$key]) && \is_array($alerts[$key]) ? $alerts[$key] : [];
             if (empty($settings['enabled'])) {
@@ -42,10 +43,16 @@ class FailureNotifier implements FailureNotifierInterface
             }
 
             try {
-                $channel->send($notification, $settings);
+                $delivered = $channel->send($notification, $settings) || $delivered;
             } catch (Throwable) {
                 // Notification failures are intentionally isolated from wp_mail and never expose provider output.
             }
+        }
+
+        // Verify-before-lock: nothing actually delivered (all channels failed/threw), so release the
+        // incident lock or a misconfigured outage would suppress every later alert.
+        if (!$delivered) {
+            $this->gate->reset();
         }
     }
 

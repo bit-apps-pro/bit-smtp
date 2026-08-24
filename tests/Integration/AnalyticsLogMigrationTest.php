@@ -168,9 +168,9 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertSame('idx_connection_id_created_utc', $plan->key);
     }
 
-    public function testDbVersionConstantIsTwoPointOne(): void
+    public function testDbVersionConstantIsTwoPointTwo(): void
     {
-        $this->assertSame('2.1', Config::DB_VERSION);
+        $this->assertSame('2.2', Config::DB_VERSION);
     }
 
     public function testMaybeMigrateDbUpgradesAOneSixLogsTableAtTheCurrentPluginVersion(): void
@@ -403,7 +403,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
     {
         global $wpdb;
 
-        foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'subject_pattern', 'recipient_count', 'created_at_utc', 'sender'] as $column) {
+        foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'subject_pattern', 'recipient_count', 'created_at_utc', 'sender', 'failure_class'] as $column) {
             $definition = $wpdb->get_row(
                 $wpdb->prepare("SHOW COLUMNS FROM `{$this->logsTable}` LIKE %s", $column)
             );

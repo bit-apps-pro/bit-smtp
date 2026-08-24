@@ -96,6 +96,54 @@ final class FailureNotifierTest extends BaseUnitTestCase
         $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
     }
 
+    public function testAllChannelsFailingReleasesTheGate(): void
+    {
+        $email = $this->channel('email');
+        $email->shouldReceive('send')->once()->andReturn(false);
+        $gate = Mockery::mock(FailureNotificationGate::class);
+        $gate->shouldReceive('acquire')->once()->andReturn(true);
+        $gate->shouldReceive('reset')->once();
+
+        $notifier = new FailureNotifier($this->config([
+            'enabled' => true,
+            'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
+        ]), $gate, new FailureNotificationChannelRegistry([$email]));
+
+        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+    }
+
+    public function testAThrowingChannelReleasesTheGateWhenNoOtherChannelDelivers(): void
+    {
+        $slack = $this->channel('slack');
+        $slack->shouldReceive('send')->once()->andThrow(new RuntimeException('provider body: secret'));
+        $gate = Mockery::mock(FailureNotificationGate::class);
+        $gate->shouldReceive('acquire')->once()->andReturn(true);
+        $gate->shouldReceive('reset')->once();
+
+        $notifier = new FailureNotifier($this->config([
+            'enabled' => true,
+            'slack'   => ['enabled' => true, 'webhook_url' => 'https://hooks.slack.com/services/T000/B000/secret'],
+        ]), $gate, new FailureNotificationChannelRegistry([$slack]));
+
+        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+    }
+
+    public function testADeliveredChannelKeepsTheGateLocked(): void
+    {
+        $email = $this->channel('email');
+        $email->shouldReceive('send')->once()->andReturn(true);
+        $gate = Mockery::mock(FailureNotificationGate::class);
+        $gate->shouldReceive('acquire')->once()->andReturn(true);
+        $gate->shouldReceive('reset')->never();
+
+        $notifier = new FailureNotifier($this->config([
+            'enabled' => true,
+            'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
+        ]), $gate, new FailureNotificationChannelRegistry([$email]));
+
+        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+    }
+
     private function config(?array $alerts = null): MailConfigService
     {
         $config = Mockery::mock(MailConfigService::class);

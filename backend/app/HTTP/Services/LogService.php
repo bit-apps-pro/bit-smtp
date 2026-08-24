@@ -62,7 +62,7 @@ class LogService
             // past the first.
             $count = $this->applyFilters(Log::query(), $filters)->count();
         } catch (Throwable $th) {
-            // throw $th;
+            throw $th;
         }
 
         $pages   = \intval($count / $take);
@@ -96,7 +96,7 @@ class LogService
         return $this->toRows(Log::where('id', $ids)->get());
     }
 
-    public function save($status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $sourcePlugin = null, ?string $routingType = null, ?int $routingRuleIndex = null)
+    public function save($status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $sourcePlugin = null, ?string $routingType = null, ?int $routingRuleIndex = null, ?string $failureClass = null)
     {
         $log             = new Log();
 
@@ -119,6 +119,9 @@ class LogService
         $log->routing_rule_index = $routingRuleIndex;
         $log->created_at_utc     = gmdate('Y-m-d H:i:s');
         $log->sender             = $this->sanitizeSender((string) Arr::get($details, 'from', ''));
+        if ($failureClass !== null) {
+            $log->failure_class = $failureClass;
+        }
 
         unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
         $log->details    = $details;
@@ -126,7 +129,7 @@ class LogService
         return $log->save();
     }
 
-    public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null, ?string $sourcePlugin = null, ?string $routingType = null, ?int $routingRuleIndex = null)
+    public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null, ?string $sourcePlugin = null, ?string $routingType = null, ?int $routingRuleIndex = null, ?string $failureClass = null)
     {
         $log = $this->get($id);
         if (!$log) {
@@ -159,6 +162,10 @@ class LogService
         if ($deliveryStatus === DeliveryStatus::ACCEPTED) {
             $log->delivery_status     = DeliveryStatus::ACCEPTED;
             $log->delivery_updated_at = gmdate('Y-m-d H:i:s');
+        }
+
+        if ($failureClass !== null) {
+            $log->failure_class = $failureClass;
         }
 
         if (isset($message)) {
@@ -479,6 +486,7 @@ class LogService
                 'delivery_updated_at' => ($log['delivery_status'] ?? null) === DeliveryStatus::ACCEPTED
                     ? ($log['delivery_updated_at'] ?? gmdate('Y-m-d H:i:s'))
                     : null,
+                'failure_class'       => $log['failure_class']        ?? null,
                 'created_at_utc'      => gmdate('Y-m-d H:i:s'),
             ];
 

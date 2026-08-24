@@ -33,6 +33,7 @@ final class BitSmtpLogsTableMigration extends Migration
                 $table->varchar('tracking_id', 64)->nullable();
                 $table->varchar('delivery_status', 32)->nullable();
                 $table->datetime('delivery_updated_at')->nullable();
+                $table->varchar('failure_class', 24)->nullable();
                 $table->varchar('source_plugin', 191)->nullable();
                 $table->varchar('routing_type', 32)->nullable();
                 $table->integer('routing_rule_index')->nullable();
@@ -53,6 +54,7 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addDeliveryColumnsIfMissing();
         $this->addAnalyticsColumnsIfMissing();
         $this->addSenderColumnIfMissing();
+        $this->addFailureClassColumnIfMissing();
         $this->createDeliveryEventsTableIfMissing();
         LogService::initializeLoggingContinuity();
     }
@@ -119,6 +121,16 @@ final class BitSmtpLogsTableMigration extends Migration
         $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
 
         $this->addColumnIfMissing($table, 'sender', 'ADD COLUMN `sender` VARCHAR(191) NULL');
+    }
+
+    /**
+     * Add the failure_class column on installs upgrading from a DB_VERSION that predates it.
+     */
+    private function addFailureClassColumnIfMissing()
+    {
+        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
+
+        $this->addColumnIfMissing($table, 'failure_class', 'ADD COLUMN `failure_class` VARCHAR(24) NULL');
     }
 
     private function createDeliveryEventsTableIfMissing()

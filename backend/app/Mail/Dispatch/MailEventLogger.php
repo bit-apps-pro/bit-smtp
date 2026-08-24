@@ -42,7 +42,7 @@ class MailEventLogger
         $context->setRetrying(false);
     }
 
-    public function logMailFailed(WP_Error $error, SendContext $context, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null): void
+    public function logMailFailed(WP_Error $error, SendContext $context, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $failureClass = null): void
     {
         if ($context->isDebug() && $this->isSmtpConnectionFailure($error)) {
             $message = __('SMTP configuration is not correct. PHPMailer could not connect to the SMTP server', 'bit-smtp');
@@ -52,11 +52,11 @@ class MailEventLogger
 
         $decision = $context->getRoutingDecision();
         if ($context->isRetrying() && $context->getRetryLogId() > 0 && $decision !== null) {
-            $this->logger->update($context->getRetryLogId(), Log::ERROR, $error->get_error_data(), $error->get_error_messages(), $connection, $messageId, $trackingId, $connectionId, null, $decision->sourcePlugin(), $decision->type(), $decision->ruleIndex());
+            $this->logger->update($context->getRetryLogId(), Log::ERROR, $error->get_error_data(), $error->get_error_messages(), $connection, $messageId, $trackingId, $connectionId, null, $decision->sourcePlugin(), $decision->type(), $decision->ruleIndex(), $failureClass);
         } elseif ($context->isRetrying() && $context->getRetryLogId() > 0) {
-            $this->logger->update($context->getRetryLogId(), Log::ERROR, $error->get_error_data(), $error->get_error_messages(), $connection, $messageId, $trackingId, $connectionId);
+            $this->logger->update($context->getRetryLogId(), Log::ERROR, $error->get_error_data(), $error->get_error_messages(), $connection, $messageId, $trackingId, $connectionId, null, null, null, null, $failureClass);
         } else {
-            $this->queue(Log::ERROR, $error, $context, $connection, $messageId, $trackingId, $connectionId);
+            $this->queue(Log::ERROR, $error, $context, $connection, $messageId, $trackingId, $connectionId, null, $failureClass);
         }
 
         $context->setFailed(true);
@@ -95,7 +95,7 @@ class MailEventLogger
     /**
      * @param array|WP_Error $data
      */
-    private function queue(int $status, $data, SendContext $context, ?string $connection, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null): void
+    private function queue(int $status, $data, SendContext $context, ?string $connection, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null, ?string $failureClass = null): void
     {
         $log = [
             'status'              => $status,
@@ -106,6 +106,7 @@ class MailEventLogger
             'tracking_id'         => $trackingId,
             'delivery_status'     => $deliveryStatus,
             'delivery_updated_at' => $deliveryStatus !== null ? gmdate('Y-m-d H:i:s') : null,
+            'failure_class'       => $failureClass,
         ];
 
         $decision = $context->getRoutingDecision();

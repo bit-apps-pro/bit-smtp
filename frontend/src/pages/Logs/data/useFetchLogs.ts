@@ -48,6 +48,8 @@ export type LogType = {
   sender?: string | null
   message_id?: string | null
   tracking_id?: string | null
+  // Classifier verdict for a failed send (transient/rate_limited/auth/invalid_recipient/permanent).
+  failure_class?: string | null
   // Real provider delivery status, only trustworthy when `delivery_verified` is true.
   delivery_status?: DeliveryStatusValue | string | null
   delivery_updated_at?: string | null

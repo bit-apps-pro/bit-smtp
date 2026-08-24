@@ -40,7 +40,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null]]);
+            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null]]);
 
         $this->eventLogger->logMailSuccess($mailData, $this->context);
 
@@ -53,9 +53,22 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null]]);
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null]]);
 
         $this->eventLogger->logMailFailed($error, $this->context);
+
+        $this->assertTrue($this->context->isFailed());
+    }
+
+    public function testFailureQueuedCarriesTheClassifiedFailureCategory(): void
+    {
+        $error = new WP_Error('wp_mail_failed', 'boom', ['phpmailer_exception_code' => 0]);
+
+        $this->logger->shouldReceive('bulkInsert')
+            ->once()
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => 'transient']]);
+
+        $this->eventLogger->logMailFailed($error, $this->context, null, null, null, null, 'transient');
 
         $this->assertTrue($this->context->isFailed());
     }
@@ -70,7 +83,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'postmark', 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null]]);
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'postmark', 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null]]);
 
         $this->eventLogger->logMailFailed($error, $this->context, 'postmark');
 
@@ -84,7 +97,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => 'Primary SMTP', 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null]]);
+            ->with([['status' => Log::SUCCESS, 'data' => $mailData, 'connection' => 'Primary SMTP', 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null]]);
 
         $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
     }
@@ -95,7 +108,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('bulkInsert')
             ->once()
-            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'brevo', 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null]]);
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => 'brevo', 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null]]);
 
         $this->eventLogger->logMailFailed($error, $this->context, 'brevo');
     }
@@ -124,13 +137,29 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->logger->shouldReceive('update')
             ->once()
-            ->with(77, Log::ERROR, $data, ['boom'], 'brevo', null, null, null);
+            ->with(77, Log::ERROR, $data, ['boom'], 'brevo', null, null, null, null, null, null, null, null);
         $this->logger->shouldNotReceive('bulkInsert');
 
         $this->eventLogger->logMailFailed($error, $this->context, 'brevo');
 
         $this->assertTrue($this->context->isFailed());
         $this->assertFalse($this->context->isRetrying());
+    }
+
+    public function testRetryFailureUpdatesWithTheClassifiedFailureCategory(): void
+    {
+        $data  = ['phpmailer_exception_code' => 0];
+        $error = new WP_Error('wp_mail_failed', 'boom', $data);
+        $this->context->setRetrying(true)->setRetryLogId(77);
+
+        $this->logger->shouldReceive('update')
+            ->once()
+            ->with(77, Log::ERROR, $data, ['boom'], 'brevo', null, null, null, null, null, null, null, 'transient');
+        $this->logger->shouldNotReceive('bulkInsert');
+
+        $this->eventLogger->logMailFailed($error, $this->context, 'brevo', null, null, null, 'transient');
+
+        $this->assertTrue($this->context->isFailed());
     }
 
     public function testSuccessPersistsRoutingDecisionMetadata(): void
@@ -149,6 +178,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
                 'tracking_id'         => null,
                 'delivery_status'     => null,
                 'delivery_updated_at' => null,
+                'failure_class'       => null,
                 'source_plugin'       => 'woocommerce',
                 'routing_type'        => 'rule',
                 'routing_rule_index'  => 3,
@@ -190,8 +220,8 @@ class MailEventLoggerTest extends BaseUnitTestCase
             $this->logger->shouldReceive('bulkInsert')
                 ->once()
                 ->with([
-                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'one'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null],
-                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'two'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null],
+                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'one'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null],
+                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'two'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null],
                 ]);
 
             $this->eventLogger->flushPendingLogs();
@@ -211,7 +241,7 @@ class MailEventLoggerTest extends BaseUnitTestCase
         try {
             $this->logger->shouldReceive('bulkInsert')
                 ->once()
-                ->with([['status' => Log::SUCCESS, 'data' => ['subject' => 'flush-me'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null]]);
+                ->with([['status' => Log::SUCCESS, 'data' => ['subject' => 'flush-me'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null]]);
 
             $this->eventLogger->logMailSuccess(['subject' => 'flush-me'], $this->context);
         } finally {

@@ -23,6 +23,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
  * @property null|string $source_plugin
  * @property null|string $routing_type
  * @property null|int    $routing_rule_index
+ * @property null|string $failure_class
  * @property null|string $subject_pattern
  * @property null|int    $recipient_count
  * @property string      $created_at
@@ -52,6 +53,7 @@ class Log extends Model
         'source_plugin'       => 'string',
         'routing_type'        => 'string',
         'routing_rule_index'  => 'int',
+        'failure_class'       => 'string',
         'subject_pattern'     => 'string',
         'recipient_count'     => 'int',
         'created_at'          => 'string',
@@ -74,6 +76,7 @@ class Log extends Model
         'source_plugin',
         'routing_type',
         'routing_rule_index',
+        'failure_class',
         'subject_pattern',
         'recipient_count',
         'created_at_utc',

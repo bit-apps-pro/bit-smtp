@@ -1,9 +1,18 @@
 import { __ } from '@common/helpers/i18nwrap'
 import { type DeliveryEvent, type LogType } from '@pages/Logs/data/useFetchLogs'
 import DeliveryStatusTag from '@pages/Logs/ui/DeliveryStatusTag'
-import { Flex, Table, type TableColumnsType, Typography } from 'antd'
+import { Flex, Table, type TableColumnsType, Tag, Typography } from 'antd'
 
 const { Text } = Typography
+
+/** Human labels for the classifier's failure_class verdict, surfaced on a failed send. */
+const FAILURE_CLASS_LABELS: Record<string, string> = {
+  transient: __('Transient'),
+  rate_limited: __('Rate limited'),
+  auth: __('Auth error'),
+  invalid_recipient: __('Invalid recipient'),
+  permanent: __('Permanent')
+}
 
 const formatTimestamp = (value?: string | null) => {
   if (!value) return '—'
@@ -35,9 +44,14 @@ export default function DeliveryStatusTab({ log }: { log: LogType }) {
 
   return (
     <Flex vertical gap="middle">
-      <Flex align="center" gap="small">
+      <Flex align="center" gap="small" wrap>
         <Text strong>{__('Overall')}:</Text>
         <DeliveryStatusTag status={log?.delivery_status} />
+        {log?.failure_class ? (
+          <Tag color="volcano">
+            {`${__('Failure')}: ${FAILURE_CLASS_LABELS[log.failure_class] ?? log.failure_class}`}
+          </Tag>
+        ) : null}
       </Flex>
       {events.length === 0 ? (
         <Text type="secondary">
