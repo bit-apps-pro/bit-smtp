@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react'
 import { TableOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
-import { Button, Card, Flex, Typography } from 'antd'
+import { Button, Card, Flex, Typography, theme } from 'antd'
 
 const { Title } = Typography
 
@@ -15,17 +15,18 @@ interface ChartCardProps {
 
 /** Chart container: title, a table-view toggle (the accessibility fallback), and the chart or its table twin. */
 export default function ChartCard({ title, subtitle, tableView, children }: ChartCardProps) {
+  const { token } = theme.useToken()
   const [showTable, setShowTable] = useState(false)
 
   return (
-    <Card styles={{ body: { display: 'flex', flexDirection: 'column', gap: 12 } }}>
+    <Card styles={{ body: { display: 'flex', flexDirection: 'column', gap: token.padding } }}>
       <Flex justify="space-between" align="flex-start" gap="middle">
-        <Flex vertical gap={2}>
+        <Flex vertical gap={token.marginXXS}>
           <Title level={5} style={{ margin: 0 }}>
             {title}
           </Title>
           {subtitle ? (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
               {subtitle}
             </Typography.Text>
           ) : null}

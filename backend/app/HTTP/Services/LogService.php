@@ -23,6 +23,20 @@ use WP_Error;
 
 class LogService
 {
+    /**
+     * Valid `delivery_status` filter values: the DeliveryStatus state machine's constants plus
+     * `pending`, a column value analytics writes that has no DeliveryStatus constant of its own.
+     */
+    private const ALLOWED_DELIVERY_STATUSES = [
+        DeliveryStatus::DELIVERED,
+        DeliveryStatus::ACCEPTED,
+        DeliveryStatus::DEFERRED,
+        DeliveryStatus::BLOCKED,
+        DeliveryStatus::BOUNCED,
+        DeliveryStatus::SPAM,
+        'pending',
+    ];
+
     public function __construct()
     {
         self::initializeLoggingContinuity();
@@ -37,14 +51,16 @@ class LogService
         }
 
         try {
-            $logsQuery  = Log::skip($skip)
+            $logsQuery = Log::skip($skip)
                 ->take($take)
                 ->desc();
-            if (isset($filters['to_addr']) && !empty($filters['to_addr'])) {
-                $logsQuery->where('to_addr', 'LIKE', '%' . Connection::esc_like($filters['to_addr']) . '%');
-            }
-            $logs  = $this->toRows($logsQuery->get());
-            $count = Log::count();
+            $this->applyFilters($logsQuery, $filters);
+            $logs = $this->toRows($logsQuery->get());
+
+            // count() must run against its own unfiltered-of-pagination query: reusing the paged
+            // builder would carry its skip/take into the aggregate and starve rows off any page
+            // past the first.
+            $count = $this->applyFilters(Log::query(), $filters)->count();
         } catch (Throwable $th) {
             // throw $th;
         }
@@ -508,6 +524,72 @@ class LogService
     }
 
     /**
+     * Applies the logs-list filter whitelist to a query builder in place, so the paged query and the
+     * count query stay in lockstep. Every value is bound through the QueryBuilder's parameterized
+     * where()/whereBetween(), never string-interpolated; unrecognized or malformed values are ignored
+     * rather than applied.
+     *
+     * @param array<string,mixed> $filters
+     */
+    private function applyFilters(QueryBuilder $query, array $filters): QueryBuilder
+    {
+        if (!empty($filters['to_addr'])) {
+            $query->where('to_addr', 'LIKE', '%' . Connection::esc_like($filters['to_addr']) . '%');
+        }
+
+        // Send-outcome filter: the string maps to the Log::SUCCESS/ERROR flag; anything else is ignored.
+        $statusMap = ['sent' => Log::SUCCESS, 'failed' => Log::ERROR];
+        if (!empty($filters['status']) && isset($statusMap[$filters['status']])) {
+            $query->where('status', $statusMap[$filters['status']]);
+        }
+
+        if (!empty($filters['delivery_status']) && \in_array($filters['delivery_status'], self::ALLOWED_DELIVERY_STATUSES, true)) {
+            $query->where('delivery_status', $filters['delivery_status']);
+        }
+
+        if (!empty($filters['connection_id'])) {
+            // Match the analytics COALESCE(connection_id, connection) grouping: a top-connection ranked
+            // by a legacy label (empty connection_id) must still resolve to its rows here, or the
+            // "View in logs" deep-link would land on an empty list that contradicts the clicked count.
+            $query->whereRaw(
+                '(connection_id = %s OR connection = %s)',
+                [$filters['connection_id'], $filters['connection_id']]
+            );
+        }
+
+        if (!empty($filters['source_plugin'])) {
+            $query->where('source_plugin', $filters['source_plugin']);
+        }
+
+        $dateFrom = $this->validFilterDate($filters['date_from'] ?? null);
+        $dateTo   = $this->validFilterDate($filters['date_to'] ?? null);
+
+        if ($dateFrom !== null && $dateTo !== null) {
+            $query->whereBetween('created_at', $dateFrom . ' 00:00:00', $dateTo . ' 23:59:59');
+        } elseif ($dateFrom !== null) {
+            $query->where('created_at', '>=', $dateFrom . ' 00:00:00');
+        } elseif ($dateTo !== null) {
+            $query->where('created_at', '<=', $dateTo . ' 23:59:59');
+        }
+
+        return $query;
+    }
+
+    /**
+     * Validates a `date_from`/`date_to` filter value as a strict 'YYYY-MM-DD' string.
+     *
+     * @param mixed $value
+     */
+    private function validFilterDate($value): ?string
+    {
+        if (!\is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    /**
      * Normalize a QueryBuilder get() result to a plain array: WPDatabase returns a Collection on
      * newer versions and a plain array on older ones.
      *
@@ -519,6 +601,12 @@ class LogService
     {
         if ($result instanceof Collection) {
             return $result->all();
+        }
+
+        // QueryBuilder::get() returns a single Model (not an array) whenever limit == 1 — e.g. a
+        // filtered page size of 1 — so normalize that back to a one-row list.
+        if ($result instanceof Log) {
+            return [$result];
         }
 
         return \is_array($result) ? $result : [];

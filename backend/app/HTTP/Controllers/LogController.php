@@ -29,10 +29,7 @@ final class LogController
         $pageNo = \intval($request->pageNo) ?? 1;
         $limit  = \intval($request->limit)  ?? 14;
 
-        $filters = [];
-        if (isset($request->to_addr) && !empty($request->to_addr)) {
-            $filters['to_addr'] = sanitize_text_field($request->to_addr);
-        }
+        $filters = $this->extractLogFilters($request);
 
         $result         = $this->logger->all((($pageNo - 1) * $limit), $limit, $filters);
         $result['logs'] = $this->enrichLogs($result['logs']);
@@ -96,6 +93,24 @@ final class LogController
         }
 
         return Response::error([])->message(__('Failed to update logging setting', 'bit-smtp'));
+    }
+
+    /**
+     * Whitelists and sanitizes the `logs/all` filter keys the frontend may send; per-value validation
+     * (delivery_status set membership, date format) is LogService's job, not the controller's.
+     *
+     * @return array<string,string>
+     */
+    private function extractLogFilters(Request $request): array
+    {
+        $filters = [];
+        foreach (['to_addr', 'status', 'delivery_status', 'connection_id', 'source_plugin', 'date_from', 'date_to'] as $key) {
+            if (isset($request->{$key}) && !empty($request->{$key})) {
+                $filters[$key] = sanitize_text_field($request->{$key});
+            }
+        }
+
+        return $filters;
     }
 
     /**

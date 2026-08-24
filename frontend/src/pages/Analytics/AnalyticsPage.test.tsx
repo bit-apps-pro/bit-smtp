@@ -1,6 +1,7 @@
 import { renderWithProviders } from '@config/test-utils'
 import { AnalyticsApiError, useAnomalies, useOverview } from '@pages/Analytics/data/useAnalytics'
 import { type Anomalies, type Overview } from '@pages/Analytics/types'
+import usePreferences from '@pages/Settings/data/usePreferences'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import dayjs from 'dayjs'
@@ -19,6 +20,10 @@ vi.mock('@pages/Analytics/data/useAnalytics', async importOriginal => {
     useAnomalies: vi.fn()
   }
 })
+
+vi.mock('@pages/Settings/data/usePreferences', () => ({
+  default: vi.fn()
+}))
 
 const overviewFixture: Overview = {
   range: { start: '2026-01-01T00:00:00Z', end: '2026-01-31T23:59:59Z' },
@@ -99,6 +104,11 @@ describe('AnalyticsPage', () => {
     vi.clearAllMocks()
     ;(useOverview as Mock).mockReturnValue(readyResult(overviewFixture))
     ;(useAnomalies as Mock).mockReturnValue(readyResult(anomaliesFixture))
+    ;(usePreferences as unknown as Mock).mockReturnValue({
+      data: { log_retention_days: 30 },
+      isPending: false,
+      isError: false
+    })
   })
 
   afterEach(() => {
@@ -119,6 +129,36 @@ describe('AnalyticsPage', () => {
     expect(spanMs).toBeLessThan(THIRTY_DAYS_MS)
     expect(params.start).toBe(dayjs().subtract(29, 'day').startOf('day').toISOString())
     expect(params.end).toBe(dayjs().endOf('day').toISOString())
+  })
+
+  it("shrinks the default range to the site's configured retention when it is below 30 days", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-02-15T12:34:56.000Z'))
+    ;(usePreferences as unknown as Mock).mockReturnValue({
+      data: { log_retention_days: 7 },
+      isPending: false,
+      isError: false
+    })
+
+    renderWithProviders(<AnalyticsPage />)
+
+    const params = (useOverview as Mock).mock.calls.at(-1)?.[0]
+    expect(params.start).toBe(dayjs().subtract(6, 'day').startOf('day').toISOString())
+    expect(params.end).toBe(dayjs().endOf('day').toISOString())
+  })
+
+  it('shows only the skeleton, not the panels, while retention preferences are still loading', () => {
+    ;(usePreferences as unknown as Mock).mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isError: false
+    })
+
+    renderWithProviders(<AnalyticsPage />)
+
+    expect(screen.queryByText('Total sent')).not.toBeInTheDocument()
+    expect(screen.queryByText('Volume over time')).not.toBeInTheDocument()
+    expect(screen.queryByText('Could not load analytics')).not.toBeInTheDocument()
   })
 
   it('renders stat tiles and the chart grid from a fixture overview', () => {

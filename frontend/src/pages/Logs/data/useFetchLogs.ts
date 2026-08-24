@@ -5,6 +5,13 @@ export interface LogQueryType {
   searchKeyValue?: string
   pageNo: number
   limit: number
+  to_addr?: string
+  status?: string
+  delivery_status?: string
+  connection_id?: string
+  source_plugin?: string
+  date_from?: string
+  date_to?: string
 }
 
 export type LogAttempt = {

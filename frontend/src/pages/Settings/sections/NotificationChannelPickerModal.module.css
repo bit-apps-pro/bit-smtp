@@ -1,0 +1,44 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  box-sizing: border-box;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--ncp-border);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.tile:hover {
+  border-color: var(--ncp-hover-border);
+  box-shadow: var(--ncp-hover-shadow);
+  transform: translateY(-2px);
+}
+
+.tile:focus {
+  outline: none;
+}
+
+.tile:focus-visible {
+  outline: 2px solid var(--ncp-focus-color);
+  outline-offset: 2px;
+}
+
+.badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.label {
+  font-weight: 600;
+}

@@ -53,6 +53,7 @@ export default function SettingsPage() {
   const [prefsForm] = Form.useForm<PreferencesFormValues>()
   const [alertsForm] = Form.useForm<NotificationFormValues>()
   const [isSaving, setIsSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState('general')
 
   const { data: preferences, isPending: preferencesPending } = usePreferences()
   const { data: settings, isPending: settingsPending } = useMailSettings()
@@ -131,7 +132,15 @@ export default function SettingsPage() {
         alertsDirty ? alertsForm.validateFields() : Promise.resolve()
       ])
       if (validations.some(result => result.status === 'rejected')) {
-        return // antd already rendered inline errors on the offending fields
+        // antd already rendered inline errors on the offending fields, but those are invisible if
+        // the field lives on a tab other than the active one — surface a toast either way, and jump
+        // to Notifications when that's deterministically the offending tab (alerts fields only live
+        // there; prefs fields span General/Reliability/Health, so no single tab to route to).
+        if (validations[1].status === 'rejected') {
+          setActiveTab('notifications')
+        }
+        notify.error(__('Please fix the highlighted fields before saving.'))
+        return
       }
 
       const saves: Promise<SaveOutcome>[] = []
@@ -224,7 +233,7 @@ export default function SettingsPage() {
           />
         </div>
 
-        <Tabs type="line" items={items} />
+        <Tabs type="line" items={items} activeKey={activeTab} onChange={setActiveTab} />
       </Flex>
 
       <div

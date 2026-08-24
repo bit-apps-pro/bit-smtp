@@ -28,7 +28,9 @@ const prefsInitialValues: PreferencesFormValues = {
   tracking_enabled: false
 }
 
-const settings: MailSettings = {
+// All four channels added, mirroring a fully-configured account. Most existing per-channel
+// behavior tests below reuse this so every card is present without extra add-flow steps.
+const allChannelsSettings: MailSettings = {
   schema_version: 2,
   enabled: true,
   default_connection_id: 'conn_1',
@@ -57,6 +59,35 @@ const settings: MailSettings = {
   }
 }
 
+// Only Slack added, with a real (unmasked) saved URL so remove/re-add clearing is observable.
+const slackOnlySettings: MailSettings = {
+  ...allChannelsSettings,
+  features: {
+    ...allChannelsSettings.features,
+    alerts: {
+      enabled: true,
+      email: { enabled: false, recipients: [] },
+      webhook: { enabled: false, url: '', signing_secret: '' },
+      slack: { enabled: true, webhook_url: 'https://hooks.slack.com/services/T000/B000/secret' },
+      telegram: { enabled: false, bot_token: '', chat_id: '' }
+    }
+  }
+}
+
+const noChannelsSettings: MailSettings = {
+  ...allChannelsSettings,
+  features: {
+    ...allChannelsSettings.features,
+    alerts: {
+      enabled: true,
+      email: { enabled: false, recipients: [] },
+      webhook: { enabled: false, url: '', signing_secret: '' },
+      slack: { enabled: false, webhook_url: '' },
+      telegram: { enabled: false, bot_token: '', chat_id: '' }
+    }
+  }
+}
+
 /** Test harness: mounts NotificationsChannels with real Form instances, mirroring SettingsPage's wiring. */
 function Harness({ settingsOverride }: { settingsOverride?: MailSettings }) {
   const [prefsForm] = Form.useForm<PreferencesFormValues>()
@@ -67,7 +98,7 @@ function Harness({ settingsOverride }: { settingsOverride?: MailSettings }) {
       alertsForm={alertsForm}
       prefsForm={prefsForm}
       prefsInitialValues={prefsInitialValues}
-      settings={settingsOverride ?? settings}
+      settings={settingsOverride ?? allChannelsSettings}
     />
   )
 }
@@ -84,6 +115,78 @@ describe('NotificationsChannels', () => {
     expect((screen.getByLabelText('Notification cooldown (minutes)') as HTMLInputElement).value).toBe(
       '15'
     )
+  })
+
+  it('renders only the added channel when just one is enabled', () => {
+    render(<Harness settingsOverride={slackOnlySettings} />)
+
+    expect(screen.getByLabelText('Slack webhook URL')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Recipients')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Webhook URL')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Telegram bot token')).not.toBeInTheDocument()
+  })
+
+  it('shows the empty state and no cards when no channel has been added', () => {
+    render(<Harness settingsOverride={noChannelsSettings} />)
+
+    expect(screen.getByText('No notification channels yet')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add channel' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Recipients')).not.toBeInTheDocument()
+  })
+
+  it('shows the empty state when legacy alerts omit the Slack/Telegram sections and nothing else is enabled', () => {
+    const legacySettings: MailSettings = {
+      ...allChannelsSettings,
+      features: {
+        ...allChannelsSettings.features,
+        alerts: {
+          enabled: true,
+          email: { enabled: false, recipients: [] },
+          webhook: { enabled: false, url: '', signing_secret: '' }
+        } as unknown as MailSettings['features']['alerts']
+      }
+    }
+
+    render(<Harness settingsOverride={legacySettings} />)
+
+    expect(screen.getByText('No notification channels yet')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Slack webhook URL')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Telegram bot token')).not.toBeInTheDocument()
+  })
+
+  it('opens the Add channel picker listing only the un-added channel types', async () => {
+    render(<Harness settingsOverride={slackOnlySettings} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add channel' }))
+
+    expect(screen.getByText('Add a channel')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Email' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Webhook' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Telegram' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Slack' })).not.toBeInTheDocument()
+  })
+
+  it('reveals a channel card with blank fields after picking it from the Add channel modal', async () => {
+    render(<Harness settingsOverride={noChannelsSettings} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add channel' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Email' }))
+
+    expect(screen.getByLabelText('Recipients')).toBeInTheDocument()
+  })
+
+  it('hides a channel card after Remove is confirmed and clears its saved value on re-add', async () => {
+    render(<Harness settingsOverride={slackOnlySettings} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /remove/i }))
+    await userEvent.click(await screen.findByRole('button', { name: 'OK' }))
+
+    expect(screen.queryByLabelText('Slack webhook URL')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add channel' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Slack' }))
+
+    expect(screen.getByLabelText('Slack webhook URL')).toHaveValue('')
   })
 
   it('generates a whsec signing secret', async () => {
@@ -116,42 +219,29 @@ describe('NotificationsChannels', () => {
     expect((screen.getByLabelText('Telegram chat ID') as HTMLInputElement).value).toBe('-1001234567890')
   })
 
-  it('defaults the Slack and Telegram sections when legacy alerts omit them', () => {
-    const legacySettings: MailSettings = {
-      ...settings,
-      features: {
-        ...settings.features,
-        alerts: {
-          enabled: true,
-          email: { enabled: false, recipients: [] },
-          webhook: { enabled: false, url: '', signing_secret: '' }
-        } as unknown as MailSettings['features']['alerts']
-      }
-    }
-
-    render(<Harness settingsOverride={legacySettings} />)
-
-    expect(screen.getByRole('switch', { name: 'Slack notification' })).not.toBeChecked()
-    expect(screen.getByRole('switch', { name: 'Telegram notification' })).not.toBeChecked()
-    expect(screen.getByLabelText('Slack webhook URL')).toHaveValue('')
-    expect(screen.getByLabelText('Telegram bot token')).toHaveValue('')
-    expect(screen.getByLabelText('Telegram chat ID')).toHaveValue('')
-  })
-
-  it('keeps channel controls disabled until failure notifications are enabled', async () => {
+  it('keeps channel fields and Add channel disabled until failure notifications are enabled, but leaves Remove usable', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    // Only Slack is added (unlike the default all-channels fixture) so the "Add channel" button is
+    // actually rendered (hidden once every channel type is already added).
+    render(<Harness settingsOverride={slackOnlySettings} />)
 
     const slackUrl = screen.getByLabelText('Slack webhook URL')
+    const addChannelButton = screen.getByRole('button', { name: 'Add channel' })
+    const removeButtons = screen.getAllByRole('button', { name: /remove/i })
     expect(slackUrl).not.toBeDisabled()
+    removeButtons.forEach(button => expect(button).not.toBeDisabled())
 
     await user.click(screen.getByRole('switch', { name: 'Enable failure notifications' }))
 
     expect(slackUrl).toBeDisabled()
+    expect(addChannelButton).toBeDisabled()
+    // Remove is a cleanup/destructive action, not a configuration edit — it must stay available even
+    // with the master switch off, so a stale channel (and its stored secret) can still be purged.
+    removeButtons.forEach(button => expect(button).not.toBeDisabled())
   })
 
   it('allows testing valid saved channels while global failure alerts are off', () => {
-    const { alerts } = settings.features
+    const { alerts } = allChannelsSettings.features
     if (!alerts || Array.isArray(alerts)) {
       throw new Error('Expected alert settings fixture')
     }
@@ -159,8 +249,8 @@ describe('NotificationsChannels', () => {
     render(
       <Harness
         settingsOverride={{
-          ...settings,
-          features: { ...settings.features, alerts: { ...alerts, enabled: false } }
+          ...allChannelsSettings,
+          features: { ...allChannelsSettings.features, alerts: { ...alerts, enabled: false } }
         }}
       />
     )

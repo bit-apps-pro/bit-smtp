@@ -1,7 +1,7 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--page-block-gap, 24px);
 }
 
 /* auto-fit/minmax collapses to one column as the container narrows - no breakpoint needed (and
@@ -10,7 +10,7 @@
 .twoCol {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-  gap: 20px;
+  gap: var(--page-grid-gap, 16px);
   align-items: start;
 }
 

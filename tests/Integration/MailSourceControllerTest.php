@@ -44,7 +44,7 @@ final class MailSourceControllerTest extends IntegrationTestCase
         $this->seed('bit-form');
         $this->seed('unknown');
 
-        (new MailSourceController())->index();
+        (new MailSourceController(new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable())))->index();
         $data = (array) Response::getData();
 
         self::assertSame(Response::SUCCESS, Response::getStatus());

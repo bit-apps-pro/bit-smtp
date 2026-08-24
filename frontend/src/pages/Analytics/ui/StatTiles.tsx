@@ -4,7 +4,7 @@ import { useTheme } from '@config/themes/theme.provider'
 import { formatCompactNumber, formatPercent } from '@pages/Analytics/format'
 import { volumeSeriesColors } from '@pages/Analytics/palette'
 import { type Overview } from '@pages/Analytics/types'
-import { Flex, Tooltip, Typography, theme } from 'antd'
+import { Tooltip, Typography, theme } from 'antd'
 import Sparkline from './Sparkline'
 import cls from './StatTiles.module.css'
 
@@ -97,13 +97,20 @@ export default function StatTiles({ overview }: { overview: Overview }) {
 
   const vars: TileVars = {
     '--tile-border': token.colorBorderSecondary,
-    '--tile-bg': token.colorBgContainer
+    '--tile-bg': token.colorBgContainer,
+    '--tile-gap': `${token.padding}px`,
+    // Horizontal padding matches ChartCard's default antd Card body padding so tiles and chart
+    // cards share the same left/right rhythm; vertical padding stays tighter than a full chart card.
+    '--tile-padding': `${token.padding}px ${token.paddingLG}px`
   }
 
   return (
     <div className={cls.grid} style={vars}>
+      {/* Plain div, not antd <Flex>: Flex's `.css-x.ant-flex{padding:0}` is a two-class selector that
+          outranks the single-class `.tile` and zeroes its padding. The `.tile` class supplies the
+          flex-column layout itself. */}
       {tiles.map(tile => (
-        <Flex key={tile.key} vertical className={cls.tile}>
+        <div key={tile.key} className={cls.tile}>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
             {tile.label}
           </Text>
@@ -118,7 +125,7 @@ export default function StatTiles({ overview }: { overview: Overview }) {
               />
             ) : null}
           </div>
-        </Flex>
+        </div>
       ))}
     </div>
   )

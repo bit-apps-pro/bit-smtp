@@ -1,3 +1,4 @@
+import notify from '@components/Toaster/Toaster'
 import { renderWithProviders } from '@config/test-utils'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
@@ -14,6 +15,9 @@ import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsPage from './SettingsPage'
 
+vi.mock('@components/Toaster/Toaster', () => ({
+  default: { success: vi.fn(), error: vi.fn() }
+}))
 vi.mock('@pages/Settings/data/usePreferences', () => ({
   default: vi.fn(),
   useSavePreferences: vi.fn(),
@@ -207,16 +211,18 @@ describe('SettingsPage', () => {
     expect(screen.getByText('You have unsaved changes')).toBeInTheDocument()
   })
 
-  it('shows the failure-alert channel fields on the Notifications tab', async () => {
+  it('shows only the added failure-alert channel on the Notifications tab', async () => {
+    // Fixture has only the Email channel enabled; Webhook/Slack/Telegram are off, so their cards
+    // aren't added yet and their fields shouldn't render (the redesigned "added channels" model).
     renderWithProviders(<SettingsPage />)
 
     await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
 
     expect(screen.getByLabelText('Recipients')).toBeInTheDocument()
-    expect(screen.getByLabelText('Webhook URL')).toBeInTheDocument()
-    expect(screen.getByLabelText('Slack webhook URL')).toBeInTheDocument()
-    expect(screen.getByLabelText('Telegram bot token')).toBeInTheDocument()
     expect(screen.getByLabelText('Notification cooldown (minutes)')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Webhook URL')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Slack webhook URL')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Telegram bot token')).not.toBeInTheDocument()
   })
 
   it('saves only the preferences store when a General field changes', async () => {
@@ -275,5 +281,25 @@ describe('SettingsPage', () => {
     renderWithProviders(<SettingsPage />)
 
     expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  it('shows an error toast and jumps to the Notifications tab when saving from another tab with an invalid alerts channel', async () => {
+    renderWithProviders(<SettingsPage />)
+
+    // Add an invalid (blank URL) Slack channel on the Notifications tab, matching the reported bug:
+    // an invalid field left on a hidden tab, then Save clicked from a different, valid-looking tab.
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add channel' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Slack' }))
+
+    await userEvent.click(screen.getByRole('tab', { name: /general & logging/i }))
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(notify.error).toHaveBeenCalledWith('Please fix the highlighted fields before saving.')
+    })
+    expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('aria-selected', 'true')
+    expect(savePreferencesMutateAsync).not.toHaveBeenCalled()
+    expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
   })
 })
