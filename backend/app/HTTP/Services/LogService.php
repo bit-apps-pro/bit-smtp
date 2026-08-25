@@ -122,6 +122,26 @@ class LogService
         return $this->toRows($query->get(self::EXPORT_SAFE_COLUMNS));
     }
 
+    /**
+     * Filter-scoped export rows plus whether the set was clamped to the cap. Probes one past the cap so
+     * an exactly-at-cap result is not falsely flagged truncated, then trims to the cap. The single place
+     * REST and CLI exports derive truncation, so the two can never drift.
+     *
+     * @param array<string,mixed> $filters
+     *
+     * @return array{rows: array<int,Log>, truncated: bool}
+     */
+    public function exportRowsWithTruncation(array $filters): array
+    {
+        $rows      = $this->exportRows($filters, self::MAX_EXPORT_ROWS + 1);
+        $truncated = \count($rows) > self::MAX_EXPORT_ROWS;
+        if ($truncated) {
+            $rows = \array_slice($rows, 0, self::MAX_EXPORT_ROWS);
+        }
+
+        return ['rows' => $rows, 'truncated' => $truncated];
+    }
+
     public function success(array $mailData, ?string $connection = null)
     {
         $this->save(Log::SUCCESS, $mailData, null, $connection);

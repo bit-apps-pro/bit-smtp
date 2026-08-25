@@ -5,6 +5,7 @@ namespace BitApps\SMTP\HTTP\Controllers;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Requests\DeleteLogRequest;
+use BitApps\SMTP\HTTP\Services\LogCsvExporter;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Model\Log;
@@ -24,10 +25,13 @@ final class LogController
      */
     private $mailConfig;
 
+    private LogCsvExporter $csvExporter;
+
     public function __construct()
     {
-        $this->logger     = Plugin::instance()->logger();
-        $this->mailConfig = Plugin::instance()->mailConfigService();
+        $this->logger      = Plugin::instance()->logger();
+        $this->mailConfig  = Plugin::instance()->mailConfigService();
+        $this->csvExporter = new LogCsvExporter();
     }
 
     public function all(Request $request)
@@ -50,19 +54,13 @@ final class LogController
      */
     public function export(Request $request): Response
     {
-        $filters = $this->extractLogFilters($request);
-        // Fetch one past the cap so a result that is exactly at the cap isn't falsely flagged truncated.
-        $rows      = $this->logger->exportRows($filters, LogService::MAX_EXPORT_ROWS + 1);
-        $truncated = \count($rows) > LogService::MAX_EXPORT_ROWS;
-        if ($truncated) {
-            $rows = \array_slice($rows, 0, LogService::MAX_EXPORT_ROWS);
-        }
+        $export = $this->logger->exportRowsWithTruncation($this->extractLogFilters($request));
 
         return Response::success([
-            'csv'       => $this->toCsv($rows),
+            'csv'       => $this->csvExporter->toCsv($export['rows']),
             'filename'  => self::EXPORT_FILENAME,
-            'count'     => \count($rows),
-            'truncated' => $truncated,
+            'count'     => \count($export['rows']),
+            'truncated' => $export['truncated'],
         ]);
     }
 
@@ -143,88 +141,6 @@ final class LogController
         }
 
         return $filters;
-    }
-
-    /**
-     * Render export rows as an RFC-4180 CSV string (header + data) via fputcsv for correct quoting,
-     * with each data cell defused against spreadsheet formula injection. The escape argument is empty
-     * so quoting follows pure RFC-4180 (double the inner quote) rather than backslash-escaping.
-     *
-     * @param array<int,Log> $rows
-     */
-    private function toCsv(array $rows): string
-    {
-        $handle = fopen('php://temp', 'r+b');
-        if ($handle === false) {
-            return '';
-        }
-
-        fputcsv($handle, LogService::EXPORT_SAFE_COLUMNS, ',', '"', '');
-        foreach ($rows as $row) {
-            // Project through EXPORT_SAFE_COLUMNS (the header) so cell order can never drift from it.
-            $cellsByColumn = $this->exportRowCells($row);
-            $cells         = array_map(
-                fn (string $column): string => $this->defuseCsvValue($cellsByColumn[$column] ?? ''),
-                LogService::EXPORT_SAFE_COLUMNS
-            );
-            fputcsv($handle, $cells, ',', '"', '');
-        }
-
-        rewind($handle);
-        $csv = stream_get_contents($handle);
-        fclose($handle);
-
-        return $csv === false ? '' : $csv;
-    }
-
-    /**
-     * Project one log to its ordered, export-safe cell values (keys mirror EXPORT_SAFE_COLUMNS); the
-     * send status is humanized and recipients flattened, everything else stringified as-is.
-     *
-     * @return array<string,string>
-     */
-    private function exportRowCells(Log $row): array
-    {
-        return [
-            'id'              => (string) $row->id,
-            'created_at'      => (string) $row->created_at,
-            'status'          => $row->status ? 'sent' : 'failed',
-            'to_addr'         => $this->flattenRecipients($row->to_addr),
-            'subject'         => (string) $row->subject,
-            'connection'      => (string) $row->connection,
-            'sender'          => (string) $row->sender,
-            'failure_class'   => (string) $row->failure_class,
-            'delivery_status' => (string) $row->delivery_status,
-            'message_id'      => (string) $row->message_id,
-            'retry_count'     => (string) $row->retry_count,
-        ];
-    }
-
-    /**
-     * Flatten a log's recipient list into a single, human-readable CSV cell.
-     *
-     * @param mixed $recipients array<int,string>|string as the Log model casts it
-     */
-    private function flattenRecipients($recipients): string
-    {
-        if (\is_array($recipients)) {
-            return implode('; ', array_map('strval', $recipients));
-        }
-
-        return \is_scalar($recipients) ? (string) $recipients : '';
-    }
-
-    /**
-     * Neutralize spreadsheet formula injection: a cell that opens with a formula trigger (=, +, -, @,
-     * tab, CR) is prefixed with a single quote so Excel/Sheets treat it as literal text, not a formula.
-     */
-    private function defuseCsvValue(string $value): string
-    {
-        if ($value === '') {
-            return $value;
-        }
-
-        return \in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true) ? "'" . $value : $value;
     }
 
     /**

@@ -25,6 +25,7 @@ use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Notifications\NotificationChannelTester;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Providers\AbilitiesServiceProvider;
+use BitApps\SMTP\Providers\CliServiceProvider;
 use BitApps\SMTP\Providers\CoreServiceProvider;
 use BitApps\SMTP\Providers\HttpServiceProvider;
 use BitApps\SMTP\Providers\InstallerProvider;
@@ -61,6 +62,9 @@ final class Plugin
         // here, at load time, not deferred to boot() -- activation fires before init:11 ever runs.
         $this->app->register(new InstallerServiceProvider($this->app));
         $this->app->register(new AbilitiesServiceProvider($this->app));
+        // CLI commands must be added during WP-CLI's early bootstrap (before init), so its register()
+        // also runs at load time; it is a strict no-op outside an active WP-CLI request.
+        $this->app->register(new CliServiceProvider($this->app));
 
         Hooks::addAction('plugins_loaded', [$this, 'loaded']);
 

@@ -5,6 +5,8 @@ parameters:
     level: 6
     paths:
         - backend/app
+    scanFiles:
+        - tests/stubs/wp-cli.php
     bootstrapFiles:
         - tests/bootstrap-unit.php
     treatPhpDocTypesAsCertain: false

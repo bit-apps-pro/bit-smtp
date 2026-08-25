@@ -5,7 +5,7 @@ namespace BitApps\SMTP\Mail\Transport;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Contracts\CredentialResolverInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
-use BitApps\SMTP\Mail\Credentials\Credential;
+use BitApps\SMTP\Mail\Credentials\ConnectionSecretResolver;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\SendResult;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
@@ -20,14 +20,14 @@ class SmtpTransport implements TransportInterface
 {
     use AppliesPhpMailerMessage;
 
-    private CredentialResolverInterface $credentialResolver;
+    private ConnectionSecretResolver $secretResolver;
 
     private int $timeoutSeconds;
 
     public function __construct(CredentialResolverInterface $credentialResolver, int $timeoutSeconds = 30)
     {
-        $this->credentialResolver = $credentialResolver;
-        $this->timeoutSeconds     = $timeoutSeconds;
+        $this->secretResolver = new ConnectionSecretResolver($credentialResolver);
+        $this->timeoutSeconds = $timeoutSeconds;
     }
 
     /**
@@ -95,13 +95,11 @@ class SmtpTransport implements TransportInterface
         }
     }
 
+    /**
+     * Resolve the SMTP password, letting a wp-config constant override the stored value at send time.
+     */
     private function resolvePassword(Connection $connection): ?string
     {
-        $credentials = $connection->getCredentials();
-        if (!isset($credentials['password']) || !\is_array($credentials['password'])) {
-            return null;
-        }
-
-        return $this->credentialResolver->resolve(Credential::fromArray($credentials['password']));
+        return $this->secretResolver->resolve($connection, 'password');
     }
 }
