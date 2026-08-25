@@ -31,9 +31,10 @@ final class MailAnalyticsService
     private const CONTACT_FORM_PLUGINS = ['contact-form-7', 'wpforms', 'wpforms-lite', 'gravityforms', 'ninja-forms'];
 
     /**
-     * Overview aggregates are read-mostly; a short TTL bounds staleness without event-based invalidation.
+     * Analytics aggregates are read-mostly; a short TTL bounds staleness without event-based
+     * invalidation and lets a repeated load within the window be served from cache, not re-aggregated.
      */
-    private const OVERVIEW_CACHE_TTL = 300;
+    private const CACHE_TTL = 300;
 
     private MailAnalyticsRepository $repository;
 
@@ -61,24 +62,7 @@ final class MailAnalyticsService
             return $loggingError;
         }
 
-        if ($this->cache === null) {
-            return $this->computeOverview($query);
-        }
-
-        $key    = $this->overviewCacheKey($query);
-        $cached = $this->cache->get($key);
-        if ($cached !== null) {
-            return $cached;
-        }
-
-        // Cache successes only: a transient DB failure surfaces as a WP_Error, and freezing it for
-        // the full TTL would keep serving the outage to every request long after it recovered.
-        $result = $this->computeOverview($query);
-        if (!($result instanceof WP_Error)) {
-            $this->cache->put($key, $result, self::OVERVIEW_CACHE_TTL);
-        }
-
-        return $result;
+        return $this->cached($this->cacheKey('analytics_overview_', $query), fn () => $this->computeOverview($query));
     }
 
     /**
@@ -163,24 +147,7 @@ final class MailAnalyticsService
             return $loggingError;
         }
 
-        $summary    = $this->repository->summary($query);
-        $engagement = $this->engagementRepository()->engagement($query);
-        $error      = $this->firstError([$summary, $engagement]);
-        if ($error !== null) {
-            return $error;
-        }
-
-        // "Delivered-or-accepted": the same population the deliverability metric treats as reachable
-        // (verified delivery statuses plus provider hand-offs), the honest denominator for an open rate.
-        $denominator = (int) ($summary['verified_delivery'] ?? 0) + (int) ($summary['accepted_delivery'] ?? 0);
-
-        return array_merge($this->metadata($query, $summary), [
-            'opens'                     => $this->engagementCounts($engagement, 'open'),
-            'clicks'                    => $this->engagementCounts($engagement, 'click'),
-            'open_rate'                 => $this->engagementRate((int) ($engagement['open_human_logs'] ?? 0), $denominator),
-            'click_rate'                => $this->engagementRate((int) ($engagement['click_human_logs'] ?? 0), $denominator),
-            'engagement_interpretation' => self::ENGAGEMENT_INTERPRETATION,
-        ]);
+        return $this->cached($this->cacheKey('analytics_engagement_', $query), fn () => $this->computeEngagement($query));
     }
 
     /**
@@ -267,6 +234,59 @@ final class MailAnalyticsService
     }
 
     /**
+     * Read-through transient cache for an analytics aggregate: bypasses when no cache is configured,
+     * returns a hit as-is, and stores a fresh result only when it is not a WP_Error -- a transient DB
+     * failure must not be frozen for the whole TTL and served long after it recovered.
+     *
+     * @param callable():(array<string,mixed>|WP_Error) $compute
+     *
+     * @return array<string,mixed>|WP_Error
+     */
+    private function cached(string $key, callable $compute)
+    {
+        if ($this->cache === null) {
+            return $compute();
+        }
+
+        $cached = $this->cache->get($key);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $result = $compute();
+        if (!($result instanceof WP_Error)) {
+            $this->cache->put($key, $result, self::CACHE_TTL);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string,mixed>|WP_Error
+     */
+    private function computeEngagement(AnalyticsQuery $query)
+    {
+        $summary    = $this->repository->summary($query);
+        $engagement = $this->engagementRepository()->engagement($query);
+        $error      = $this->firstError([$summary, $engagement]);
+        if ($error !== null) {
+            return $error;
+        }
+
+        // "Delivered-or-accepted": the same population the deliverability metric treats as reachable
+        // (verified delivery statuses plus provider hand-offs), the honest denominator for an open rate.
+        $denominator = (int) ($summary['verified_delivery'] ?? 0) + (int) ($summary['accepted_delivery'] ?? 0);
+
+        return array_merge($this->metadata($query, $summary), [
+            'opens'                     => $this->engagementCounts($engagement, 'open'),
+            'clicks'                    => $this->engagementCounts($engagement, 'click'),
+            'open_rate'                 => $this->engagementRate((int) ($engagement['open_human_logs'] ?? 0), $denominator),
+            'click_rate'                => $this->engagementRate((int) ($engagement['click_human_logs'] ?? 0), $denominator),
+            'engagement_interpretation' => self::ENGAGEMENT_INTERPRETATION,
+        ]);
+    }
+
+    /**
      * @return array<string,mixed>|WP_Error
      */
     private function computeOverview(AnalyticsQuery $query)
@@ -302,12 +322,12 @@ final class MailAnalyticsService
     }
 
     /**
-     * Stable cache key for an overview query: derived only from the range/timezone/bucket and
-     * filters that change the underlying aggregate, never from volatile data.
+     * Stable cache key for an analytics query under $prefix: derived only from the range/timezone/
+     * bucket and filters that change the underlying aggregate, never from volatile data.
      */
-    private function overviewCacheKey(AnalyticsQuery $query): string
+    private function cacheKey(string $prefix, AnalyticsQuery $query): string
     {
-        return 'analytics_overview_' . md5(serialize([
+        return $prefix . md5(serialize([
             $query->start()->format(DATE_ATOM),
             $query->end()->format(DATE_ATOM),
             $query->timezone()->getName(),

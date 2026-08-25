@@ -8,6 +8,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Cache\Repository;
 use BitApps\SMTP\Deps\BitApps\WPKit\Cache\Stores\ArrayStore;
 use BitApps\SMTP\Mail\Analytics\AnalyticsQuery;
 use BitApps\SMTP\Mail\Analytics\AnalyticsQueryFactory;
+use BitApps\SMTP\Mail\Analytics\EngagementRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
@@ -110,6 +111,46 @@ final class AnalyticsCacheTest extends BaseUnitTestCase
         $repo->shouldHaveReceived('summary')->with($query)->twice();
     }
 
+    public function testEngagementHitsBothRepositoriesOnceForTwoCallsWithTheSameQuery(): void
+    {
+        $query = $this->query(['start' => '2026-03-01T00:00:00-05:00', 'end' => '2026-03-04T00:00:00-05:00', 'bucket' => 'day']);
+        $repo  = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->with($query)->andReturn($this->summary());
+        $engagement = Mockery::mock(EngagementRepository::class);
+        $engagement->shouldReceive('engagement')->with($query)->andReturn($this->engagementRow());
+        $service = new MailAnalyticsService($repo, new Repository(new ArrayStore()), $engagement);
+
+        $first  = $service->engagement($query);
+        $second = $service->engagement($query);
+
+        $repo->shouldHaveReceived('summary')->with($query)->once();
+        $engagement->shouldHaveReceived('engagement')->with($query)->once();
+        self::assertSame($first, $second);
+    }
+
+    public function testEngagementDoesNotCacheAWpErrorButCachesTheSubsequentSuccess(): void
+    {
+        $query = $this->query(['start' => '2026-03-01T00:00:00-05:00', 'end' => '2026-03-04T00:00:00-05:00', 'bucket' => 'day']);
+        $error = new WP_Error('bit_smtp_analytics_database_error', 'The retained-log aggregate query failed.');
+        $repo  = Mockery::mock(MailAnalyticsRepository::class);
+        // summary() dominates firstError(), so each engagement() returns/short-circuits on its value:
+        // error, error, then a success that gets cached. times(3) proves the fourth call is a cache hit.
+        $repo->shouldReceive('summary')->with($query)->times(3)->andReturn($error, $error, $this->summary());
+        $engagement = Mockery::mock(EngagementRepository::class);
+        $engagement->shouldReceive('engagement')->with($query)->andReturn($this->engagementRow());
+        $service = new MailAnalyticsService($repo, new Repository(new ArrayStore()), $engagement);
+
+        $firstError  = $service->engagement($query);
+        $secondError = $service->engagement($query);
+        $success     = $service->engagement($query);
+        $cachedHit   = $service->engagement($query);
+
+        self::assertInstanceOf(WP_Error::class, $firstError);
+        self::assertInstanceOf(WP_Error::class, $secondError);
+        self::assertIsArray($success);
+        self::assertSame($success, $cachedHit);
+    }
+
     /**
      * @param array<string,mixed> $input
      */
@@ -158,6 +199,23 @@ final class AnalyticsCacheTest extends BaseUnitTestCase
             'blocked'              => 0,
             'spam'                 => 0,
             'verified_delivery'    => 1,
+        ];
+    }
+
+    /**
+     * @return array<string,int>
+     */
+    private function engagementRow(): array
+    {
+        return [
+            'open_hits'            => 10,
+            'open_automated_hits'  => 4,
+            'open_rows'            => 5,
+            'open_human_logs'      => 4,
+            'click_hits'           => 3,
+            'click_automated_hits' => 1,
+            'click_rows'           => 2,
+            'click_human_logs'     => 2,
         ];
     }
 }
