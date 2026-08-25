@@ -13,6 +13,7 @@ use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
+use BitApps\SMTP\Model\LogEngagementEvent;
 use BitApps\SMTP\Settings\PluginSettings;
 use DateTime;
 use RuntimeException;
@@ -381,6 +382,77 @@ class LogService
         }, $events);
     }
 
+    /**
+     * Fold an open/click engagement fire onto its (log_id, type, target) row. The event_key UNIQUE
+     * key makes re-fires idempotent: ON DUPLICATE KEY UPDATE increments the totals instead of
+     * inserting a duplicate row. A machine-fired hit (Apple MPP / image proxy / prefetch bot) is
+     * counted separately into automated_hits so human engagement stays honest.
+     */
+    public function recordEngagement(int $logId, string $type, string $target, bool $automated): void
+    {
+        $table         = (new LogEngagementEvent())->getTable();
+        $now           = gmdate('Y-m-d H:i:s');
+        $automatedSeed = $automated ? 1 : 0;
+
+        $sql = Connection::prepare(
+            'INSERT INTO `' . $table . '`'
+            . ' (`log_id`, `type`, `target`, `hits`, `automated_hits`, `first_at`, `last_at`, `event_key`, `created_at`, `updated_at`)'
+            . ' VALUES (%d, %s, %s, 1, %d, %s, %s, %s, %s, %s)'
+            . ' ON DUPLICATE KEY UPDATE `hits` = `hits` + 1, `automated_hits` = `automated_hits` + %d, `last_at` = %s, `updated_at` = %s',
+            [$logId, $type, $target, $automatedSeed, $now, $now, $this->engagementKey($logId, $type, $target), $now, $now, $automatedSeed, $now, $now]
+        );
+
+        Connection::query($sql);
+    }
+
+    /**
+     * A log's engagement rows (opens + clicks), oldest-first, shaped for the detail view.
+     *
+     * @return array<int,array{type:string,target:string,hits:int,automated_hits:int,first_at:string,last_at:string}>
+     */
+    public function engagementFor(int $logId): array
+    {
+        $events = $this->toRows(LogEngagementEvent::where('log_id', $logId)->orderBy('first_at')->orderBy('id')->get());
+
+        return array_map(static function (LogEngagementEvent $event): array {
+            return [
+                'type'           => $event->type,
+                'target'         => $event->target,
+                'hits'           => (int) $event->hits,
+                'automated_hits' => (int) $event->automated_hits,
+                'first_at'       => $event->first_at,
+                'last_at'        => $event->last_at,
+            ];
+        }, $events);
+    }
+
+    /**
+     * Resolve the log for a tracking token via idx_tracking_id, returning the whole model so one fetch
+     * can supply both its id and its send time. The UUID is globally unique so no connection scoping is
+     * needed; an empty token never matches a NULL-keyed row.
+     */
+    public function findByTrackingId(string $trackingId): ?Log
+    {
+        if ($trackingId === '') {
+            return null;
+        }
+
+        $log = Log::where('tracking_id', $trackingId)->first();
+
+        return $log instanceof Log ? $log : null;
+    }
+
+    /**
+     * Resolve only the log id for a tracking token — a thin projection over findByTrackingId() for
+     * callers that need the identifier alone.
+     */
+    public function findLogIdByTrackingId(string $trackingId): ?int
+    {
+        $log = $this->findByTrackingId($trackingId);
+
+        return $log === null ? null : (int) $log->id;
+    }
+
     public function updateDeliveryRollup(Log $log, ?string $status, ?string $updatedAt): void
     {
         $log->delivery_status     = $status;
@@ -409,12 +481,17 @@ class LogService
             return true;
         }
 
-        // Delivery events carry provider recipient and diagnostic detail. They intentionally have
-        // no database FK for WordPress compatibility, so remove the children before their selected
-        // parent logs and fail closed if that privacy cleanup cannot complete. This deliberately
-        // is not a transaction: WordPress installs can use mixed or non-transactional engines, and
-        // child-first cleanup leaves no retained provider PII if a later parent deletion fails.
+        // Delivery and engagement events carry recipient-linked PII (provider detail, click targets).
+        // They intentionally have no database FK for WordPress compatibility, so remove the children
+        // before their selected parent logs and fail closed if that privacy cleanup cannot complete.
+        // This deliberately is not a transaction: WordPress installs can use mixed or
+        // non-transactional engines, and child-first cleanup leaves no retained PII if a later parent
+        // deletion fails.
         if (!$this->deleteDeliveryEventsForLogs($ids)) {
+            return false;
+        }
+
+        if (!$this->deleteEngagementEventsForLogs($ids)) {
             return false;
         }
 
@@ -452,9 +529,13 @@ class LogService
         $dateToDelete = date_format($dateToDelete, QueryBuilder::TIME_FORMAT);
 
         // Keep retention set-based: materializing every expired id would create an unbounded PHP
-        // collection and a correspondingly unbounded WHERE IN child delete. The child statement
+        // collection and a correspondingly unbounded WHERE IN child delete. Each child statement
         // shares the parent's cutoff and must complete before the parent delete is attempted.
         if (!$this->deleteDeliveryEventsOlderThan($dateToDelete)) {
+            return false;
+        }
+
+        if (!$this->deleteEngagementEventsOlderThan($dateToDelete)) {
             return false;
         }
 
@@ -786,6 +867,52 @@ class LogService
         // database-error behavior as the rest of the service without exposing a table identifier
         // to request data.
         $sql = Connection::__callStatic('prepare', [
+            'DELETE `' . $eventsTable . '` FROM `' . $eventsTable . '` '
+            . 'INNER JOIN `' . $logsTable . '` ON `' . $eventsTable . '`.`log_id` = `' . $logsTable . '`.`id` '
+            . 'WHERE `' . $logsTable . '`.`created_at` < %s',
+            [$dateToDelete],
+        ]);
+
+        return Connection::__callStatic('query', [$sql]) !== false;
+    }
+
+    /**
+     * Deterministic dedup key for an engagement row. Delimited so distinct (type, target) pairs can't
+     * collide via bare concatenation.
+     */
+    private function engagementKey(int $logId, string $type, string $target): string
+    {
+        return hash('sha256', $logId . '|' . $type . '|' . $target);
+    }
+
+    /**
+     * Delete engagement-event children (open/click hits, whose click targets are recipient-clicked
+     * URLs) for a closed, normalized list of parent IDs. Mirrors deleteDeliveryEventsForLogs(): the
+     * table reference is model-derived and never request- or provider-supplied.
+     *
+     * @param array<int,int> $ids
+     */
+    private function deleteEngagementEventsForLogs(array $ids): bool
+    {
+        if ($ids === []) {
+            return true;
+        }
+
+        $deleted = LogEngagementEvent::where('log_id', $ids)->delete();
+
+        return $deleted !== false;
+    }
+
+    /**
+     * Remove engagement-event PII for every log covered by the retention cutoff without hydrating
+     * rows or building an unbounded ID list. Mirrors deleteDeliveryEventsOlderThan(): table
+     * identifiers are model-derived and closed; the cutoff is passed as a prepared value.
+     */
+    private function deleteEngagementEventsOlderThan(string $dateToDelete): bool
+    {
+        $logsTable   = (new Log())->getTable();
+        $eventsTable = (new LogEngagementEvent())->getTable();
+        $sql         = Connection::__callStatic('prepare', [
             'DELETE `' . $eventsTable . '` FROM `' . $eventsTable . '` '
             . 'INNER JOIN `' . $logsTable . '` ON `' . $eventsTable . '`.`log_id` = `' . $logsTable . '`.`id` '
             . 'WHERE `' . $logsTable . '`.`created_at` < %s',

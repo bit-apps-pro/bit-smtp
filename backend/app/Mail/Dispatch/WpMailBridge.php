@@ -22,6 +22,7 @@ use BitApps\SMTP\Mail\Routing\RoutingDecision;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Routing\RoutingRules;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
+use BitApps\SMTP\Mail\Tracking\TrackingBodyRewriter;
 use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Settings\PluginSettings;
 use InvalidArgumentException;
@@ -46,6 +47,8 @@ class WpMailBridge
 
     private TrackingIdStamper $stamper;
 
+    private TrackingBodyRewriter $trackingBodyRewriter;
+
     private ProviderRegistry $registry;
 
     private ConnectionResolver $connectionResolver;
@@ -59,6 +62,8 @@ class WpMailBridge
     private bool $loggingEnabled = false;
 
     private bool $healthEnabled = false;
+
+    private bool $trackingEnabled = false;
 
     private ?FailureNotifierInterface $failureNotifier = null;
 
@@ -78,20 +83,23 @@ class WpMailBridge
         ?FailureNotifierInterface $failureNotifier = null,
         ?HealthRecorder $healthRecorder = null
     ) {
-        $this->registry           = $registry;
-        $this->connectionResolver = $connectionResolver;
-        $this->messageFactory     = $messageFactory;
-        $this->routingResolver    = $routingResolver;
-        $this->sourceDetector     = $sourceDetector;
-        $this->failureNotifier    = $failureNotifier;
-        $this->healthRecorder     = $healthRecorder;
-        $this->context            = new SendContext();
-        $this->eventLogger        = new MailEventLogger(Plugin::instance()->logger());
-        $this->retryQueue         = new RetryQueue();
-        $this->classifier         = new FailureClassifier();
-        $this->loggingEnabled     = Plugin::instance()->logger()->isEnabled();
-        $this->healthEnabled      = (bool) PluginSettings::make()->get('health_check_enabled', false);
-        $this->stamper            = new TrackingIdStamper();
+        $this->registry             = $registry;
+        $this->connectionResolver   = $connectionResolver;
+        $this->messageFactory       = $messageFactory;
+        $this->routingResolver      = $routingResolver;
+        $this->sourceDetector       = $sourceDetector;
+        $this->failureNotifier      = $failureNotifier;
+        $this->healthRecorder       = $healthRecorder;
+        $this->context              = new SendContext();
+        $this->eventLogger          = new MailEventLogger(Plugin::instance()->logger());
+        $this->retryQueue           = new RetryQueue();
+        $this->classifier           = new FailureClassifier();
+        $preferences                = PluginSettings::make();
+        $this->loggingEnabled       = Plugin::instance()->logger()->isEnabled();
+        $this->healthEnabled        = (bool) $preferences->get('health_check_enabled', false);
+        $this->trackingEnabled      = (bool) $preferences->get('tracking_enabled', false);
+        $this->stamper              = new TrackingIdStamper();
+        $this->trackingBodyRewriter = new TrackingBodyRewriter();
 
         Hooks::addFilter('pre_wp_mail', [$this, 'onPreWpMail'], 10, 2);
 
@@ -312,12 +320,18 @@ class WpMailBridge
             $winningTrackingId     = null;
             $winningDeliveryStatus = null;
 
+            // Inject the open pixel + rewritten click links ONCE, before the failover loop, so a
+            // single tracked body reaches every provider. A strict no-op (returns the original
+            // object + null) unless tracking is on and the body is HTML — keeping the OFF path
+            // byte-identical. The token doubles as the webhook correlation id below.
+            [$outgoing, $messageTrackingId] = $this->maybeInjectTracking($message);
+
             foreach ($connections as $connection) {
                 $this->advanceRoutingDecision($connection);
                 $provider             = $this->resolveProvider($connection);
                 $tracking             = ($provider !== null && $connection->isWebhookEnabled()) ? $provider->tracking() : [];
-                $trackingId           = $tracking !== [] ? $this->stamper->generate() : null;
-                $lastResult           = $this->sendVia($provider, $connection, $message, $tracking, $trackingId);
+                $trackingId           = $messageTrackingId ?? ($tracking !== [] ? $this->stamper->generate() : null);
+                $lastResult           = $this->sendVia($provider, $connection, $outgoing, $tracking, $trackingId);
                 $lastConnection       = $connection;
                 $this->appendDebug($lastResult);
                 $attempts[]           = $this->attemptEntry($connection, $lastResult);
@@ -362,7 +376,7 @@ class WpMailBridge
             // One log row per message: the final outcome on the winning (or last-tried) connection,
             // carrying the whole attempt trail so the fallback chain (failed -> failed -> sent) is
             // visible in the log detail rather than split across a row per attempt.
-            $winningMessage  = $lastConnection !== null ? $this->applyConnectionFrom($lastConnection, $message) : $message;
+            $winningMessage  = $lastConnection !== null ? $this->applyConnectionFrom($lastConnection, $outgoing) : $outgoing;
             $sender          = SenderFormatter::format($winningMessage->getFrom(), $winningMessage->getFromName());
             $outcomeMailData = $this->withSender($this->withAttempts($mailData, $attempts), $sender);
             $this->logOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus, $failureClass);
@@ -384,6 +398,26 @@ class WpMailBridge
         } finally {
             $this->dispatching = false;
         }
+    }
+
+    /**
+     * Build the outgoing message for this send, injecting open/click tracking only when it is enabled
+     * and the body is HTML. Returns [$outgoing, $messageTrackingId]. A strict no-op — the ORIGINAL
+     * object plus a null token — whenever tracking is off, logging is off (no log row to attribute a
+     * hit to), or the body is not HTML, so the send path stays byte-identical and allocation-free by
+     * default. The token doubles as the log's tracking_id, unifying open/click with webhook correlation.
+     *
+     * @return array{0: MailMessage, 1: ?string}
+     */
+    private function maybeInjectTracking(MailMessage $message): array
+    {
+        if (!$this->trackingEnabled || !$this->loggingEnabled || $message->getContentType() !== 'text/html') {
+            return [$message, null];
+        }
+
+        $token = wp_generate_uuid4();
+
+        return [$this->trackingBodyRewriter->rewrite($message, $token), $token];
     }
 
     /**

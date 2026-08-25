@@ -61,6 +61,14 @@ class AnalyticsController
     }
 
     /**
+     * Open/click engagement totals with the honest human-vs-automated split and engagement rates.
+     */
+    public function engagement(Request $request): Response
+    {
+        return $this->respond($request, 'engagement');
+    }
+
+    /**
      * Build the query from the request, dispatch it to the named service method, and translate the
      * resulting array|WP_Error into a Response.
      */

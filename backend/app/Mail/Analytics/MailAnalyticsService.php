@@ -16,6 +16,8 @@ final class MailAnalyticsService
 {
     private const INTERPRETATION = 'Results reflect retained Bit SMTP email logs, not orders, form submissions, or external business records.';
 
+    private const ENGAGEMENT_INTERPRETATION = 'Opens and clicks are attributed per message, not per recipient. Automated fires (Apple Mail Privacy Protection, image proxies, and security prefetch) are counted separately and excluded from the human figures. Rates are measured against emails accepted for delivery or with a confirmed delivery status.';
+
     private const TOP_LIMIT = 10;
 
     private const BUSY_TIME_LIMIT = 10;
@@ -37,10 +39,16 @@ final class MailAnalyticsService
 
     private ?CacheRepository $cache;
 
-    public function __construct(MailAnalyticsRepository $repository, ?CacheRepository $cache = null)
-    {
-        $this->repository  = $repository;
-        $this->cache       = $cache;
+    private ?EngagementRepository $engagementRepository;
+
+    public function __construct(
+        MailAnalyticsRepository $repository,
+        ?CacheRepository $cache = null,
+        ?EngagementRepository $engagementRepository = null
+    ) {
+        $this->repository           = $repository;
+        $this->cache                = $cache;
+        $this->engagementRepository = $engagementRepository;
     }
 
     /**
@@ -139,6 +147,39 @@ final class MailAnalyticsService
             'delivery'    => $this->delivery($summary),
             'sources'     => $sources,
             'connections' => $connections,
+        ]);
+    }
+
+    /**
+     * Open/click engagement totals with an honest human-vs-automated split and open/click rates over
+     * the accepted-or-delivered population. Automated fires never inflate the human figures.
+     *
+     * @return array<string,mixed>|WP_Error
+     */
+    public function engagement(AnalyticsQuery $query)
+    {
+        $loggingError = $this->loggingDisabledError();
+        if ($loggingError !== null) {
+            return $loggingError;
+        }
+
+        $summary    = $this->repository->summary($query);
+        $engagement = $this->engagementRepository()->engagement($query);
+        $error      = $this->firstError([$summary, $engagement]);
+        if ($error !== null) {
+            return $error;
+        }
+
+        // "Delivered-or-accepted": the same population the deliverability metric treats as reachable
+        // (verified delivery statuses plus provider hand-offs), the honest denominator for an open rate.
+        $denominator = (int) ($summary['verified_delivery'] ?? 0) + (int) ($summary['accepted_delivery'] ?? 0);
+
+        return array_merge($this->metadata($query, $summary), [
+            'opens'                     => $this->engagementCounts($engagement, 'open'),
+            'clicks'                    => $this->engagementCounts($engagement, 'click'),
+            'open_rate'                 => $this->engagementRate((int) ($engagement['open_human_logs'] ?? 0), $denominator),
+            'click_rate'                => $this->engagementRate((int) ($engagement['click_human_logs'] ?? 0), $denominator),
+            'engagement_interpretation' => self::ENGAGEMENT_INTERPRETATION,
         ]);
     }
 
@@ -346,6 +387,50 @@ final class MailAnalyticsService
             'denominator'    => $denominator,
             'delivered_rate' => $this->rate($delivered, $denominator),
         ];
+    }
+
+    /**
+     * Shape one channel's raw aggregates into total/automated/human/unique, holding the human figure
+     * at or above zero even if the automated counter should ever exceed total hits.
+     *
+     * @param array<string,int> $engagement
+     *
+     * @return array<string,int>
+     */
+    private function engagementCounts(array $engagement, string $channel): array
+    {
+        $hits      = (int) ($engagement[$channel . '_hits'] ?? 0);
+        $automated = (int) ($engagement[$channel . '_automated_hits'] ?? 0);
+
+        return [
+            'total'     => $hits,
+            'automated' => $automated,
+            'human'     => max(0, $hits - $automated),
+            'unique'    => (int) ($engagement[$channel . '_rows'] ?? 0),
+        ];
+    }
+
+    /**
+     * A human-engagement rate that keeps its distinct-log numerator and denominator visible, so the
+     * ratio is auditable rather than a bare percentage.
+     *
+     * @return array<string,int|float>
+     */
+    private function engagementRate(int $engagedLogs, int $denominator): array
+    {
+        return [
+            'engaged_logs' => $engagedLogs,
+            'denominator'  => $denominator,
+            'rate'         => $this->rate($engagedLogs, $denominator),
+        ];
+    }
+
+    /**
+     * The injected engagement repository, or a default one bound to the global wpdb on first use.
+     */
+    private function engagementRepository(): EngagementRepository
+    {
+        return $this->engagementRepository ??= new EngagementRepository();
     }
 
     /**

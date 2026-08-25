@@ -6,6 +6,7 @@ namespace BitApps\SMTP\Tests\Unit\Mail\Analytics;
 
 use BitApps\SMTP\Mail\Analytics\AnalyticsQuery;
 use BitApps\SMTP\Mail\Analytics\AnalyticsQueryFactory;
+use BitApps\SMTP\Mail\Analytics\EngagementRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
@@ -178,6 +179,53 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
             $result['delivery']['pending'],
             $result['delivery']['unknown'],
         ]));
+    }
+
+    public function testEngagementSeparatesHumanFromAutomatedFiresAndRatesOverDeliveredOrAccepted(): void
+    {
+        $query = $this->query([]);
+        $repo  = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldReceive('summary')->once()->with($query)->andReturn(array_merge($this->summary(), [
+            'total'             => 12,
+            'verified_delivery' => 6,
+            'accepted_delivery' => 2,
+        ]));
+        $engagement = Mockery::mock(EngagementRepository::class);
+        $engagement->shouldReceive('engagement')->once()->with($query)->andReturn([
+            'open_hits'            => 10,
+            'open_automated_hits'  => 4,
+            'open_rows'            => 5,
+            'open_human_logs'      => 4,
+            'click_hits'           => 3,
+            'click_automated_hits' => 1,
+            'click_rows'           => 2,
+            'click_human_logs'     => 2,
+        ]);
+
+        $result = (new MailAnalyticsService($repo, null, $engagement))->engagement($query);
+
+        self::assertSame(['total' => 10, 'automated' => 4, 'human' => 6, 'unique' => 5], $result['opens']);
+        self::assertSame(['total' => 3, 'automated' => 1, 'human' => 2, 'unique' => 2], $result['clicks']);
+        self::assertSame(['engaged_logs' => 4, 'denominator' => 8, 'rate' => 50.0], $result['open_rate']);
+        self::assertSame(['engaged_logs' => 2, 'denominator' => 8, 'rate' => 25.0], $result['click_rate']);
+        self::assertStringContainsString('per message, not per recipient', $result['engagement_interpretation']);
+    }
+
+    public function testEngagementReturnsTheStableDisabledLoggingErrorWithoutTouchingEitherRepository(): void
+    {
+        Functions\when('get_option')->alias(static function (string $key, $default) {
+            return $key === 'bit_smtp_logging_enabled' ? false : $default;
+        });
+        $query      = $this->query([]);
+        $repo       = Mockery::mock(MailAnalyticsRepository::class);
+        $repo->shouldNotReceive('summary');
+        $engagement = Mockery::mock(EngagementRepository::class);
+        $engagement->shouldNotReceive('engagement');
+
+        $result = (new MailAnalyticsService($repo, null, $engagement))->engagement($query);
+
+        self::assertInstanceOf(WP_Error::class, $result);
+        self::assertSame('bit_smtp_logging_disabled', $result->get_error_code());
     }
 
     public function testPluginGroupsNormalizedSubjectsAndReturnsAtMostTenPatterns(): void

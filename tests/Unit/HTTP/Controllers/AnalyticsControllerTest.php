@@ -7,6 +7,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Cache\Stores\ArrayStore;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Controllers\AnalyticsController;
+use BitApps\SMTP\Mail\Analytics\EngagementRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
@@ -131,6 +132,39 @@ final class AnalyticsControllerTest extends BaseUnitTestCase
         $this->assertSame(3, $data['current']['total']);
         $this->assertSame(3, $data['prior']['total']);
         $this->assertArrayHasKey('observations', $data);
+    }
+
+    public function testEngagementReturnsTheHonestSplitOnValidInput(): void
+    {
+        $this->stubLoggingEnabled(true);
+
+        $request           = new Request();
+        $request['start']  = '2026-03-01T00:00:00+00:00';
+        $request['end']    = '2026-03-04T00:00:00+00:00';
+        $request['bucket'] = 'day';
+
+        $engagement = Mockery::mock(EngagementRepository::class);
+        $engagement->shouldReceive('engagement')->andReturn([
+            'open_hits'            => 8,
+            'open_automated_hits'  => 3,
+            'open_rows'            => 4,
+            'open_human_logs'      => 4,
+            'click_hits'           => 2,
+            'click_automated_hits' => 0,
+            'click_rows'           => 2,
+            'click_human_logs'     => 2,
+        ]);
+        $service    = new MailAnalyticsService($this->repository(), new Repository(new ArrayStore()), $engagement);
+        $controller = new AnalyticsController($service);
+
+        $controller->engagement($request);
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+        $data = (array) Response::getData();
+        $this->assertSame(['total' => 8, 'automated' => 3, 'human' => 5, 'unique' => 4], $data['opens']);
+        $this->assertSame(['total' => 2, 'automated' => 0, 'human' => 2, 'unique' => 2], $data['clicks']);
+        $this->assertArrayHasKey('open_rate', $data);
+        $this->assertArrayHasKey('engagement_interpretation', $data);
     }
 
     public function testOverviewReturns500WhenTheServiceReturnsANonLoggingDisabledError(): void

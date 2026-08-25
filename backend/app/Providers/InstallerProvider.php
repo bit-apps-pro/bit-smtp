@@ -88,6 +88,7 @@ class InstallerProvider
             'BitSmtpEncryptSecrets',
             'BitSmtpCleanupOrphanDeliveryEvents',
             'BitSmtpRetryQueueMigration',
+            'BitSmtpEngagementTableMigration',
             'BitSmtpPluginOptions',
         ];
 
@@ -109,6 +110,7 @@ class InstallerProvider
             'BitSmtpCleanupOrphanDeliveryEvents',
             'BitSmtpSettingsSeed',
             'BitSmtpRetryQueueMigration',
+            'BitSmtpEngagementTableMigration',
             'BitSmtpLogsTableMigration',
             'BitSmtpEncryptSecrets',
         ];

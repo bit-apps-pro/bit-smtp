@@ -103,6 +103,32 @@ export interface Deliverability {
   connections: Array<DimensionGroup>
 }
 
+export interface EngagementCounts {
+  total: number
+  automated: number
+  human: number
+  unique: number
+}
+
+export interface EngagementRate {
+  engaged_logs: number
+  denominator: number
+  rate: number
+}
+
+/** `GET analytics/engagement` response body (MailAnalyticsService::engagement). */
+export interface Engagement {
+  range: AnalyticsRange
+  timezone: string
+  total: number
+  interpretation: string
+  opens: EngagementCounts
+  clicks: EngagementCounts
+  open_rate: EngagementRate
+  click_rate: EngagementRate
+  engagement_interpretation: string
+}
+
 export type AnomalyObservation =
   | { type: 'volume_change'; current: number; prior: number; percentage_change: number }
   | {

@@ -51,7 +51,8 @@ async function fetchAnalytics<T>(
   return { loggingDisabled: false, data: response.data }
 }
 
-function useAnalyticsQuery<T>(endpoint: string, params: AnalyticsRangeParams) {
+/** Shared query builder for a single analytics endpoint; each endpoint hook wraps this with its type. */
+export function useAnalyticsQuery<T>(endpoint: string, params: AnalyticsRangeParams) {
   return useQuery<AnalyticsResult<T>, AnalyticsApiError>({
     queryKey: ['analytics', endpoint, params],
     queryFn: () => fetchAnalytics<T>(`analytics/${endpoint}`, params),

@@ -12,6 +12,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Settings\SettingsRepository;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\HTTP\Services\WebhookProvisioningService;
+use BitApps\SMTP\Mail\Analytics\EngagementRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
@@ -67,13 +68,16 @@ class CoreServiceProvider extends ServiceProvider
 
         $this->app->singleton(MailAnalyticsRepository::class, static fn (): MailAnalyticsRepository => new MailAnalyticsRepository());
 
+        $this->app->singleton(EngagementRepository::class, static fn (): EngagementRepository => new EngagementRepository());
+
         // Shared by AnalyticsController and AbilitiesProvider so both read through the same overview
         // cache instead of each maintaining an independent (and independently stale) copy.
         $this->app->singleton(
             MailAnalyticsService::class,
             static fn (Container $app): MailAnalyticsService => new MailAnalyticsService(
                 $app->make(MailAnalyticsRepository::class),
-                $app->make(CacheManager::class)->store('transient')
+                $app->make(CacheManager::class)->store('transient'),
+                $app->make(EngagementRepository::class)
             )
         );
 

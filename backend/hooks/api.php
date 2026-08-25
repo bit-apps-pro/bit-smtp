@@ -56,6 +56,7 @@ Route::group(function () {
     Route::get('analytics/overview', [AnalyticsController::class, 'overview']);
     Route::get('analytics/deliverability', [AnalyticsController::class, 'deliverability']);
     Route::get('analytics/anomalies', [AnalyticsController::class, 'anomalies']);
+    Route::get('analytics/engagement', [AnalyticsController::class, 'engagement']);
 
     Route::get('mail/retry-queue', [RetryController::class, 'status']);
     Route::post('mail/retry-queue/flush', [RetryController::class, 'flush']);

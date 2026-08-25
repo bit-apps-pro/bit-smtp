@@ -106,7 +106,15 @@ export default function PrivacyData() {
         valuePropName="checked"
         extra={
           <Text type="secondary">
-            {__('Track email opens and link clicks by adding a tracking pixel and redirect links.')}
+            {__(
+              'Off by default. When on, outgoing HTML emails get an invisible pixel and rewritten ' +
+                'links to record opens and link clicks at the message level. Requires logging to be ' +
+                'enabled, since engagement is tied to the email log entry and kept for as long as your ' +
+                'log retention setting. Open counts include automated fetches such as Apple Mail ' +
+                'Privacy Protection and image proxies, which are flagged separately so human ' +
+                'engagement stays honest. Recorded events are covered by the built-in personal-data ' +
+                'export and erasure tools.'
+            )}
           </Text>
         }
       >

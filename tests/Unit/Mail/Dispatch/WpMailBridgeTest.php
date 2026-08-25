@@ -22,6 +22,8 @@ use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingDecision;
+use BitApps\SMTP\Mail\Tracking\TokenSigner;
+use BitApps\SMTP\Mail\Tracking\TrackingBodyRewriter;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
@@ -776,6 +778,169 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertTrue($outcome['succeeded']);
     }
 
+    public function testTrackingDisabledSendsTheHtmlBodyByteIdenticalAndKeepsTrackingIdBehavior(): void
+    {
+        // The OFF invariant: trackingEnabled defaults false, so the body must reach the transport
+        // byte-identical and the webhook tracking_id must be minted exactly as it is today.
+        $spy    = new SpyTransport();
+        $bridge = $this->bridgeWithTransport($spy);
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(static function (array $logs): bool {
+                return $logs[0]['tracking_id'] === 'track-uuid';
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $body       = '<html><body><a href="https://example.com/x">x</a></body></html>';
+        $connection = $this->connection(['name' => 'Postmark']); // api-kind, webhook enabled by default
+        $message    = $this->message(['body' => $body, 'contentType' => 'text/html']);
+
+        $succeeded = $this->invokeDispatch($bridge, [$connection], $message, ['subject' => 'Hi', 'to' => ['a@example.org']]);
+
+        $this->assertTrue($succeeded);
+        $this->assertSame($body, $spy->received->getBody(), 'tracking off must send the HTML body byte-identical');
+        $this->assertStringNotContainsString('track/open', $spy->received->getBody());
+    }
+
+    public function testTrackingEnabledHtmlSendInjectsPixelRewritesLinksAndStampsTheToken(): void
+    {
+        Functions\when('wp_generate_uuid4')->justReturn('inject-token');
+        Functions\when('wp_salt')->justReturn('unit-test-tracking-salt');
+        Functions\when('home_url')->alias(static fn ($path = '') => 'https://site.test/' . ltrim((string) $path, '/'));
+
+        $spy    = new SpyTransport();
+        $bridge = $this->bridgeWithTransport($spy);
+        $this->setTrackingEnabled($bridge, true);
+
+        $capturedTrackingId = null;
+        $logService         = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(static function (array $logs) use (&$capturedTrackingId): bool {
+                $capturedTrackingId = $logs[0]['tracking_id'] ?? null;
+
+                return true;
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        // Webhook disabled so the log's tracking_id can only be the injected token, never the stamper.
+        $connection = $this->connection(['name' => 'Postmark', 'settings' => ['webhook_enabled' => false]]);
+        $message    = $this->message([
+            'body'        => '<html><body><p>Visit <a href="https://example.com/order/42">here</a>.</p></body></html>',
+            'contentType' => 'text/html',
+        ]);
+
+        $succeeded = $this->invokeDispatch($bridge, [$connection], $message, ['subject' => 'Hi', 'to' => ['a@example.org']]);
+
+        $this->assertTrue($succeeded);
+
+        $sentBody = $spy->received->getBody();
+        $this->assertStringContainsString('<img src="https://site.test/bit-smtp/track/open/', $sentBody);
+        $this->assertStringContainsString('width="1" height="1"', $sentBody);
+        $this->assertStringContainsString('href="https://site.test/bit-smtp/track/click/', $sentBody);
+        $this->assertStringNotContainsString('href="https://example.com/order/42"', $sentBody);
+
+        // The log's tracking_id is the injected token, and both embedded tokens verify back to it.
+        $this->assertSame('inject-token', $capturedTrackingId);
+
+        preg_match('#track/open/([A-Za-z0-9\-_]+\.[a-f0-9]{64})#', $sentBody, $open);
+        $this->assertSame(['t' => 'inject-token'], TokenSigner::verify($open[1]));
+
+        preg_match('#track/click/([A-Za-z0-9\-_]+\.[a-f0-9]{64})#', $sentBody, $click);
+        $this->assertSame(['t' => 'inject-token', 'u' => 'https://example.com/order/42'], TokenSigner::verify($click[1]));
+    }
+
+    public function testTrackingEnabledPlainTextSendIsNotRewritten(): void
+    {
+        $spy    = new SpyTransport();
+        $bridge = $this->bridgeWithTransport($spy);
+        $this->setTrackingEnabled($bridge, true);
+
+        $logService = Mockery::mock(LogService::class)->shouldIgnoreMissing();
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $body       = 'Plain body linking to https://example.com/x';
+        $connection = $this->connection(['settings' => ['webhook_enabled' => false]]);
+        $message    = $this->message(['body' => $body, 'contentType' => 'text/plain']);
+
+        $this->invokeDispatch($bridge, [$connection], $message, ['subject' => 'Hi', 'to' => ['a@example.org']]);
+
+        $this->assertSame($body, $spy->received->getBody(), 'a non-HTML body must never be rewritten');
+    }
+
+    public function testTrackingEnabledButLoggingDisabledDoesNotRewrite(): void
+    {
+        // Tracking requires a persisted log row to attribute a hit to; with logging off it is a no-op.
+        $spy    = new SpyTransport();
+        $bridge = $this->bridgeWithTransport($spy);
+        $this->setTrackingEnabled($bridge, true);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, false);
+
+        $body       = '<html><body><a href="https://example.com/x">x</a></body></html>';
+        $connection = $this->connection(['settings' => ['webhook_enabled' => false]]);
+        $message    = $this->message(['body' => $body, 'contentType' => 'text/html']);
+
+        $this->invokeDispatch($bridge, [$connection], $message, ['subject' => 'Hi', 'to' => ['a@example.org']]);
+
+        $this->assertSame($body, $spy->received->getBody(), 'logging off must block tracking injection');
+    }
+
+    public function testRetryEnqueuesTheOriginalUninjectedMessage(): void
+    {
+        // A retry must re-run the gate on the pristine message, never a body with a baked-in pixel.
+        Functions\when('wp_generate_uuid4')->justReturn('inject-token');
+        Functions\when('wp_salt')->justReturn('unit-test-tracking-salt');
+        Functions\when('home_url')->alias(static fn ($path = '') => 'https://site.test/' . ltrim((string) $path, '/'));
+        Functions\when('get_option')->justReturn([
+            'retry_enabled'      => true,
+            'retry_max_attempts' => 5,
+            'retry_backoff'      => 'exponential',
+        ]);
+
+        $transport = new ScriptedTransport([SendResult::failure('Connection refused')]);
+        $bridge    = $this->dispatchableBridge($transport);
+        $this->setTrackingEnabled($bridge, true);
+        $this->setLoggingEnabled($bridge, true);
+        $this->setEventLogger($bridge, Mockery::mock(LogService::class)->shouldIgnoreMissing());
+
+        $originalBody = '<html><body><a href="https://example.com/x">x</a></body></html>';
+        $message      = $this->message(['body' => $originalBody, 'contentType' => 'text/html']);
+
+        $retryQueue = Mockery::mock(RetryQueue::class);
+        $retryQueue->shouldReceive('enqueue')
+            ->once()
+            ->with(
+                Mockery::on(static function (MailMessage $enqueued) use ($originalBody): bool {
+                    return $enqueued->getBody() === $originalBody;
+                }),
+                Mockery::any(),
+                Mockery::any(),
+                Mockery::any(),
+                Mockery::any(),
+                Mockery::any(),
+                Mockery::any()
+            );
+        $this->setRetryQueue($bridge, $retryQueue);
+
+        $outcome = $this->invokeDispatchFull(
+            $bridge,
+            [$this->connection(['id' => 'conn_1', 'settings' => ['webhook_enabled' => false]])],
+            $message,
+            []
+        );
+
+        $this->assertFalse($outcome['succeeded']);
+    }
+
     private function invokeConnectionLabel(WpMailBridge $bridge, Connection $connection): string
     {
         $method = new ReflectionMethod(WpMailBridge::class, 'connectionLabel');
@@ -859,6 +1024,13 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $property->setValue($bridge, $enabled);
     }
 
+    private function setTrackingEnabled(WpMailBridge $bridge, bool $enabled): void
+    {
+        $property = (new ReflectionClass(WpMailBridge::class))->getProperty('trackingEnabled');
+        $property->setAccessible(true);
+        $property->setValue($bridge, $enabled);
+    }
+
     private function setHealthRecorder(WpMailBridge $bridge, HealthRecorder $recorder): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('healthRecorder');
@@ -908,6 +1080,12 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $stamperProperty = $refClass->getProperty('stamper');
         $stamperProperty->setAccessible(true);
         $stamperProperty->setValue($bridge, new TrackingIdStamper());
+
+        // dispatch() reads trackingBodyRewriter only when tracking is enabled, but the property is
+        // non-nullable, so give the constructor-bypassed instance a real one to reflect production.
+        $trackingRewriterProperty = $refClass->getProperty('trackingBodyRewriter');
+        $trackingRewriterProperty->setAccessible(true);
+        $trackingRewriterProperty->setValue($bridge, new TrackingBodyRewriter());
 
         $sourceDetectorProperty = $refClass->getProperty('sourceDetector');
         $sourceDetectorProperty->setAccessible(true);

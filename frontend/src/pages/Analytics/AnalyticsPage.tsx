@@ -7,7 +7,8 @@ import {
   useAnomalies,
   useOverview
 } from '@pages/Analytics/data/useAnalytics'
-import { type AnalyticsRangeParams, type Anomalies } from '@pages/Analytics/types'
+import useEngagement from '@pages/Analytics/data/useEngagement'
+import { type AnalyticsRangeParams, type Anomalies, type Engagement } from '@pages/Analytics/types'
 import AnomaliesList from '@pages/Analytics/ui/AnomaliesList'
 import BusiestHours from '@pages/Analytics/ui/BusiestHours'
 import ChartCard from '@pages/Analytics/ui/ChartCard'
@@ -18,6 +19,7 @@ import {
   LoggingOffState,
   NoDataState
 } from '@pages/Analytics/ui/EmptyStates'
+import EngagementMetrics from '@pages/Analytics/ui/EngagementMetrics'
 import StatTiles from '@pages/Analytics/ui/StatTiles'
 import TopList from '@pages/Analytics/ui/TopList'
 import VolumeChart from '@pages/Analytics/ui/VolumeChart'
@@ -88,6 +90,30 @@ function AnomaliesPanel({
   return <AnomaliesList anomalies={state.data} />
 }
 
+/** The engagement query's own loading/error/ready states, distinct from overview's, so a failure here doesn't spin forever. */
+function EngagementPanel({
+  state,
+  onRetry
+}: {
+  state: AnalyticsQueryState<Engagement>
+  onRetry: () => void
+}) {
+  if (state.status === 'loading') return <PendingPanel title={__('Engagement')} />
+  if (state.status === 'error') {
+    return (
+      <ChartCard
+        title={__('Engagement')}
+        tableView={<AnalyticsErrorState message={state.message} onRetry={onRetry} />}
+      >
+        <AnalyticsErrorState message={state.message} onRetry={onRetry} />
+      </ChartCard>
+    )
+  }
+  // 'logging-disabled' is already handled by overview's page-level gate; the union stays exhaustive.
+  if (state.status !== 'ready') return null
+  return <EngagementMetrics engagement={state.data} />
+}
+
 /** Analytics dashboard: filters row + stat tiles, volume trend, delivery/ranking breakdowns, and anomalies. */
 export default function AnalyticsPage() {
   const { token } = theme.useToken()
@@ -123,9 +149,11 @@ export default function AnalyticsPage() {
 
   const overviewQuery = useOverview(params)
   const anomaliesQuery = useAnomalies(params)
+  const engagementQuery = useEngagement(params)
 
   const overviewState = analyticsQueryState(overviewQuery)
   const anomaliesState = analyticsQueryState(anomaliesQuery)
+  const engagementState = analyticsQueryState(engagementQuery)
 
   if (preferencesQuery.isPending) {
     return <AnalyticsSkeleton />
@@ -174,6 +202,13 @@ export default function AnalyticsPage() {
                 delivery={overviewState.data.delivery}
                 dateFrom={logsDateFrom}
                 dateTo={logsDateTo}
+              />
+
+              <EngagementPanel
+                state={engagementState}
+                onRetry={() => {
+                  engagementQuery.refetch()
+                }}
               />
 
               <div className={cls.twoCol}>

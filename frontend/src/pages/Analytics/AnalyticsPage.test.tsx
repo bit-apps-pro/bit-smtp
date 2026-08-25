@@ -1,6 +1,7 @@
 import { renderWithProviders } from '@config/test-utils'
 import { AnalyticsApiError, useAnomalies, useOverview } from '@pages/Analytics/data/useAnalytics'
-import { type Anomalies, type Overview } from '@pages/Analytics/types'
+import useEngagement from '@pages/Analytics/data/useEngagement'
+import { type Anomalies, type Engagement, type Overview } from '@pages/Analytics/types'
 import usePreferences from '@pages/Settings/data/usePreferences'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -20,6 +21,10 @@ vi.mock('@pages/Analytics/data/useAnalytics', async importOriginal => {
     useAnomalies: vi.fn()
   }
 })
+
+vi.mock('@pages/Analytics/data/useEngagement', () => ({
+  default: vi.fn()
+}))
 
 vi.mock('@pages/Settings/data/usePreferences', () => ({
   default: vi.fn()
@@ -95,6 +100,18 @@ const anomaliesFixture: Anomalies = {
   observations: [{ type: 'volume_change', current: 120, prior: 100, percentage_change: 20 }]
 }
 
+const engagementFixture: Engagement = {
+  range: overviewFixture.range,
+  timezone: 'UTC',
+  total: 120,
+  interpretation: '',
+  opens: { total: 40, automated: 15, human: 25, unique: 30 },
+  clicks: { total: 12, automated: 2, human: 10, unique: 8 },
+  open_rate: { engaged_logs: 25, denominator: 100, rate: 25 },
+  click_rate: { engaged_logs: 10, denominator: 100, rate: 10 },
+  engagement_interpretation: 'Attributed per message, not per recipient.'
+}
+
 function readyResult<T>(data: T) {
   return { isPending: false, isError: false, error: null, data: { loggingDisabled: false, data } }
 }
@@ -104,6 +121,7 @@ describe('AnalyticsPage', () => {
     vi.clearAllMocks()
     ;(useOverview as Mock).mockReturnValue(readyResult(overviewFixture))
     ;(useAnomalies as Mock).mockReturnValue(readyResult(anomaliesFixture))
+    ;(useEngagement as Mock).mockReturnValue(readyResult(engagementFixture))
     ;(usePreferences as unknown as Mock).mockReturnValue({
       data: { log_retention_days: 30 },
       isPending: false,
@@ -170,6 +188,7 @@ describe('AnalyticsPage', () => {
     expect(screen.getByText('Failed')).toBeInTheDocument()
     expect(screen.getByText('Volume over time')).toBeInTheDocument()
     expect(screen.getByText('Delivery breakdown')).toBeInTheDocument()
+    expect(screen.getByText('Engagement')).toBeInTheDocument()
     expect(screen.getByText('Top sources')).toBeInTheDocument()
     expect(screen.getByText('Top connections')).toBeInTheDocument()
     expect(screen.getByText('Busiest hours')).toBeInTheDocument()
@@ -208,6 +227,7 @@ describe('AnalyticsPage', () => {
     expect(screen.getByText('No sends in this range. Try widening the date range.')).toBeInTheDocument()
     expect(screen.queryByText('Volume over time')).not.toBeInTheDocument()
     expect(screen.queryByText('Delivery breakdown')).not.toBeInTheDocument()
+    expect(screen.queryByText('Engagement')).not.toBeInTheDocument()
     expect(screen.queryByText('Anomalies')).not.toBeInTheDocument()
     // Stat tiles (all zero) still render above the empty state - they read the total directly.
     expect(screen.getByText('Total sent')).toBeInTheDocument()

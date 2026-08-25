@@ -32,6 +32,7 @@ use BitApps\SMTP\Providers\InstallerProvider;
 use BitApps\SMTP\Providers\InstallerServiceProvider;
 use BitApps\SMTP\Providers\MailServiceProvider;
 use BitApps\SMTP\Providers\NotificationServiceProvider;
+use BitApps\SMTP\Providers\PrivacyServiceProvider;
 
 final class Plugin
 {
@@ -57,6 +58,8 @@ final class Plugin
         $this->app->register(new CoreServiceProvider($this->app));
         $this->app->register(new MailServiceProvider($this->app));
         $this->app->register(new NotificationServiceProvider($this->app));
+        // GDPR exporter/eraser + policy content wire via boot() filters; no load-time side effects.
+        $this->app->register(new PrivacyServiceProvider($this->app));
         $this->app->register(new HttpServiceProvider($this->app));
         // Installer/Abilities register() calls are side-effecting (WP hook wiring): they must run
         // here, at load time, not deferred to boot() -- activation fires before init:11 ever runs.
