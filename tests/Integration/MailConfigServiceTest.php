@@ -936,6 +936,36 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('conn_2', $loaded->getDefaultConnectionId());
     }
 
+    public function testDeleteConnectionPrunesRoutingRulesTargetingIt(): void
+    {
+        // Two connections, each targeted by a routing rule; delete conn_1 and its rule must go while
+        // conn_2's rule survives.
+        $data                  = $this->v2SettingsArray('conn_1', 'pass1');
+        $data['connections'][] = [
+            'id'           => 'conn_2',
+            'provider'     => 'other_smtp',
+            'kind'         => 'smtp',
+            'name'         => 'Second',
+            'enabled'      => true,
+            'fromEmail'    => 'b@example.com',
+            'fromName'     => 'B',
+            'replyToEmail' => '',
+            'settings'     => ['host' => 'smtp2.example.com', 'port' => 587, 'encryption' => 'tls', 'auth' => false, 'username' => '', 'smtp_debug' => false],
+            'credentials'  => ['password' => ['source' => 'database', 'value' => 'pass2']],
+        ];
+        $data['features']['routing'] = [
+            ['connectionId' => 'conn_1', 'conditions' => [['field' => 'source_plugin', 'operator' => 'equals', 'value' => 'woocommerce']]],
+            ['connectionId' => 'conn_2', 'conditions' => [['field' => 'source_plugin', 'operator' => 'equals', 'value' => 'edd']]],
+        ];
+        $this->freshService()->saveSettings($data);
+
+        $this->freshService()->deleteConnection('conn_1');
+
+        $routing = $this->freshService()->load()->getFeatures()['routing'];
+        $this->assertCount(1, $routing);
+        $this->assertSame('conn_2', $routing[0]['connectionId']);
+    }
+
     private function v2SettingsArray(string $connId, string $password): array
     {
         return [

@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
+import useMaskedSecret from '@pages/Connections/fields/useMaskedSecret'
 import { MASK_SENTINEL } from '@pages/Connections/types'
 import { type NotificationChannel } from '@pages/Settings/data/useTestNotification'
 import { Button, Form, type FormInstance, Input, Select } from 'antd'
@@ -69,6 +70,9 @@ function EmailHiddenFields() {
 
 /** Webhook channel fields: destination URL plus a generated or hand-entered HMAC signing secret. */
 function WebhookFields({ alertsForm, disabled }: ChannelFieldsProps) {
+  const webhookUrlMask = useMaskedSecret('webhookUrl')
+  const signingSecretMask = useMaskedSecret('signingSecret')
+
   const validateWebhookUrl = (_: unknown, value?: string) => {
     if (disabled) {
       return Promise.resolve()
@@ -115,6 +119,9 @@ function WebhookFields({ alertsForm, disabled }: ChannelFieldsProps) {
           autoComplete="off"
           placeholder="https://example.com/hooks/bit-smtp"
           disabled={disabled}
+          visibilityToggle={webhookUrlMask.visibilityToggle}
+          onFocus={webhookUrlMask.onFocus}
+          onBlur={webhookUrlMask.onBlur}
         />
       </Form.Item>
       <Form.Item
@@ -135,7 +142,14 @@ function WebhookFields({ alertsForm, disabled }: ChannelFieldsProps) {
           </Button>
         }
       >
-        <Input.Password autoComplete="new-password" placeholder="whsec_..." disabled={disabled} />
+        <Input.Password
+          autoComplete="new-password"
+          placeholder="whsec_..."
+          disabled={disabled}
+          visibilityToggle={signingSecretMask.visibilityToggle}
+          onFocus={signingSecretMask.onFocus}
+          onBlur={signingSecretMask.onBlur}
+        />
       </Form.Item>
     </>
   )
@@ -157,6 +171,8 @@ function WebhookHiddenFields() {
 
 /** Slack channel fields: the incoming-webhook URL, validated against Slack's exact URL shape. */
 function SlackFields({ disabled }: Pick<ChannelFieldsProps, 'disabled'>) {
+  const slackWebhookUrlMask = useMaskedSecret('slackWebhookUrl')
+
   const validateSlackWebhookUrl = (_: unknown, value?: string) => {
     if (disabled) {
       return Promise.resolve()
@@ -179,6 +195,9 @@ function SlackFields({ disabled }: Pick<ChannelFieldsProps, 'disabled'>) {
         autoComplete="new-password"
         placeholder="https://hooks.slack.com/services/..."
         disabled={disabled}
+        visibilityToggle={slackWebhookUrlMask.visibilityToggle}
+        onFocus={slackWebhookUrlMask.onFocus}
+        onBlur={slackWebhookUrlMask.onBlur}
       />
     </Form.Item>
   )
@@ -195,6 +214,8 @@ function SlackHiddenFields() {
 
 /** Telegram channel fields: bot token and target chat ID. */
 function TelegramFields({ disabled }: Pick<ChannelFieldsProps, 'disabled'>) {
+  const telegramBotTokenMask = useMaskedSecret('telegramBotToken')
+
   const validateTelegramBotToken = (_: unknown, value?: string) => {
     if (disabled) {
       return Promise.resolve()
@@ -229,6 +250,9 @@ function TelegramFields({ disabled }: Pick<ChannelFieldsProps, 'disabled'>) {
           autoComplete="new-password"
           placeholder={__('123456:bot-token')}
           disabled={disabled}
+          visibilityToggle={telegramBotTokenMask.visibilityToggle}
+          onFocus={telegramBotTokenMask.onFocus}
+          onBlur={telegramBotTokenMask.onBlur}
         />
       </Form.Item>
       <Form.Item
@@ -259,6 +283,8 @@ function TelegramHiddenFields() {
 
 /** Discord channel fields: the webhook URL, validated against Discord's exact URL shape. */
 function DiscordFields({ disabled }: Pick<ChannelFieldsProps, 'disabled'>) {
+  const discordWebhookUrlMask = useMaskedSecret('discordWebhookUrl')
+
   const validateDiscordWebhookUrl = (_: unknown, value?: string) => {
     if (disabled) {
       return Promise.resolve()
@@ -281,6 +307,9 @@ function DiscordFields({ disabled }: Pick<ChannelFieldsProps, 'disabled'>) {
         autoComplete="new-password"
         placeholder="https://discord.com/api/webhooks/..."
         disabled={disabled}
+        visibilityToggle={discordWebhookUrlMask.visibilityToggle}
+        onFocus={discordWebhookUrlMask.onFocus}
+        onBlur={discordWebhookUrlMask.onBlur}
       />
     </Form.Item>
   )

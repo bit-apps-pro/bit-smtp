@@ -105,6 +105,11 @@ export default function EngagementMetrics({ engagement }: { engagement: Engageme
     },
     { key: 'clicks_human', label: __('Confirmed human clicks'), value: formatExactNumber(clicks.human) },
     {
+      key: 'clicks_unique',
+      label: __('Unique clicked messages'),
+      value: formatExactNumber(clicks.unique)
+    },
+    {
       key: 'click_rate',
       label: __('Human click rate'),
       value: hasClickDenominator ? formatPercent(clickRate.rate) : '—'

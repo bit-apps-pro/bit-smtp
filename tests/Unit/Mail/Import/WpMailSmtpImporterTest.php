@@ -19,9 +19,10 @@ final class WpMailSmtpImporterTest extends BaseUnitTestCase
     {
         $this->stubOption([
             'mail' => [
-                'from_email' => 'from@example.org',
-                'from_name'  => 'From Name',
-                'mailer'     => 'smtp',
+                'from_email'     => 'from@example.org',
+                'from_name'      => 'From Name',
+                'mailer'         => 'smtp',
+                'reply_to_email' => 'reply@example.org',
             ],
             'smtp' => [
                 'host'       => 'smtp.example.org',
@@ -40,6 +41,7 @@ final class WpMailSmtpImporterTest extends BaseUnitTestCase
         $this->assertSame('smtp', $connection['kind']);
         $this->assertSame('from@example.org', $connection['fromEmail']);
         $this->assertSame('From Name', $connection['fromName']);
+        $this->assertSame('reply@example.org', $connection['replyToEmail']);
         $this->assertSame('smtp.example.org', $connection['settings']['host']);
         $this->assertSame(465, $connection['settings']['port']);
         $this->assertSame('ssl', $connection['settings']['encryption']);

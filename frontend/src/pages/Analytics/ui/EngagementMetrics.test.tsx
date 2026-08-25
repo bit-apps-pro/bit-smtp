@@ -39,6 +39,18 @@ describe('EngagementMetrics', () => {
     expect(await screen.findByText(/automated fires/i)).toBeInTheDocument()
   })
 
+  it('renders the unique opened and clicked message counts in the table view', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<EngagementMetrics engagement={engagementFixture()} />)
+
+    await user.click(screen.getByRole('button', { name: /view as table/i }))
+
+    expect(screen.getByText('Unique opened messages')).toBeInTheDocument()
+    expect(screen.getByText('30')).toBeInTheDocument()
+    expect(screen.getByText('Unique clicked messages')).toBeInTheDocument()
+    expect(screen.getByText('8')).toBeInTheDocument()
+  })
+
   it('shows a neutral "—" caveat for the open rate when nothing was accepted or delivered yet', async () => {
     const user = userEvent.setup()
     renderWithProviders(

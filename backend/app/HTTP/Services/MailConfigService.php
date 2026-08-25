@@ -325,6 +325,17 @@ class MailConfigService
             }
         ));
 
+        // Drop routing rules targeting the deleted connection. They degrade gracefully at resolve
+        // time, but would otherwise linger as dead rules pointing at an id that no longer exists.
+        if (isset($data['features']['routing']) && \is_array($data['features']['routing'])) {
+            $data['features']['routing'] = array_values(array_filter(
+                $data['features']['routing'],
+                static function ($rule) use ($id): bool {
+                    return !(\is_array($rule) && ($rule['connectionId'] ?? '') === $id);
+                }
+            ));
+        }
+
         $data['connections'] = $connections;
 
         $sanitized = MailSettingsSanitizer::sanitize($data);

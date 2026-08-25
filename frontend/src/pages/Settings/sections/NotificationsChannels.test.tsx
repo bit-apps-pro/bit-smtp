@@ -197,6 +197,22 @@ describe('NotificationsChannels', () => {
     expect((screen.getByLabelText('Discord webhook URL') as HTMLInputElement).value).toBe('********')
   })
 
+  it('hides the reveal toggle while a saved secret is masked and restores it once edited', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    // Every saved secret hydrates as the mask sentinel, so no eye toggle should reveal the mask.
+    expect(screen.getByLabelText('Slack webhook URL')).toHaveValue('********')
+    expect(screen.queryAllByRole('img', { name: 'eye-invisible' })).toHaveLength(0)
+
+    // Editing clears the sentinel and brings the reveal toggle back for the field being typed into.
+    const slackUrl = screen.getByLabelText('Slack webhook URL')
+    await user.clear(slackUrl)
+    await user.type(slackUrl, 'https://hooks.slack.com/services/T000/B000/fresh')
+
+    expect(await screen.findByRole('img', { name: 'eye-invisible' })).toBeInTheDocument()
+  })
+
   it('keeps channel fields and Add channel disabled until failure notifications are enabled, but leaves Remove usable', async () => {
     const user = userEvent.setup()
     // Only Slack is added (unlike the default all-channels fixture) so the "Add channel" button is
