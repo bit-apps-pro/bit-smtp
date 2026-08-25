@@ -5,7 +5,7 @@
   "require": {
     "php": ">=8.1",
     "bitapps/wp-validator": "^1.2.1",
-    "bitapps/wp-kit": "dev-feat/static-router#c8c94fdc0de285881a13e06a0f24c5508c2852b4",
+    "bitapps/wp-kit": "dev-feat/static-router#586152324d8e8fd27e75170d23be7e439cbfc1f8",
     "bitapps/wp-database": "^2.0.1",
     "typisttech/imposter-plugin": "^0.6.2",
     "bitapps/wp-telemetry": "^0.0.9"

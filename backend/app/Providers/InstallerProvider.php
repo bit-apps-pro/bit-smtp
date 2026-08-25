@@ -5,8 +5,6 @@ namespace BitApps\SMTP\Providers;
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
 use BitApps\SMTP\Deps\BitApps\WPKit\Installer;
-use BitApps\SMTP\Deps\BitApps\WPKit\Migration\MigrationHelper;
-use WP_Site;
 
 class InstallerProvider
 {
@@ -25,12 +23,6 @@ class InstallerProvider
         self::$_uninstallHook  = Config::withPrefix('uninstall');
 
         Hooks::addAction($this->_deactivateHook, [$this, 'deactivate']);
-
-        // Subsites created after network activation miss the activation-time provisioning loop, so
-        // wire schema creation into the new-site lifecycle here at load time. Priority 20 runs after
-        // core's own priority-10 wp_initialize_site handler that creates the blog's options/core
-        // tables, so switch_to_blog() lands on a fully-initialised site before the migrations run.
-        add_action('wp_initialize_site', [$this, 'provisionNewSite'], 20);
 
         // Only a static class method or function can be used in an uninstall hook.
         register_uninstall_hook(Config::get('MAIN_FILE'), [self::class, 'registerUninstaller']);
@@ -68,27 +60,6 @@ class InstallerProvider
         wp_clear_scheduled_hook(Config::RETENTION_GC_HOOK);
         wp_clear_scheduled_hook(Config::RETRY_QUEUE_HOOK);
         wp_clear_scheduled_hook(Config::HEALTH_CHECK_HOOK);
-    }
-
-    /**
-     * Provisions the plugin schema on a subsite created after network activation, which the
-     * activation-time provisioning loop never covered (late blogs would otherwise silently lack the
-     * logs/engagement/retry tables). Idempotent: the migrations are CREATE TABLE IF NOT EXISTS.
-     */
-    public function provisionNewSite(WP_Site $newSite): void
-    {
-        if (!is_multisite() || !$this->isNetworkActive()) {
-            return;
-        }
-
-        switch_to_blog((int) $newSite->blog_id);
-
-        try {
-            MigrationHelper::migrate(self::migration());
-        } finally {
-            // Restore in a finally so a migration throw can't leave the wrong blog switched.
-            restore_current_blog();
-        }
     }
 
     public function registerActivator($networkWide)
@@ -153,18 +124,5 @@ class InstallerProvider
                 . DIRECTORY_SEPARATOR,
             'migrations' => $migrations,
         ];
-    }
-
-    /**
-     * Whether the plugin is active network-wide; gates subsite provisioning to network activations
-     * so tables are never created on a site where the plugin isn't running.
-     */
-    private function isNetworkActive(): bool
-    {
-        if (!\function_exists('is_plugin_active_for_network')) {
-            require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        }
-
-        return is_plugin_active_for_network(Config::get('BASENAME'));
     }
 }

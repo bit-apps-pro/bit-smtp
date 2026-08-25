@@ -4,7 +4,7 @@
     "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
     "This file is @generated automatically"
   ],
-  "content-hash": "c1dca93e1765a2df189110ee967a0d93",
+  "content-hash": "7d0a32bc7c2939ada2c37af3b696f0c8",
   "packages": [
     {
       "name": "bitapps/wp-database",
@@ -69,12 +69,12 @@
       "source": {
         "type": "git",
         "url": "https://github.com/bit-apps-pro/wp-kit.git",
-        "reference": "c8c94fdc0de285881a13e06a0f24c5508c2852b4"
+        "reference": "586152324d8e8fd27e75170d23be7e439cbfc1f8"
       },
       "dist": {
         "type": "zip",
-        "url": "https://api.github.com/repos/bit-apps-pro/wp-kit/zipball/c8c94fdc0de285881a13e06a0f24c5508c2852b4",
-        "reference": "c8c94fdc0de285881a13e06a0f24c5508c2852b4",
+        "url": "https://api.github.com/repos/bit-apps-pro/wp-kit/zipball/586152324d8e8fd27e75170d23be7e439cbfc1f8",
+        "reference": "586152324d8e8fd27e75170d23be7e439cbfc1f8",
         "shasum": ""
       },
       "require": {
@@ -116,7 +116,7 @@
         "issues": "https://github.com/bit-apps-pro/wp-kit/issues",
         "source": "https://github.com/bit-apps-pro/wp-kit/tree/feat/static-router"
       },
-      "time": "2026-08-23T06:38:58+00:00"
+      "time": "2026-08-25T15:54:47+00:00"
     },
     {
       "name": "bitapps/wp-telemetry",

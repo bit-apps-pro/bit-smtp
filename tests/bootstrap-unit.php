@@ -12,4 +12,3 @@ require_once \dirname(__DIR__) . '/vendor/autoload.php';
 
 // Minimal WP doubles for classes that type-hint them; real WP is only present in the integration tier.
 require_once __DIR__ . '/stubs/WP_Error.php';
-require_once __DIR__ . '/stubs/WP_Site.php';
