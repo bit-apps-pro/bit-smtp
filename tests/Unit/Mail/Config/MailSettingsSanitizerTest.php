@@ -355,6 +355,42 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         ], $routing);
     }
 
+    public function testDropsDeadDomainConditionOnANonAddressFieldAndTheNowEmptyRule(): void
+    {
+        // `domain` only matches recipient/from; on subject/source_plugin it can never fire, so the
+        // sanitizer self-heals the legacy blob by dropping the condition (and the rule it emptied).
+        $input             = $this->baseV2();
+        $input['features'] = ['routing' => [
+            [
+                'connectionId' => 'conn_b',
+                'conditions'   => [
+                    ['field' => 'source_plugin', 'operator' => 'domain', 'value' => 'woocommerce'],
+                ],
+            ],
+        ]];
+
+        $this->assertSame([], MailSettingsSanitizer::sanitize($input)['features']['routing']);
+    }
+
+    public function testKeepsValidConditionsWhenDroppingADeadDomainCondition(): void
+    {
+        $input             = $this->baseV2();
+        $input['features'] = ['routing' => [
+            [
+                'connectionId' => 'conn_b',
+                'conditions'   => [
+                    ['field' => 'recipient', 'operator' => 'equals', 'value' => 'ceo@acme.test'],
+                    ['field' => 'subject', 'operator' => 'domain', 'value' => 'nonsense'],
+                ],
+            ],
+        ]];
+        $routing = MailSettingsSanitizer::sanitize($input)['features']['routing'];
+
+        $this->assertSame([
+            ['field' => 'recipient', 'operator' => 'equals', 'value' => 'ceo@acme.test'],
+        ], $routing[0]['conditions']);
+    }
+
     public function testNormalizesSnakeCaseConnectionIdAliasToCamelCase(): void
     {
         $input             = $this->baseV2();

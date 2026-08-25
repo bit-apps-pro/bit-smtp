@@ -30,6 +30,9 @@ final class MailSettingsSanitizer
 
     private const ROUTING_OPERATORS = ['equals', 'contains', 'domain', 'matches'];
 
+    // The `domain` operator compares the part after '@', so it only applies to address fields.
+    private const ROUTING_DOMAIN_FIELDS = ['recipient', 'from'];
+
     /**
      * The only outcomes WebhookProvisioningService::recordOutcome ever writes; anything else
      * (e.g. a crafted connection-save payload trying to fake "provider confirmed") is dropped.
@@ -466,6 +469,13 @@ final class MailSettingsSanitizer
             $operator = isset($condition['operator']) ? trim((string) $condition['operator']) : '';
 
             if (!\in_array($field, self::ROUTING_FIELDS, true) || !\in_array($operator, self::ROUTING_OPERATORS, true)) {
+                continue;
+            }
+
+            // Self-heal a dead condition: the `domain` operator only matches recipient/from (see
+            // RoutingCondition::matchesDomain); on any other field it can never fire and would
+            // silently kill the whole rule. Drop it here rather than persist an unfireable rule.
+            if ($operator === 'domain' && !\in_array($field, self::ROUTING_DOMAIN_FIELDS, true)) {
                 continue;
             }
 

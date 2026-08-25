@@ -177,4 +177,107 @@ describe('ConditionEditor', () => {
 
     expect(onChange).toHaveBeenCalledWith({ ...condition, field: 'source_plugin', value: '' })
   })
+
+  it('offers the domain operator for the recipient field', async () => {
+    render(
+      <ConditionEditor condition={condition} sources={sources} onChange={vi.fn()} onRemove={vi.fn()} />
+    )
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Operator' }))
+
+    expect(await screen.findByTitle('Domain')).toBeInTheDocument()
+  })
+
+  it('offers the domain operator for the from field', async () => {
+    const fromCondition: EditableRoutingCondition = {
+      id: 'condition-3',
+      field: 'from',
+      operator: 'equals',
+      value: ''
+    }
+    render(
+      <ConditionEditor
+        condition={fromCondition}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Operator' }))
+
+    expect(await screen.findByTitle('Domain')).toBeInTheDocument()
+  })
+
+  it('does not offer the domain operator for the subject field', async () => {
+    const subjectCondition: EditableRoutingCondition = {
+      id: 'condition-3',
+      field: 'subject',
+      operator: 'equals',
+      value: ''
+    }
+    render(
+      <ConditionEditor
+        condition={subjectCondition}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Operator' }))
+
+    expect(await screen.findByTitle('Contains')).toBeInTheDocument()
+    expect(screen.queryByTitle('Domain')).not.toBeInTheDocument()
+  })
+
+  it('does not offer the domain operator for the source_plugin field', async () => {
+    const sourceCondition: EditableRoutingCondition = {
+      id: 'condition-3',
+      field: 'source_plugin',
+      operator: 'equals',
+      value: ''
+    }
+    render(
+      <ConditionEditor
+        condition={sourceCondition}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Operator' }))
+
+    expect(await screen.findByTitle('Contains')).toBeInTheDocument()
+    expect(screen.queryByTitle('Domain')).not.toBeInTheDocument()
+  })
+
+  it('resets a domain operator to a valid default when switching to source_plugin', async () => {
+    const onChange = vi.fn()
+    const domainCondition: EditableRoutingCondition = {
+      id: 'condition-3',
+      field: 'recipient',
+      operator: 'domain',
+      value: 'example.com'
+    }
+    render(
+      <ConditionEditor
+        condition={domainCondition}
+        sources={sources}
+        onChange={onChange}
+        onRemove={vi.fn()}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Field' }))
+    await userEvent.click(await screen.findByTitle('Source plugin'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...domainCondition,
+      field: 'source_plugin',
+      operator: 'equals',
+      value: ''
+    })
+  })
 })
