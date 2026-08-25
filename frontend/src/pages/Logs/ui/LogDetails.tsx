@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { DeleteOutlined, DownloadOutlined, LeftOutlined, SendOutlined } from '@ant-design/icons'
+import { triggerBlobDownload } from '@common/helpers/download'
 import { __ } from '@common/helpers/i18nwrap'
 import useDeleteLog from '@pages/Logs/data/useDeleteLog'
 import useFetchLog from '@pages/Logs/data/useFetchLog'
@@ -53,15 +54,10 @@ export default function LogDetails() {
 
   const handleExport = () => {
     if (!log) return
-    const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `log-${log.id}.json`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
+    triggerBlobDownload(
+      `log-${log.id}.json`,
+      new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' })
+    )
   }
 
   return (

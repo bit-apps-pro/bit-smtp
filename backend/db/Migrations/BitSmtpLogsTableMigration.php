@@ -34,6 +34,7 @@ final class BitSmtpLogsTableMigration extends Migration
                 $table->varchar('delivery_status', 32)->nullable();
                 $table->datetime('delivery_updated_at')->nullable();
                 $table->varchar('failure_class', 24)->nullable();
+                $table->bigInt('resend_parent_id')->unsigned()->nullable();
                 $table->varchar('source_plugin', 191)->nullable();
                 $table->varchar('routing_type', 32)->nullable();
                 $table->integer('routing_rule_index')->nullable();
@@ -55,6 +56,7 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addAnalyticsColumnsIfMissing();
         $this->addSenderColumnIfMissing();
         $this->addFailureClassColumnIfMissing();
+        $this->addResendParentColumnIfMissing();
         $this->createDeliveryEventsTableIfMissing();
         LogService::initializeLoggingContinuity();
     }
@@ -134,6 +136,18 @@ final class BitSmtpLogsTableMigration extends Migration
         $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
 
         $this->addColumnIfMissing($table, 'failure_class', 'ADD COLUMN `failure_class` VARCHAR(24) NULL');
+    }
+
+    /**
+     * Add the resend_parent_id column + its lookup index on installs upgrading from a DB_VERSION
+     * that predates manual-resend history (a child row links back to the log it was resent from).
+     */
+    private function addResendParentColumnIfMissing()
+    {
+        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
+
+        $this->addColumnIfMissing($table, 'resend_parent_id', 'ADD COLUMN `resend_parent_id` BIGINT UNSIGNED NULL');
+        $this->addIndexIfMissing($table, 'idx_resend_parent_id', 'ADD INDEX `idx_resend_parent_id` (`resend_parent_id`)');
     }
 
     private function createDeliveryEventsTableIfMissing()

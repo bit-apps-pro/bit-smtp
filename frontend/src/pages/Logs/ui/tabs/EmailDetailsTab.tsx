@@ -12,6 +12,7 @@ interface EmailDetailsTabProps {
 export default function EmailDetailsTab({ log, isLoading }: EmailDetailsTabProps) {
   if (isLoading || !log) return <Text>Loading...</Text>
   const localSentAt = log.created_at ? formatTimestamp(log.created_at) : ''
+  const resends = log.resends ?? []
   return (
     <div>
       <Text strong>Sent At: </Text>
@@ -33,6 +34,28 @@ export default function EmailDetailsTab({ log, isLoading }: EmailDetailsTabProps
           <br />
           <Text strong>Provider Message ID: </Text>
           <Text copyable>{log.message_id}</Text>
+        </>
+      ) : null}
+      {log.resend_of ? (
+        <>
+          <br />
+          <Text strong>Resent from: </Text>
+          <Text>#{log.resend_of}</Text>
+        </>
+      ) : null}
+      {resends.length ? (
+        <>
+          <br />
+          <Text strong>Resends: </Text>
+          <ul style={{ margin: '4px 0 0', paddingInlineStart: 20 }}>
+            {resends.map(resend => (
+              <li key={resend.id}>
+                <Text>
+                  #{resend.id} · {resend.status} · {formatTimestamp(resend.created_at)}
+                </Text>
+              </li>
+            ))}
+          </ul>
         </>
       ) : null}
     </div>

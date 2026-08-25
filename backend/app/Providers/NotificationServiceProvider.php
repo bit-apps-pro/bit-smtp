@@ -7,6 +7,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Container\ServiceProvider;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Health\ConnectionHealthService;
 use BitApps\SMTP\Mail\Notifications\AlertChannelDispatcher;
+use BitApps\SMTP\Mail\Notifications\Channels\DiscordFailureNotificationChannel;
 use BitApps\SMTP\Mail\Notifications\Channels\EmailFailureNotificationChannel;
 use BitApps\SMTP\Mail\Notifications\Channels\SlackFailureNotificationChannel;
 use BitApps\SMTP\Mail\Notifications\Channels\TelegramFailureNotificationChannel;
@@ -35,6 +36,7 @@ class NotificationServiceProvider extends ServiceProvider
                 new WebhookFailureNotificationChannel(),
                 new SlackFailureNotificationChannel(),
                 new TelegramFailureNotificationChannel(),
+                new DiscordFailureNotificationChannel(),
             ])
         );
 

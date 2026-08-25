@@ -3,11 +3,12 @@ import { __ } from '@common/helpers/i18nwrap'
 import { MASK_SENTINEL } from '@pages/Connections/types'
 import { type NotificationChannel } from '@pages/Settings/data/useTestNotification'
 import { Button, Form, type FormInstance, Input, Select } from 'antd'
-import { KeyRound, Mail, MessageSquare, Send, Webhook } from 'lucide-react'
+import { KeyRound, Mail, MessageCircle, MessageSquare, Send, Webhook } from 'lucide-react'
 import { type NotificationFormValues } from './NotificationsChannels'
 import {
   EMAIL_PATTERN,
   generateSigningSecret,
+  isDiscordWebhookUrl,
   isSlackIncomingWebhookUrl,
   isTelegramBotToken,
   isValidSigningSecret,
@@ -256,7 +257,45 @@ function TelegramHiddenFields() {
   )
 }
 
-export type ChannelKey = 'email' | 'webhook' | 'slack' | 'telegram'
+/** Discord channel fields: the webhook URL, validated against Discord's exact URL shape. */
+function DiscordFields({ disabled }: Pick<ChannelFieldsProps, 'disabled'>) {
+  const validateDiscordWebhookUrl = (_: unknown, value?: string) => {
+    if (disabled) {
+      return Promise.resolve()
+    }
+    if (value && isDiscordWebhookUrl(value.trim())) {
+      return Promise.resolve()
+    }
+
+    return Promise.reject(new Error(__('Enter a valid Discord webhook URL')))
+  }
+
+  return (
+    <Form.Item
+      name="discordWebhookUrl"
+      label={__('Discord webhook URL')}
+      dependencies={['enabled']}
+      rules={[{ validator: validateDiscordWebhookUrl }]}
+    >
+      <Input.Password
+        autoComplete="new-password"
+        placeholder="https://discord.com/api/webhooks/..."
+        disabled={disabled}
+      />
+    </Form.Item>
+  )
+}
+
+/** Unlabeled, invisible stand-in for `discordWebhookUrl` while Discord isn't added (see EmailHiddenFields). */
+function DiscordHiddenFields() {
+  return (
+    <Form.Item name="discordWebhookUrl" hidden>
+      <Input />
+    </Form.Item>
+  )
+}
+
+export type ChannelKey = 'email' | 'webhook' | 'slack' | 'telegram' | 'discord'
 
 /** One entry in the notification-channels registry: identity, icon, and the Form.Items it owns. */
 export interface ChannelDefinition {
@@ -274,7 +313,7 @@ export interface ChannelDefinition {
   HiddenFields: () => ReactNode
 }
 
-/** The four notification channels the Notifications tab can add: identity, field renderer, and remove payload. */
+/** The notification channels the Notifications tab can add: identity, field renderer, and remove payload. */
 export const NOTIFICATION_CHANNELS: ChannelDefinition[] = [
   {
     key: 'email',
@@ -282,6 +321,8 @@ export const NOTIFICATION_CHANNELS: ChannelDefinition[] = [
     icon: Mail,
     enabledField: 'emailEnabled',
     clearValuesOnRemove: { emailEnabled: false, recipients: [] },
+    testChannel: 'email',
+    testLabel: __('Test email notification'),
     Fields: EmailFields,
     HiddenFields: EmailHiddenFields
   },
@@ -291,6 +332,8 @@ export const NOTIFICATION_CHANNELS: ChannelDefinition[] = [
     icon: Webhook,
     enabledField: 'webhookEnabled',
     clearValuesOnRemove: { webhookEnabled: false, webhookUrl: '', signingSecret: '' },
+    testChannel: 'webhook',
+    testLabel: __('Test webhook notification'),
     Fields: WebhookFields,
     HiddenFields: WebhookHiddenFields
   },
@@ -315,5 +358,16 @@ export const NOTIFICATION_CHANNELS: ChannelDefinition[] = [
     testLabel: __('Test Telegram notification'),
     Fields: TelegramFields,
     HiddenFields: TelegramHiddenFields
+  },
+  {
+    key: 'discord',
+    label: __('Discord'),
+    icon: MessageCircle,
+    enabledField: 'discordEnabled',
+    clearValuesOnRemove: { discordEnabled: false, discordWebhookUrl: '' },
+    testChannel: 'discord',
+    testLabel: __('Test Discord notification'),
+    Fields: DiscordFields,
+    HiddenFields: DiscordHiddenFields
   }
 ]

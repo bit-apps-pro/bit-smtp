@@ -1,4 +1,5 @@
 import { type ChangeEvent, useRef } from 'react'
+import { triggerBlobDownload } from '@common/helpers/download'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
 import SettingsPanel, { PanelDivider } from '@pages/Settings/components/SettingsPanel'
@@ -11,13 +12,10 @@ const EXPORT_FILENAME = 'bit-smtp-preferences.json'
 
 /** Trigger a browser download of the given JSON-serializable payload. */
 function downloadJson(filename: string, payload: unknown): void {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
+  triggerBlobDownload(
+    filename,
+    new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  )
 }
 
 /** Parse a File as a plain JSON object, rejecting arrays/primitives/malformed text. */

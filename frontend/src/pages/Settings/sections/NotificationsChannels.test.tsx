@@ -54,6 +54,10 @@ const allChannelsSettings: MailSettings = {
         enabled: true,
         bot_token: '********',
         chat_id: '-1001234567890'
+      },
+      discord: {
+        enabled: true,
+        webhook_url: '********'
       }
     }
   }
@@ -69,7 +73,8 @@ const slackOnlySettings: MailSettings = {
       email: { enabled: false, recipients: [] },
       webhook: { enabled: false, url: '', signing_secret: '' },
       slack: { enabled: true, webhook_url: 'https://hooks.slack.com/services/T000/B000/secret' },
-      telegram: { enabled: false, bot_token: '', chat_id: '' }
+      telegram: { enabled: false, bot_token: '', chat_id: '' },
+      discord: { enabled: false, webhook_url: '' }
     }
   }
 }
@@ -83,7 +88,8 @@ const noChannelsSettings: MailSettings = {
       email: { enabled: false, recipients: [] },
       webhook: { enabled: false, url: '', signing_secret: '' },
       slack: { enabled: false, webhook_url: '' },
-      telegram: { enabled: false, bot_token: '', chat_id: '' }
+      telegram: { enabled: false, bot_token: '', chat_id: '' },
+      discord: { enabled: false, webhook_url: '' }
     }
   }
 }
@@ -163,6 +169,7 @@ describe('NotificationsChannels', () => {
     expect(screen.getByRole('button', { name: 'Email' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Webhook' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Telegram' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Discord' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Slack' })).not.toBeInTheDocument()
   })
 
@@ -211,12 +218,13 @@ describe('NotificationsChannels', () => {
     expect(await screen.findByText('Add at least one recipient')).toBeInTheDocument()
   })
 
-  it('hydrates saved Slack and Telegram secrets as masked password fields', () => {
+  it('hydrates saved Slack, Telegram, and Discord secrets as masked password fields', () => {
     render(<Harness />)
 
     expect((screen.getByLabelText('Slack webhook URL') as HTMLInputElement).value).toBe('********')
     expect((screen.getByLabelText('Telegram bot token') as HTMLInputElement).value).toBe('********')
     expect((screen.getByLabelText('Telegram chat ID') as HTMLInputElement).value).toBe('-1001234567890')
+    expect((screen.getByLabelText('Discord webhook URL') as HTMLInputElement).value).toBe('********')
   })
 
   it('keeps channel fields and Add channel disabled until failure notifications are enabled, but leaves Remove usable', async () => {
@@ -300,6 +308,128 @@ describe('NotificationsChannels', () => {
     expect(await screen.findByText('Enter a valid Slack incoming webhook URL')).toBeInTheDocument()
     expect(await screen.findByText('Enter a valid Telegram bot token')).toBeInTheDocument()
     expect(await screen.findByText('Enter a valid Telegram chat ID')).toBeInTheDocument()
+  })
+
+  it('shows an inline validation error for an invalid Discord webhook URL', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    await user.clear(screen.getByLabelText('Discord webhook URL'))
+    await user.type(
+      screen.getByLabelText('Discord webhook URL'),
+      'https://discord.com/webhooks/not-a-webhook'
+    )
+    await user.tab()
+
+    expect(await screen.findByText('Enter a valid Discord webhook URL')).toBeInTheDocument()
+  })
+
+  it('posts the discord channel when testing a saved Discord notification', async () => {
+    const testMutate = vi.fn((_payload, options) => options.onSuccess({ ok: true }))
+    ;(useTestNotification as Mock).mockReturnValue({ mutate: testMutate, isPending: false })
+    render(
+      <Harness
+        settingsOverride={{
+          ...allChannelsSettings,
+          features: {
+            ...allChannelsSettings.features,
+            alerts: {
+              enabled: true,
+              email: { enabled: false, recipients: [] },
+              webhook: { enabled: false, url: '', signing_secret: '' },
+              slack: { enabled: false, webhook_url: '' },
+              telegram: { enabled: false, bot_token: '', chat_id: '' },
+              discord: {
+                enabled: true,
+                webhook_url: 'https://discord.com/api/webhooks/123456789012345678/abcDEF_ghiJKLmnoPQR'
+              }
+            }
+          }
+        }}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Test Discord notification' }))
+
+    expect(testMutate).toHaveBeenCalledWith(
+      { channel: 'discord' },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
+    )
+  })
+
+  it('renders enabled Email and Webhook test buttons for saved configured channels', () => {
+    render(<Harness />)
+
+    expect(screen.getByRole('button', { name: 'Test email notification' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Test webhook notification' })).toBeEnabled()
+  })
+
+  it('disables the Email and Webhook test buttons when their saved config is incomplete', () => {
+    render(
+      <Harness
+        settingsOverride={{
+          ...allChannelsSettings,
+          features: {
+            ...allChannelsSettings.features,
+            alerts: {
+              enabled: true,
+              email: { enabled: true, recipients: [] },
+              webhook: { enabled: true, url: '', signing_secret: '' },
+              slack: { enabled: false, webhook_url: '' },
+              telegram: { enabled: false, bot_token: '', chat_id: '' },
+              discord: { enabled: false, webhook_url: '' }
+            }
+          }
+        }}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Test email notification' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Test webhook notification' })).toBeDisabled()
+  })
+
+  it('disables the Email test button once a recipient is removed without saving', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    const emailTest = screen.getByRole('button', { name: 'Test email notification' })
+    expect(emailTest).toBeEnabled()
+
+    // The fixture starts with one recipient tag; Backspace on the empty search input removes it,
+    // drifting the live form from the saved target so the test button must disable.
+    await user.click(screen.getByLabelText('Recipients'))
+    await user.keyboard('{Backspace}')
+
+    expect(emailTest).toBeDisabled()
+  })
+
+  it('disables the Webhook test button once its saved URL has unsaved changes', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    const webhookTest = screen.getByRole('button', { name: 'Test webhook notification' })
+    expect(webhookTest).toBeEnabled()
+
+    await user.clear(screen.getByLabelText('Webhook URL'))
+    await user.type(screen.getByLabelText('Webhook URL'), 'https://example.com/new-hook')
+
+    expect(webhookTest).toBeDisabled()
+  })
+
+  it.each([
+    ['email', 'Test email notification'],
+    ['webhook', 'Test webhook notification']
+  ] as const)('posts the %s channel when testing a saved notification', async (channel, label) => {
+    const testMutate = vi.fn((_payload, options) => options.onSuccess({ ok: true }))
+    ;(useTestNotification as Mock).mockReturnValue({ mutate: testMutate, isPending: false })
+    render(<Harness />)
+
+    await userEvent.click(screen.getByRole('button', { name: label }))
+
+    expect(testMutate).toHaveBeenCalledWith(
+      { channel },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
+    )
   })
 
   it.each([

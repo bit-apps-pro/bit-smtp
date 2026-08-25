@@ -7,20 +7,18 @@ use Throwable;
 
 final class NotificationChannelTester
 {
-    private const TESTABLE_CHANNELS = ['slack', 'telegram'];
-
     public function __construct(
         private MailConfigService $config,
         private FailureNotificationChannelRegistry $channels
     ) {
     }
 
+    /**
+     * Deliver a test alert through the given channel; every registered channel is testable, so an
+     * unknown key (no registered channel) is the only rejection.
+     */
     public function send(string $key): bool
     {
-        if (!\in_array($key, self::TESTABLE_CHANNELS, true)) {
-            return false;
-        }
-
         $channel = $this->channels->get($key);
         if ($channel === null) {
             return false;

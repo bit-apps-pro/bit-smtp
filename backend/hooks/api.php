@@ -29,6 +29,7 @@ Route::group(function () {
     Route::get('telemetry/popup-status', [TelemetryPopupController::class, 'isPopupDisabled']);
 
     Route::post('logs/all', [LogController::class, 'all']);
+    Route::post('logs/export', [LogController::class, 'export']);
     Route::post('logs/details/{id}', [LogController::class, 'details']);
     Route::post('logs/delete', [LogController::class, 'delete']);
     Route::get('logs/is_enabled', [LogController::class, 'isEnabled']);

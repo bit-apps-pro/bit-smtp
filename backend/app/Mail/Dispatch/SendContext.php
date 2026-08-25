@@ -25,6 +25,8 @@ class SendContext
 
     private int $retryLogId = 0;
 
+    private ?int $resendParentId = null;
+
     private bool $isBatch = false;
 
     private ?RoutingDecision $routingDecision = null;
@@ -101,6 +103,22 @@ class SendContext
     public function getRetryLogId(): int
     {
         return $this->retryLogId;
+    }
+
+    /**
+     * The id of the log a manual resend was launched from; the resulting send is INSERTed as a child
+     * row carrying this parent id (null on every non-resend send). Consumed and cleared by the logger.
+     */
+    public function setResendParentId(?int $resendParentId): self
+    {
+        $this->resendParentId = $resendParentId;
+
+        return $this;
+    }
+
+    public function getResendParentId(): ?int
+    {
+        return $this->resendParentId;
     }
 
     public function setBatch(bool $isBatch): self

@@ -19,16 +19,17 @@ export function isValidSigningSecret(value: string): boolean {
   return value === MASK_SENTINEL || SIGNING_SECRET_PATTERN.test(value)
 }
 
-/** Validate a Slack incoming-webhook URL, matching the backend's exact acceptance rules. */
-export function isSlackIncomingWebhookUrl(value: string): boolean {
+/** Strict webhook-URL gauntlet (https, exact host, no port/creds/query/fragment, non-empty path prefix). */
+function isStrictWebhookUrl(value: string, hosts: string[], pathPrefix: string): boolean {
   if (value === MASK_SENTINEL) {
     return true
   }
-  if (
-    !value.startsWith('https://hooks.slack.com/services/') ||
-    value.includes('?') ||
-    value.includes('#')
-  ) {
+  if (value.includes('?') || value.includes('#')) {
+    return false
+  }
+  // Require the literal host+path prefix so an explicit port (which new URL() normalizes away, even
+  // the default :443) is rejected, matching the backend's `!isset(port)` rule.
+  if (!hosts.some(host => value.startsWith(`https://${host}${pathPrefix}`))) {
     return false
   }
 
@@ -36,18 +37,28 @@ export function isSlackIncomingWebhookUrl(value: string): boolean {
     const url = new URL(value)
     return (
       url.protocol === 'https:' &&
-      url.hostname === 'hooks.slack.com' &&
+      hosts.includes(url.hostname) &&
       url.port === '' &&
       url.username === '' &&
       url.password === '' &&
       url.search === '' &&
       url.hash === '' &&
-      url.pathname.startsWith('/services/') &&
-      url.pathname.length > '/services/'.length
+      url.pathname.startsWith(pathPrefix) &&
+      url.pathname.length > pathPrefix.length
     )
   } catch {
     return false
   }
+}
+
+/** Validate a Slack incoming-webhook URL, matching the backend's exact acceptance rules. */
+export function isSlackIncomingWebhookUrl(value: string): boolean {
+  return isStrictWebhookUrl(value, ['hooks.slack.com'], '/services/')
+}
+
+/** Validate a Discord webhook URL, matching the backend's exact acceptance rules. */
+export function isDiscordWebhookUrl(value: string): boolean {
+  return isStrictWebhookUrl(value, ['discord.com', 'discordapp.com'], '/api/webhooks/')
 }
 
 /** Validate a Telegram bot token shape (or an already-masked saved value). */

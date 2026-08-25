@@ -36,6 +36,12 @@ export type DeliveryEvent = {
   occurred_at: string | null
 }
 
+export type ResendSummary = {
+  id: number
+  status: string
+  created_at: string
+}
+
 export type LogType = {
   id: number
   status: string
@@ -55,6 +61,9 @@ export type LogType = {
   delivery_updated_at?: string | null
   delivery_verified?: boolean
   delivery_events?: Array<DeliveryEvent>
+  // Detail-only resend history: the parent id this was resent from, and the resends launched from it.
+  resend_of?: number | null
+  resends?: Array<ResendSummary>
   created_at: string
   updated_at: string
 }

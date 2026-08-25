@@ -168,9 +168,26 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertSame('idx_connection_id_created_utc', $plan->key);
     }
 
-    public function testDbVersionConstantIsTwoPointThree(): void
+    public function testDbVersionConstantIsTwoPointFour(): void
     {
-        $this->assertSame('2.3', Config::DB_VERSION);
+        $this->assertSame('2.4', Config::DB_VERSION);
+    }
+
+    public function testResendParentColumnAndIndexAreAddedIdempotently(): void
+    {
+        $this->dropLogsTable();
+        $this->createLegacyLogsTable();
+
+        $this->migrateLogs();
+        $this->migrateLogs();
+
+        global $wpdb;
+        $column = $wpdb->get_row($wpdb->prepare("SHOW COLUMNS FROM `{$this->logsTable}` LIKE %s", 'resend_parent_id'));
+        $this->assertNotNull($column, 'resend_parent_id column should be added on upgrade');
+        $this->assertSame('YES', $column->Null, 'resend_parent_id must be nullable to preserve legacy rows');
+        $this->assertStringContainsStringIgnoringCase('unsigned', (string) $column->Type);
+
+        $this->assertArrayHasKey('idx_resend_parent_id', $this->logIndexes());
     }
 
     public function testMaybeMigrateDbUpgradesAOneSixLogsTableAtTheCurrentPluginVersion(): void
@@ -403,7 +420,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
     {
         global $wpdb;
 
-        foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'subject_pattern', 'recipient_count', 'created_at_utc', 'sender', 'failure_class'] as $column) {
+        foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'subject_pattern', 'recipient_count', 'created_at_utc', 'sender', 'failure_class', 'resend_parent_id'] as $column) {
             $definition = $wpdb->get_row(
                 $wpdb->prepare("SHOW COLUMNS FROM `{$this->logsTable}` LIKE %s", $column)
             );
@@ -439,6 +456,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             'idx_source_created_utc'        => ['source_plugin', 'created_at_utc'],
             'idx_connection_id_created_utc' => ['connection_id', 'created_at_utc'],
             'idx_created_at_utc'            => ['created_at_utc'],
+            'idx_resend_parent_id'          => ['resend_parent_id'],
         ];
 
         foreach ($expected as $index => $columns) {
@@ -494,6 +512,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             'idx_source_created_utc'          => ['source_plugin', 'created_at_utc'],
             'idx_connection_id_created_utc'   => ['connection_id', 'created_at_utc'],
             'idx_created_at_utc'              => ['created_at_utc'],
+            'idx_resend_parent_id'            => ['resend_parent_id'],
         ];
         ksort($expected);
 

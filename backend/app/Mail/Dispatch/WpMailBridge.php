@@ -143,6 +143,17 @@ class WpMailBridge
         return $this;
     }
 
+    /**
+     * Mark the next send as a manual resend of $logId, so it is logged as a fresh child row linked to
+     * the original rather than overwriting it in place.
+     */
+    public function setResendParentId(?int $logId): self
+    {
+        $this->context->setResendParentId($logId);
+
+        return $this;
+    }
+
     public function setBatch(bool $status): self
     {
         $this->context->setBatch($status);
@@ -162,6 +173,17 @@ class WpMailBridge
      */
     public function onPreWpMail($return, array $atts)
     {
+        // Capture this top-level send's resend parent id and clear it immediately, so a send that
+        // defers below (a prior listener short-circuited pre_wp_mail, the plugin is disabled, or no
+        // connection is usable) can't carry it onto a later wp_mail this request. Skipped while nested
+        // (our own dispatch or a notification email) so an inner send never steals the outer resend's
+        // id. Re-applied only right before we actually dispatch.
+        $resendParentId = null;
+        if (!$this->dispatching && !NotificationDispatchGuard::isActive()) {
+            $resendParentId = $this->context->getResendParentId();
+            $this->context->setResendParentId(null);
+        }
+
         if ($return !== null) {
             return $return;
         }
@@ -198,6 +220,8 @@ class WpMailBridge
         if ($connections === []) {
             return;
         }
+
+        $this->context->setResendParentId($resendParentId);
 
         return $this->dispatch($connections, $message, $this->buildMailData($atts))['succeeded'];
     }

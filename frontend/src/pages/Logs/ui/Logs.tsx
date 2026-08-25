@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { __ } from '@common/helpers/i18nwrap'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useDeleteLog from '@pages/Logs/data/useDeleteLog'
+import useExportLogs, { type LogExportFilters } from '@pages/Logs/data/useExportLogs'
 import { type LogQueryType, type LogType } from '@pages/Logs/data/useFetchLogs'
 import useFetchLogs from '@pages/Logs/data/useFetchLogs'
 import useResendLogs from '@pages/Logs/data/useResendLogs'
@@ -23,6 +24,7 @@ import {
   theme
 } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
+import { Download } from 'lucide-react'
 import DeliveryStatusTag, { DELIVERY_STATUS_OPTIONS, deliveryStatusLabel } from './DeliveryStatusTag'
 import LogRetentionSettings from './LogRetentionSettings'
 import LogToggle from './LogToggle'
@@ -166,6 +168,7 @@ export default function Logs() {
   const { isLoading, isLogsFetching, logs, total, refetch } = useFetchLogs(query)
   const { isLogDeleting, deleteLog } = useDeleteLog()
   const { isResending, resendLogs } = useResendLogs()
+  const exportLogs = useExportLogs()
   const { data: mailSettings, isPending: isConnectionsLoading } = useMailSettings()
   const { data: mailSources, isPending: isSourcesLoading } = useMailSources()
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -270,6 +273,33 @@ export default function Logs() {
     })
   }
 
+  /** The active filters (no pagination) the CSV export should cover. */
+  const exportFilters: LogExportFilters = {}
+  FILTER_CHIP_KEYS.forEach(key => {
+    const value = query[key]
+    if (value) exportFilters[key] = value
+  })
+
+  const handleExport = () => {
+    exportLogs.mutate(exportFilters, {
+      onSuccess: response => {
+        if (response.status !== 'success') {
+          notification.error({ message: response.message || __('Failed to export logs') })
+          return
+        }
+        if (response.data.truncated) {
+          notification.warning({
+            message: __('Export truncated'),
+            description: `${__('Only the first')} ${response.data.count} ${__(
+              'rows were exported. Narrow your filters to export fewer rows.'
+            )}`
+          })
+        }
+      },
+      onError: () => notification.error({ message: __('Failed to export logs') })
+    })
+  }
+
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys)
   }
@@ -346,6 +376,9 @@ export default function Logs() {
             enterButton={false}
           />
           <Flex align="center" gap="small">
+            <Button icon={<Download size={16} />} onClick={handleExport} loading={exportLogs.isPending}>
+              {__('Export CSV')}
+            </Button>
             <LogToggle />
             <LogRetentionSettings />
           </Flex>

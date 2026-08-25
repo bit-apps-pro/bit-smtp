@@ -707,6 +707,7 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
             ],
             'slack'    => ['enabled' => false, 'webhook_url' => ''],
             'telegram' => ['enabled' => false, 'bot_token' => '', 'chat_id' => ''],
+            'discord'  => ['enabled' => false, 'webhook_url' => ''],
         ], $alerts);
     }
 
@@ -784,7 +785,40 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
                 'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
                 'chat_id'   => '-1001234567890',
             ],
+            'discord'  => ['enabled' => false, 'webhook_url' => ''],
         ], $alerts);
+    }
+
+    public function testFailureAlertsNormalizeDiscordWebhookUrlWithoutUnknownKeys(): void
+    {
+        $input                       = $this->baseV2();
+        $input['features']['alerts'] = [
+            'enabled' => true,
+            'discord' => [
+                'enabled'     => '1',
+                'webhook_url' => ' https://discord.com/api/webhooks/123456789012345678/aBcDeFgHiJkLmNoPqRsTuVwXyZ ',
+                'ignored'     => 'drop me',
+            ],
+        ];
+
+        $discord = MailSettingsSanitizer::sanitize($input)['features']['alerts']['discord'];
+
+        $this->assertSame([
+            'enabled'     => true,
+            'webhook_url' => 'https://discord.com/api/webhooks/123456789012345678/aBcDeFgHiJkLmNoPqRsTuVwXyZ',
+        ], $discord);
+    }
+
+    public function testFailureAlertsBlankMalformedDiscordWebhookUrl(): void
+    {
+        $input                       = $this->baseV2();
+        $input['features']['alerts'] = [
+            'discord' => ['enabled' => true, 'webhook_url' => 'https://discord.com/webhooks/123/token'],
+        ];
+
+        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+
+        $this->assertSame('', $alerts['discord']['webhook_url']);
     }
 
     public function testFailureAlertsBlankMalformedSlackAndTelegramSecrets(): void

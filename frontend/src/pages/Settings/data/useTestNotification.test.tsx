@@ -33,6 +33,46 @@ describe('useTestNotification', () => {
     expect(result.current.data).toEqual({ ok: true, error: undefined })
   })
 
+  it('posts the discord channel', async () => {
+    ;(request as Mock).mockResolvedValue({
+      status: 'success',
+      code: 'SUCCESS',
+      message: 'Test notification sent.',
+      data: []
+    })
+    const { result } = renderHook(() => useTestNotification(), { wrapper })
+
+    result.current.mutate({ channel: 'discord' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(request).toHaveBeenCalledWith({
+      action: 'mail/notifications/test',
+      data: { channel: 'discord' }
+    })
+    expect(result.current.data).toEqual({ ok: true, error: undefined })
+  })
+
+  it.each(['email', 'webhook'] as const)('posts the %s channel', async channel => {
+    ;(request as Mock).mockResolvedValue({
+      status: 'success',
+      code: 'SUCCESS',
+      message: 'Test notification sent.',
+      data: []
+    })
+    const { result } = renderHook(() => useTestNotification(), { wrapper })
+
+    result.current.mutate({ channel })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(request).toHaveBeenCalledWith({
+      action: 'mail/notifications/test',
+      data: { channel }
+    })
+    expect(result.current.data).toEqual({ ok: true, error: undefined })
+  })
+
   it('returns a safe error result when the notification test is rejected', async () => {
     ;(request as Mock).mockResolvedValue({
       status: 'error',

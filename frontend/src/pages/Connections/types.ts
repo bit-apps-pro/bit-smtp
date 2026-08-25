@@ -103,6 +103,10 @@ export interface FailureAlertSettings {
     bot_token: string
     chat_id: string
   }
+  discord: {
+    enabled: boolean
+    webhook_url: string
+  }
 }
 
 export interface MailFeatures extends Record<string, unknown> {

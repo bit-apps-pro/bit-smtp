@@ -40,6 +40,9 @@ class MailEventLogger
 
         $context->setFailed(false);
         $context->setRetrying(false);
+        // Clear the one-shot resend parent so a later ordinary send in the same request (the bridge's
+        // context is a request-lived singleton) is never mislabeled as this resend's child.
+        $context->setResendParentId(null);
     }
 
     public function logMailFailed(WP_Error $error, SendContext $context, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $failureClass = null): void
@@ -61,6 +64,7 @@ class MailEventLogger
 
         $context->setFailed(true);
         $context->setRetrying(false);
+        $context->setResendParentId(null);
     }
 
     /**
@@ -114,6 +118,13 @@ class MailEventLogger
             $log['source_plugin']      = $decision->sourcePlugin();
             $log['routing_type']       = $decision->type();
             $log['routing_rule_index'] = $decision->ruleIndex();
+        }
+
+        // Only a manual resend carries a parent id; the key is omitted (never null) on the ordinary
+        // and retry-worker INSERT paths so those rows are not mislabeled as resend children.
+        $resendParentId = $context->getResendParentId();
+        if ($resendParentId !== null) {
+            $log['resend_parent_id'] = $resendParentId;
         }
 
         $this->pendingLogs[] = $log;

@@ -9,7 +9,7 @@ use Throwable;
 /**
  * Delivers an alert to every enabled notification channel, reading the shared `features['alerts']`
  * settings and isolating each channel's failures. The one place that knows how to fan an alert out to
- * email/webhook/slack/telegram, shared by the send-failure notifier and the health notifier.
+ * email/webhook/slack/telegram/discord, shared by the send-failure notifier and the health notifier.
  */
 class AlertChannelDispatcher
 {

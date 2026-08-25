@@ -253,7 +253,7 @@ final class MailSettingsSanitizer
     /**
      * @param array<string,mixed> $alerts
      *
-     * @return array{enabled:bool,email:array{enabled:bool,recipients:string[]},webhook:array{enabled:bool,url:string,signing_secret:string},slack:array{enabled:bool,webhook_url:string},telegram:array{enabled:bool,bot_token:string,chat_id:string}}
+     * @return array{enabled:bool,email:array{enabled:bool,recipients:string[]},webhook:array{enabled:bool,url:string,signing_secret:string},slack:array{enabled:bool,webhook_url:string},telegram:array{enabled:bool,bot_token:string,chat_id:string},discord:array{enabled:bool,webhook_url:string}}
      */
     private static function sanitizeAlerts(array $alerts): array
     {
@@ -261,6 +261,7 @@ final class MailSettingsSanitizer
         $webhook  = isset($alerts['webhook'])  && \is_array($alerts['webhook']) ? $alerts['webhook'] : [];
         $slack    = isset($alerts['slack'])    && \is_array($alerts['slack']) ? $alerts['slack'] : [];
         $telegram = isset($alerts['telegram']) && \is_array($alerts['telegram']) ? $alerts['telegram'] : [];
+        $discord  = isset($alerts['discord'])  && \is_array($alerts['discord']) ? $alerts['discord'] : [];
 
         $recipients = [];
         foreach ((array) ($email['recipients'] ?? []) as $recipient) {
@@ -306,6 +307,11 @@ final class MailSettingsSanitizer
             $telegramChatId = '';
         }
 
+        $discordWebhookUrl = self::scalarString($discord, 'webhook_url');
+        if (!self::isDiscordWebhookUrl($discordWebhookUrl)) {
+            $discordWebhookUrl = '';
+        }
+
         return [
             'enabled' => isset($alerts['enabled'])
                 ? (bool) filter_var($alerts['enabled'], FILTER_VALIDATE_BOOLEAN)
@@ -336,6 +342,12 @@ final class MailSettingsSanitizer
                 'bot_token' => $telegramBotToken,
                 'chat_id'   => $telegramChatId,
             ],
+            'discord' => [
+                'enabled' => isset($discord['enabled'])
+                    ? (bool) filter_var($discord['enabled'], FILTER_VALIDATE_BOOLEAN)
+                    : false,
+                'webhook_url' => $discordWebhookUrl,
+            ],
         ];
     }
 
@@ -364,6 +376,29 @@ final class MailSettingsSanitizer
             && isset($parts['path'])
             && str_starts_with($parts['path'], '/services/')
             && \strlen($parts['path']) > \strlen('/services/');
+    }
+
+    /**
+     * Accept only an exact Discord webhook URL: https, a discord(app).com host, an `/api/webhooks/`
+     * path carrying the id/token, and no port, credentials, query, or fragment.
+     */
+    private static function isDiscordWebhookUrl(string $url): bool
+    {
+        $parts = wp_parse_url($url);
+        if (!\is_array($parts)) {
+            return false;
+        }
+
+        return ($parts['scheme'] ?? '') === 'https'
+            && \in_array($parts['host'] ?? '', ['discord.com', 'discordapp.com'], true)
+            && !isset($parts['port'])
+            && !isset($parts['user'])
+            && !isset($parts['pass'])
+            && !isset($parts['query'])
+            && !isset($parts['fragment'])
+            && isset($parts['path'])
+            && str_starts_with($parts['path'], '/api/webhooks/')
+            && \strlen($parts['path']) > \strlen('/api/webhooks/');
     }
 
     /**

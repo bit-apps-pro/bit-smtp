@@ -1,7 +1,7 @@
 import request from '@common/helpers/request'
 import { useMutation } from '@tanstack/react-query'
 
-export type NotificationChannel = 'slack' | 'telegram'
+export type NotificationChannel = 'email' | 'webhook' | 'slack' | 'telegram' | 'discord'
 
 export interface TestNotificationPayload {
   channel: NotificationChannel

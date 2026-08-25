@@ -7,6 +7,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
 /**
  * Model for log
  *
+ * @property int         $id
  * @property int         $status
  * @property string      $subject
  * @property array       $to_addr
@@ -24,6 +25,7 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
  * @property null|string $routing_type
  * @property null|int    $routing_rule_index
  * @property null|string $failure_class
+ * @property null|int    $resend_parent_id
  * @property null|string $subject_pattern
  * @property null|int    $recipient_count
  * @property string      $created_at
@@ -54,6 +56,7 @@ class Log extends Model
         'routing_type'        => 'string',
         'routing_rule_index'  => 'int',
         'failure_class'       => 'string',
+        'resend_parent_id'    => 'int',
         'subject_pattern'     => 'string',
         'recipient_count'     => 'int',
         'created_at'          => 'string',
@@ -77,6 +80,7 @@ class Log extends Model
         'routing_type',
         'routing_rule_index',
         'failure_class',
+        'resend_parent_id',
         'subject_pattern',
         'recipient_count',
         'created_at_utc',

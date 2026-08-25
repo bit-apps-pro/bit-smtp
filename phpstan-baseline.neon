@@ -222,11 +222,6 @@ parameters:
 			count: 1
 			path: backend/app/HTTP/Controllers/SMTPController.php
 
-		-
-			message: '#^Access to an undefined property BitApps\\SMTP\\Model\\Log\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: backend/app/HTTP/Controllers/SMTPController.php
 
 		-
 			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\SMTPController\:\:index\(\) has no return type specified\.$#'
@@ -402,11 +397,6 @@ parameters:
 			count: 1
 			path: backend/app/HTTP/Requests/TelemetryAccessRequest.php
 
-		-
-			message: '#^Access to an undefined property BitApps\\SMTP\\Model\\Log\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: backend/app/HTTP/Services/LogService.php
 
 		-
 			message: '#^Call to an undefined static method BitApps\\SMTP\\Deps\\BitApps\\WPDatabase\\Connection\:\:esc_like\(\)\.$#'
@@ -2244,11 +2234,6 @@ parameters:
 			count: 1
 			path: backend/app/Mail/Webhook/DeliveryEvent.php
 
-		-
-			message: '#^Access to an undefined property BitApps\\SMTP\\Model\\Log\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: backend/app/Mail/Webhook/DeliveryEventRecorder.php
 
 		-
 			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'

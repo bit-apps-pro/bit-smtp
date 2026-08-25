@@ -96,7 +96,9 @@ class SMTPController
         }
         Hooks::addFilter('wp_mail_content_type', [$this, 'setContentType']);
         foreach ($logs as $log) {
-            $smtpProvider->retry()->setRetryLogId($log->id)->setDebug(true);
+            // Preserve the original row and log this send as a fresh child linked to it, so the resend
+            // is visible as history rather than overwriting the log it was launched from.
+            $smtpProvider->setResendParentId((int) $log->id)->setDebug(true);
             $message     = Arr::get($log->details, 'message', '');
             $headers     = Arr::get($log->details, 'headers', '');
             $attachments = Arr::get($log->details, 'attachments', []);

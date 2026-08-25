@@ -24,6 +24,37 @@ use WP_Error;
 class LogService
 {
     /**
+     * Hard cap on the rows a single CSV export may return, so a filtered export of a large log table
+     * stays bounded in memory and response size. The controller surfaces a `truncated` flag when a
+     * result is clamped to this cap, so the truncation is never silent.
+     */
+    public const MAX_EXPORT_ROWS = 5000;
+
+    /**
+     * Hard cap on the resend-history children returned for one log's detail view, so a log resent
+     * many times cannot bloat the detail payload.
+     */
+    public const MAX_RESEND_CHILDREN = 50;
+
+    /**
+     * The only columns an export may read, in CSV order: safe send/delivery metadata. Message body,
+     * credentials, and debug detail are deliberately excluded and never selected into memory.
+     */
+    public const EXPORT_SAFE_COLUMNS = [
+        'id',
+        'created_at',
+        'status',
+        'to_addr',
+        'subject',
+        'connection',
+        'sender',
+        'failure_class',
+        'delivery_status',
+        'message_id',
+        'retry_count',
+    ];
+
+    /**
      * Valid `delivery_status` filter values: the DeliveryStatus state machine's constants plus
      * `pending`, a column value analytics writes that has no DeliveryStatus constant of its own.
      */
@@ -71,6 +102,26 @@ class LogService
         return compact('count', 'logs', 'pages', 'current');
     }
 
+    /**
+     * Fetch up to $limit newest-first log rows matching the same whitelist filters as all(), projected
+     * to export-safe metadata columns only (EXPORT_SAFE_COLUMNS) — the message body, credentials, and
+     * debug detail are never selected into memory. Reuses applyFilters() so the export stays in lockstep
+     * with the list view. $limit is clamped to [1, MAX_EXPORT_ROWS + 1] — the extra row lets the caller
+     * detect (and honestly flag) truncation by asking for one past the cap.
+     *
+     * @param array<string,mixed> $filters
+     *
+     * @return array<int,Log>
+     */
+    public function exportRows(array $filters, int $limit): array
+    {
+        $limit = max(1, min($limit, self::MAX_EXPORT_ROWS + 1));
+
+        $query = $this->applyFilters(Log::query()->take((string) $limit)->desc(), $filters);
+
+        return $this->toRows($query->get(self::EXPORT_SAFE_COLUMNS));
+    }
+
     public function success(array $mailData, ?string $connection = null)
     {
         $this->save(Log::SUCCESS, $mailData, null, $connection);
@@ -94,6 +145,34 @@ class LogService
     public function getBulk(array $ids): array
     {
         return $this->toRows(Log::where('id', $ids)->get());
+    }
+
+    /**
+     * The manual-resend children of a log, newest-first and bounded, projected to the summary the
+     * detail view renders as the resend chain.
+     *
+     * @return array<int,array{id:int,status:string,created_at:string}>
+     */
+    public function resendChildren(int $parentId): array
+    {
+        if ($parentId < 1) {
+            return [];
+        }
+
+        $children = $this->toRows(
+            Log::where('resend_parent_id', $parentId)
+                ->take((string) self::MAX_RESEND_CHILDREN)
+                ->desc()
+                ->get(['id', 'status', 'created_at'])
+        );
+
+        return array_map(static function (Log $child): array {
+            return [
+                'id'         => (int) $child->id,
+                'status'     => (int) $child->status === Log::SUCCESS ? 'sent' : 'failed',
+                'created_at' => (string) $child->created_at,
+            ];
+        }, $children);
     }
 
     public function save($status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $sourcePlugin = null, ?string $routingType = null, ?int $routingRuleIndex = null, ?string $failureClass = null)
@@ -490,7 +569,7 @@ class LogService
                 'created_at_utc'      => gmdate('Y-m-d H:i:s'),
             ];
 
-            foreach (['source_plugin', 'routing_type', 'routing_rule_index'] as $field) {
+            foreach (['source_plugin', 'routing_type', 'routing_rule_index', 'resend_parent_id'] as $field) {
                 if (\array_key_exists($field, $log)) {
                     $record[$field] = $log[$field];
                 }

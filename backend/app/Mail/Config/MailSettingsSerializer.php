@@ -18,6 +18,7 @@ class MailSettingsSerializer
         'webhook'  => ['url', 'signing_secret'],
         'slack'    => ['webhook_url'],
         'telegram' => ['bot_token'],
+        'discord'  => ['webhook_url'],
     ];
 
     public static function toLegacyShape(MailSettings $s): array

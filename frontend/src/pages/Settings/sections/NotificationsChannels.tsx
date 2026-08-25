@@ -14,6 +14,7 @@ import NotificationChannelCard from './NotificationChannelCard'
 import { type ChannelKey, NOTIFICATION_CHANNELS } from './NotificationChannelFields'
 import NotificationChannelPickerModal from './NotificationChannelPickerModal'
 import {
+  isDiscordWebhookUrl,
   isSlackIncomingWebhookUrl,
   isTelegramBotToken,
   isValidTelegramChatId
@@ -33,6 +34,8 @@ export interface NotificationFormValues {
   telegramEnabled: boolean
   telegramBotToken: string
   telegramChatId: string
+  discordEnabled: boolean
+  discordWebhookUrl: string
 }
 
 /** Normalize the mail-settings `features.alerts` blob (which may still be the pre-seed `[]`) into a full shape. */
@@ -59,6 +62,10 @@ function readAlerts(settings: MailSettings): FailureAlertSettings {
       enabled: alerts?.telegram?.enabled ?? false,
       bot_token: alerts?.telegram?.bot_token ?? '',
       chat_id: alerts?.telegram?.chat_id ?? ''
+    },
+    discord: {
+      enabled: alerts?.discord?.enabled ?? false,
+      webhook_url: alerts?.discord?.webhook_url ?? ''
     }
   }
 }
@@ -78,7 +85,9 @@ export function toAlertsFormValues(settings: MailSettings): NotificationFormValu
     slackWebhookUrl: alerts.slack.webhook_url,
     telegramEnabled: alerts.telegram.enabled,
     telegramBotToken: alerts.telegram.bot_token,
-    telegramChatId: alerts.telegram.chat_id
+    telegramChatId: alerts.telegram.chat_id,
+    discordEnabled: alerts.discord.enabled,
+    discordWebhookUrl: alerts.discord.webhook_url
   }
 }
 
@@ -103,6 +112,10 @@ export function toStoredAlerts(values: NotificationFormValues): FailureAlertSett
       enabled: values.telegramEnabled,
       bot_token: values.telegramBotToken.trim(),
       chat_id: values.telegramChatId.trim()
+    },
+    discord: {
+      enabled: values.discordEnabled,
+      webhook_url: values.discordWebhookUrl.trim()
     }
   }
 }
@@ -186,18 +199,24 @@ export default function NotificationsChannels({
 
   const alertsEnabled = Form.useWatch('enabled', alertsForm) ?? false
   const emailEnabled = Form.useWatch('emailEnabled', alertsForm) ?? false
+  const emailRecipients = Form.useWatch('recipients', alertsForm) ?? []
   const webhookEnabled = Form.useWatch('webhookEnabled', alertsForm) ?? false
+  const webhookUrl = Form.useWatch('webhookUrl', alertsForm) ?? ''
+  const signingSecret = Form.useWatch('signingSecret', alertsForm) ?? ''
   const slackEnabled = Form.useWatch('slackEnabled', alertsForm) ?? false
   const slackWebhookUrl = Form.useWatch('slackWebhookUrl', alertsForm) ?? ''
   const telegramEnabled = Form.useWatch('telegramEnabled', alertsForm) ?? false
   const telegramBotToken = Form.useWatch('telegramBotToken', alertsForm) ?? ''
   const telegramChatId = Form.useWatch('telegramChatId', alertsForm) ?? ''
+  const discordEnabled = Form.useWatch('discordEnabled', alertsForm) ?? false
+  const discordWebhookUrl = Form.useWatch('discordWebhookUrl', alertsForm) ?? ''
 
   const addedByField: Record<string, boolean> = {
     emailEnabled,
     webhookEnabled,
     slackEnabled,
-    telegramEnabled
+    telegramEnabled,
+    discordEnabled
   }
   const addedChannels = NOTIFICATION_CHANNELS.filter(channel => addedByField[channel.enabledField])
   const availableChannels = NOTIFICATION_CHANNELS.filter(channel => !addedByField[channel.enabledField])
@@ -207,6 +226,16 @@ export default function NotificationsChannels({
   // Test gating mirrors the pre-redesign logic: a channel is testable only once its *saved* config is
   // valid and the live form hasn't drifted from it — independent of the master `enabled` switch.
   const savedAlerts = readAlerts(settings)
+  const savedRecipients = savedAlerts.email.recipients
+  const trimmedRecipients = emailRecipients.map(recipient => recipient.trim()).filter(Boolean)
+  const emailTargetIsUnsaved =
+    emailEnabled !== savedAlerts.email.enabled ||
+    trimmedRecipients.length !== savedRecipients.length ||
+    trimmedRecipients.some((recipient, index) => recipient !== savedRecipients[index])
+  const webhookTargetIsUnsaved =
+    webhookEnabled !== savedAlerts.webhook.enabled ||
+    webhookUrl.trim() !== savedAlerts.webhook.url ||
+    signingSecret.trim() !== savedAlerts.webhook.signing_secret
   const slackTargetIsUnsaved =
     slackEnabled !== savedAlerts.slack.enabled ||
     slackWebhookUrl.trim() !== savedAlerts.slack.webhook_url
@@ -214,7 +243,16 @@ export default function NotificationsChannels({
     telegramEnabled !== savedAlerts.telegram.enabled ||
     telegramBotToken.trim() !== savedAlerts.telegram.bot_token ||
     telegramChatId.trim() !== savedAlerts.telegram.chat_id
+  const discordTargetIsUnsaved =
+    discordEnabled !== savedAlerts.discord.enabled ||
+    discordWebhookUrl.trim() !== savedAlerts.discord.webhook_url
   const canTestByChannel: Partial<Record<ChannelKey, boolean>> = {
+    email: savedAlerts.email.enabled && savedRecipients.length > 0 && !emailTargetIsUnsaved,
+    webhook:
+      savedAlerts.webhook.enabled &&
+      savedAlerts.webhook.url.trim() !== '' &&
+      savedAlerts.webhook.signing_secret.trim() !== '' &&
+      !webhookTargetIsUnsaved,
     slack:
       savedAlerts.slack.enabled &&
       isSlackIncomingWebhookUrl(savedAlerts.slack.webhook_url) &&
@@ -223,7 +261,11 @@ export default function NotificationsChannels({
       savedAlerts.telegram.enabled &&
       isTelegramBotToken(savedAlerts.telegram.bot_token) &&
       isValidTelegramChatId(savedAlerts.telegram.chat_id) &&
-      !telegramTargetIsUnsaved
+      !telegramTargetIsUnsaved,
+    discord:
+      savedAlerts.discord.enabled &&
+      isDiscordWebhookUrl(savedAlerts.discord.webhook_url) &&
+      !discordTargetIsUnsaved
   }
 
   const openPicker = () => setIsPickerOpen(true)

@@ -28,8 +28,18 @@ class SendContextTest extends BaseUnitTestCase
         $this->assertFalse($this->context->isRetrying());
         $this->assertFalse($this->context->isBatch());
         $this->assertSame(0, $this->context->getRetryLogId());
+        $this->assertNull($this->context->getResendParentId());
         $this->assertSame([], $this->context->getDebugOutput());
         $this->assertNull($this->context->getRoutingDecision());
+    }
+
+    public function testResendParentIdIsSetReadAndCleared(): void
+    {
+        $this->context->setResendParentId(42);
+        $this->assertSame(42, $this->context->getResendParentId());
+
+        $this->context->setResendParentId(null);
+        $this->assertNull($this->context->getResendParentId());
     }
 
     public function testAppendDebugAccumulatesLines(): void
@@ -56,6 +66,7 @@ class SendContextTest extends BaseUnitTestCase
         $this->context->setDebug(true);
         $this->context->setRetrying(true);
         $this->context->setRetryLogId(42);
+        $this->context->setResendParentId(7);
         $this->context->setBatch(true);
 
         $this->context->resetForSend();
@@ -63,6 +74,9 @@ class SendContextTest extends BaseUnitTestCase
         $this->assertTrue($this->context->isDebug());
         $this->assertTrue($this->context->isRetrying());
         $this->assertSame(42, $this->context->getRetryLogId());
+        // resetForSend runs before dispatch reads the parent id, so it must survive the reset; the
+        // logger clears it once the resend row is written.
+        $this->assertSame(7, $this->context->getResendParentId());
         $this->assertTrue($this->context->isBatch());
     }
 
@@ -85,6 +99,7 @@ class SendContextTest extends BaseUnitTestCase
             ->setFailed(true)
             ->setRetrying(true)
             ->setRetryLogId(7)
+            ->setResendParentId(3)
             ->setBatch(true);
 
         $this->assertSame($this->context, $result);

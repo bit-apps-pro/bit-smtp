@@ -162,6 +162,49 @@ class MailEventLoggerTest extends BaseUnitTestCase
         $this->assertTrue($this->context->isFailed());
     }
 
+    public function testManualResendInsertsChildRowCarryingTheParentId(): void
+    {
+        $mailData = ['subject' => 'Hi', 'to' => ['a@example.org']];
+        $this->context->setResendParentId(5);
+
+        $this->logger->shouldReceive('bulkInsert')
+            ->once()
+            ->with([[
+                'status'              => Log::SUCCESS,
+                'data'                => $mailData,
+                'connection'          => 'Primary SMTP',
+                'connection_id'       => null,
+                'message_id'          => null,
+                'tracking_id'         => null,
+                'delivery_status'     => null,
+                'delivery_updated_at' => null,
+                'failure_class'       => null,
+                'resend_parent_id'    => 5,
+            ]]);
+        $this->logger->shouldNotReceive('update');
+
+        $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
+
+        // The one-shot parent id is consumed so a later ordinary send is not tagged as its child.
+        $this->assertNull($this->context->getResendParentId());
+    }
+
+    public function testOrdinaryAndWorkerInsertsOmitTheResendParentId(): void
+    {
+        $error = new WP_Error('wp_mail_failed', 'boom', ['phpmailer_exception_code' => 0]);
+        // The retry worker re-dispatches with isRetrying set but no retry log id, so it INSERTs a
+        // fresh row exactly like an ordinary send — and must never carry a resend_parent_id.
+        $this->context->setRetrying(true);
+
+        $this->logger->shouldReceive('bulkInsert')
+            ->once()
+            ->with([['status' => Log::ERROR, 'data' => $error, 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null]]);
+
+        $this->eventLogger->logMailFailed($error, $this->context);
+
+        $this->assertTrue($this->context->isFailed());
+    }
+
     public function testSuccessPersistsRoutingDecisionMetadata(): void
     {
         $mailData = ['subject' => 'Hi', 'to' => ['a@example.org']];

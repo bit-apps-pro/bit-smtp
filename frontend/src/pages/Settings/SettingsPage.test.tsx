@@ -58,7 +58,8 @@ const settings: MailSettings = {
       email: { enabled: true, recipients: ['ops@example.org'] },
       webhook: { enabled: false, url: '', signing_secret: '' },
       slack: { enabled: false, webhook_url: '' },
-      telegram: { enabled: false, bot_token: '', chat_id: '' }
+      telegram: { enabled: false, bot_token: '', chat_id: '' },
+      discord: { enabled: false, webhook_url: '' }
     }
   }
 }
