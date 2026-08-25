@@ -81,6 +81,29 @@ class ProviderRegistryTest extends BaseUnitTestCase
         $this->assertFalse($registry->has('nonexistent'));
     }
 
+    public function testRequiresOAuth2TrueForOAuth2Provider(): void
+    {
+        $registry = new ProviderRegistry();
+        $registry->register($this->makeProvider('oauth_provider', 'OAuth Provider', 'api', 'oauth2'));
+
+        $this->assertTrue($registry->requiresOAuth2('oauth_provider'));
+    }
+
+    public function testRequiresOAuth2FalseForNonOAuthProvider(): void
+    {
+        $registry = new ProviderRegistry();
+        $registry->register($this->makeProvider('api_key_provider', 'API Key Provider', 'api', 'bearer'));
+
+        $this->assertFalse($registry->requiresOAuth2('api_key_provider'));
+    }
+
+    public function testRequiresOAuth2FalseForUnknownProvider(): void
+    {
+        $registry = new ProviderRegistry();
+
+        $this->assertFalse($registry->requiresOAuth2('nonexistent'));
+    }
+
     public function testMetadataReturnsCorrectShape(): void
     {
         $registry = new ProviderRegistry();

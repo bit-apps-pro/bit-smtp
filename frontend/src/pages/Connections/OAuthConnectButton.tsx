@@ -27,15 +27,15 @@ export default function OAuthConnectButton({
   connectionId,
   provider,
   connected,
-  ensureConnectionId
+  persistConnection
 }: {
   connectionId: string
   provider: string
   connected: boolean
-  ensureConnectionId: () => Promise<string>
+  persistConnection: () => Promise<string>
 }) {
   const { mutateAsync, isPending } = useOAuthAuthorize()
-  const [isCreatingDraft, setIsCreatingDraft] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -61,19 +61,19 @@ export default function OAuthConnectButton({
     return () => window.removeEventListener('message', handleMessage)
   }, [connectionId, queryClient])
 
-  // Unsaved connections have no id yet: mint a draft via ensureConnectionId before authorizing,
-  // so Connect never requires an explicit Save first. loading (isCreatingDraft) blocks double-submit.
+  // Always persist the current form values before authorizing, so consent runs against the freshly
+  // typed OAuth client_id/secret rather than the stored ones (an edit would otherwise authorize with
+  // stale credentials). Persisting also mints the id for a brand-new connection. loading blocks a
+  // double submit.
   const handleClick = async () => {
-    let id = connectionId
-    if (!id) {
-      setIsCreatingDraft(true)
-      try {
-        id = await ensureConnectionId()
-      } finally {
-        setIsCreatingDraft(false)
-      }
-      if (!id) return
+    setIsSaving(true)
+    let id: string
+    try {
+      id = await persistConnection()
+    } finally {
+      setIsSaving(false)
     }
+    if (!id) return
 
     const url = await mutateAsync({ connectionId: id, provider })
     if (url) {
@@ -83,7 +83,7 @@ export default function OAuthConnectButton({
 
   return (
     <>
-      <Button onClick={handleClick} loading={isPending || isCreatingDraft}>
+      <Button onClick={handleClick} loading={isPending || isSaving}>
         {connected ? __('Reconnect') : __('Connect')}
       </Button>
       {connected ? (

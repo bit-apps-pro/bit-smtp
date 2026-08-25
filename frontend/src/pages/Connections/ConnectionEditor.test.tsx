@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import notify from '@components/Toaster/Toaster'
 import { type Connection, type ProviderMeta } from '@pages/Connections/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
@@ -12,6 +13,9 @@ import useTestConnection from './data/useTestConnection'
 vi.mock('./data/useSaveConnection', () => ({ default: vi.fn() }))
 vi.mock('./data/useTestConnection', () => ({ default: vi.fn() }))
 vi.mock('./data/useOAuthAuthorize', () => ({ default: vi.fn() }))
+vi.mock('@components/Toaster/Toaster', () => ({
+  default: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
+}))
 
 function renderWithQueryClient(ui: React.ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -574,6 +578,63 @@ describe('ConnectionEditor', () => {
 
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: '', provider: 'gmail' }))
     expect(authorize).toHaveBeenCalledWith({ connectionId: 'conn_new_123', provider: 'gmail' })
+  })
+
+  it('re-saves the current form values before authorizing an already-saved connection (#7)', async () => {
+    // Without the fix Connect skipped the save for an existing id and authorized against the stored
+    // client_id/secret; it must now persist the just-typed values first, then authorize.
+    const save = vi.fn().mockResolvedValue({
+      status: 'success',
+      code: 'SUCCESS',
+      message: 'Connection saved',
+      data: { id: 'conn_gmail' }
+    })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+    const authorize = vi.fn().mockResolvedValue(undefined)
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: authorize, isPending: false })
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
+    )
+
+    const clientIdInput = screen.getByLabelText('Client ID')
+    await userEvent.clear(clientIdInput)
+    await userEvent.type(clientIdInput, 'new-client.apps.googleusercontent.com')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'conn_gmail',
+        settings: expect.objectContaining({ client_id: 'new-client.apps.googleusercontent.com' })
+      })
+    )
+    expect(authorize).toHaveBeenCalledWith({ connectionId: 'conn_gmail', provider: 'gmail' })
+  })
+
+  it('aborts authorize and notifies when the pre-authorize save fails for an existing connection', async () => {
+    // A non-success save body must NOT authorize: the request helper resolves (not rejects) on a
+    // {status:'error'} body, so without gating on success the button would authorize against the
+    // stale stored client_id/secret using the still-real connection id.
+    const save = vi.fn().mockResolvedValue({
+      status: 'error',
+      code: 'ERROR',
+      message: 'Failed to save connection',
+      data: {}
+    })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+    const authorize = vi.fn().mockResolvedValue(undefined)
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: authorize, isPending: false })
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(save).toHaveBeenCalled()
+    expect(authorize).not.toHaveBeenCalled()
+    expect(notify.error).toHaveBeenCalled()
   })
 
   it('clicking Save after Connect updates the same draft record instead of creating a duplicate', async () => {

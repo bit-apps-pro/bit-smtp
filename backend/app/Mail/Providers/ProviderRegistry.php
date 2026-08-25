@@ -7,6 +7,7 @@ use BitApps\SMTP\Mail\Exceptions\DuplicateProviderException;
 use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
 use BitApps\SMTP\Mail\OAuth\OAuthCallbackUrl;
 use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
+use Throwable;
 
 class ProviderRegistry
 {
@@ -38,6 +39,21 @@ class ProviderRegistry
     public function has(string $key): bool
     {
         return isset($this->providers[$key]);
+    }
+
+    /**
+     * Whether the provider authenticates via OAuth2 consent, per its declared authConfig (the single
+     * source of truth). Degrades to false for an unknown slug or any resolution error, so callers can
+     * branch on OAuth without guarding the lookup themselves.
+     */
+    public function requiresOAuth2(string $key): bool
+    {
+        try {
+            return $this->has($key)
+                && ($this->get($key)->authConfig()['type'] ?? null) === 'oauth2';
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     /**

@@ -342,20 +342,23 @@ export default function ConnectionEditor({
 
   const buildPayload = () => buildConnectionPayload(form.getFieldsValue(true), draftConnection, provider)
 
-  // Lazily persists a draft (id: '') through the existing save endpoint the first time an OAuth
-  // Connect click needs an id, then reuses the minted draftId so a later Save updates, not duplicates.
-  const ensureConnectionId = async (): Promise<string> => {
-    if (draftId) return draftId
-
+  // Persist the current form values through the save endpoint and return the connection id. Always
+  // saves — even for an existing connection — so a just-typed OAuth client_id/secret is stored before
+  // the consent flow reads them; a new connection additionally captures and reuses the minted id so a
+  // later Save updates instead of duplicating. Returns '' on any non-success body so the caller aborts
+  // authorization rather than running consent against the stale stored credentials.
+  const persistConnection = async (): Promise<string> => {
     const response = await mutateAsync(buildPayload())
-    const newId = (response?.data as { id?: string } | undefined)?.id ?? ''
-    if (newId === '') {
+    if (response?.status !== 'success') {
       notify.error(__('Failed to prepare this connection for OAuth. Please try again.'))
       return ''
     }
 
-    setDraftId(newId)
-    return newId
+    const savedId = (response.data as { id?: string } | undefined)?.id ?? draftId
+    if (savedId !== draftId) {
+      setDraftId(savedId)
+    }
+    return savedId
   }
 
   const handleFinish = async (values: ConnectionFormValues) => {
@@ -417,7 +420,7 @@ export default function ConnectionEditor({
                   connectionId={draftId}
                   provider={provider.key}
                   connected={Boolean(connection.credentials?.refresh_token?.value)}
-                  ensureConnectionId={ensureConnectionId}
+                  persistConnection={persistConnection}
                 />
               </Form.Item>
             ) : null}

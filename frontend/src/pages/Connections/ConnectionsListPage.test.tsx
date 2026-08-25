@@ -10,11 +10,13 @@ import useDeleteConnection from './data/useDeleteConnection'
 import useMailSettings from './data/useMailSettings'
 import useProviders from './data/useProviders'
 import useSetDefaultConnection from './data/useSetDefaultConnection'
+import useToggleConnectionEnabled from './data/useToggleConnectionEnabled'
 import useUpdateSettings from './data/useUpdateSettings'
 
 vi.mock('./data/useMailSettings', () => ({ default: vi.fn() }))
 vi.mock('./data/useProviders', () => ({ default: vi.fn() }))
 vi.mock('./data/useSetDefaultConnection', () => ({ default: vi.fn() }))
+vi.mock('./data/useToggleConnectionEnabled', () => ({ default: vi.fn() }))
 vi.mock('./data/useDeleteConnection', () => ({ default: vi.fn() }))
 vi.mock('./data/useUpdateSettings', () => ({ default: vi.fn() }))
 
@@ -83,18 +85,25 @@ const settings: MailSettings = {
 
 describe('ConnectionsListPage', () => {
   const setDefaultMutate = vi.fn()
+  const toggleEnabledMutate = vi.fn()
   const deleteMutate = vi.fn()
   const updateSettingsMutate = vi.fn()
 
   beforeEach(() => {
     navigateMock.mockClear()
     setDefaultMutate.mockClear()
+    toggleEnabledMutate.mockClear()
     deleteMutate.mockClear()
     updateSettingsMutate.mockClear()
     capturedOnDragEnd.current = undefined
     ;(useMailSettings as Mock).mockReturnValue({ data: settings, isPending: false })
     ;(useProviders as Mock).mockReturnValue({ data: [otherSmtpMeta], isPending: false })
     ;(useSetDefaultConnection as Mock).mockReturnValue({ mutate: setDefaultMutate })
+    ;(useToggleConnectionEnabled as Mock).mockReturnValue({
+      mutate: toggleEnabledMutate,
+      isPending: false,
+      variables: undefined
+    })
     ;(useDeleteConnection as Mock).mockReturnValue({ mutate: deleteMutate })
     ;(useUpdateSettings as Mock).mockReturnValue({ mutate: updateSettingsMutate })
   })
@@ -150,6 +159,15 @@ describe('ConnectionsListPage', () => {
     await userEvent.click(within(backupCard).getByRole('button', { name: /Set default/ }))
 
     expect(setDefaultMutate).toHaveBeenCalledWith('conn_2')
+  })
+
+  it('toggles a connection enabled off with the flipped value from its switch', async () => {
+    renderWithProviders(<ConnectionsListPage />)
+
+    const backupCard = screen.getByText('Backup SMTP').closest('.ant-card') as HTMLElement
+    await userEvent.click(within(backupCard).getByRole('switch', { name: 'Disable this connection' }))
+
+    expect(toggleEnabledMutate).toHaveBeenCalledWith({ id: 'conn_2', enabled: false })
   })
 
   it('calls the delete mutation with the connection id after confirming', async () => {

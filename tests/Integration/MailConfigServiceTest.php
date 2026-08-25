@@ -824,6 +824,92 @@ final class MailConfigServiceTest extends IntegrationTestCase
         );
     }
 
+    public function testTokenlessOAuthDraftIsNotPromotedToDefault(): void
+    {
+        // Mirrors the abandoned-consent path (#8): the OAuth draft is persisted (to mint an id for
+        // the OAuth state) before any token exists. It must not become the default routing target,
+        // since Gmail cannot send without a refresh_token.
+        $connId = $this->freshService()->upsertConnection([
+            'id'           => '',
+            'provider'     => 'gmail',
+            'kind'         => 'api',
+            'name'         => 'Gmail draft',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['client_id' => 'abc.apps.googleusercontent.com'],
+            'credentials'  => ['client_secret' => ['source' => 'database', 'value' => 'cs']],
+        ]);
+
+        $this->assertNotNull($connId);
+        $this->assertSame('', $this->freshService()->load()->getDefaultConnectionId());
+    }
+
+    public function testOAuthConnectionBecomesDefaultOnceTokensAreStored(): void
+    {
+        // First save the tokenless draft (not promoted), then re-save the same id with the tokens the
+        // OAuth callback stores. Now sendable and still the only connection, it becomes the default.
+        $service = $this->freshService();
+        $connId  = $service->upsertConnection([
+            'id'           => '',
+            'provider'     => 'gmail',
+            'kind'         => 'api',
+            'name'         => 'Gmail',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['client_id' => 'abc.apps.googleusercontent.com'],
+            'credentials'  => ['client_secret' => ['source' => 'database', 'value' => 'cs']],
+        ]);
+        $this->assertNotNull($connId);
+        $this->assertSame('', $this->freshService()->load()->getDefaultConnectionId());
+
+        $this->freshService()->upsertConnection([
+            'id'           => $connId,
+            'provider'     => 'gmail',
+            'kind'         => 'api',
+            'name'         => 'Gmail',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['client_id' => 'abc.apps.googleusercontent.com'],
+            'credentials'  => [
+                'client_secret' => ['source' => 'database', 'value' => 'cs'],
+                'refresh_token' => ['source' => 'database', 'value' => 'rt-from-consent'],
+                'access_token'  => ['source' => 'database', 'value' => 'at-from-consent'],
+            ],
+        ]);
+
+        $this->assertSame($connId, $this->freshService()->load()->getDefaultConnectionId());
+    }
+
+    public function testTokenlessOAuthDraftDoesNotStealDefaultFromAWorkingConnection(): void
+    {
+        // A working SMTP connection is the default; adding an abandoned OAuth draft must leave the
+        // working connection as the routing target.
+        $service = $this->freshService();
+        $service->saveSettings($this->v2SettingsArray('conn_smtp', 'pw'));
+        $this->assertSame('conn_smtp', $this->freshService()->load()->getDefaultConnectionId());
+
+        $this->freshService()->upsertConnection([
+            'id'           => '',
+            'provider'     => 'gmail',
+            'kind'         => 'api',
+            'name'         => 'Gmail draft',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['client_id' => 'abc.apps.googleusercontent.com'],
+            'credentials'  => ['client_secret' => ['source' => 'database', 'value' => 'cs']],
+        ]);
+
+        $this->assertSame('conn_smtp', $this->freshService()->load()->getDefaultConnectionId());
+    }
+
     public function testDeleteConnectionRemovesItAndRepointsDefault(): void
     {
         // Store two connections, conn_1 as default

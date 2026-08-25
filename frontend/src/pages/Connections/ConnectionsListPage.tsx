@@ -22,6 +22,7 @@ import useDeleteConnection from './data/useDeleteConnection'
 import useMailSettings from './data/useMailSettings'
 import useProviders from './data/useProviders'
 import useSetDefaultConnection from './data/useSetDefaultConnection'
+import useToggleConnectionEnabled from './data/useToggleConnectionEnabled'
 import useUpdateSettings from './data/useUpdateSettings'
 
 const { Title, Text } = Typography
@@ -52,16 +53,20 @@ function SortableConnectionCard({
   isDefault,
   health,
   onSetDefault,
+  onToggleEnabled,
   onEdit,
-  onDelete
+  onDelete,
+  isToggling
 }: {
   connection: Connection
   priority: number
   isDefault: boolean
   health?: ConnectionHealth
   onSetDefault: () => void
+  onToggleEnabled: (enabled: boolean) => void
   onEdit: () => void
   onDelete: () => void
+  isToggling: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: connection.id
@@ -81,8 +86,10 @@ function SortableConnectionCard({
         priority={priority}
         health={health}
         onSetDefault={onSetDefault}
+        onToggleEnabled={onToggleEnabled}
         onEdit={onEdit}
         onDelete={onDelete}
+        isToggling={isToggling}
         dragHandleAttributes={attributes}
         dragHandleListeners={listeners}
       />
@@ -140,6 +147,7 @@ export default function ConnectionsListPage() {
   const { health } = useConnectionHealth()
   const checkConnectionHealth = useCheckConnectionHealth()
   const setDefaultConnection = useSetDefaultConnection()
+  const toggleEnabled = useToggleConnectionEnabled()
   const deleteConnection = useDeleteConnection()
   const updateSettings = useUpdateSettings()
   const sensors = useSensors(useSensor(PointerSensor))
@@ -231,8 +239,10 @@ export default function ConnectionsListPage() {
                   isDefault={connection.id === settings.default_connection_id}
                   health={health[connection.id]}
                   onSetDefault={() => setDefaultConnection.mutate(connection.id)}
+                  onToggleEnabled={enabled => toggleEnabled.mutate({ id: connection.id, enabled })}
                   onEdit={() => navigate(`/connection/${connection.id}`)}
                   onDelete={() => deleteConnection.mutate(connection.id)}
+                  isToggling={toggleEnabled.isPending && toggleEnabled.variables?.id === connection.id}
                 />
               ))}
             </Row>

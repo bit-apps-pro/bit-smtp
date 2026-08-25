@@ -38,14 +38,14 @@ describe('OAuthConnectButton', () => {
   it('is always enabled, and creates a draft connection before authorizing when unsaved', async () => {
     const mutateAsync = vi.fn().mockResolvedValue(undefined)
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync, isPending: false })
-    const ensureConnectionId = vi.fn().mockResolvedValue('conn_new_1')
+    const persistConnection = vi.fn().mockResolvedValue('conn_new_1')
 
     renderWithClient(
       <OAuthConnectButton
         connectionId=""
         provider="gmail"
         connected={false}
-        ensureConnectionId={ensureConnectionId}
+        persistConnection={persistConnection}
       />
     )
 
@@ -54,36 +54,38 @@ describe('OAuthConnectButton', () => {
 
     await userEvent.click(button)
 
-    expect(ensureConnectionId).toHaveBeenCalled()
+    expect(persistConnection).toHaveBeenCalled()
     expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'conn_new_1', provider: 'gmail' })
   })
 
-  it('does not call ensureConnectionId when a connection id already exists', async () => {
+  it('re-saves the current form values before authorizing an existing connection', async () => {
+    // Regression (#7): an existing connection must persist just-typed client_id/secret before the
+    // consent flow reads them; the button authorizes against the id persistConnection returns.
     const mutateAsync = vi.fn().mockResolvedValue(undefined)
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync, isPending: false })
-    const ensureConnectionId = vi.fn().mockResolvedValue('conn_should_not_be_used')
+    const persistConnection = vi.fn().mockResolvedValue('conn_1')
 
     renderWithClient(
       <OAuthConnectButton
         connectionId="conn_1"
         provider="gmail"
-        connected={false}
-        ensureConnectionId={ensureConnectionId}
+        connected
+        persistConnection={persistConnection}
       />
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
 
-    expect(ensureConnectionId).not.toHaveBeenCalled()
+    expect(persistConnection).toHaveBeenCalledTimes(1)
     expect(mutateAsync).toHaveBeenCalledWith({ connectionId: 'conn_1', provider: 'gmail' })
   })
 
   it('shows an error and never opens the popup when creating the draft connection fails', async () => {
     const mutateAsync = vi.fn()
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync, isPending: false })
-    // Mirrors ConnectionEditor's real ensureConnectionId: it notifies the user itself before
+    // Mirrors ConnectionEditor's real persistConnection: it notifies the user itself before
     // resolving to '', so the button only needs to bail out on an empty id.
-    const ensureConnectionId = vi.fn().mockImplementation(async () => {
+    const persistConnection = vi.fn().mockImplementation(async () => {
       notify.error('Failed to prepare this connection for OAuth. Please try again.')
       return ''
     })
@@ -94,7 +96,7 @@ describe('OAuthConnectButton', () => {
         connectionId=""
         provider="gmail"
         connected={false}
-        ensureConnectionId={ensureConnectionId}
+        persistConnection={persistConnection}
       />
     )
 
@@ -111,7 +113,7 @@ describe('OAuthConnectButton', () => {
         connectionId="conn_1"
         provider="gmail"
         connected={false}
-        ensureConnectionId={vi.fn()}
+        persistConnection={vi.fn()}
       />
     )
 
@@ -121,12 +123,7 @@ describe('OAuthConnectButton', () => {
 
   it('shows a Connected tag and offers Reconnect when already connected', () => {
     renderWithClient(
-      <OAuthConnectButton
-        connectionId="conn_1"
-        provider="gmail"
-        connected
-        ensureConnectionId={vi.fn()}
-      />
+      <OAuthConnectButton connectionId="conn_1" provider="gmail" connected persistConnection={vi.fn()} />
     )
 
     expect(screen.getByText('Connected')).toBeInTheDocument()
@@ -143,7 +140,7 @@ describe('OAuthConnectButton', () => {
         connectionId="conn_1"
         provider="gmail"
         connected={false}
-        ensureConnectionId={vi.fn()}
+        persistConnection={vi.fn().mockResolvedValue('conn_1')}
       />
     )
 
@@ -163,7 +160,7 @@ describe('OAuthConnectButton', () => {
         connectionId="conn_1"
         provider="microsoft365"
         connected={false}
-        ensureConnectionId={vi.fn()}
+        persistConnection={vi.fn()}
       />
     )
 
@@ -184,7 +181,7 @@ describe('OAuthConnectButton', () => {
         connectionId="conn_1"
         provider="microsoft365"
         connected={false}
-        ensureConnectionId={vi.fn()}
+        persistConnection={vi.fn()}
       />
     )
 
@@ -204,7 +201,7 @@ describe('OAuthConnectButton', () => {
         connectionId="conn_1"
         provider="gmail"
         connected={false}
-        ensureConnectionId={vi.fn()}
+        persistConnection={vi.fn()}
       />
     )
 
@@ -224,7 +221,7 @@ describe('OAuthConnectButton', () => {
         connectionId="conn_1"
         provider="gmail"
         connected={false}
-        ensureConnectionId={vi.fn()}
+        persistConnection={vi.fn()}
       />
     )
 
@@ -244,7 +241,7 @@ describe('OAuthConnectButton', () => {
         connectionId="conn_1"
         provider="gmail"
         connected={false}
-        ensureConnectionId={vi.fn()}
+        persistConnection={vi.fn()}
       />
     )
 

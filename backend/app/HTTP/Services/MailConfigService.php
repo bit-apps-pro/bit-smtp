@@ -9,9 +9,13 @@ use BitApps\SMTP\Mail\Config\MailSettingsSanitizer;
 use BitApps\SMTP\Mail\Config\MailSettingsSerializer;
 use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Connections\ConnectionAuthorization;
 use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Mail\Exceptions\CredentialCipherException;
+use BitApps\SMTP\Mail\Health\ConnectionHealthStore;
 use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
+use BitApps\SMTP\Plugin;
+use Throwable;
 
 /**
  * Facade over the v2 mail-settings domain. Reads migrate legacy config in memory only (never
@@ -129,7 +133,8 @@ class MailConfigService
 
     /**
      * Upsert a single connection. Assigns a new id for new connections, preserves credentials that
-     * arrive masked, and promotes to default when it is the only connection.
+     * arrive masked, and promotes to default when no usable default exists yet and the connection is
+     * sendable (an OAuth2 connection is not, until consent stores its token).
      *
      * @param array<string,mixed> $connection
      */
@@ -150,8 +155,9 @@ class MailConfigService
         $data        = $current->toArray();
         $connections = $data['connections'];
 
-        $incomingId = $connection['id'] ?? '';
-        $isNew      = true;
+        $incomingId      = $connection['id'] ?? '';
+        $isNew           = true;
+        $savedConnection = [];
 
         foreach ($connections as $i => $existing) {
             if ($existing['id'] === $incomingId && $incomingId !== '') {
@@ -162,6 +168,7 @@ class MailConfigService
                 );
                 $resolvedConn    = $resolved['connections'][0];
                 $connections[$i] = $resolvedConn;
+                $savedConnection = $resolvedConn;
                 $isNew           = false;
 
                 break;
@@ -184,14 +191,22 @@ class MailConfigService
                 ['connections' => [$connection]],
                 $empty
             );
-            $connections[] = $resolved['connections'][0];
+            $savedConnection = $resolved['connections'][0];
+            $connections[]   = $savedConnection;
         }
 
-        // Promote to default only for new connections (first added, or when no default is set yet).
-        $targetId         = $isNew ? $connection['id'] : $incomingId;
+        // Promote to default when no usable default exists yet — but only for a connection that can
+        // actually send. An OAuth2 connection saved before consent has no token and must never become
+        // the routing target; the later save that stores its tokens (or a manual Set default) promotes
+        // it. Non-OAuth connections stay promote-first (sendable the moment they are saved).
         $currentDefaultId = $data['default_connection_id'];
-        if ($isNew && (\count($connections) === 1 || $currentDefaultId === '')) {
-            $data['default_connection_id'] = $targetId;
+        $noDefaultYet     = \count($connections) === 1 || $currentDefaultId === '';
+        $sendable         = ConnectionAuthorization::isSendable(
+            $savedConnection,
+            $this->requiresOAuthConsent((string) ($savedConnection['provider'] ?? ''))
+        );
+        if ($noDefaultYet && $sendable) {
+            $data['default_connection_id'] = $savedConnection['id'];
         }
 
         $data['connections'] = $this->withPreservedWebhookFields($connections, $current);
@@ -200,7 +215,7 @@ class MailConfigService
         $stored    = $this->store(MailSettings::fromArray($sanitized));
         $this->reload();
 
-        return $stored ? ($isNew ? $connection['id'] : $incomingId) : null;
+        return $stored ? $savedConnection['id'] : null;
     }
 
     /**
@@ -316,6 +331,12 @@ class MailConfigService
         $stored    = $this->store(MailSettings::fromArray($sanitized));
         $this->reload();
 
+        // Evict the health record only once the connection is actually gone, so every caller
+        // (REST, WP-CLI, tests) drops the stale row instead of leaving it for the next prune.
+        if ($stored) {
+            $this->forgetConnectionHealth($id);
+        }
+
         return $stored;
     }
 
@@ -378,6 +399,38 @@ class MailConfigService
         $this->reload();
 
         return $stored;
+    }
+
+    /**
+     * Best-effort removal of a deleted connection's health record. A failure here must never turn a
+     * successful delete into an error, so the eviction is swallowed and merely logged.
+     */
+    private function forgetConnectionHealth(string $id): void
+    {
+        try {
+            Plugin::instance()->app()->make(ConnectionHealthStore::class)->delete($id);
+        } catch (Throwable $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without failing the delete
+            error_log('Bit SMTP: failed to clear connection health on delete: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Whether a provider authenticates via OAuth2 consent, per the provider registry (the single
+     * source of truth via authConfig()). Degrades to false — treat as non-OAuth, promote-first — for
+     * an unknown provider or when the registry cannot be resolved, so promotion never fatals a save.
+     */
+    private function requiresOAuthConsent(string $provider): bool
+    {
+        if ($provider === '') {
+            return false;
+        }
+
+        try {
+            return Plugin::instance()->providerRegistry()->requiresOAuth2($provider);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     /**

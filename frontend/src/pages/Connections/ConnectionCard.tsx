@@ -9,7 +9,7 @@ import { __ } from '@common/helpers/i18nwrap'
 import { type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core'
 import { getProviderVisual } from '@pages/Connections/providerVisuals'
 import { type Connection, type ConnectionHealth } from '@pages/Connections/types'
-import { Button, Card, Flex, Popconfirm, Tag, Typography, theme } from 'antd'
+import { Button, Card, Flex, Popconfirm, Switch, Tag, Tooltip, Typography, theme } from 'antd'
 import HealthBadge from './HealthBadge'
 
 const { Text } = Typography
@@ -22,8 +22,10 @@ export default function ConnectionCard({
   priority,
   health,
   onSetDefault,
+  onToggleEnabled,
   onEdit,
   onDelete,
+  isToggling,
   dragHandleAttributes,
   dragHandleListeners
 }: {
@@ -32,24 +34,27 @@ export default function ConnectionCard({
   priority?: number
   health?: ConnectionHealth
   onSetDefault: () => void
+  onToggleEnabled: (enabled: boolean) => void
   onEdit: () => void
   onDelete: () => void
+  isToggling?: boolean
   dragHandleAttributes?: DraggableAttributes
   dragHandleListeners?: DraggableSyntheticListeners
 }) {
   const { token } = theme.useToken()
   const visual = getProviderVisual(connection.provider)
+  const isEnabled = connection.enabled
+  const toggleLabel = isEnabled ? __('Disable this connection') : __('Enable this connection')
+
+  const highlightStyle = isDefault
+    ? { borderInlineStart: `4px solid ${token.colorPrimary}`, backgroundColor: token.colorPrimaryBg }
+    : undefined
+  // A disabled (non-default) card is dimmed to signal it is paused and out of the failover chain.
+  const cardStyle = highlightStyle ?? (isEnabled ? undefined : { opacity: 0.6 })
 
   return (
     <Card
-      style={
-        isDefault
-          ? {
-              borderInlineStart: `4px solid ${token.colorPrimary}`,
-              backgroundColor: token.colorPrimaryBg
-            }
-          : undefined
-      }
+      style={cardStyle}
       styles={{ title: { overflow: 'visible', whiteSpace: 'normal', textOverflow: 'clip' } }}
       title={
         <Flex align="center" gap="small">
@@ -104,6 +109,16 @@ export default function ConnectionCard({
               {__('Default')}
             </Tag>
           )}
+          {!isEnabled && <Tag bordered={false}>{__('Disabled')}</Tag>}
+          <Tooltip title={toggleLabel}>
+            <Switch
+              size="small"
+              checked={isEnabled}
+              loading={isToggling}
+              onChange={onToggleEnabled}
+              aria-label={toggleLabel}
+            />
+          </Tooltip>
         </Flex>
       }
       actions={[
@@ -111,7 +126,7 @@ export default function ConnectionCard({
           key="default"
           type="text"
           icon={<StarOutlined />}
-          disabled={isDefault}
+          disabled={isDefault || !isEnabled}
           onClick={onSetDefault}
         >
           {__('Set default')}

@@ -17,17 +17,26 @@ const connection: Connection = {
   credentials: {}
 }
 
+type CardProps = Partial<Parameters<typeof ConnectionCard>[0]>
+
+function renderCard(props: CardProps = {}) {
+  return render(
+    <ConnectionCard
+      connection={connection}
+      isDefault={false}
+      onSetDefault={() => {}}
+      onToggleEnabled={() => {}}
+      onEdit={() => {}}
+      onDelete={() => {}}
+      // eslint-disable-next-line react/jsx-props-no-spreading -- test helper merges optional overrides
+      {...props}
+    />
+  )
+}
+
 describe('ConnectionCard', () => {
   it('renders the name, provider chip and fromEmail', () => {
-    render(
-      <ConnectionCard
-        connection={connection}
-        isDefault={false}
-        onSetDefault={() => {}}
-        onEdit={() => {}}
-        onDelete={() => {}}
-      />
-    )
+    renderCard()
 
     expect(screen.getByText('Primary SMTP')).toBeInTheDocument()
     expect(screen.getByText('Any SMTP server')).toBeInTheDocument()
@@ -35,15 +44,7 @@ describe('ConnectionCard', () => {
   })
 
   it('shows a Default tag only when isDefault is true', () => {
-    const { rerender } = render(
-      <ConnectionCard
-        connection={connection}
-        isDefault={false}
-        onSetDefault={() => {}}
-        onEdit={() => {}}
-        onDelete={() => {}}
-      />
-    )
+    const { rerender } = renderCard({ isDefault: false })
     expect(screen.queryByText('Default')).not.toBeInTheDocument()
 
     rerender(
@@ -51,6 +52,7 @@ describe('ConnectionCard', () => {
         connection={connection}
         isDefault
         onSetDefault={() => {}}
+        onToggleEnabled={() => {}}
         onEdit={() => {}}
         onDelete={() => {}}
       />
@@ -60,15 +62,7 @@ describe('ConnectionCard', () => {
 
   it('calls onSetDefault when Set default is clicked', async () => {
     const onSetDefault = vi.fn()
-    render(
-      <ConnectionCard
-        connection={connection}
-        isDefault={false}
-        onSetDefault={onSetDefault}
-        onEdit={() => {}}
-        onDelete={() => {}}
-      />
-    )
+    renderCard({ onSetDefault })
 
     await userEvent.click(screen.getByRole('button', { name: /Set default/ }))
 
@@ -77,19 +71,37 @@ describe('ConnectionCard', () => {
 
   it('calls onEdit when Edit is clicked', async () => {
     const onEdit = vi.fn()
-    render(
-      <ConnectionCard
-        connection={connection}
-        isDefault={false}
-        onSetDefault={() => {}}
-        onEdit={onEdit}
-        onDelete={() => {}}
-      />
-    )
+    renderCard({ onEdit })
 
     await userEvent.click(screen.getByRole('button', { name: /Edit/ }))
 
     expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it('toggles enabled off with the flipped value when the switch is clicked', async () => {
+    const onToggleEnabled = vi.fn()
+    renderCard({ onToggleEnabled })
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Disable this connection' }))
+
+    // antd Switch calls onChange(checked, event); the flipped `checked` is the load-bearing arg.
+    expect(onToggleEnabled.mock.calls[0][0]).toBe(false)
+  })
+
+  it('toggles enabled on with the flipped value for a disabled connection', async () => {
+    const onToggleEnabled = vi.fn()
+    renderCard({ connection: { ...connection, enabled: false }, onToggleEnabled })
+
+    expect(screen.getByText('Disabled')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('switch', { name: 'Enable this connection' }))
+
+    expect(onToggleEnabled.mock.calls[0][0]).toBe(true)
+  })
+
+  it('does not allow a disabled connection to be set as default', () => {
+    renderCard({ connection: { ...connection, enabled: false } })
+
+    expect(screen.getByRole('button', { name: /Set default/ })).toBeDisabled()
   })
 
   it('renders the health badge only when health is provided', () => {
@@ -103,15 +115,7 @@ describe('ConnectionCard', () => {
       oauth_expires_at: null
     }
 
-    const { rerender } = render(
-      <ConnectionCard
-        connection={connection}
-        isDefault={false}
-        onSetDefault={() => {}}
-        onEdit={() => {}}
-        onDelete={() => {}}
-      />
-    )
+    const { rerender } = renderCard()
     expect(screen.queryByText('Unhealthy')).not.toBeInTheDocument()
 
     rerender(
@@ -120,6 +124,7 @@ describe('ConnectionCard', () => {
         isDefault={false}
         health={health}
         onSetDefault={() => {}}
+        onToggleEnabled={() => {}}
         onEdit={() => {}}
         onDelete={() => {}}
       />
@@ -129,15 +134,7 @@ describe('ConnectionCard', () => {
 
   it('calls onDelete only after the Popconfirm is confirmed', async () => {
     const onDelete = vi.fn()
-    render(
-      <ConnectionCard
-        connection={connection}
-        isDefault={false}
-        onSetDefault={() => {}}
-        onEdit={() => {}}
-        onDelete={onDelete}
-      />
-    )
+    renderCard({ onDelete })
 
     await userEvent.click(screen.getByRole('button', { name: /Delete/ }))
     expect(onDelete).not.toHaveBeenCalled()
