@@ -40,7 +40,7 @@ const preferences: Preferences = {
   health_check_enabled: false,
   health_check_interval: 'daily',
   notify_cooldown_minutes: 0,
-  notify_events: ['connection.failed'],
+  notify_events: ['connection_unhealthy'],
   uninstall_purge: true,
   tracking_enabled: false
 }
@@ -220,10 +220,93 @@ describe('SettingsPage', () => {
     await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
 
     expect(screen.getByLabelText('Recipients')).toBeInTheDocument()
-    expect(screen.getByLabelText('Notification cooldown (minutes)')).toBeInTheDocument()
+    // The cooldown field now lives on the Health tab (its only consumer), not here.
+    expect(screen.queryByLabelText('Alert cooldown (minutes)')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Webhook URL')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Slack webhook URL')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Telegram bot token')).not.toBeInTheDocument()
+  })
+
+  it('renders the alert cooldown field on the Health tab, its actual consumer', async () => {
+    // The companion assertion — cooldown absent from the Notifications tab — lives in the
+    // "shows only the added failure-alert channel" test above (antd keeps a pane mounted once
+    // visited, so absence can only be proven before the Health tab is ever opened).
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
+
+    expect(screen.getByLabelText('Alert cooldown (minutes)')).toBeInTheDocument()
+    expect(screen.getByLabelText('Alert on these events')).toBeInTheDocument()
+  })
+
+  it('persists a newly selected notify_events subscription when saving from the Health tab', async () => {
+    ;(usePreferences as Mock).mockReturnValue({
+      data: { ...preferences, health_check_enabled: true, notify_events: ['connection_unhealthy'] },
+      isPending: false
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
+    await userEvent.click(screen.getByLabelText('Alert on these events'))
+    await userEvent.click(await screen.findByText('OAuth token expiring'))
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(savePreferencesMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notify_events: ['connection_unhealthy', 'oauth_expiring']
+        })
+      )
+    })
+  })
+
+  const anyEventLabel =
+    /Connection unhealthy|Connection recovered|OAuth token expiring|OAuth token expired/
+
+  it('durably saves an empty subscription when every alert event is deselected', async () => {
+    // The save side of the bug: deselect-all must send [], not silently fall back to a subscription.
+    ;(usePreferences as Mock).mockReturnValue({
+      data: {
+        ...preferences,
+        health_check_enabled: true,
+        notify_events: ['connection_unhealthy', 'oauth_expired']
+      },
+      isPending: false
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
+
+    // Deselect both stored events (tags Select has no "clear" affordance; Backspace pops the last tag).
+    await userEvent.click(screen.getByLabelText('Alert on these events'))
+    await userEvent.keyboard('{Backspace}{Backspace}')
+
+    const events = screen.getByLabelText('Alert on these events').closest('.ant-select') as HTMLElement
+    expect(within(events).queryByText(anyEventLabel)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await waitFor(() => {
+      expect(savePreferencesMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ notify_events: [] })
+      )
+    })
+  })
+
+  it('reloads a stored empty subscription as no selection instead of re-defaulting to all four', async () => {
+    // The reload side of the bug: a stored [] (the server echo of "none") must display as an empty
+    // selection and stay non-dirty, never re-default the control back to every event on load.
+    ;(usePreferences as Mock).mockReturnValue({
+      data: { ...preferences, health_check_enabled: true, notify_events: [] },
+      isPending: false
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
+
+    const events = screen.getByLabelText('Alert on these events').closest('.ant-select') as HTMLElement
+    expect(within(events).queryByText(anyEventLabel)).not.toBeInTheDocument()
+    // Loading a deliberately-empty subscription must not itself mark the form dirty.
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
   })
 
   it('saves only the preferences store when a General field changes', async () => {
@@ -238,7 +321,7 @@ describe('SettingsPage', () => {
         expect.objectContaining({
           log_retention_days: 60,
           retry_on_classes: ['TransportException'],
-          notify_events: ['connection.failed']
+          notify_events: ['connection_unhealthy']
         })
       )
     })

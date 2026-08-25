@@ -43,6 +43,9 @@ function toPreferencesFormValues(preferences: Preferences): PreferencesFormValue
     health_check_enabled: preferences.health_check_enabled,
     health_check_interval: preferences.health_check_interval,
     notify_cooldown_minutes: preferences.notify_cooldown_minutes,
+    // Opt-in only: the stored subscription is bound as-is (an empty [] stays "no alerts"), never
+    // auto-defaulted on load — otherwise a deliberately-empty selection would silently re-subscribe.
+    notify_events: preferences.notify_events,
     uninstall_purge: preferences.uninstall_purge,
     tracking_enabled: preferences.tracking_enabled
   }
@@ -188,14 +191,7 @@ export default function SettingsPage() {
     {
       key: 'notifications',
       label: <TabLabel icon={Bell} label={__('Notifications')} dotActive={notificationsEnabled} />,
-      children: (
-        <NotificationsChannels
-          alertsForm={alertsForm}
-          prefsForm={prefsForm}
-          prefsInitialValues={prefsInitialValues}
-          settings={settings}
-        />
-      )
+      children: <NotificationsChannels alertsForm={alertsForm} settings={settings} />
     },
     {
       key: 'privacy',

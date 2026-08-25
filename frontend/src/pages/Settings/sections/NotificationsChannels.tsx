@@ -8,8 +8,7 @@ import useTestNotification, {
   type NotificationChannel,
   type TestNotificationResult
 } from '@pages/Settings/data/useTestNotification'
-import { type PreferencesFormValues } from '@pages/Settings/types'
-import { Button, Flex, Form, type FormInstance, InputNumber, Switch, Typography, theme } from 'antd'
+import { Button, Flex, Form, type FormInstance, Switch, Typography, theme } from 'antd'
 import NotificationChannelCard from './NotificationChannelCard'
 import { type ChannelKey, NOTIFICATION_CHANNELS } from './NotificationChannelFields'
 import NotificationChannelPickerModal from './NotificationChannelPickerModal'
@@ -176,23 +175,15 @@ function EmptyChannels({ disabled, onAddChannel }: EmptyChannelsProps) {
 
 interface NotificationsChannelsProps {
   alertsForm: FormInstance<NotificationFormValues>
-  prefsForm: FormInstance<PreferencesFormValues>
-  prefsInitialValues: PreferencesFormValues
   settings: MailSettings
 }
 
 /**
- * Notifications tab: the failure-alerts master switch, the cooldown field carried over from the
- * preferences store (`prefsForm`), and an "added channels" list (mail-settings store, `alertsForm`)
- * mirroring the Connections "add connection" UX — only channels the user has added render a card.
- * Saving both stores is orchestrated by the parent SettingsPage.
+ * Notifications tab: the failure-alerts master switch and an "added channels" list (mail-settings
+ * store, `alertsForm`) mirroring the Connections "add connection" UX — only channels the user has
+ * added render a card. Saving is orchestrated by the parent SettingsPage.
  */
-export default function NotificationsChannels({
-  alertsForm,
-  prefsForm,
-  prefsInitialValues,
-  settings
-}: NotificationsChannelsProps) {
+export default function NotificationsChannels({ alertsForm, settings }: NotificationsChannelsProps) {
   const { token } = theme.useToken()
   const [isPickerOpen, setIsPickerOpen] = useState(false)
   const testNotification = useTestNotification()
@@ -306,9 +297,7 @@ export default function NotificationsChannels({
   }
 
   return (
-    <SettingsPanel
-      intro={__('Get notified the moment delivery starts failing, and choose how often to repeat it.')}
-    >
+    <SettingsPanel intro={__('Get notified the moment delivery starts failing.')}>
       <Form
         form={alertsForm}
         component={false}
@@ -327,23 +316,6 @@ export default function NotificationsChannels({
         >
           <Switch />
         </Form.Item>
-        <PanelDivider />
-
-        {/* Re-shadow to the preferences form for this one field. Safe: it receives the same
-            initialValues as the outer prefsForm mount in SettingsPage, so this redundant
-            first-mount merge into the shared store is a no-op. */}
-        <Form form={prefsForm} component={false} initialValues={prefsInitialValues}>
-          <Form.Item
-            name="notify_cooldown_minutes"
-            label={__('Notification cooldown (minutes)')}
-            extra={
-              <Text type="secondary">{__('Minimum time between repeat failure notifications.')}</Text>
-            }
-            rules={[{ type: 'number', required: true, min: 0, message: __('Enter 0 or more minutes') }]}
-          >
-            <InputNumber disabled={!alertsEnabled} style={{ width: '100%' }} />
-          </Form.Item>
-        </Form>
         <PanelDivider />
 
         {/* Always mounted (just visually hidden) so each channel's "added" flag is registered with

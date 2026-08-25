@@ -7,6 +7,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Controllers\PreferencesController;
 use BitApps\SMTP\HTTP\Requests\SavePreferencesRequest;
 use BitApps\SMTP\HTTP\Services\LogService;
+use BitApps\SMTP\Mail\Notifications\HealthNotification;
 use BitApps\SMTP\Settings\PluginSettings;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
@@ -107,6 +108,52 @@ final class PreferencesControllerTest extends BaseUnitTestCase
 
         $this->assertTrue($request->fails());
         $this->assertArrayHasKey('log_store_body', $request->errors());
+    }
+
+    public function testSavePreferencesRequestRulesAcceptAKnownEventSubscription(): void
+    {
+        $request = new SavePreferencesRequest();
+        $request->make(
+            ['notify_events' => [HealthNotification::EVENT_UNHEALTHY, HealthNotification::EVENT_OAUTH_EXPIRED]],
+            $request->rules()
+        );
+
+        $this->assertFalse($request->fails());
+        $this->assertSame(
+            [HealthNotification::EVENT_UNHEALTHY, HealthNotification::EVENT_OAUTH_EXPIRED],
+            $request->validated()['notify_events']
+        );
+    }
+
+    public function testSavePreferencesRequestRulesRejectAnUnknownEventKey(): void
+    {
+        $request = new SavePreferencesRequest();
+        $request->make(['notify_events' => [HealthNotification::EVENT_UNHEALTHY, 'not_an_event']], $request->rules());
+
+        $this->assertTrue($request->fails());
+        $this->assertArrayHasKey('notify_events', $request->errors());
+    }
+
+    /**
+     * The "explicit none" path: an empty notify_events array is a deliberate unsubscribe — it must
+     * pass validation and persist as [] (durably overwriting a prior subscription), never be dropped
+     * or defaulted back to the full event set.
+     */
+    public function testSaveAcceptsAndPersistsAnEmptyNotifyEventsSubscription(): void
+    {
+        $store = [PluginSettings::OPTION_NAME => ['notify_events' => [HealthNotification::EVENT_UNHEALTHY]]];
+        $this->stubOptionsStore($store);
+
+        $request = new SavePreferencesRequest();
+        $request->make(['notify_events' => []], $request->rules());
+        $this->assertFalse($request->fails());
+
+        (new PreferencesController())->save($request);
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+        $data = (array) Response::getData();
+        $this->assertSame([], $data['preferences']['notify_events']);
+        $this->assertSame([], $store[PluginSettings::OPTION_NAME]['notify_events']);
     }
 
     public function testImportRejectsAnInvalidEnumValueAndDoesNotPersist(): void

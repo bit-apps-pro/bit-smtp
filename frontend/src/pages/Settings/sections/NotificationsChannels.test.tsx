@@ -1,7 +1,6 @@
 import notify from '@components/Toaster/Toaster'
 import { type MailSettings } from '@pages/Connections/types'
 import useTestNotification from '@pages/Settings/data/useTestNotification'
-import { type PreferencesFormValues } from '@pages/Settings/types'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Form } from 'antd'
@@ -12,21 +11,6 @@ vi.mock('@components/Toaster/Toaster', () => ({
   default: { success: vi.fn(), error: vi.fn() }
 }))
 vi.mock('@pages/Settings/data/useTestNotification', () => ({ default: vi.fn() }))
-
-const prefsInitialValues: PreferencesFormValues = {
-  logging_enabled: true,
-  log_retention_days: 30,
-  log_store_body: 'full',
-  send_timeout_seconds: 30,
-  retry_enabled: false,
-  retry_max_attempts: 3,
-  retry_backoff: 'exponential',
-  health_check_enabled: false,
-  health_check_interval: 'daily',
-  notify_cooldown_minutes: 15,
-  uninstall_purge: true,
-  tracking_enabled: false
-}
 
 // All four channels added, mirroring a fully-configured account. Most existing per-channel
 // behavior tests below reuse this so every card is present without extra add-flow steps.
@@ -94,18 +78,12 @@ const noChannelsSettings: MailSettings = {
   }
 }
 
-/** Test harness: mounts NotificationsChannels with real Form instances, mirroring SettingsPage's wiring. */
+/** Test harness: mounts NotificationsChannels with a real Form instance, mirroring SettingsPage's wiring. */
 function Harness({ settingsOverride }: { settingsOverride?: MailSettings }) {
-  const [prefsForm] = Form.useForm<PreferencesFormValues>()
   const [alertsForm] = Form.useForm<NotificationFormValues>()
 
   return (
-    <NotificationsChannels
-      alertsForm={alertsForm}
-      prefsForm={prefsForm}
-      prefsInitialValues={prefsInitialValues}
-      settings={settingsOverride ?? allChannelsSettings}
-    />
+    <NotificationsChannels alertsForm={alertsForm} settings={settingsOverride ?? allChannelsSettings} />
   )
 }
 
@@ -113,14 +91,6 @@ describe('NotificationsChannels', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ;(useTestNotification as Mock).mockReturnValue({ mutate: vi.fn(), isPending: false })
-  })
-
-  it('renders the carried-through preferences cooldown field alongside the alert channels', () => {
-    render(<Harness />)
-
-    expect((screen.getByLabelText('Notification cooldown (minutes)') as HTMLInputElement).value).toBe(
-      '15'
-    )
   })
 
   it('renders only the added channel when just one is enabled', () => {

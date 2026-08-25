@@ -71,6 +71,22 @@ final class HealthNotification implements NotificationMessage
         $this->oauthExpiresAt  = $oauthExpiresAt;
     }
 
+    /**
+     * The full set of alertable event keys, for the notify-events subscription default and payload
+     * validation. Single source of truth so the UI and validator cannot drift from the emitter.
+     *
+     * @return array<int,string>
+     */
+    public static function eventKeys(): array
+    {
+        return [
+            self::EVENT_UNHEALTHY,
+            self::EVENT_RECOVERED,
+            self::EVENT_OAUTH_EXPIRING,
+            self::EVENT_OAUTH_EXPIRED,
+        ];
+    }
+
     public static function unhealthy(Connection $connection, ConnectionHealth $health): self
     {
         return self::fromEvent(self::EVENT_UNHEALTHY, $connection, $health);

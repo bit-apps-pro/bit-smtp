@@ -4,7 +4,9 @@ namespace BitApps\SMTP\HTTP\Requests;
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 use BitApps\SMTP\Deps\BitApps\WPKit\Settings\SettingField;
+use BitApps\SMTP\HTTP\Requests\Rules\EachInRule;
 use BitApps\SMTP\HTTP\Requests\Rules\InRule;
+use BitApps\SMTP\Mail\Notifications\HealthNotification;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
@@ -61,6 +63,11 @@ class SavePreferencesRequest extends Request
 
             case SettingField::TYPE_ARRAY:
                 $rules[] = 'array';
+                // Restrict the health-alert subscription to known event keys; other array fields
+                // (e.g. retry_on_classes) stay free-form.
+                if ($field->key() === 'notify_events') {
+                    $rules[] = new EachInRule(HealthNotification::eventKeys());
+                }
 
                 break;
 

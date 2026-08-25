@@ -2,6 +2,17 @@ export type LogStoreBody = 'full' | 'redacted' | 'metadata'
 export type RetryBackoff = 'exponential' | 'fixed'
 export type HealthCheckInterval = 'hourly' | 'twicedaily' | 'daily'
 
+// Mirrors HealthNotification::EVENT_* (backend/app/Mail/Notifications/HealthNotification.php): the
+// canonical, ordered list of subscribable health/OAuth alert events and the union derived from it —
+// one source the Health control renders from and every consumer types against.
+export const HEALTH_ALERT_EVENTS = [
+  'connection_unhealthy',
+  'connection_recovered',
+  'oauth_expiring',
+  'oauth_expired'
+] as const
+export type HealthAlertEvent = (typeof HEALTH_ALERT_EVENTS)[number]
+
 // Mirrors PluginSettings::schema() (backend/app/Settings/PluginSettings.php): the four preference
 // groups (general/reliability/health/privacy) flattened into one key/value shape.
 export interface Preferences {
@@ -17,12 +28,11 @@ export interface Preferences {
   health_check_enabled: boolean
   health_check_interval: HealthCheckInterval
   notify_cooldown_minutes: number
-  // Not editable in the UI yet; carried through save/import untouched.
-  notify_events: string[]
+  notify_events: HealthAlertEvent[]
   uninstall_purge: boolean
   tracking_enabled: boolean
 }
 
-// The Form only registers Form.Item-bound fields; retry_on_classes/notify_events are excluded here
-// and re-attached from the last-loaded preferences before the save request is sent.
-export type PreferencesFormValues = Omit<Preferences, 'retry_on_classes' | 'notify_events'>
+// The Form only registers Form.Item-bound fields; retry_on_classes is excluded here and re-attached
+// from the last-loaded preferences before the save request is sent.
+export type PreferencesFormValues = Omit<Preferences, 'retry_on_classes'>
