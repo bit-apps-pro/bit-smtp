@@ -3,8 +3,7 @@
 namespace BitApps\SMTP\Mail\Notifications\Channels;
 
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
-use BitApps\SMTP\Mail\Notifications\FailureNotification;
-use BitApps\SMTP\Mail\Notifications\FailureNotificationMessage;
+use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 use Throwable;
 
 final class SlackFailureNotificationChannel implements FailureNotificationChannelInterface
@@ -17,14 +16,14 @@ final class SlackFailureNotificationChannel implements FailureNotificationChanne
     /**
      * @param array<string,mixed> $settings
      */
-    public function send(FailureNotification $notification, array $settings): bool
+    public function send(NotificationMessage $notification, array $settings): bool
     {
         $url = self::setting($settings, 'webhook_url');
         if (!self::isIncomingWebhookUrl($url)) {
             return false;
         }
 
-        $body = wp_json_encode(['text' => FailureNotificationMessage::plainText($notification)]);
+        $body = wp_json_encode(['text' => $notification->chatText()]);
         if (!\is_string($body)) {
             return false;
         }

@@ -8,8 +8,9 @@ import {
 import { __ } from '@common/helpers/i18nwrap'
 import { type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core'
 import { getProviderVisual } from '@pages/Connections/providerVisuals'
-import { type Connection } from '@pages/Connections/types'
+import { type Connection, type ConnectionHealth } from '@pages/Connections/types'
 import { Button, Card, Flex, Popconfirm, Tag, Typography, theme } from 'antd'
+import HealthBadge from './HealthBadge'
 
 const { Text } = Typography
 
@@ -19,6 +20,7 @@ export default function ConnectionCard({
   connection,
   isDefault,
   priority,
+  health,
   onSetDefault,
   onEdit,
   onDelete,
@@ -28,6 +30,7 @@ export default function ConnectionCard({
   connection: Connection
   isDefault: boolean
   priority?: number
+  health?: ConnectionHealth
   onSetDefault: () => void
   onEdit: () => void
   onDelete: () => void
@@ -94,6 +97,7 @@ export default function ConnectionCard({
       }
       extra={
         <Flex gap="small" align="center">
+          {health && <HealthBadge health={health} />}
           {typeof priority === 'number' && <Tag bordered={false}>{`${__('Priority')} ${priority}`}</Tag>}
           {isDefault && (
             <Tag bordered={false} color={token.colorPrimary}>

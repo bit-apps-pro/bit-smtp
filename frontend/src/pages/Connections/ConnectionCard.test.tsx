@@ -1,4 +1,4 @@
-import { type Connection } from '@pages/Connections/types'
+import { type Connection, type ConnectionHealth } from '@pages/Connections/types'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -90,6 +90,41 @@ describe('ConnectionCard', () => {
     await userEvent.click(screen.getByRole('button', { name: /Edit/ }))
 
     expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the health badge only when health is provided', () => {
+    const health: ConnectionHealth = {
+      status: 'unhealthy',
+      circuit: 'open',
+      consecutive_failures: 3,
+      last_ok_at: null,
+      last_error: 'SMTP connect() failed',
+      last_probe_at: '2026-08-24T10:00:00Z',
+      oauth_expires_at: null
+    }
+
+    const { rerender } = render(
+      <ConnectionCard
+        connection={connection}
+        isDefault={false}
+        onSetDefault={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />
+    )
+    expect(screen.queryByText('Unhealthy')).not.toBeInTheDocument()
+
+    rerender(
+      <ConnectionCard
+        connection={connection}
+        isDefault={false}
+        health={health}
+        onSetDefault={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />
+    )
+    expect(screen.getByText('Unhealthy')).toBeInTheDocument()
   })
 
   it('calls onDelete only after the Popconfirm is confirmed', async () => {

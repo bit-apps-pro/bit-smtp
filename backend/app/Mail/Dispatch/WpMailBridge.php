@@ -8,6 +8,8 @@ use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
+use BitApps\SMTP\Mail\Health\HealthRecorder;
+use BitApps\SMTP\Mail\Health\HealthTransition;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Mail\Message\SendResult;
@@ -56,7 +58,11 @@ class WpMailBridge
 
     private bool $loggingEnabled = false;
 
+    private bool $healthEnabled = false;
+
     private ?FailureNotifierInterface $failureNotifier = null;
+
+    private ?HealthRecorder $healthRecorder = null;
 
     /**
      * True while our dispatch loop is running, so the native-path log listeners skip our own sends.
@@ -69,7 +75,8 @@ class WpMailBridge
         MailMessageFactory $messageFactory,
         RoutingResolver $routingResolver,
         MailSourceDetector $sourceDetector,
-        ?FailureNotifierInterface $failureNotifier = null
+        ?FailureNotifierInterface $failureNotifier = null,
+        ?HealthRecorder $healthRecorder = null
     ) {
         $this->registry           = $registry;
         $this->connectionResolver = $connectionResolver;
@@ -77,11 +84,13 @@ class WpMailBridge
         $this->routingResolver    = $routingResolver;
         $this->sourceDetector     = $sourceDetector;
         $this->failureNotifier    = $failureNotifier;
+        $this->healthRecorder     = $healthRecorder;
         $this->context            = new SendContext();
         $this->eventLogger        = new MailEventLogger(Plugin::instance()->logger());
         $this->retryQueue         = new RetryQueue();
         $this->classifier         = new FailureClassifier();
         $this->loggingEnabled     = Plugin::instance()->logger()->isEnabled();
+        $this->healthEnabled      = (bool) PluginSettings::make()->get('health_check_enabled', false);
         $this->stamper            = new TrackingIdStamper();
 
         Hooks::addFilter('pre_wp_mail', [$this, 'onPreWpMail'], 10, 2);
@@ -274,6 +283,7 @@ class WpMailBridge
             $lastConnection        = null;
             $attempts              = [];
             $connectionIdsTried    = [];
+            $healthTransitions     = [];
             $winningMessageId      = null;
             $winningTrackingId     = null;
             $winningDeliveryStatus = null;
@@ -288,6 +298,15 @@ class WpMailBridge
                 $this->appendDebug($lastResult);
                 $attempts[]           = $this->attemptEntry($connection, $lastResult);
                 $connectionIdsTried[] = $connection->getId();
+
+                // Observe-only health signal (Fork 1): record the per-attempt outcome (a cheap DB
+                // write) without altering the break conditions, ordering, or return value below.
+                // Alerts are collected and flushed AFTER the loop so a slow channel never delays
+                // failover to the next connection.
+                $healthTransition = $this->recordHealth($connection, $lastResult);
+                if ($healthTransition !== null) {
+                    $healthTransitions[] = $healthTransition;
+                }
 
                 // Fall back only when NOT accepted: an accepted-but-partial send (e.g. a 2xx with a
                 // per-message error) was already handed off, so retrying via the next connection
@@ -324,6 +343,7 @@ class WpMailBridge
             $outcomeMailData = $this->withSender($this->withAttempts($mailData, $attempts), $sender);
             $this->logOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus, $failureClass);
             $this->notifyOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection);
+            $this->flushHealth($healthTransitions);
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
 
@@ -663,6 +683,33 @@ class WpMailBridge
         }
 
         $this->failureNotifier->notifyFailure($this->toError($result, $mailData), $connection);
+    }
+
+    /**
+     * Feed one attempt's outcome into the observe-only connection-health engine and return the status
+     * transition it caused (or null). Guards on the construction-cached flag so a disabled feature
+     * adds zero work (and zero option I/O) here.
+     */
+    private function recordHealth(Connection $connection, SendResult $result): ?HealthTransition
+    {
+        if (!$this->healthEnabled || $this->healthRecorder === null) {
+            return null;
+        }
+
+        return $this->healthRecorder->record($connection, $this->classifier->classify($result));
+    }
+
+    /**
+     * Flush the dispatch's collected health transitions to the notifier after the failover loop, so
+     * channel HTTP calls never add latency between send attempts.
+     *
+     * @param HealthTransition[] $transitions
+     */
+    private function flushHealth(array $transitions): void
+    {
+        if ($this->healthEnabled && $this->healthRecorder !== null) {
+            $this->healthRecorder->notify($transitions);
+        }
     }
 
     /**

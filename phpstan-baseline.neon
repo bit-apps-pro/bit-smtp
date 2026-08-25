@@ -1495,12 +1495,6 @@ parameters:
 			path: backend/app/Mail/Notifications/FailureNotification.php
 
 		-
-			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\FailureNotification\:\:toArray\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: backend/app/Mail/Notifications/FailureNotification.php
-
-		-
 			message: '#^Property BitApps\\SMTP\\Mail\\Notifications\\FailureNotification\:\:\$attempts type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -1511,18 +1505,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: backend/app/Mail/Notifications/FailureNotification.php
-
-		-
-			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\FailureNotifier\:\:alerts\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: backend/app/Mail/Notifications/FailureNotifier.php
-
-		-
-			message: '#^Method BitApps\\SMTP\\Mail\\Notifications\\FailureNotifier\:\:hasEnabledChannel\(\) has parameter \$alerts with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: backend/app/Mail/Notifications/FailureNotifier.php
 
 		-
 			message: '#^Method BitApps\\SMTP\\Mail\\OAuth\\OAuth2TokenProvider\:\:withRefreshedToken\(\) return type has no value type specified in iterable type array\.$#'
@@ -2545,7 +2527,7 @@ parameters:
 			path: backend/app/Providers/InstallerProvider.php
 
 		-
-			message: '#^Method BitApps\\SMTP\\Mail\\Dispatch\\WpMailBridge\:\:__construct\(\) invoked with 3 parameters, 5\-6 required\.$#'
+			message: '#^Method BitApps\\SMTP\\Mail\\Dispatch\\WpMailBridge\:\:__construct\(\) invoked with 3 parameters, 5\-7 required\.$#'
 			identifier: arguments.count
 			count: 1
 			path: backend/app/Providers/SmtpProvider.php

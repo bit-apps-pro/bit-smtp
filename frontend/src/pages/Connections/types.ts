@@ -67,6 +67,22 @@ export interface Connection {
   webhook_provisioning?: WebhookProvisioning | null
 }
 
+export type ConnectionHealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown'
+
+// Public, secret-free health projection returned by the mail/connections/health endpoint. Mirrors
+// ConnectionHealth::toPublicArray() — never carries the backend's internal alert bookkeeping.
+export interface ConnectionHealth {
+  status: ConnectionHealthStatus
+  circuit: 'closed' | 'open'
+  consecutive_failures: number
+  last_ok_at: string | null
+  last_error: string | null
+  last_probe_at: string | null
+  oauth_expires_at: number | null
+}
+
+export type ConnectionHealthMap = Record<string, ConnectionHealth>
+
 export interface FailureAlertSettings {
   enabled: boolean
   email: {

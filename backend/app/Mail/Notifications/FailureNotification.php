@@ -3,9 +3,10 @@
 namespace BitApps\SMTP\Mail\Notifications;
 
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 use WP_Error;
 
-final class FailureNotification
+final class FailureNotification implements NotificationMessage
 {
     private string $siteName;
 
@@ -131,6 +132,16 @@ final class FailureNotification
         }
 
         return implode("\n", $lines);
+    }
+
+    public function chatText(): string
+    {
+        return FailureNotificationMessage::plainText($this);
+    }
+
+    public function eventType(): string
+    {
+        return 'email_send_failed';
     }
 
     public function toArray(): array

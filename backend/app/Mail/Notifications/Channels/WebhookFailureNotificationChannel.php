@@ -3,7 +3,7 @@
 namespace BitApps\SMTP\Mail\Notifications\Channels;
 
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
-use BitApps\SMTP\Mail\Notifications\FailureNotification;
+use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 
 class WebhookFailureNotificationChannel implements FailureNotificationChannelInterface
 {
@@ -22,7 +22,7 @@ class WebhookFailureNotificationChannel implements FailureNotificationChannelInt
         return 'webhook';
     }
 
-    public function send(FailureNotification $notification, array $settings): bool
+    public function send(NotificationMessage $notification, array $settings): bool
     {
         $url    = isset($settings['url']) ? trim((string) $settings['url']) : '';
         $secret = isset($settings['signing_secret']) ? trim((string) $settings['signing_secret']) : '';
@@ -41,7 +41,7 @@ class WebhookFailureNotificationChannel implements FailureNotificationChannelInt
         $response = wp_safe_remote_post($url, [
             'headers' => [
                 'Content-Type'         => 'application/json',
-                'X-Bit-SMTP-Event'     => 'email_send_failed',
+                'X-Bit-SMTP-Event'     => $notification->eventType(),
                 'X-Bit-SMTP-Timestamp' => $timestamp,
                 'X-Bit-SMTP-Signature' => 'v1=' . $signature,
             ],

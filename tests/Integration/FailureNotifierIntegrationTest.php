@@ -3,8 +3,9 @@
 namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\Mail\Notifications\AlertChannelDispatcher;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
-use BitApps\SMTP\Mail\Notifications\FailureNotification;
+use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 use BitApps\SMTP\Mail\Notifications\FailureNotificationChannelRegistry;
 use BitApps\SMTP\Mail\Notifications\FailureNotificationGate;
 use BitApps\SMTP\Mail\Notifications\FailureNotifier;
@@ -36,8 +37,11 @@ final class FailureNotifierIntegrationTest extends IntegrationTestCase
         ]);
 
         $channel  = new CountingFailureNotificationChannel();
-        $notifier = new FailureNotifier($config, new FailureNotificationGate(), new FailureNotificationChannelRegistry([$channel]));
-        $error    = new WP_Error('wp_mail_failed', 'Connection unavailable');
+        $notifier = new FailureNotifier(
+            new AlertChannelDispatcher($config, new FailureNotificationChannelRegistry([$channel])),
+            new FailureNotificationGate()
+        );
+        $error = new WP_Error('wp_mail_failed', 'Connection unavailable');
 
         $notifier->notifyFailure($error);
         $notifier->notifyFailure($error);
@@ -58,7 +62,7 @@ final class CountingFailureNotificationChannel implements FailureNotificationCha
         return 'email';
     }
 
-    public function send(FailureNotification $notification, array $settings): bool
+    public function send(NotificationMessage $notification, array $settings): bool
     {
         ++$this->sendCount;
 

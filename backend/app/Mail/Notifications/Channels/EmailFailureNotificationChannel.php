@@ -3,7 +3,7 @@
 namespace BitApps\SMTP\Mail\Notifications\Channels;
 
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
-use BitApps\SMTP\Mail\Notifications\FailureNotification;
+use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 
 class EmailFailureNotificationChannel implements FailureNotificationChannelInterface
@@ -13,7 +13,7 @@ class EmailFailureNotificationChannel implements FailureNotificationChannelInter
         return 'email';
     }
 
-    public function send(FailureNotification $notification, array $settings): bool
+    public function send(NotificationMessage $notification, array $settings): bool
     {
         $recipients = isset($settings['recipients']) && \is_array($settings['recipients'])
             ? $settings['recipients']

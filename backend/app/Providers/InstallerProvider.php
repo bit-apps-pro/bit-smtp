@@ -59,6 +59,7 @@ class InstallerProvider
         // bookkeeping can't be relied on here -- WordPress's cron API is the only sure handle.
         wp_clear_scheduled_hook(Config::RETENTION_GC_HOOK);
         wp_clear_scheduled_hook(Config::RETRY_QUEUE_HOOK);
+        wp_clear_scheduled_hook(Config::HEALTH_CHECK_HOOK);
     }
 
     public function registerActivator($networkWide)

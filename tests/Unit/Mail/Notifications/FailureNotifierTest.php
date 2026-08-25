@@ -4,6 +4,7 @@ namespace BitApps\SMTP\Tests\Unit\Mail\Notifications;
 
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Config\MailSettings;
+use BitApps\SMTP\Mail\Notifications\AlertChannelDispatcher;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
 use BitApps\SMTP\Mail\Notifications\FailureNotification;
 use BitApps\SMTP\Mail\Notifications\FailureNotificationChannelRegistry;
@@ -44,8 +45,8 @@ final class FailureNotifierTest extends BaseUnitTestCase
         $gate = Mockery::mock(FailureNotificationGate::class);
         $gate->shouldReceive('acquire')->once()->withNoArgs()->andReturn(true);
 
-        $notifier = new FailureNotifier($this->config(), $gate, new FailureNotificationChannelRegistry([$email, $webhook]));
-        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed', ['to' => ['to@example.com']]));
+        $this->notifier($this->config(), $gate, [$email, $webhook])
+            ->notifyFailure(new WP_Error('wp_mail_failed', 'Failed', ['to' => ['to@example.com']]));
     }
 
     public function testRepeatedFailureIsSuppressedByTheGate(): void
@@ -55,8 +56,7 @@ final class FailureNotifierTest extends BaseUnitTestCase
         $gate = Mockery::mock(FailureNotificationGate::class);
         $gate->shouldReceive('acquire')->once()->withNoArgs()->andReturn(false);
 
-        $notifier = new FailureNotifier($this->config(), $gate, new FailureNotificationChannelRegistry([$email]));
-        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->notifier($this->config(), $gate, [$email])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
     }
 
     public function testDisabledAlertsDoNotAcquireTheGate(): void
@@ -66,8 +66,7 @@ final class FailureNotifierTest extends BaseUnitTestCase
         $gate = Mockery::mock(FailureNotificationGate::class);
         $gate->shouldReceive('acquire')->never();
 
-        $notifier = new FailureNotifier($config, $gate, new FailureNotificationChannelRegistry([$this->channel('email')]));
-        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->notifier($config, $gate, [$this->channel('email')])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
     }
 
     public function testSuccessResetsTheFailureEpisode(): void
@@ -75,7 +74,7 @@ final class FailureNotifierTest extends BaseUnitTestCase
         $gate = Mockery::mock(FailureNotificationGate::class);
         $gate->shouldReceive('reset')->once();
 
-        (new FailureNotifier($this->config(), $gate, new FailureNotificationChannelRegistry([])))->notifySuccess();
+        $this->notifier($this->config(), $gate, [])->notifySuccess();
     }
 
     public function testOneFailingChannelDoesNotStopTheNextEnabledChannel(): void
@@ -87,13 +86,13 @@ final class FailureNotifierTest extends BaseUnitTestCase
         $gate = Mockery::mock(FailureNotificationGate::class);
         $gate->shouldReceive('acquire')->once()->andReturn(true);
 
-        $notifier = new FailureNotifier($this->config([
+        $config = $this->config([
             'enabled'  => true,
             'slack'    => ['enabled' => true, 'webhook_url' => 'https://hooks.slack.com/services/T000/B000/secret'],
             'telegram' => ['enabled' => true, 'bot_token' => '123456:secret', 'chat_id' => '-1001234567890'],
-        ]), $gate, new FailureNotificationChannelRegistry([$slack, $telegram]));
+        ]);
 
-        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->notifier($config, $gate, [$slack, $telegram])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
     }
 
     public function testAllChannelsFailingReleasesTheGate(): void
@@ -104,12 +103,12 @@ final class FailureNotifierTest extends BaseUnitTestCase
         $gate->shouldReceive('acquire')->once()->andReturn(true);
         $gate->shouldReceive('reset')->once();
 
-        $notifier = new FailureNotifier($this->config([
+        $config = $this->config([
             'enabled' => true,
             'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
-        ]), $gate, new FailureNotificationChannelRegistry([$email]));
+        ]);
 
-        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->notifier($config, $gate, [$email])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
     }
 
     public function testAThrowingChannelReleasesTheGateWhenNoOtherChannelDelivers(): void
@@ -120,12 +119,12 @@ final class FailureNotifierTest extends BaseUnitTestCase
         $gate->shouldReceive('acquire')->once()->andReturn(true);
         $gate->shouldReceive('reset')->once();
 
-        $notifier = new FailureNotifier($this->config([
+        $config = $this->config([
             'enabled' => true,
             'slack'   => ['enabled' => true, 'webhook_url' => 'https://hooks.slack.com/services/T000/B000/secret'],
-        ]), $gate, new FailureNotificationChannelRegistry([$slack]));
+        ]);
 
-        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->notifier($config, $gate, [$slack])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
     }
 
     public function testADeliveredChannelKeepsTheGateLocked(): void
@@ -136,12 +135,23 @@ final class FailureNotifierTest extends BaseUnitTestCase
         $gate->shouldReceive('acquire')->once()->andReturn(true);
         $gate->shouldReceive('reset')->never();
 
-        $notifier = new FailureNotifier($this->config([
+        $config = $this->config([
             'enabled' => true,
             'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
-        ]), $gate, new FailureNotificationChannelRegistry([$email]));
+        ]);
 
-        $notifier->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->notifier($config, $gate, [$email])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+    }
+
+    /**
+     * @param FailureNotificationChannelInterface[] $channels
+     */
+    private function notifier(MailConfigService $config, FailureNotificationGate $gate, array $channels): FailureNotifier
+    {
+        return new FailureNotifier(
+            new AlertChannelDispatcher($config, new FailureNotificationChannelRegistry($channels)),
+            $gate
+        );
     }
 
     private function config(?array $alerts = null): MailConfigService

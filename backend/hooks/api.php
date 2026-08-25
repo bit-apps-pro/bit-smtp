@@ -7,6 +7,7 @@ if (!\defined('ABSPATH')) {
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Route;
 use BitApps\SMTP\HTTP\Controllers\AnalyticsController;
 use BitApps\SMTP\HTTP\Controllers\ConnectionController;
+use BitApps\SMTP\HTTP\Controllers\ConnectionHealthController;
 use BitApps\SMTP\HTTP\Controllers\LogController;
 use BitApps\SMTP\HTTP\Controllers\MailSettingsController;
 use BitApps\SMTP\HTTP\Controllers\MailSourceController;
@@ -57,4 +58,7 @@ Route::group(function () {
 
     Route::get('mail/retry-queue', [RetryController::class, 'status']);
     Route::post('mail/retry-queue/flush', [RetryController::class, 'flush']);
+
+    Route::get('mail/connections/health', [ConnectionHealthController::class, 'index']);
+    Route::post('mail/connections/health/check', [ConnectionHealthController::class, 'check']);
 })->middleware('cap:admin');

@@ -32,6 +32,8 @@ class Config
 
     public const RETRY_QUEUE_HOOK = 'bit_smtp_process_retry_queue';
 
+    public const HEALTH_CHECK_HOOK = 'bit_smtp_health_check';
+
     public const REQUIRED_PHP_VERSION = '8.0';
 
     public const REQUIRED_WP_VERSION = '5.0';

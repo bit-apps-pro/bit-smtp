@@ -16,12 +16,22 @@ use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsService;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
+use BitApps\SMTP\Mail\Credentials\DatabaseCredentialResolver;
+use BitApps\SMTP\Mail\Dispatch\FailureClassifier;
 use BitApps\SMTP\Mail\Dispatch\RetryQueue;
 use BitApps\SMTP\Mail\Dispatch\RetryWorker;
+use BitApps\SMTP\Mail\Health\ConnectionHealthService;
+use BitApps\SMTP\Mail\Health\ConnectionHealthStore;
+use BitApps\SMTP\Mail\Health\HealthProbeResolver;
+use BitApps\SMTP\Mail\Health\HealthProbeRunner;
+use BitApps\SMTP\Mail\Health\HealthRecorder;
+use BitApps\SMTP\Mail\Health\Probes\SmtpConnectionProbe;
 use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\Notifications\HealthNotifier;
 use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Providers\WebhookProvisionerFactory;
+use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
@@ -76,6 +86,56 @@ class CoreServiceProvider extends ServiceProvider
         $this->app->singleton(RetryQueue::class, static fn (): RetryQueue => new RetryQueue());
 
         $this->configureRetryCron();
+
+        $this->app->singleton(ConnectionHealthStore::class, static fn (): ConnectionHealthStore => new ConnectionHealthStore());
+
+        $this->app->singleton(
+            ConnectionHealthService::class,
+            static fn (Container $app): ConnectionHealthService => new ConnectionHealthService(
+                $app->make(ConnectionHealthStore::class),
+                $app->make(MailConfigService::class)
+            )
+        );
+
+        $this->app->singleton(
+            HealthRecorder::class,
+            static fn (Container $app): HealthRecorder => new HealthRecorder(
+                $app->make(ConnectionHealthService::class),
+                $app->make(HealthNotifier::class)
+            )
+        );
+
+        $this->app->singleton(SmtpTransport::class, static fn (): SmtpTransport => new SmtpTransport(
+            new DatabaseCredentialResolver(),
+            (int) PluginSettings::make()->get('send_timeout_seconds', 30)
+        ));
+
+        $this->app->singleton(
+            SmtpConnectionProbe::class,
+            static fn (Container $app): SmtpConnectionProbe => new SmtpConnectionProbe(
+                $app->make(SmtpTransport::class),
+                new FailureClassifier()
+            )
+        );
+
+        $this->app->singleton(
+            HealthProbeResolver::class,
+            static fn (Container $app): HealthProbeResolver => new HealthProbeResolver(
+                $app->make(SmtpConnectionProbe::class)
+            )
+        );
+
+        $this->app->singleton(
+            HealthProbeRunner::class,
+            static fn (Container $app): HealthProbeRunner => new HealthProbeRunner(
+                $app->make(MailConfigService::class),
+                $app->make(HealthProbeResolver::class),
+                $app->make(ConnectionHealthService::class),
+                $app->make(HealthNotifier::class)
+            )
+        );
+
+        $this->configureHealthCron();
 
         $this->app->singleton(
             WebhookProvisioningService::class,
@@ -139,5 +199,55 @@ class CoreServiceProvider extends ServiceProvider
                     $container->make(RetryWorker::class)->process();
                 }
             );
+    }
+
+    /**
+     * Configure the health-probe job on an hourly base tick. Both the enabled check and the
+     * interval-elapsed gate run inside the callback (not by skipping registration), so toggling
+     * health_check_enabled or the interval preference takes effect without re-scheduling; the gate
+     * throttles the actual probe to the configured cadence, and HealthProbeRunner is resolved lazily.
+     */
+    private function configureHealthCron(): void
+    {
+        $container = $this->app;
+
+        $this->app->make(Scheduler::class)->job(
+            Config::HEALTH_CHECK_HOOK,
+            'hourly',
+            static function () use ($container): void {
+                $settings = PluginSettings::make();
+                if (!$settings->get('health_check_enabled', false)) {
+                    return;
+                }
+
+                $lastRun  = (int) get_option(HealthProbeRunner::LAST_RUN_OPTION, 0);
+                $interval = self::intervalSeconds((string) $settings->get('health_check_interval', 'daily'));
+                if ($lastRun > 0 && (time() - $lastRun) < $interval) {
+                    return;
+                }
+
+                // Stamp the interval marker for the SCHEDULED run only (run() no longer does), so a
+                // manual "Check now" can't shift the cadence.
+                update_option(HealthProbeRunner::LAST_RUN_OPTION, time(), false);
+                $container->make(HealthProbeRunner::class)->run();
+            }
+        );
+    }
+
+    /**
+     * Seconds between active probe runs for a health_check_interval preference value.
+     */
+    private static function intervalSeconds(string $interval): int
+    {
+        switch ($interval) {
+            case 'hourly':
+                return HOUR_IN_SECONDS;
+
+            case 'twicedaily':
+                return 12 * HOUR_IN_SECONDS;
+
+            default:
+                return DAY_IN_SECONDS;
+        }
     }
 }

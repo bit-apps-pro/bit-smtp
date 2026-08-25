@@ -143,6 +143,16 @@ class Connection
     }
 
     /**
+     * OAuth access-token expiry (unix seconds) mirrored from settings; null for non-OAuth connections.
+     */
+    public function oauthExpiresAt(): ?int
+    {
+        $value = $this->setting('token_expires_at');
+
+        return $value !== null && $value !== '' ? (int) $value : null;
+    }
+
+    /**
      * Delivery-webhook tracking is API-only and defaults ON; SMTP connections can never webhook.
      */
     public function isWebhookEnabled(): bool

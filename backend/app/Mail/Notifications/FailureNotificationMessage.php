@@ -2,6 +2,8 @@
 
 namespace BitApps\SMTP\Mail\Notifications;
 
+use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
+
 final class FailureNotificationMessage
 {
     public const MAX_LENGTH = 3500;
@@ -12,7 +14,7 @@ final class FailureNotificationMessage
 
     private const MAX_ATTEMPTS = 5;
 
-    public static function plainText(FailureNotification $notification): string
+    public static function plainText(NotificationMessage $notification): string
     {
         $payload    = $notification->toArray();
         $site       = \is_array($payload['site'] ?? null) ? $payload['site'] : [];

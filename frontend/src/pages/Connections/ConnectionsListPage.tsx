@@ -12,10 +12,12 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { type Connection, type MailSettings } from '@pages/Connections/types'
+import { type Connection, type ConnectionHealth, type MailSettings } from '@pages/Connections/types'
 import { Button, Col, Flex, Row, Spin, Typography, theme } from 'antd'
 import ConnectionCard from './ConnectionCard'
 import ProviderSelectorModal from './ProviderSelectorModal'
+import useCheckConnectionHealth from './data/useCheckConnectionHealth'
+import useConnectionHealth from './data/useConnectionHealth'
 import useDeleteConnection from './data/useDeleteConnection'
 import useMailSettings from './data/useMailSettings'
 import useProviders from './data/useProviders'
@@ -48,6 +50,7 @@ function SortableConnectionCard({
   connection,
   priority,
   isDefault,
+  health,
   onSetDefault,
   onEdit,
   onDelete
@@ -55,6 +58,7 @@ function SortableConnectionCard({
   connection: Connection
   priority: number
   isDefault: boolean
+  health?: ConnectionHealth
   onSetDefault: () => void
   onEdit: () => void
   onDelete: () => void
@@ -75,6 +79,7 @@ function SortableConnectionCard({
         connection={connection}
         isDefault={isDefault}
         priority={priority}
+        health={health}
         onSetDefault={onSetDefault}
         onEdit={onEdit}
         onDelete={onDelete}
@@ -132,6 +137,8 @@ export default function ConnectionsListPage() {
   const navigate = useNavigate()
   const { data: settings, isPending: isSettingsPending } = useMailSettings()
   const { isPending: isProvidersPending } = useProviders()
+  const { health } = useConnectionHealth()
+  const checkConnectionHealth = useCheckConnectionHealth()
   const setDefaultConnection = useSetDefaultConnection()
   const deleteConnection = useDeleteConnection()
   const updateSettings = useUpdateSettings()
@@ -194,9 +201,17 @@ export default function ConnectionsListPage() {
           {__('Connections')}
         </Title>
         {hasConnections && (
-          <Button type="primary" onClick={openProviderModal}>
-            {__('Add connection')}
-          </Button>
+          <Flex gap="small">
+            <Button
+              onClick={() => checkConnectionHealth.mutate()}
+              loading={checkConnectionHealth.isPending}
+            >
+              {__('Check now')}
+            </Button>
+            <Button type="primary" onClick={openProviderModal}>
+              {__('Add connection')}
+            </Button>
+          </Flex>
         )}
       </Flex>
       <ProviderSelectorModal
@@ -214,6 +229,7 @@ export default function ConnectionsListPage() {
                   connection={connection}
                   priority={index + 1}
                   isDefault={connection.id === settings.default_connection_id}
+                  health={health[connection.id]}
                   onSetDefault={() => setDefaultConnection.mutate(connection.id)}
                   onEdit={() => navigate(`/connection/${connection.id}`)}
                   onDelete={() => deleteConnection.mutate(connection.id)}

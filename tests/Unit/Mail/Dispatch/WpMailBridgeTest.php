@@ -14,6 +14,7 @@ use BitApps\SMTP\Mail\Dispatch\RetryQueue;
 use BitApps\SMTP\Mail\Dispatch\SendContext;
 use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
+use BitApps\SMTP\Mail\Health\HealthRecorder;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotifierInterface;
@@ -703,6 +704,78 @@ class WpMailBridgeTest extends BaseUnitTestCase
         });
     }
 
+    public function testDispatchRecordsHealthForTheWinnerAndEachFailedAttemptWhenEnabled(): void
+    {
+        $transport = new ScriptedTransport([
+            SendResult::failure('Connection refused'),
+            SendResult::success(),
+        ]);
+        $bridge = $this->dispatchableBridge($transport);
+        $this->setHealthEnabled($bridge, true);
+
+        $recorder = Mockery::mock(HealthRecorder::class);
+        $recorder->shouldReceive('record')
+            ->once()
+            ->with(Mockery::on(static fn (Connection $c): bool => $c->getId() === 'conn_1'), FailureCategory::TRANSIENT)
+            ->andReturnNull();
+        $recorder->shouldReceive('record')
+            ->once()
+            ->with(Mockery::on(static fn (Connection $c): bool => $c->getId() === 'conn_2'), FailureCategory::OK)
+            ->andReturnNull();
+        // Alerts are flushed once after the failover loop, not inside it.
+        $recorder->shouldReceive('notify')->once()->with(Mockery::type('array'));
+        $this->setHealthRecorder($bridge, $recorder);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertTrue($succeeded);
+        $this->assertSame(2, $transport->callCount);
+    }
+
+    public function testDispatchRecordsNoHealthWhenTheFeatureIsDisabled(): void
+    {
+        // health_check_enabled defaults to false on the bridge, so the recorder must never be touched.
+        $transport = new ScriptedTransport([
+            SendResult::failure('Connection refused'),
+            SendResult::success(),
+        ]);
+        $bridge = $this->dispatchableBridge($transport);
+
+        $recorder = Mockery::mock(HealthRecorder::class);
+        $recorder->shouldNotReceive('record');
+        $this->setHealthRecorder($bridge, $recorder);
+
+        $succeeded = $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1']),
+            $this->connection(['id' => 'conn_2']),
+        ], $this->message(), []);
+
+        $this->assertTrue($succeeded);
+    }
+
+    public function testWorkerRedispatchStillRecordsHealth(): void
+    {
+        // dispatchRetry() re-enters dispatch() with $isWorkerRedispatch = true; the health signal must
+        // still be recorded on that path (it feeds the same per-attempt loop).
+        $bridge = $this->dispatchableBridge(new ScriptedTransport([SendResult::success()]));
+        $this->setHealthEnabled($bridge, true);
+
+        $recorder = Mockery::mock(HealthRecorder::class);
+        $recorder->shouldReceive('record')
+            ->once()
+            ->with(Mockery::on(static fn (Connection $c): bool => $c->getId() === 'conn_1'), FailureCategory::OK)
+            ->andReturnNull();
+        $recorder->shouldReceive('notify')->once()->with(Mockery::type('array'));
+        $this->setHealthRecorder($bridge, $recorder);
+
+        $outcome = $this->invokeDispatchFull($bridge, [$this->connection(['id' => 'conn_1'])], $this->message(), [], true);
+
+        $this->assertTrue($outcome['succeeded']);
+    }
+
     private function invokeConnectionLabel(WpMailBridge $bridge, Connection $connection): string
     {
         $method = new ReflectionMethod(WpMailBridge::class, 'connectionLabel');
@@ -777,6 +850,20 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('retryQueue');
         $property->setAccessible(true);
         $property->setValue($bridge, $retryQueue);
+    }
+
+    private function setHealthEnabled(WpMailBridge $bridge, bool $enabled): void
+    {
+        $property = (new ReflectionClass(WpMailBridge::class))->getProperty('healthEnabled');
+        $property->setAccessible(true);
+        $property->setValue($bridge, $enabled);
+    }
+
+    private function setHealthRecorder(WpMailBridge $bridge, HealthRecorder $recorder): void
+    {
+        $property = (new ReflectionClass(WpMailBridge::class))->getProperty('healthRecorder');
+        $property->setAccessible(true);
+        $property->setValue($bridge, $recorder);
     }
 
     /**

@@ -2,6 +2,8 @@
 
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Migration\Migration;
+use BitApps\SMTP\Mail\Health\ConnectionHealthStore;
+use BitApps\SMTP\Mail\Health\HealthProbeRunner;
 use BitApps\SMTP\Settings\PluginSettings;
 use BitApps\SMTP\Settings\UninstallPurge;
 
@@ -56,8 +58,11 @@ final class BitSmtpPluginOptions extends Migration
         }
         Config::deleteOption(Config::LOGGING_CONTINUITY_FROM_OPTION);
         delete_option(PluginSettings::OPTION_NAME);
+        delete_option(ConnectionHealthStore::OPTION_NAME);
+        delete_option(HealthProbeRunner::LAST_RUN_OPTION);
 
         wp_clear_scheduled_hook(Config::RETENTION_GC_HOOK);
         wp_clear_scheduled_hook(Config::RETRY_QUEUE_HOOK);
+        wp_clear_scheduled_hook(Config::HEALTH_CHECK_HOOK);
     }
 }

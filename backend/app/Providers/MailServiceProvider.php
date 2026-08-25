@@ -8,8 +8,8 @@ use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Aws\SigV4Signer;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
-use BitApps\SMTP\Mail\Credentials\DatabaseCredentialResolver;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
+use BitApps\SMTP\Mail\Health\HealthRecorder;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
@@ -77,7 +77,8 @@ class MailServiceProvider extends ServiceProvider
                 new MailMessageFactory(),
                 new RoutingResolver(),
                 new MailSourceDetector(),
-                $app->make(FailureNotifier::class)
+                $app->make(FailureNotifier::class),
+                $app->make(HealthRecorder::class)
             )
         );
     }
@@ -110,7 +111,7 @@ class MailServiceProvider extends ServiceProvider
         $authResolver  = $app->make(AuthorizationResolver::class);
 
         $registry = new ProviderRegistry();
-        $registry->register(new OtherSmtpProvider(new SmtpTransport(new DatabaseCredentialResolver(), $sendTimeoutSeconds)));
+        $registry->register(new OtherSmtpProvider($app->make(SmtpTransport::class)));
         $registry->register(new PhpSendmailProvider(new PhpSendmailTransport()));
         $registry->register(new SendGridProvider(new SendGridTransport($apiClient)));
         $registry->register(new GmailProvider(new GmailTransport($apiClient, $tokenProvider, $mimeBuilder)));

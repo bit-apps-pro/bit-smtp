@@ -1,4 +1,4 @@
-import { type MailSettings, type ProviderMeta } from '@pages/Connections/types'
+import { type ConnectionHealthMap, type MailSettings, type ProviderMeta } from '@pages/Connections/types'
 import providersFixture from '@pages/__fixtures__/rest-providers.fixture.json'
 import settingsFixture from '@pages/__fixtures__/rest-settings.fixture.json'
 import { describe, expect, it } from 'vitest'
@@ -36,5 +36,32 @@ describe('REST contract → frontend types', () => {
     const connection = s.connections[0]
     expect(connection.credentials.api_key.value).toBe('********')
     expect(typeof connection.settings).toBe('object')
+  })
+
+  it('mail/connections/health returns a public-shape map with no internal alert bookkeeping', () => {
+    const map: ConnectionHealthMap = {
+      conn_a: {
+        status: 'unhealthy',
+        circuit: 'open',
+        consecutive_failures: 3,
+        last_ok_at: '2026-08-24T09:00:00Z',
+        last_error: 'SMTP connect() failed',
+        last_probe_at: '2026-08-24T10:00:00Z',
+        oauth_expires_at: 1893456000
+      }
+    }
+
+    const record = map.conn_a
+    expect(Object.keys(record)).toEqual([
+      'status',
+      'circuit',
+      'consecutive_failures',
+      'last_ok_at',
+      'last_error',
+      'last_probe_at',
+      'oauth_expires_at'
+    ])
+    expect(record).not.toHaveProperty('last_alerted_state')
+    expect(record).not.toHaveProperty('last_alerted_at')
   })
 })

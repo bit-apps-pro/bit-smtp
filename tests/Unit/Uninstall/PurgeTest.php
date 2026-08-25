@@ -63,7 +63,7 @@ final class PurgeTest extends BaseUnitTestCase
         self::assertArrayNotHasKey('bit_smtp_options_v1_backup', $options);
         // Every other bit_smtp_* option is gone too.
         self::assertSame([], $options);
-        self::assertSame([Config::RETENTION_GC_HOOK, Config::RETRY_QUEUE_HOOK], $clearedHooks);
+        self::assertSame([Config::RETENTION_GC_HOOK, Config::RETRY_QUEUE_HOOK, Config::HEALTH_CHECK_HOOK], $clearedHooks);
     }
 
     public function testDownPreservesEverythingIncludingCredentialsWhenPurgeIsDisabled(): void
