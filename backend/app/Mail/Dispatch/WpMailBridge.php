@@ -231,7 +231,7 @@ class WpMailBridge
 
         $this->context->setResendParentId($resendParentId);
 
-        return $this->dispatch($connections, $message, $this->buildMailData($atts))['succeeded'];
+        return $this->dispatch($connections, $message, $this->buildMailData($atts, $message))['succeeded'];
     }
 
     /**
@@ -810,13 +810,15 @@ class WpMailBridge
     }
 
     /**
-     * Mirror core's wp_mail $mail_data so logging and the re-fired actions carry the same shape.
+     * Mirror core's wp_mail $mail_data so logging and the re-fired actions carry the same shape,
+     * plus the parsed Cc/Bcc recipients — which live inside the raw headers, not the top-level
+     * $atts — sourced from the already-parsed message so they can be logged alongside to_addr.
      *
      * @param array<string,mixed> $atts
      *
      * @return array<string,mixed>
      */
-    private function buildMailData(array $atts): array
+    private function buildMailData(array $atts, MailMessage $message): array
     {
         $to = $atts['to'] ?? [];
         if (!\is_array($to)) {
@@ -825,6 +827,8 @@ class WpMailBridge
 
         return [
             'to'          => $to,
+            'cc'          => $message->getCc(),
+            'bcc'         => $message->getBcc(),
             'subject'     => $atts['subject']     ?? '',
             'message'     => $atts['message']     ?? '',
             'headers'     => $atts['headers']     ?? '',

@@ -168,9 +168,26 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertSame('idx_connection_id_created_utc', $plan->key);
     }
 
-    public function testDbVersionConstantIsTwoPointFive(): void
+    public function testDbVersionConstantIsTwoPointSix(): void
     {
-        $this->assertSame('2.5', Config::DB_VERSION);
+        $this->assertSame('2.6', Config::DB_VERSION);
+    }
+
+    public function testCcAndBccColumnsAreAddedIdempotentlyAndNullable(): void
+    {
+        $this->dropLogsTable();
+        $this->createLegacyLogsTable();
+
+        $this->migrateLogs();
+        $this->migrateLogs();
+
+        global $wpdb;
+        foreach (['cc', 'bcc'] as $column) {
+            $definition = $wpdb->get_row($wpdb->prepare("SHOW COLUMNS FROM `{$this->logsTable}` LIKE %s", $column));
+            $this->assertNotNull($definition, "{$column} column should be added on upgrade");
+            $this->assertSame('YES', $definition->Null, "{$column} must be nullable to preserve legacy rows");
+            $this->assertStringContainsStringIgnoringCase('longtext', (string) $definition->Type);
+        }
     }
 
     public function testResendParentColumnAndIndexAreAddedIdempotently(): void

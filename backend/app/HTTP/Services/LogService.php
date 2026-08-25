@@ -208,6 +208,8 @@ class LogService
         $recipients              = Arr::get($details, 'to', []);
         $log->subject            = Arr::get($details, 'subject', '');
         $log->to_addr            = Arr::get($details, 'to', '[]');
+        $log->cc                 = Arr::get($details, 'cc', []);
+        $log->bcc                = Arr::get($details, 'bcc', []);
         $log->subject_pattern    = $this->subjectPattern((string) $log->subject);
         $log->recipient_count    = $this->recipientCount($recipients);
         $log->connection         = $connection;
@@ -223,7 +225,7 @@ class LogService
             $log->failure_class = $failureClass;
         }
 
-        unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
+        unset($details['subject'], $details['to'], $details['cc'], $details['bcc'], $details['from'], $details['phpmailer_exception_code']);
         $log->details    = $details;
 
         return $log->save();
@@ -685,6 +687,8 @@ class LogService
 
             $record['subject']         = Arr::get($details, 'subject', '');
             $record['to_addr']         = wp_json_encode(Arr::get($details, 'to', []));
+            $record['cc']              = wp_json_encode(Arr::get($details, 'cc', []));
+            $record['bcc']             = wp_json_encode(Arr::get($details, 'bcc', []));
             $record['subject_pattern'] = $this->subjectPattern((string) $record['subject']);
             $record['recipient_count'] = $this->recipientCount(Arr::get($details, 'to', []));
             $record['sender']          = $this->sanitizeSender((string) Arr::get($details, 'from', ''));
@@ -692,6 +696,8 @@ class LogService
             unset(
                 $details['subject'],
                 $details['to'],
+                $details['cc'],
+                $details['bcc'],
                 $details['from'],
                 $details['phpmailer_exception_code']
             );

@@ -23,6 +23,8 @@ final class BitSmtpLogsTableMigration extends Migration
                 $table->tinyint('status');
                 $table->longtext('subject');
                 $table->longtext('to_addr');
+                $table->longtext('cc')->nullable();
+                $table->longtext('bcc')->nullable();
                 $table->varchar('sender', 191)->nullable();
                 $table->longtext('details')->nullable();
                 $table->text('debug_info')->nullable();
@@ -57,6 +59,7 @@ final class BitSmtpLogsTableMigration extends Migration
         $this->addSenderColumnIfMissing();
         $this->addFailureClassColumnIfMissing();
         $this->addResendParentColumnIfMissing();
+        $this->addCcBccColumnsIfMissing();
         $this->createDeliveryEventsTableIfMissing();
         LogService::initializeLoggingContinuity();
     }
@@ -148,6 +151,18 @@ final class BitSmtpLogsTableMigration extends Migration
 
         $this->addColumnIfMissing($table, 'resend_parent_id', 'ADD COLUMN `resend_parent_id` BIGINT UNSIGNED NULL');
         $this->addIndexIfMissing($table, 'idx_resend_parent_id', 'ADD INDEX `idx_resend_parent_id` (`resend_parent_id`)');
+    }
+
+    /**
+     * Add the cc/bcc recipient columns on installs upgrading from a DB_VERSION that predates
+     * carbon-copy logging. Stored as JSON arrays, mirroring to_addr.
+     */
+    private function addCcBccColumnsIfMissing()
+    {
+        $table = Connection::wpPrefix() . Config::VAR_PREFIX . 'logs';
+
+        $this->addColumnIfMissing($table, 'cc', 'ADD COLUMN `cc` LONGTEXT NULL');
+        $this->addColumnIfMissing($table, 'bcc', 'ADD COLUMN `bcc` LONGTEXT NULL');
     }
 
     private function createDeliveryEventsTableIfMissing()

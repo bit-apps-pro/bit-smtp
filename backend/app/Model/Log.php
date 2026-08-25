@@ -7,30 +7,32 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
 /**
  * Model for log
  *
- * @property int         $id
- * @property int         $status
- * @property string      $subject
- * @property array       $to_addr
- * @property null|string $sender
- * @property array       $details
- * @property array       $debug_info
- * @property int         $retry_count
- * @property string      $connection
- * @property string      $connection_id
- * @property string      $message_id
- * @property string      $tracking_id
- * @property string      $delivery_status
- * @property string      $delivery_updated_at
- * @property null|string $source_plugin
- * @property null|string $routing_type
- * @property null|int    $routing_rule_index
- * @property null|string $failure_class
- * @property null|int    $resend_parent_id
- * @property null|string $subject_pattern
- * @property null|int    $recipient_count
- * @property string      $created_at
- * @property null|string $created_at_utc
- * @property string      $updated_at
+ * @property int                    $id
+ * @property int                    $status
+ * @property string                 $subject
+ * @property array                  $to_addr
+ * @property null|array<int,string> $cc
+ * @property null|array<int,string> $bcc
+ * @property null|string            $sender
+ * @property array                  $details
+ * @property array                  $debug_info
+ * @property int                    $retry_count
+ * @property string                 $connection
+ * @property string                 $connection_id
+ * @property string                 $message_id
+ * @property string                 $tracking_id
+ * @property string                 $delivery_status
+ * @property string                 $delivery_updated_at
+ * @property null|string            $source_plugin
+ * @property null|string            $routing_type
+ * @property null|int               $routing_rule_index
+ * @property null|string            $failure_class
+ * @property null|int               $resend_parent_id
+ * @property null|string            $subject_pattern
+ * @property null|int               $recipient_count
+ * @property string                 $created_at
+ * @property null|string            $created_at_utc
+ * @property string                 $updated_at
  */
 class Log extends Model
 {
@@ -42,6 +44,8 @@ class Log extends Model
         'status'              => 'int',
         'subject'             => 'string',
         'to_addr'             => 'array',
+        'cc'                  => 'array',
+        'bcc'                 => 'array',
         'sender'              => 'string',
         'details'             => 'array',
         'debug_info'          => 'array',

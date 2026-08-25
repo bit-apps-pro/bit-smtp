@@ -228,6 +228,55 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertStringNotContainsString('123456', $log->subject_pattern);
     }
 
+    public function testSavePersistsCcAndBccAsJsonArrays(): void
+    {
+        $this->service->save(
+            Log::SUCCESS,
+            [
+                'subject' => 'Cc Bcc save',
+                'to'      => ['to@example.test'],
+                'cc'      => ['cc1@example.test', 'cc2@example.test'],
+                'bcc'     => ['bcc@example.test'],
+            ]
+        );
+
+        $log = Log::where('subject', 'Cc Bcc save')->first();
+        $this->assertSame(['cc1@example.test', 'cc2@example.test'], $log->cc);
+        $this->assertSame(['bcc@example.test'], $log->bcc);
+        // recipient_count stays to-based: cc/bcc never inflate it.
+        $this->assertSame(1, $log->recipient_count);
+    }
+
+    public function testBulkInsertPersistsCcAndBccAsJsonArrays(): void
+    {
+        $this->service->bulkInsert([[
+            'status' => Log::SUCCESS,
+            'data'   => [
+                'subject' => 'Cc Bcc bulk',
+                'to'      => ['to@example.test'],
+                'cc'      => ['cc@example.test'],
+                'bcc'     => ['bcc@example.test'],
+            ],
+        ]]);
+
+        $log = Log::where('subject', 'Cc Bcc bulk')->first();
+        $this->assertSame(['cc@example.test'], $log->cc);
+        $this->assertSame(['bcc@example.test'], $log->bcc);
+        $this->assertSame(1, $log->recipient_count);
+    }
+
+    public function testSaveStoresEmptyArraysWhenNoCcOrBcc(): void
+    {
+        $this->service->save(
+            Log::SUCCESS,
+            ['subject' => 'No cc bcc', 'to' => ['to@example.test']]
+        );
+
+        $log = Log::where('subject', 'No cc bcc')->first();
+        $this->assertSame([], $log->cc);
+        $this->assertSame([], $log->bcc);
+    }
+
     public function testSaveCountsMissingRecipientsAsZero(): void
     {
         $this->service->save(Log::SUCCESS, ['subject' => 'No recipients']);

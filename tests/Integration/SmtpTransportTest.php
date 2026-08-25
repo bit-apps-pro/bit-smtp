@@ -51,6 +51,27 @@ final class SmtpTransportTest extends IntegrationTestCase
         $this->assertStringContainsStringIgnoringCase('text/html', $this->latestMailpitContentType());
     }
 
+    public function testSuccessfulSendCapturesPhpmailerMessageId(): void
+    {
+        $connection = $this->mailpitConnection();
+        $message    = MailMessage::fromArray([
+            'to'      => ['recipient@example.org'],
+            'subject' => 'Message-ID Capture',
+            'body'    => 'Body',
+        ]);
+
+        $result = $this->transport->send($message, $connection);
+
+        $this->assertTrue($result->isOk(), 'send should succeed: ' . (string) $result->getError());
+        $this->assertNotEmpty($result->getMessageId(), 'SMTP send must capture PHPMailer Message-ID');
+
+        $delivered = $this->latestMailpitMessage();
+        $this->assertNotNull($delivered);
+        // getLastMessageID() returns the exact "<...@...>" string PHPMailer wrote to the wire, so the
+        // captured id must equal the delivered Message-Id header verbatim (angle brackets included).
+        $this->assertSame($this->mailpitMessageIdHeader($delivered['ID']), $result->getMessageId());
+    }
+
     public function testSendSplitsNamedCcAndKeepsCustomHeader(): void
     {
         $connection = $this->mailpitConnection();
@@ -209,6 +230,20 @@ final class SmtpTransportTest extends IntegrationTestCase
                 'auth'       => false,
             ],
         ]);
+    }
+
+    /**
+     * The delivered Message-Id header value (angle brackets intact), looked up case-insensitively.
+     */
+    private function mailpitMessageIdHeader(string $id): ?string
+    {
+        foreach ($this->mailpitHeaders($id) as $name => $values) {
+            if (strtolower($name) === 'message-id') {
+                return $values[0] ?? null;
+            }
+        }
+
+        return null;
     }
 
     private function latestMailpitContentType(): string

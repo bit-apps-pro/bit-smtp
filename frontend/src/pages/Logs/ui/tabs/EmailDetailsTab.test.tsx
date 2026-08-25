@@ -37,6 +37,22 @@ describe('EmailDetailsTab', () => {
     expect(screen.getByText('—')).toBeInTheDocument()
   })
 
+  it('shows Cc and Bcc recipients when present', () => {
+    render(<EmailDetailsTab log={{ ...log, cc: ['cc@example.com'], bcc: ['bcc@example.com'] }} />)
+
+    expect(screen.getByText('Cc:')).toBeInTheDocument()
+    expect(screen.getByText('cc@example.com')).toBeInTheDocument()
+    expect(screen.getByText('Bcc:')).toBeInTheDocument()
+    expect(screen.getByText('bcc@example.com')).toBeInTheDocument()
+  })
+
+  it('omits Cc and Bcc when there are none', () => {
+    render(<EmailDetailsTab log={log} />)
+
+    expect(screen.queryByText('Cc:')).not.toBeInTheDocument()
+    expect(screen.queryByText('Bcc:')).not.toBeInTheDocument()
+  })
+
   it('shows which log a resend was launched from', () => {
     render(<EmailDetailsTab log={{ ...log, resend_of: 42 }} />)
 

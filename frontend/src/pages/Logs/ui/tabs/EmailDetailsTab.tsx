@@ -27,6 +27,20 @@ export default function EmailDetailsTab({ log, isLoading }: EmailDetailsTabProps
       <Text strong>To: </Text>
       <Text>{Array.isArray(log?.to_addr) && log.to_addr.length ? log.to_addr.toString() : ''}</Text>
       <br />
+      {Array.isArray(log?.cc) && log.cc.length ? (
+        <>
+          <Text strong>Cc: </Text>
+          <Text>{log.cc.toString()}</Text>
+          <br />
+        </>
+      ) : null}
+      {Array.isArray(log?.bcc) && log.bcc.length ? (
+        <>
+          <Text strong>Bcc: </Text>
+          <Text>{log.bcc.toString()}</Text>
+          <br />
+        </>
+      ) : null}
       <Text strong>Subject: </Text>
       <Text>{log.subject}</Text>
       {log.message_id ? (

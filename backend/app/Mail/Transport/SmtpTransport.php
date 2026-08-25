@@ -89,7 +89,13 @@ class SmtpTransport implements TransportInterface
 
             $mailer->send();
 
-            return SendResult::success($debugLines);
+            // PHPMailer sets the Message-ID while building headers during send(); read it afterwards
+            // so SMTP sends log a message_id for webhook correlation, matching the API/HTTP providers.
+            $messageId = $mailer->getLastMessageID();
+
+            return $messageId !== ''
+                ? SendResult::success($debugLines)->withMessageId($messageId)
+                : SendResult::success($debugLines);
         } catch (PHPMailerException $e) {
             return SendResult::failure($e->getMessage(), (string) $e->getCode(), $debugLines);
         }
