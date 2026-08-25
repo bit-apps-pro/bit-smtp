@@ -38,14 +38,17 @@ class LogService
     public const MAX_RESEND_CHILDREN = 50;
 
     /**
-     * The only columns an export may read, in CSV order: safe send/delivery metadata. Message body,
-     * credentials, and debug detail are deliberately excluded and never selected into memory.
+     * The only columns an export may read, in CSV order: safe send/delivery metadata (including the
+     * recipient To/Cc/Bcc). Message body, credentials, and debug detail are deliberately excluded and
+     * never selected into memory.
      */
     public const EXPORT_SAFE_COLUMNS = [
         'id',
         'created_at',
         'status',
         'to_addr',
+        'cc',
+        'bcc',
         'subject',
         'connection',
         'sender',
@@ -226,7 +229,7 @@ class LogService
         }
 
         unset($details['subject'], $details['to'], $details['cc'], $details['bcc'], $details['from'], $details['phpmailer_exception_code']);
-        $log->details    = $details;
+        $log->details    = LogBodyRedactor::apply($details, $this->bodyStorageMode());
 
         return $log->save();
     }
@@ -283,7 +286,7 @@ class LogService
                 $log->sender = $this->sanitizeSender((string) Arr::get($details, 'from', ''));
             }
             unset($details['subject'], $details['to'], $details['from'], $details['phpmailer_exception_code']);
-            $log->details = $details;
+            $log->details = LogBodyRedactor::apply($details, $this->bodyStorageMode());
         }
 
         $log->save();
@@ -649,6 +652,9 @@ class LogService
         // otherwise.
         $this->maybeDeleteOlder();
 
+        // Resolve the body-storage preference once for the whole batch rather than per row.
+        $bodyMode = $this->bodyStorageMode();
+
         $records = [];
         foreach ($logs as $log) {
             if (!isset($log['status']) || !isset($log['data'])) {
@@ -702,7 +708,7 @@ class LogService
                 $details['phpmailer_exception_code']
             );
 
-            $record['details'] = wp_json_encode($details);
+            $record['details'] = wp_json_encode(LogBodyRedactor::apply($details, $bodyMode));
             $records[]         = $record;
         }
 
@@ -829,6 +835,15 @@ class LogService
     private function subjectPattern(string $subject): string
     {
         return (new SubjectPatternNormalizer())->normalize($subject);
+    }
+
+    /**
+     * The active `log_store_body` privacy preference (full|redacted|metadata), defaulting to full.
+     * Read on every write path so a redacted/metadata choice is honored the moment it is saved.
+     */
+    private function bodyStorageMode(): string
+    {
+        return (string) PluginSettings::make()->get('log_store_body', LogBodyRedactor::MODE_FULL);
     }
 
     /**

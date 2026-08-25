@@ -32,6 +32,15 @@ class SendContext
     private ?RoutingDecision $routingDecision = null;
 
     /**
+     * Raw wp_mail headers (string or array) captured at pre_wp_mail time for a send about to defer to
+     * native wp_mail. Needed because core strips From/Cc/Bcc out of the headers it later reports to the
+     * wp_mail_succeeded/failed listeners, so the native log path must recover them from this raw value.
+     *
+     * @var string|array<int,string>
+     */
+    private $nativeMailHeaders = '';
+
+    /**
      * Clear per-send output accumulators and routing metadata at the start of each send.
      *
      * Caller-set inputs (debug flag, isRetrying, retryLogId, isBatch) are intentionally
@@ -143,5 +152,26 @@ class SendContext
     public function getRoutingDecision(): ?RoutingDecision
     {
         return $this->routingDecision;
+    }
+
+    /**
+     * Stash the current send's raw wp_mail headers so the native-path log listeners can recover the
+     * From/Cc/Bcc core strips out before firing wp_mail_succeeded/failed.
+     *
+     * @param string|array<int,string> $headers
+     */
+    public function setNativeMailHeaders($headers): self
+    {
+        $this->nativeMailHeaders = $headers;
+
+        return $this;
+    }
+
+    /**
+     * @return string|array<int,string>
+     */
+    public function getNativeMailHeaders()
+    {
+        return $this->nativeMailHeaders;
     }
 }

@@ -204,6 +204,10 @@ class WpMailBridge
         // polluted by a prior dispatch; the native log listeners record that send's outcome.
         $this->context->resetForSend();
 
+        // Stash the raw headers before any defer: core strips From/Cc/Bcc out of the headers it later
+        // reports to the native wp_mail_succeeded/failed listeners, so the log path recovers them here.
+        $this->context->setNativeMailHeaders($atts['headers'] ?? '');
+
         $settings = Plugin::instance()->mailConfigService()->load();
         $this->captureSourceForSend($settings);
         if (!$settings->isEnabled()) {
@@ -272,7 +276,7 @@ class WpMailBridge
 
         if ($this->loggingEnabled) {
             $this->captureNativeRoutingDecision();
-            $this->eventLogger->logMailSuccess((array) $mailData, $this->context);
+            $this->eventLogger->logMailSuccess($this->enrichNativeMailData((array) $mailData), $this->context);
         }
         if ($this->failureNotifier !== null) {
             $this->failureNotifier->notifySuccess();
@@ -290,7 +294,7 @@ class WpMailBridge
 
         if ($this->loggingEnabled) {
             $this->captureNativeRoutingDecision();
-            $this->eventLogger->logMailFailed($error, $this->context);
+            $this->eventLogger->logMailFailed($this->enrichNativeError($error), $this->context);
         }
         if ($this->failureNotifier !== null) {
             $this->failureNotifier->notifyFailure($error);
@@ -834,5 +838,58 @@ class WpMailBridge
             'headers'     => $atts['headers']     ?? '',
             'attachments' => $atts['attachments'] ?? [],
         ];
+    }
+
+    /**
+     * Enrich a native (deferred-to-core) wp_mail payload with the From/Cc/Bcc that live inside the raw
+     * headers, so the native log row captures the same sender and cc/bcc the dispatch path records
+     * instead of blanks. Core strips From/Cc/Bcc out of the headers it reports to the listeners, so the
+     * raw headers captured at pre_wp_mail time (SendContext) are used to re-parse them; the From falls
+     * back to the effective `wp_mail_from` default when no From header is present. A degenerate payload
+     * (e.g. no valid recipients) logs what core handed us rather than fataling the request.
+     *
+     * @param array<string,mixed> $mailData wp_mail's $mail_data: to, subject, message, headers, attachments
+     *
+     * @return array<string,mixed>
+     */
+    private function enrichNativeMailData(array $mailData): array
+    {
+        $atts            = $mailData;
+        $atts['headers'] = $this->context->getNativeMailHeaders() ?: ($mailData['headers'] ?? '');
+
+        try {
+            $message = $this->messageFactory->fromWpMailAtts($atts);
+        } catch (InvalidArgumentException $e) {
+            return $mailData;
+        }
+
+        $mailData['from'] = SenderFormatter::format($message->getFrom(), $message->getFromName());
+        $mailData['cc']   = $message->getCc();
+        $mailData['bcc']  = $message->getBcc();
+
+        return $mailData;
+    }
+
+    /**
+     * Rebuild a wp_mail_failed WP_Error with its mail data enriched by enrichNativeMailData(), so a
+     * natively-deferred failure logs the sender/cc/bcc too. Every error code and message is preserved
+     * so MailEventLogger's SMTP-connection-failure inspection (phpmailer_exception_code) still fires.
+     */
+    private function enrichNativeError(WP_Error $error): WP_Error
+    {
+        $data = $error->get_error_data();
+        if (!\is_array($data)) {
+            return $error;
+        }
+
+        $enriched = new WP_Error();
+        foreach ($error->get_error_codes() as $code) {
+            foreach ($error->get_error_messages($code) as $message) {
+                $enriched->add($code, $message);
+            }
+        }
+        $enriched->add_data($this->enrichNativeMailData($data), $error->get_error_code());
+
+        return $enriched;
     }
 }

@@ -48,6 +48,18 @@ final class LogCsvExporterTest extends BaseUnitTestCase
         $this->assertSame('a@example.test; b@example.test', (new LogCsvExporter())->rowCells($log)['to_addr']);
     }
 
+    public function testCcAndBccAreFlattenedLikeRecipients(): void
+    {
+        $log      = new Log();
+        $log->cc  = ['cc-one@example.test', 'cc-two@example.test'];
+        $log->bcc = ['bcc@example.test'];
+
+        $cells = (new LogCsvExporter())->rowCells($log);
+
+        $this->assertSame('cc-one@example.test; cc-two@example.test', $cells['cc']);
+        $this->assertSame('bcc@example.test', $cells['bcc']);
+    }
+
     public function testFormulaTriggeringCellIsDefused(): void
     {
         $csv  = (new LogCsvExporter())->toCsv([$this->log(['id' => 1, 'subject' => '=SUM(A1:A2)'])]);

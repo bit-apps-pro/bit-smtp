@@ -16,6 +16,7 @@ use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
 use BitApps\SMTP\Mail\Health\HealthRecorder;
 use BitApps\SMTP\Mail\Message\MailMessage;
+use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotifierInterface;
 use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
@@ -46,6 +47,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         // get_option() on construction; no preferences blob means retry_enabled defaults to false,
         // so every pre-existing dispatch() test below is unaffected unless it overrides this stub.
         Functions\when('get_option')->justReturn(false);
+        // The native-path log listeners now parse the raw headers via MailMessageFactory, which applies
+        // the wp_mail_from/from_name/content_type filters and resolves the default sender host.
+        Functions\when('apply_filters')->returnArg(2);
+        Functions\when('network_home_url')->justReturn('https://www.example.com');
     }
 
     public function testSendViaOverridesMessageFromWithTheConnectionsFromEmailAndName(): void
@@ -657,6 +662,53 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $bridge->onNativeMailSucceeded(['subject' => 'Hi', 'to' => ['a@example.org']]);
     }
 
+    public function testNativeMailSuccessLogsTheSenderAndCcBccParsedFromHeaders(): void
+    {
+        $bridge = $this->bridgeWithTransport(new SpyTransport());
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(static function (array $logs): bool {
+                $data = $logs[0]['data'];
+
+                return $data['from'] === 'Sender <sender@example.org>'
+                    && $data['cc']   === ['cc@example.org']
+                    && $data['bcc']  === ['bcc@example.org'];
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $bridge->onNativeMailSucceeded([
+            'to'      => ['a@example.org'],
+            'subject' => 'Hi',
+            'message' => 'Body',
+            'headers' => [
+                'From: Sender <sender@example.org>',
+                'Cc: cc@example.org',
+                'Bcc: bcc@example.org',
+            ],
+        ]);
+    }
+
+    public function testNativeMailSuccessWithoutAFromHeaderStillLogsANonEmptySender(): void
+    {
+        $bridge = $this->bridgeWithTransport(new SpyTransport());
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(static function (array $logs): bool {
+                return $logs[0]['data']['from'] !== '';
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $bridge->onNativeMailSucceeded(['to' => ['a@example.org'], 'subject' => 'Hi', 'message' => 'Body']);
+    }
+
     public function testNativeMailWithLoggingDisabledKeepsLegacyNoLoggingBehavior(): void
     {
         $bridge   = $this->bridgeWithTransport(new SpyTransport());
@@ -1090,6 +1142,11 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $sourceDetectorProperty = $refClass->getProperty('sourceDetector');
         $sourceDetectorProperty->setAccessible(true);
         $sourceDetectorProperty->setValue($bridge, new MailSourceDetector());
+
+        // The native-path listeners enrich the log with the sender/cc/bcc parsed from the raw headers.
+        $messageFactoryProperty = $refClass->getProperty('messageFactory');
+        $messageFactoryProperty->setAccessible(true);
+        $messageFactoryProperty->setValue($bridge, new MailMessageFactory());
 
         return $bridge;
     }

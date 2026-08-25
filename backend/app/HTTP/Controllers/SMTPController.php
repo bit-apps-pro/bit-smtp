@@ -10,6 +10,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
 use BitApps\SMTP\HTTP\Requests\MailConfigStoreRequest;
 use BitApps\SMTP\HTTP\Requests\MailTestRequest;
+use BitApps\SMTP\HTTP\Services\LogBodyRedactor;
 use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Views\EmailTemplate;
 use Exception;
@@ -95,21 +96,38 @@ class SMTPController
             return Response::error(__('Log not found', 'bit-smtp'));
         }
         Hooks::addFilter('wp_mail_content_type', [$this, 'setContentType']);
+        $resent  = 0;
+        $skipped = 0;
         foreach ($logs as $log) {
+            $message = (string) Arr::get($log->details, 'message', '');
+            // A row whose body was dropped/redacted by the log_store_body preference has no content
+            // to resend; skip it rather than silently mail a "[redacted]" or empty message.
+            if (!LogBodyRedactor::isBodyRetained($message)) {
+                ++$skipped;
+
+                continue;
+            }
+
             // Preserve the original row and log this send as a fresh child linked to it, so the resend
             // is visible as history rather than overwriting the log it was launched from.
             $smtpProvider->setResendParentId((int) $log->id)->setDebug(true);
-            $message     = Arr::get($log->details, 'message', '');
             $headers     = Arr::get($log->details, 'headers', '');
             $attachments = Arr::get($log->details, 'attachments', []);
 
             wp_mail($log->to_addr, $log->subject, trim($message), $headers, $attachments);
+            ++$resent;
         }
 
         remove_filter('wp_mail_content_type', [$this, 'setContentType']);
 
+        if ($resent === 0 && $skipped > 0) {
+            return Response::error(__('Cannot resend: the message body was not retained (log body storage is set to redacted or metadata only).', 'bit-smtp'));
+        }
+
         if ($smtpProvider->isFailed() === false) {
-            return Response::success(__('Mail resent', 'bit-smtp'));
+            return $skipped > 0
+                ? Response::success(__('Mail resent; some rows were skipped because their body was not retained.', 'bit-smtp'))
+                : Response::success(__('Mail resent', 'bit-smtp'));
         }
 
         return Response::message(__('Failed to resend mail', 'bit-smtp'))->error($smtpProvider->getDebugOutput());

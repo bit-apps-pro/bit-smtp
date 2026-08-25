@@ -9,6 +9,7 @@ use BitApps\SMTP\HTTP\Controllers\SMTPController;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
+use BitApps\SMTP\Settings\PluginSettings;
 
 /**
  * Drives SMTPController::resend end-to-end against mailpit: a manual resend must preserve the
@@ -75,6 +76,20 @@ final class ResendHistoryTest extends IntegrationTestCase
         $child = $this->details($childId);
         $this->assertSame($originalId, $child['resend_of']);
         $this->assertSame([], $child['resends']);
+    }
+
+    public function testResendSkipsALogWhoseBodyWasNotRetained(): void
+    {
+        // Under a non-full body-storage mode the stored body is dropped/redacted, so there is
+        // nothing to resend; the endpoint must skip it rather than mail an empty/placeholder body.
+        PluginSettings::make()->set('log_store_body', 'metadata')->save();
+        $originalId = $this->seedOriginalLog();
+
+        $this->resend([$originalId]);
+
+        $this->assertEmpty($this->mailpitMessages(), 'a body-less log must not be resent');
+        $this->assertSame(1, Log::query()->count(), 'no child row may be created for a skipped resend');
+        $this->assertEmpty(Log::where('resend_parent_id', $originalId)->first(), 'no resend child should exist');
     }
 
     private function seedOriginalLog(): int

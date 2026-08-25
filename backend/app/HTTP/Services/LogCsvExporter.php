@@ -46,7 +46,8 @@ final class LogCsvExporter
 
     /**
      * Project one log to its ordered, export-safe cell values (keys mirror EXPORT_SAFE_COLUMNS); the
-     * send status is humanized and recipients flattened, everything else stringified as-is.
+     * send status is humanized and the To/Cc/Bcc recipient lists flattened, everything else
+     * stringified as-is.
      *
      * @return array<string,string>
      */
@@ -57,6 +58,8 @@ final class LogCsvExporter
             'created_at'      => (string) $row->created_at,
             'status'          => $row->status ? 'sent' : 'failed',
             'to_addr'         => $this->flattenRecipients($row->to_addr),
+            'cc'              => $this->flattenRecipients($row->cc),
+            'bcc'             => $this->flattenRecipients($row->bcc),
             'subject'         => (string) $row->subject,
             'connection'      => (string) $row->connection,
             'sender'          => (string) $row->sender,
