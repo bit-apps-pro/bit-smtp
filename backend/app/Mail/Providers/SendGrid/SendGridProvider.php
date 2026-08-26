@@ -62,11 +62,6 @@ class SendGridProvider implements ProviderInterface
         return ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY];
     }
 
-    public function deliveryStatusOnAccept(): ?string
-    {
-        return null;
-    }
-
     public function fields(): array
     {
         return [

@@ -46,10 +46,9 @@ class PhpSendmailProviderTest extends BaseUnitTestCase
         $this->assertSame([], $this->provider->validator()->validate([], []));
     }
 
-    public function testProviderHasNoRemoteAuthTrackingOrDeliveryClaim(): void
+    public function testProviderHasNoRemoteAuthOrTracking(): void
     {
         $this->assertSame(['type' => 'none', 'params' => []], $this->provider->authConfig());
         $this->assertSame([], $this->provider->tracking());
-        $this->assertNull($this->provider->deliveryStatusOnAccept());
     }
 }

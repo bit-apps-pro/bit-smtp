@@ -65,9 +65,4 @@ class PhpSendmailProvider implements ProviderInterface
     {
         return [];
     }
-
-    public function deliveryStatusOnAccept(): ?string
-    {
-        return null;
-    }
 }

@@ -5,7 +5,6 @@ namespace BitApps\SMTP\Mail\Providers\AmazonSes;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
-use BitApps\SMTP\Mail\Status\DeliveryStatus;
 
 class SesProvider implements ProviderInterface
 {
@@ -60,15 +59,6 @@ class SesProvider implements ProviderInterface
     public function tracking(): array
     {
         return [];
-    }
-
-    /**
-     * SES send success proves only that SES accepted the message. Delivery events would arrive via
-     * SNS, which this integration does not receive, so this must not imply recipient delivery.
-     */
-    public function deliveryStatusOnAccept(): ?string
-    {
-        return DeliveryStatus::ACCEPTED;
     }
 
     public function fields(): array

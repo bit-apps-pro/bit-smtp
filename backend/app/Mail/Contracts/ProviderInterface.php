@@ -37,11 +37,4 @@ interface ProviderInterface
      * ['channel' => 'metadata'|'header', 'key' => string], or [] when it can't round-trip one.
      */
     public function tracking(): array;
-
-    /**
-     * The non-terminal status a successful transport hand-off may persist: DeliveryStatus::ACCEPTED
-     * or null. Terminal values always require a verified, correlated webhook event and must never be
-     * inferred from a transport response.
-     */
-    public function deliveryStatusOnAccept(): ?string;
 }

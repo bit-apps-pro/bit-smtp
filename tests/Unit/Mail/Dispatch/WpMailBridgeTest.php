@@ -516,7 +516,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testAcceptedSendNeverPromotesAProviderHandoffToDelivered(): void
     {
-        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), 'delivered');
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]));
 
         $logService = Mockery::mock(LogService::class);
         $logService->shouldReceive('bulkInsert')
@@ -559,7 +559,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
         // A provider with an inbound adapter and the webhook enabled still gets stamped accepted at
         // hand-off time: a non-public install may never receive the webhook, so a floor the rollup can
         // later overwrite is stamped instead of leaving the row permanently null.
-        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), null, 'postmark');
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), 'postmark');
 
         $logService = Mockery::mock(LogService::class);
         $logService->shouldReceive('bulkInsert')
@@ -579,7 +579,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
     {
         // The adapter exists but this connection disabled callbacks. The API hand-off is still only
         // accepted; no terminal delivery value may be persisted until a verified callback arrives.
-        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), null, 'postmark');
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), 'postmark');
 
         $logService = Mockery::mock(LogService::class);
         $logService->shouldReceive('bulkInsert')
@@ -603,7 +603,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
     {
         // An accepted-but-partial send (2xx carrying a per-message error) is a failure row, so a
         // provider's send-accept delivery status must not be stamped onto it.
-        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::acceptedWithError('Recipient rejected', '200')]), 'delivered');
+        $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::acceptedWithError('Recipient rejected', '200')]));
 
         $logService = Mockery::mock(LogService::class);
         $logService->shouldReceive('bulkInsert')
@@ -1103,10 +1103,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         return $bridge;
     }
 
-    private function bridgeWithTransport(TransportInterface $transport, ?string $deliveryStatusOnAccept = null, string $providerKey = 'fake'): WpMailBridge
+    private function bridgeWithTransport(TransportInterface $transport, string $providerKey = 'fake'): WpMailBridge
     {
         $registry = new ProviderRegistry();
-        $registry->register(new FakeProvider($transport, $deliveryStatusOnAccept, $providerKey));
+        $registry->register(new FakeProvider($transport, $providerKey));
 
         $refClass = new ReflectionClass(WpMailBridge::class);
         $bridge   = $refClass->newInstanceWithoutConstructor();
@@ -1224,15 +1224,12 @@ final class FakeProvider implements ProviderInterface
 {
     private TransportInterface $transport;
 
-    private ?string $deliveryStatusOnAccept;
-
     private string $providerKey;
 
-    public function __construct(TransportInterface $transport, ?string $deliveryStatusOnAccept = null, string $providerKey = 'fake')
+    public function __construct(TransportInterface $transport, string $providerKey = 'fake')
     {
-        $this->transport              = $transport;
-        $this->deliveryStatusOnAccept = $deliveryStatusOnAccept;
-        $this->providerKey            = $providerKey;
+        $this->transport   = $transport;
+        $this->providerKey = $providerKey;
     }
 
     public function key(): string
@@ -1283,10 +1280,5 @@ final class FakeProvider implements ProviderInterface
     public function tracking(): array
     {
         return ['channel' => 'metadata', 'key' => 'bit_tracking_id'];
-    }
-
-    public function deliveryStatusOnAccept(): ?string
-    {
-        return $this->deliveryStatusOnAccept;
     }
 }

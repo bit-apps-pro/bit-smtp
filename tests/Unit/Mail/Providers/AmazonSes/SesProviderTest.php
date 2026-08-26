@@ -6,7 +6,6 @@ use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesProvider;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesValidator;
-use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Mockery;
 
@@ -43,11 +42,6 @@ class SesProviderTest extends BaseUnitTestCase
     public function testDefaultsReturnsEmptyArray(): void
     {
         $this->assertSame([], $this->provider->defaults());
-    }
-
-    public function testDeliveryStatusOnAcceptOnlyReportsProviderHandoff(): void
-    {
-        $this->assertSame(DeliveryStatus::ACCEPTED, $this->provider->deliveryStatusOnAccept());
     }
 
     public function testFieldsExposesAccessKeySecretKeyAndRegion(): void
