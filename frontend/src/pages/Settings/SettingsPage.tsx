@@ -30,29 +30,6 @@ interface SaveOutcome {
   message?: string
 }
 
-/** Split the loaded preferences blob into the Form-bound value shape. */
-function toPreferencesFormValues(preferences: Preferences): PreferencesFormValues {
-  return {
-    logging_enabled: preferences.logging_enabled,
-    log_retention_days: preferences.log_retention_days,
-    log_store_body: preferences.log_store_body,
-    send_timeout_seconds: preferences.send_timeout_seconds,
-    retry_enabled: preferences.retry_enabled,
-    retry_max_attempts: preferences.retry_max_attempts,
-    retry_backoff: preferences.retry_backoff,
-    // Bound as-is (empty [] stays "retry all"); the Reliability multi-select edits this in place.
-    retry_on_classes: preferences.retry_on_classes,
-    health_check_enabled: preferences.health_check_enabled,
-    health_check_interval: preferences.health_check_interval,
-    notify_cooldown_minutes: preferences.notify_cooldown_minutes,
-    // Opt-in only: the stored subscription is bound as-is (an empty [] stays "no alerts"), never
-    // auto-defaulted on load — otherwise a deliberately-empty selection would silently re-subscribe.
-    notify_events: preferences.notify_events,
-    uninstall_purge: preferences.uninstall_purge,
-    tracking_enabled: preferences.tracking_enabled
-  }
-}
-
 export default function SettingsPage() {
   const { token } = theme.useToken()
   const [prefsForm] = Form.useForm<PreferencesFormValues>()
@@ -67,7 +44,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (preferences) {
-      prefsForm.setFieldsValue(toPreferencesFormValues(preferences))
+      prefsForm.setFieldsValue(preferences)
     }
   }, [prefsForm, preferences])
 
@@ -108,7 +85,7 @@ export default function SettingsPage() {
 
   // Single per-store snapshot of the loaded values, reused for both the dirty check (compared
   // against the live watch) and, below, the status-strip fallback / Form initialValues.
-  const prefsInitialValues = toPreferencesFormValues(preferences)
+  const prefsInitialValues = preferences
   const alertsInitialValues = toAlertsFormValues(settings)
   const prefsDirty = Boolean(watchedPrefs && !valuesEqual(watchedPrefs, prefsInitialValues))
   const alertsDirty = Boolean(watchedAlerts && !valuesEqual(watchedAlerts, alertsInitialValues))

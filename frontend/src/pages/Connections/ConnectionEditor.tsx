@@ -151,12 +151,14 @@ function WebhookHealth({
   provisioning,
   verified,
   lastEventAt,
-  providerLabel
+  providerLabel,
+  providerKey
 }: {
   provisioning: WebhookProvisioning | null | undefined
   verified: boolean
   lastEventAt: string | undefined
   providerLabel: string
+  providerKey: string
 }) {
   const { token } = theme.useToken()
 
@@ -193,9 +195,15 @@ function WebhookHealth({
           type="info"
           showIcon
           message={__('Manual setup needed for %s').replace('%s', providerLabel)}
-          description={__(
-            'Automatic registration isn’t available for this provider — register the URL above manually in the provider’s dashboard. For Amazon SES, subscribe an SNS topic (bounce/complaint/delivery) to this URL.'
-          )}
+          description={
+            providerKey === 'amazon_ses'
+              ? __(
+                  'Amazon SES has no webhook API — subscribe an SNS topic (bounce/complaint/delivery) to the URL above to receive delivery status.'
+                )
+              : __(
+                  'Automatic registration isn’t available for this provider — register the URL above manually in the provider’s dashboard.'
+                )
+          }
         />
       )
     case 'unavailable':
@@ -272,6 +280,7 @@ function WebhookPanel({ connection, provider }: { connection: Connection; provid
         verified={verified}
         lastEventAt={connection.settings?.webhook_last_event_at as string | undefined}
         providerLabel={provider.label}
+        providerKey={provider.key}
       />
       {provider.supports_webhook_provisioning === true && connection.id && (
         <Button

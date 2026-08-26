@@ -51,8 +51,6 @@ function StatTile({
 
 /** Columns for the top-clicked-links table: the full URL (ellipsised, tooltip) and its hit split. */
 function clickedLinkColumns(): TableColumnsType<ClickedLink> {
-  const count = (value: number) => formatExactNumber(value)
-
   return [
     {
       title: __('Link'),
@@ -65,16 +63,30 @@ function clickedLinkColumns(): TableColumnsType<ClickedLink> {
         </Tooltip>
       )
     },
-    { title: __('Human'), dataIndex: 'human', key: 'human', align: 'right', width: 90, render: count },
+    {
+      title: __('Human'),
+      dataIndex: 'human',
+      key: 'human',
+      align: 'right',
+      width: 90,
+      render: formatExactNumber
+    },
     {
       title: __('Automated'),
       dataIndex: 'automated',
       key: 'automated',
       align: 'right',
       width: 110,
-      render: count
+      render: formatExactNumber
     },
-    { title: __('Total'), dataIndex: 'total', key: 'total', align: 'right', width: 80, render: count }
+    {
+      title: __('Total'),
+      dataIndex: 'total',
+      key: 'total',
+      align: 'right',
+      width: 80,
+      render: formatExactNumber
+    }
   ]
 }
 

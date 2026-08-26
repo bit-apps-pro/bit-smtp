@@ -421,14 +421,24 @@ final class MailAnalyticsService
      */
     private function engagementCounts(array $engagement, string $channel): array
     {
-        $hits      = (int) ($engagement[$channel . '_hits'] ?? 0);
-        $automated = (int) ($engagement[$channel . '_automated_hits'] ?? 0);
+        return $this->humanSplit(
+            (int) ($engagement[$channel . '_hits'] ?? 0),
+            (int) ($engagement[$channel . '_automated_hits'] ?? 0)
+        ) + ['unique' => (int) ($engagement[$channel . '_rows'] ?? 0)];
+    }
 
+    /**
+     * The total/automated/human split shared by the opens/clicks tiles and the top-clicked-links rows,
+     * holding the human figure at or above zero even if the automated counter should exceed total hits.
+     *
+     * @return array{total:int,automated:int,human:int}
+     */
+    private function humanSplit(int $hits, int $automated): array
+    {
         return [
             'total'     => $hits,
             'automated' => $automated,
             'human'     => max(0, $hits - $automated),
-            'unique'    => (int) ($engagement[$channel . '_rows'] ?? 0),
         ];
     }
 
@@ -442,16 +452,9 @@ final class MailAnalyticsService
      */
     private function clickedLinks(array $links): array
     {
-        return array_map(static function (array $link): array {
-            $hits      = (int) $link['hits'];
-            $automated = (int) $link['automated_hits'];
-
-            return [
-                'target'    => (string) $link['target'],
-                'total'     => $hits,
-                'automated' => $automated,
-                'human'     => max(0, $hits - $automated),
-            ];
+        return array_map(function (array $link): array {
+            return ['target' => (string) $link['target']]
+                + $this->humanSplit((int) $link['hits'], (int) $link['automated_hits']);
         }, $links);
     }
 

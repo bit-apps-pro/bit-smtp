@@ -373,8 +373,8 @@ class MailConfigService
         }
 
         $data = $current->toArray();
-        foreach ($data['connections'] as $i => $connection) {
-            if (($connection['id'] ?? '') !== $connectionId) {
+        foreach ($data['connections'] as $i => $row) {
+            if (($row['id'] ?? '') !== $connectionId) {
                 continue;
             }
 
