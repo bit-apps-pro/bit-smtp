@@ -98,6 +98,42 @@ final class ResendWebhookServiceTest extends BaseUnitTestCase
         (new ResendWebhookService($this->client, $this->auth))->ensure($this->connection());
     }
 
+    public function testDeregisterDeletesTheWebhookMatchingOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->with(self::ENDPOINT, [])->andReturn(new ApiResponse(200, [
+            'data' => [
+                ['id' => 're_wh_other', 'endpoint' => 'https://other.test/hook'],
+                ['id' => 're_wh_ours', 'endpoint' => self::WEBHOOK_URL],
+            ],
+        ]));
+        $this->client->shouldReceive('delete')->once()->with(self::ENDPOINT . '/re_wh_ours')->andReturn(new ApiResponse(200, []));
+
+        (new ResendWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenNoWebhookMatchesOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'data' => [
+                ['id' => 're_wh_other', 'endpoint' => 'https://other.test/hook'],
+            ],
+        ]));
+        $this->client->shouldNotReceive('delete');
+
+        (new ResendWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenListingFails(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(500, []));
+        $this->client->shouldNotReceive('delete');
+
+        (new ResendWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
     /**
      * Stand-in for BearerTokenStrategy: writes the connection's api_key as a Bearer header onto the
      * request, proving the provisioner forwards whatever the auth strategy produced onto the client.

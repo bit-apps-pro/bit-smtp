@@ -59,6 +59,13 @@ final class SparkPostWebhookService extends AbstractWebhookProvisioner
         return ['created' => true, 'id' => $id];
     }
 
+    public function deregister(Connection $connection): void
+    {
+        $this->assertProvider($connection, 'sparkpost');
+        $base = $this->endpoint($connection);
+        $this->deregisterMatchedWebhook($connection, $base, [], 'results', 'target', 'id', $base . '/');
+    }
+
     private function endpoint(Connection $connection): string
     {
         $region = (string) $connection->setting('region', '');

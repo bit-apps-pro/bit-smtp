@@ -101,6 +101,42 @@ final class SparkPostWebhookServiceTest extends BaseUnitTestCase
         (new SparkPostWebhookService($this->client, $this->auth))->ensure($this->connection());
     }
 
+    public function testDeregisterDeletesTheWebhookMatchingOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->with(self::US_ENDPOINT, [])->andReturn(new ApiResponse(200, [
+            'results' => [
+                ['id' => 'sp_wh_other', 'target' => 'https://other.test/hook'],
+                ['id' => 'sp_wh_ours', 'target' => self::WEBHOOK_URL],
+            ],
+        ]));
+        $this->client->shouldReceive('delete')->once()->with(self::US_ENDPOINT . '/sp_wh_ours')->andReturn(new ApiResponse(200, []));
+
+        (new SparkPostWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenNoWebhookMatchesOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'results' => [
+                ['id' => 'sp_wh_other', 'target' => 'https://other.test/hook'],
+            ],
+        ]));
+        $this->client->shouldNotReceive('delete');
+
+        (new SparkPostWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenListingFails(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(500, []));
+        $this->client->shouldNotReceive('delete');
+
+        (new SparkPostWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
     /**
      * Stand-in for the api_key strategy: writes the connection's api_key verbatim as the Authorization
      * header, proving the provisioner forwards whatever the auth strategy produced onto the client.

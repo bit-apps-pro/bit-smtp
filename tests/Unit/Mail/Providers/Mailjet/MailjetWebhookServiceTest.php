@@ -121,6 +121,47 @@ final class MailjetWebhookServiceTest extends BaseUnitTestCase
         (new MailjetWebhookService($this->client, $this->auth))->ensure($this->connection());
     }
 
+    public function testDeregisterDeletesEveryCallbackPointingAtOurUrl(): void
+    {
+        $this->expectSignedForJson();
+        $this->client->shouldReceive('get')->once()->with(self::ENDPOINT)->andReturn(new ApiResponse(200, [
+            'Count' => 3,
+            'Data'  => [
+                $this->existing('sent'),
+                $this->existing('bounce'),
+                ['ID' => 999, 'EventType' => 'spam', 'Url' => 'https://other.test/hook', 'Status' => 'alive', 'Version' => 2],
+            ],
+        ]));
+        $this->client->shouldReceive('delete')->once()->with(self::ENDPOINT . '/111')->andReturn(new ApiResponse(200, []));
+        $this->client->shouldReceive('delete')->once()->with(self::ENDPOINT . '/222')->andReturn(new ApiResponse(200, []));
+        $this->client->shouldNotReceive('delete')->with(self::ENDPOINT . '/999');
+
+        (new MailjetWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenNoCallbackPointsAtOurUrl(): void
+    {
+        $this->expectSignedForJson();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'Count' => 1,
+            'Data'  => [
+                ['ID' => 999, 'EventType' => 'sent', 'Url' => 'https://other.test/hook', 'Status' => 'alive', 'Version' => 2],
+            ],
+        ]));
+        $this->client->shouldNotReceive('delete');
+
+        (new MailjetWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenListingFails(): void
+    {
+        $this->expectSignedForJson();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(500, []));
+        $this->client->shouldNotReceive('delete');
+
+        (new MailjetWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
     private static function created(string $eventType): ApiResponse
     {
         return new ApiResponse(201, [

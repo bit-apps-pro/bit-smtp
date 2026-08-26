@@ -66,6 +66,24 @@ final class MailjetWebhookService extends AbstractWebhookProvisioner
         return ['created' => true, 'id' => $this->requireCreatedId($createdId, 'Mailjet')];
     }
 
+    public function deregister(Connection $connection): void
+    {
+        $this->assertProvider($connection, 'mailjet');
+
+        $url = $this->webhookUrl($connection);
+        $this->applyAuth($connection, 'application/json');
+
+        $existing = $this->client->get(self::ENDPOINT);
+        if (!$existing->isOk()) {
+            return;
+        }
+
+        // Mailjet keeps one entry per event type; delete only the entries whose Url is ours, by their id.
+        foreach ($this->registeredEventTypes($existing->getBody(), $url) as $id) {
+            $this->client->delete(self::ENDPOINT . '/' . rawurlencode($id));
+        }
+    }
+
     /**
      * Map EventType => ID for the entries already pointing at our URL — the ones we can safely skip.
      * A different URL on the same EventType is left untouched (we only ever add ours).

@@ -300,8 +300,11 @@ class MailConfigService
      */
     public function deleteConnection(string $id): bool
     {
-        $current     = $this->load();
-        $data        = $current->toArray();
+        $current = $this->load();
+        // Capture the connection before removal so its webhook URL (needed to deregister the provider-
+        // side webhook) is still resolvable.
+        $removed = $current->getConnections()->byId($id);
+        $data    = $current->toArray();
         $connections = array_values(array_filter(
             $data['connections'],
             static function (array $c) use ($id): bool {
@@ -339,10 +342,13 @@ class MailConfigService
         $stored    = $this->store(MailSettings::fromArray($sanitized));
         $this->reload();
 
-        // Evict the health record only once the connection is actually gone, so every caller
-        // (REST, WP-CLI, tests) drops the stale row instead of leaving it for the next prune.
+        // Evict the health record and deregister the provider-side webhook only once the connection is
+        // actually gone, so every caller (REST, WP-CLI, tests) cleans up instead of leaving orphans.
         if ($stored) {
             $this->forgetConnectionHealth($id);
+            if ($removed !== null) {
+                $this->deregisterConnectionWebhook($removed);
+            }
         }
 
         return $stored;
@@ -488,6 +494,21 @@ class MailConfigService
         } catch (Throwable $e) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without failing the delete
             error_log('Bit SMTP: failed to clear connection health on delete: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Best-effort deregister of a deleted connection's provider-side webhook so the provider stops
+     * POSTing to a URL that now 404s. deregisterFor already swallows provider/API errors; the outer
+     * guard covers a failure to even resolve the service, so a delete is never turned into an error.
+     */
+    private function deregisterConnectionWebhook(Connection $connection): void
+    {
+        try {
+            Plugin::instance()->webhookProvisioningService()->deregisterFor($connection);
+        } catch (Throwable $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without failing the delete
+            error_log('Bit SMTP: failed to deregister connection webhook on delete: ' . $e->getMessage());
         }
     }
 

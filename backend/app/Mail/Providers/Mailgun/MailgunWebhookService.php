@@ -68,6 +68,31 @@ final class MailgunWebhookService extends AbstractWebhookProvisioner
         return ['created' => $created, 'id' => $domain];
     }
 
+    public function deregister(Connection $connection): void
+    {
+        $this->assertProvider($connection, self::PROVIDER);
+
+        $url      = $this->webhookUrl($connection);
+        $domain   = $this->validatedDomain($connection);
+        $endpoint = $this->host($connection) . '/v3/domains/' . rawurlencode($domain) . '/webhooks';
+
+        $this->applyAuth($connection, 'application/x-www-form-urlencoded');
+
+        $existing = $this->client->get($endpoint);
+        if (!$existing->isOk()) {
+            return;
+        }
+
+        // A v3 event DELETE removes EVERY url for that event type, so only fire it when OUR url is the
+        // sole one registered — never nuke a co-tenant's url that shares the event on the same domain.
+        $registered = $this->registeredEventUrls($existing->getBody());
+        foreach (self::EVENTS as $event) {
+            if ($registered[$event] === [$url]) {
+                $this->client->delete($endpoint . '/' . rawurlencode($event));
+            }
+        }
+    }
+
     private function validatedDomain(Connection $connection): string
     {
         $domain = (string) $connection->setting('domain', '');

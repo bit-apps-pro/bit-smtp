@@ -247,6 +247,39 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
         $this->assertSame(['created' => true, 'id' => 'wh_1'], $result);
     }
 
+    public function testDeregisterForDelegatesToTheProvisioner(): void
+    {
+        $this->registry->shouldReceive('get')->with('sendgrid')->andReturn($this->bearerProvider());
+
+        $provisioner = Mockery::mock(WebhookProvisionerInterface::class);
+        $provisioner->shouldReceive('deregister')->once()->with(Mockery::type(Connection::class));
+        $this->factory->shouldReceive('forProvider')->andReturn($provisioner);
+
+        $this->service()->deregisterFor($this->connection());
+    }
+
+    public function testDeregisterForSkipsProvidersWithoutAProvisioner(): void
+    {
+        // zeptomail is webhook-capable but has no registration API, so nothing to deregister.
+        $this->factory->shouldNotReceive('forProvider');
+
+        $this->service()->deregisterFor($this->connection([], 'zeptomail'));
+    }
+
+    public function testDeregisterForSwallowsProvisionerErrors(): void
+    {
+        // A provider/API failure during deregister must never propagate — it can't block the delete.
+        $this->expectOutputRegex('/webhook deregister failed: boom/');
+
+        $this->registry->shouldReceive('get')->with('sendgrid')->andReturn($this->bearerProvider());
+
+        $provisioner = Mockery::mock(WebhookProvisionerInterface::class);
+        $provisioner->shouldReceive('deregister')->andThrow(new RuntimeException('boom'));
+        $this->factory->shouldReceive('forProvider')->andReturn($provisioner);
+
+        $this->service()->deregisterFor($this->connection());
+    }
+
     private function service(): WebhookProvisioningService
     {
         return new WebhookProvisioningService(

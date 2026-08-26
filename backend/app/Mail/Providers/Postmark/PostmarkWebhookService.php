@@ -50,4 +50,10 @@ final class PostmarkWebhookService extends AbstractWebhookProvisioner
 
         return ['created' => true, 'id' => $id];
     }
+
+    public function deregister(Connection $connection): void
+    {
+        $this->assertProvider($connection, 'postmark');
+        $this->deregisterMatchedWebhook($connection, self::ENDPOINT, ['MessageStream' => 'outbound'], 'Webhooks', 'Url', 'ID', self::ENDPOINT . '/');
+    }
 }

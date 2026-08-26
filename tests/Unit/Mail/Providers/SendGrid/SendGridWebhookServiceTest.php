@@ -80,6 +80,42 @@ final class SendGridWebhookServiceTest extends BaseUnitTestCase
         $this->assertSame(['created' => false, 'id' => 'sg_wh_existing', 'public_key' => 'PUBLIC KEY'], $result);
     }
 
+    public function testDeregisterDeletesTheWebhookMatchingOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->with('https://api.sendgrid.com/v3/user/webhooks/event/settings', [])->andReturn(new ApiResponse(200, [
+            'webhooks' => [
+                ['id' => 'sg_wh_other', 'url' => 'https://other.test/hook'],
+                ['id' => 'sg_wh_ours', 'url' => 'https://example.test/bit-smtp/conn_1/secret'],
+            ],
+        ]));
+        $this->client->shouldReceive('delete')->once()->with('https://api.sendgrid.com/v3/user/webhooks/event/settings/sg_wh_ours')->andReturn(new ApiResponse(200, []));
+
+        (new SendGridWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenNoWebhookMatchesOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'webhooks' => [
+                ['id' => 'sg_wh_other', 'url' => 'https://other.test/hook'],
+            ],
+        ]));
+        $this->client->shouldNotReceive('delete');
+
+        (new SendGridWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenListingFails(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(500, []));
+        $this->client->shouldNotReceive('delete');
+
+        (new SendGridWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
     /**
      * Stand-in for BearerTokenStrategy: writes the connection's api_key as a Bearer header onto the
      * request, proving the provisioner forwards whatever the auth strategy produced onto the client.

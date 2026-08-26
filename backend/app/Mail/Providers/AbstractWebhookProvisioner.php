@@ -32,6 +32,42 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
 
     abstract public function ensure(Connection $connection): array;
 
+    abstract public function deregister(Connection $connection): void;
+
+    /**
+     * Best-effort deregister for the providers with a single REST webhook object per URL: list, find
+     * the one whose target equals this connection's webhook URL, and DELETE it by that id. Only ever
+     * removes a webhook matching our own URL, so a sibling connection's registration is untouched;
+     * swallows every failure so a delete is never blocked.
+     *
+     * @param array<string,string> $listQuery query params for the list request (e.g. a stream filter)
+     */
+    protected function deregisterMatchedWebhook(
+        Connection $connection,
+        string $listUrl,
+        array $listQuery,
+        string $listKey,
+        string $urlKey,
+        string $idKey,
+        string $deleteUrlPrefix,
+        string $contentType = 'application/json'
+    ): void {
+        $url = $this->webhookUrl($connection);
+        $this->applyAuth($connection, $contentType);
+
+        $list = $this->client->get($listUrl, $listQuery);
+        if (!$list->isOk()) {
+            return;
+        }
+
+        $id = $this->matchWebhookId($list->getBody(), $listKey, $urlKey, $idKey, $url);
+        if ($id === null) {
+            return;
+        }
+
+        $this->client->delete($deleteUrlPrefix . rawurlencode($id));
+    }
+
     /**
      * Guard that this provisioner was handed its own provider's connection. Defensive: the factory
      * only ever pairs them, so this fires only for a direct, mismatched caller.

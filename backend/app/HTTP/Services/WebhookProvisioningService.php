@@ -105,6 +105,34 @@ final class WebhookProvisioningService
     }
 
     /**
+     * Best-effort removal of a connection's provider-side webhook (on connection delete). Never throws:
+     * a provider/API failure must not block the delete that triggered it, and it is a no-op for
+     * providers without an API provisioner or connections that never provisioned one.
+     */
+    public function deregisterFor(Connection $connection): void
+    {
+        if (!WebhookProvisionerFactory::supportsProvider($connection->getProvider())) {
+            return;
+        }
+
+        try {
+            $provider    = $this->providers->get($connection->getProvider());
+            $auth        = $this->authResolver->resolveFromConfig($provider->authConfig());
+            $provisioner = $this->factory->forProvider(
+                $connection->getProvider(),
+                $this->apiClient->withTimeout(self::PROVISION_REQUEST_TIMEOUT_SECONDS),
+                $auth
+            );
+            if ($provisioner !== null) {
+                $provisioner->deregister($connection);
+            }
+        } catch (Throwable $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without blocking the delete
+            error_log('Bit SMTP: webhook deregister failed: ' . $this->redact($e->getMessage(), $connection));
+        }
+    }
+
+    /**
      * Best-effort provisioning triggered by saving a connection. Never throws and never fails the
      * save: a provider error yields a saved connection plus a warning the caller can surface.
      *

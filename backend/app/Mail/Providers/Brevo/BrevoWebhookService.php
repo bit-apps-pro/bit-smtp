@@ -47,4 +47,10 @@ final class BrevoWebhookService extends AbstractWebhookProvisioner
 
         return ['created' => true, 'id' => $id];
     }
+
+    public function deregister(Connection $connection): void
+    {
+        $this->assertProvider($connection, 'brevo');
+        $this->deregisterMatchedWebhook($connection, self::ENDPOINT, ['type' => 'transactional'], 'webhooks', 'url', 'id', self::ENDPOINT . '/');
+    }
 }

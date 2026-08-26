@@ -90,6 +90,45 @@ final class BrevoWebhookServiceTest extends BaseUnitTestCase
         }
     }
 
+    public function testDeregisterDeletesTheWebhookMatchingOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->with(
+            'https://api.brevo.com/v3/webhooks',
+            ['type' => 'transactional']
+        )->andReturn(new ApiResponse(200, [
+            'webhooks' => [
+                ['id' => 3, 'url' => 'https://other.test/hook'],
+                ['id' => 7, 'url' => 'https://example.test/bit-smtp/conn_1/secret'],
+            ],
+        ]));
+        $this->client->shouldReceive('delete')->once()->with('https://api.brevo.com/v3/webhooks/7')->andReturn(new ApiResponse(200, []));
+
+        (new BrevoWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenNoWebhookMatchesOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'webhooks' => [
+                ['id' => 3, 'url' => 'https://other.test/hook'],
+            ],
+        ]));
+        $this->client->shouldNotReceive('delete');
+
+        (new BrevoWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenListingFails(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(500, []));
+        $this->client->shouldNotReceive('delete');
+
+        (new BrevoWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
     /**
      * Stand-in for the Brevo api_key strategy: writes the connection's api_key as the api-key header,
      * proving the provisioner forwards whatever the auth strategy produced onto the client.

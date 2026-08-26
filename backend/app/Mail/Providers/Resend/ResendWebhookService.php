@@ -55,4 +55,10 @@ final class ResendWebhookService extends AbstractWebhookProvisioner
 
         return $result;
     }
+
+    public function deregister(Connection $connection): void
+    {
+        $this->assertProvider($connection, 'resend');
+        $this->deregisterMatchedWebhook($connection, self::ENDPOINT, [], 'data', 'endpoint', 'id', self::ENDPOINT . '/');
+    }
 }

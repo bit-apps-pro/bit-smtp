@@ -93,6 +93,45 @@ final class PostmarkWebhookServiceTest extends BaseUnitTestCase
         }
     }
 
+    public function testDeregisterDeletesTheWebhookMatchingOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->with(
+            'https://api.postmarkapp.com/webhooks',
+            ['MessageStream' => 'outbound']
+        )->andReturn(new ApiResponse(200, [
+            'Webhooks' => [
+                ['ID' => 2, 'Url' => 'https://other.test/hook'],
+                ['ID' => 5, 'Url' => 'https://example.test/bit-smtp/conn_1/secret'],
+            ],
+        ]));
+        $this->client->shouldReceive('delete')->once()->with('https://api.postmarkapp.com/webhooks/5')->andReturn(new ApiResponse(200, []));
+
+        (new PostmarkWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenNoWebhookMatchesOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'Webhooks' => [
+                ['ID' => 2, 'Url' => 'https://other.test/hook'],
+            ],
+        ]));
+        $this->client->shouldNotReceive('delete');
+
+        (new PostmarkWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenListingFails(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(500, []));
+        $this->client->shouldNotReceive('delete');
+
+        (new PostmarkWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
     /**
      * Stand-in for the Postmark api_key strategy: writes the connection's api_key as the server-token
      * header, proving the provisioner forwards whatever the auth strategy produced onto the client.

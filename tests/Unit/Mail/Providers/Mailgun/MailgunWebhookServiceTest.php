@@ -150,6 +150,62 @@ final class MailgunWebhookServiceTest extends BaseUnitTestCase
         $this->assertSame(['created' => true, 'id' => 'mg.example.com'], $result);
     }
 
+    public function testDeregisterDeletesEveryEventWhoseSoleUrlIsOurs(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->with(self::US_BASE)->andReturn(new ApiResponse(200, [
+            'webhooks' => [
+                'delivered'      => ['urls' => [self::WEBHOOK_URL]],
+                'permanent_fail' => ['urls' => [self::WEBHOOK_URL]],
+                'temporary_fail' => ['urls' => [self::WEBHOOK_URL]],
+            ],
+        ]));
+        foreach (self::EVENTS as $event) {
+            $this->client->shouldReceive('delete')->once()->with(self::US_BASE . '/' . $event)->andReturn(new ApiResponse(200, []));
+        }
+
+        (new MailgunWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterSkipsAnEventThatSharesOurUrlWithACoTenant(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->with(self::US_BASE)->andReturn(new ApiResponse(200, [
+            'webhooks' => [
+                'delivered'      => ['urls' => [self::WEBHOOK_URL]],
+                'permanent_fail' => ['urls' => [self::WEBHOOK_URL]],
+                'temporary_fail' => ['urls' => ['https://old.example/hook', self::WEBHOOK_URL]],
+            ],
+        ]));
+        $this->client->shouldReceive('delete')->once()->with(self::US_BASE . '/delivered')->andReturn(new ApiResponse(200, []));
+        $this->client->shouldReceive('delete')->once()->with(self::US_BASE . '/permanent_fail')->andReturn(new ApiResponse(200, []));
+        $this->client->shouldNotReceive('delete')->with(self::US_BASE . '/temporary_fail');
+
+        (new MailgunWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenNoEventPointsAtOurUrl(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->with(self::US_BASE)->andReturn(new ApiResponse(200, [
+            'webhooks' => [
+                'delivered' => ['urls' => ['https://old.example/hook']],
+            ],
+        ]));
+        $this->client->shouldNotReceive('delete');
+
+        (new MailgunWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterIsANoOpWhenListingFails(): void
+    {
+        $this->client->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->client->shouldReceive('get')->once()->with(self::US_BASE)->andReturn(new ApiResponse(500, []));
+        $this->client->shouldNotReceive('delete');
+
+        (new MailgunWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
     /**
      * Stand-in for the Basic strategy: writes "api:{api_key}" as a Basic header onto the request,
      * proving the provisioner forwards whatever the auth strategy produced onto the client.
