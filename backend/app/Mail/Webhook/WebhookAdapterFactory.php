@@ -10,6 +10,7 @@ use BitApps\SMTP\Mail\Webhook\Adapters\MailjetWebhookAdapter;
 use BitApps\SMTP\Mail\Webhook\Adapters\PostmarkWebhookAdapter;
 use BitApps\SMTP\Mail\Webhook\Adapters\ResendWebhookAdapter;
 use BitApps\SMTP\Mail\Webhook\Adapters\SendGridWebhookAdapter;
+use BitApps\SMTP\Mail\Webhook\Adapters\SesSnsWebhookAdapter;
 use BitApps\SMTP\Mail\Webhook\Adapters\SparkPostWebhookAdapter;
 use BitApps\SMTP\Mail\Webhook\Adapters\ZeptoWebhookAdapter;
 use BitApps\SMTP\Mail\Webhook\Contracts\WebhookAdapterInterface;
@@ -35,6 +36,9 @@ final class WebhookAdapterFactory
         'mailjet'   => MailjetWebhookAdapter::class,
         'sparkpost' => SparkPostWebhookAdapter::class,
         'zeptomail' => ZeptoWebhookAdapter::class,
+        // SES has no provider webhook API — it delivers bounce/complaint/delivery over SNS, which the
+        // user wires manually to this endpoint; the adapter parses the SNS-wrapped SES notification.
+        'amazon_ses' => SesSnsWebhookAdapter::class,
     ];
 
     public static function supportsProvider(string $provider): bool

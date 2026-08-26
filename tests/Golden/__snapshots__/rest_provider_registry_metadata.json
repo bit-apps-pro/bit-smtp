@@ -168,7 +168,7 @@
         "key": "amazon_ses",
         "label": "Amazon SES",
         "kind": "api",
-        "supports_webhook": false,
+        "supports_webhook": true,
         "supports_webhook_provisioning": false,
         "fields": [
             {

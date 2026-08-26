@@ -16,7 +16,9 @@ final class WebhookAdapterFactoryTest extends BaseUnitTestCase
     {
         $factory = new WebhookAdapterFactory();
 
-        foreach (['postmark', 'brevo', 'sendgrid', 'mailgun', 'resend', 'mailjet', 'sparkpost', 'zeptomail'] as $provider) {
+        // amazon_ses receives bounce/complaint/delivery over SNS (not a provider HTTP webhook), so it
+        // resolves the SNS adapter too.
+        foreach (['postmark', 'brevo', 'sendgrid', 'mailgun', 'resend', 'mailjet', 'sparkpost', 'zeptomail', 'amazon_ses'] as $provider) {
             $this->assertNotNull($factory->forProvider($provider), $provider);
         }
     }
@@ -25,7 +27,7 @@ final class WebhookAdapterFactoryTest extends BaseUnitTestCase
     {
         $factory = new WebhookAdapterFactory();
 
-        foreach (['amazon_ses', 'gmail', 'microsoft365', 'other_smtp', 'unknown'] as $provider) {
+        foreach (['gmail', 'microsoft365', 'other_smtp', 'unknown'] as $provider) {
             $this->assertNull($factory->forProvider($provider), $provider);
         }
     }

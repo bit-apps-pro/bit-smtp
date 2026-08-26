@@ -59,10 +59,11 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
             $this->assertArrayNotHasKey('oauth_redirect_url', $byKey[$key], "{$key} must not expose an OAuth callback URL");
         }
 
-        foreach (['sendgrid', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost'] as $key) {
+        // amazon_ses has a live receiver too — SES bounce/complaint/delivery arrive over SNS.
+        foreach (['sendgrid', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost', 'amazon_ses'] as $key) {
             $this->assertTrue($byKey[$key]['supports_webhook'], "{$key} must expose its live webhook receiver");
         }
-        foreach (['other_smtp', 'php_sendmail', 'gmail', 'amazon_ses', 'cloudflare', 'microsoft365'] as $key) {
+        foreach (['other_smtp', 'php_sendmail', 'gmail', 'cloudflare', 'microsoft365'] as $key) {
             $this->assertFalse($byKey[$key]['supports_webhook'], "{$key} must not advertise an unimplemented webhook");
         }
 

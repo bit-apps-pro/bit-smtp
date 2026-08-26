@@ -61,6 +61,22 @@ class SesTransport extends AbstractApiTransport
     }
 
     /**
+     * The SES v2 SendEmail response returns the assigned MessageId, which is the exact id that later
+     * arrives as `mail.messageId` in an SNS bounce/complaint/delivery notification — capture it so
+     * those events can be correlated back to this log.
+     *
+     * @param array<string,mixed>|string $body
+     */
+    protected function messageIdFrom(int $status, $body): ?string
+    {
+        if ($status === 200 && \is_array($body) && !empty($body['MessageId'])) {
+            return (string) $body['MessageId'];
+        }
+
+        return null;
+    }
+
+    /**
      * SES has no 2xx-with-error-body case: accepted and successful are the same status check.
      *
      * @param array|string $body

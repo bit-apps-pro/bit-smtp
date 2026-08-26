@@ -37,7 +37,7 @@ class MailConfigService
      */
     private const MANAGED_WEBHOOK_SETTING_KEYS = [
         'webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key', 'webhook_provisioned_url',
-        'webhook_provisioning_status', 'webhook_provisioning_reason', 'webhook_provisioning_updated_at',
+        'webhook_provisioning_status', 'webhook_provisioning_reason', 'webhook_provisioning_updated_at', 'webhook_sns_account_id',
     ];
 
     /**
@@ -303,8 +303,8 @@ class MailConfigService
         $current = $this->load();
         // Capture the connection before removal so its webhook URL (needed to deregister the provider-
         // side webhook) is still resolvable.
-        $removed = $current->getConnections()->byId($id);
-        $data    = $current->toArray();
+        $removed     = $current->getConnections()->byId($id);
+        $data        = $current->toArray();
         $connections = array_values(array_filter(
             $data['connections'],
             static function (array $c) use ($id): bool {

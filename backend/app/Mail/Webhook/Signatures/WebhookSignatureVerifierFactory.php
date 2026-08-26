@@ -19,6 +19,9 @@ final class WebhookSignatureVerifierFactory
         'mailgun'   => MailgunWebhookSignatureVerifier::class,
         'resend'    => ResendWebhookSignatureVerifier::class,
         'zeptomail' => ZeptoWebhookSignatureVerifier::class,
+        // SES delivery events arrive over Amazon SNS; the message is authenticated by its AWS SNS
+        // signature (SigningCertURL host-allow-listed before fetch), not a provider HMAC.
+        'amazon_ses' => SnsSignatureVerifier::class,
         // postmark/brevo/mailjet/sparkpost are intentionally absent: per each provider's own docs
         // they do NOT cryptographically sign the event payload (they offer HTTP Basic Auth / a
         // shared secret in the callback URL / IP allowlisting only). The per-connection URL secret

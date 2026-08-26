@@ -194,7 +194,7 @@ function WebhookHealth({
           showIcon
           message={__('Manual setup needed for %s').replace('%s', providerLabel)}
           description={__(
-            'Automatic webhook registration isn’t available for this provider — register the URL above manually in its dashboard.'
+            'Automatic registration isn’t available for this provider — register the URL above manually in the provider’s dashboard. For Amazon SES, subscribe an SNS topic (bounce/complaint/delivery) to this URL.'
           )}
         />
       )

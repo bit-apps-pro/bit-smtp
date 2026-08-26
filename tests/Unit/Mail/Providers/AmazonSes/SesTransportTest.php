@@ -11,6 +11,7 @@ use BitApps\SMTP\Mail\Message\MimeBuilder;
 use BitApps\SMTP\Mail\Providers\AmazonSes\SesTransport;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Mockery;
+use ReflectionMethod;
 
 /**
  * @internal
@@ -243,6 +244,26 @@ class SesTransportTest extends BaseUnitTestCase
         $this->assertSame('SES error HTTP 500', $result->getError());
     }
 
+    public function testMessageIdFromReturnsMessageIdOnStatus200WithArrayBody(): void
+    {
+        $this->assertSame('ses-abc', $this->messageIdFrom(200, ['MessageId' => 'ses-abc']));
+    }
+
+    public function testMessageIdFromReturnsNullOnStatus200WithoutMessageId(): void
+    {
+        $this->assertNull($this->messageIdFrom(200, ['ResponseMetadata' => []]));
+    }
+
+    public function testMessageIdFromReturnsNullOnNon200EvenWithMessageId(): void
+    {
+        $this->assertNull($this->messageIdFrom(400, ['MessageId' => 'ses-abc']));
+    }
+
+    public function testMessageIdFromReturnsNullForStringBody(): void
+    {
+        $this->assertNull($this->messageIdFrom(200, 'MessageId=ses-abc'));
+    }
+
     /**
      * The region SSRF guard now lives in AwsSigV4Strategy: it validates the region before signing,
      * so a malformed region still aborts the send before the API client is ever touched. The MIME
@@ -258,6 +279,15 @@ class SesTransportTest extends BaseUnitTestCase
 
         $this->assertFalse($result->isOk());
         $this->assertSame('Invalid AWS region: ' . json_encode($region), $result->getError());
+    }
+
+    /**
+     * @param array<string,mixed>|string $body
+     */
+    private function messageIdFrom(int $status, $body): ?string
+    {
+        // No setAccessible(): protected-method invocation needs no unlocking since PHP 8.1.
+        return (new ReflectionMethod($this->transport, 'messageIdFrom'))->invoke($this->transport, $status, $body);
     }
 
     private function message(): MailMessage
