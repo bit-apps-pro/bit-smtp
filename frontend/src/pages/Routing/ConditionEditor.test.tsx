@@ -23,7 +23,7 @@ describe('ConditionEditor', () => {
     )
 
     expect(screen.getByRole('combobox', { name: 'Field' })).toBeInTheDocument()
-    expect(screen.getByText('Recipient')).toBeInTheDocument()
+    expect(screen.getByText('To recipient')).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Operator' })).toBeInTheDocument()
     expect(screen.getByText('Equals')).toBeInTheDocument()
     expect(screen.getByLabelText('Value')).toHaveValue('a@b.com')

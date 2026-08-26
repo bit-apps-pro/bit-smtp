@@ -9,7 +9,8 @@ import {
 import { AutoComplete, Button, Flex, Input, Select } from 'antd'
 
 const FIELD_OPTIONS: { value: RoutingField; label: string }[] = [
-  { value: 'recipient', label: __('Recipient') },
+  // Labelled "To recipient" (not "Recipient"): the matcher only sees the To address, never Cc/Bcc.
+  { value: 'recipient', label: __('To recipient') },
   { value: 'from', label: __('From') },
   { value: 'subject', label: __('Subject') },
   { value: 'source_plugin', label: __('Source plugin') }
