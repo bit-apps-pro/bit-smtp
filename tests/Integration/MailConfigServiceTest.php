@@ -966,6 +966,132 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame('conn_2', $routing[0]['connectionId']);
     }
 
+    public function testDisconnectOAuthClearsTokensButKeepsClientCredentialsAndConnection(): void
+    {
+        $this->freshService()->saveSettings([
+            'schema_version'          => 2,
+            'enabled'                 => true,
+            'default_connection_id'   => 'conn_oauth',
+            'fallback_connection_ids' => [],
+            'connections'             => [[
+                'id'           => 'conn_oauth',
+                'provider'     => 'gmail',
+                'kind'         => 'oauth',
+                'name'         => 'Gmail',
+                'enabled'      => true,
+                'fromEmail'    => 'a@example.com',
+                'fromName'     => 'A',
+                'replyToEmail' => '',
+                'settings'     => ['token_expires_at' => 9999999999],
+                'credentials'  => [
+                    'client_secret' => ['source' => 'database', 'value' => 'orig-client-secret'],
+                    'access_token'  => ['source' => 'database', 'value' => 'orig-access-token'],
+                    'refresh_token' => ['source' => 'database', 'value' => 'orig-refresh-token'],
+                ],
+            ]],
+            'features' => [],
+        ]);
+
+        $this->assertTrue($this->freshService()->disconnectOAuth('conn_oauth'));
+
+        $reloaded = $this->freshService()->load()->getConnections()->byId('conn_oauth');
+        $this->assertNotNull($reloaded, 'the connection itself must survive a disconnect');
+        $creds = $reloaded->getCredentials();
+        $this->assertArrayNotHasKey('access_token', $creds);
+        $this->assertArrayNotHasKey('refresh_token', $creds);
+        $this->assertSame('orig-client-secret', $creds['client_secret']['value'] ?? null);
+        $this->assertArrayNotHasKey('token_expires_at', $reloaded->getSettings());
+        // It was the only (and default) connection, so the default clears rather than pointing at
+        // the now-unsendable connection.
+        $this->assertSame('', $this->freshService()->load()->getDefaultConnectionId());
+    }
+
+    public function testDisconnectOAuthLeavesADifferentDefaultUntouched(): void
+    {
+        // A working SMTP connection is the default; disconnecting a non-default OAuth connection must
+        // clear that connection's tokens without repointing the unrelated default.
+        $data                  = $this->v2SettingsArray('conn_smtp', 'pw');
+        $data['connections'][] = [
+            'id'           => 'conn_oauth',
+            'provider'     => 'gmail',
+            'kind'         => 'oauth',
+            'name'         => 'Gmail',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['token_expires_at' => 9999999999],
+            'credentials'  => [
+                'client_secret' => ['source' => 'database', 'value' => 'cs'],
+                'refresh_token' => ['source' => 'database', 'value' => 'rt'],
+            ],
+        ];
+        $this->freshService()->saveSettings($data);
+        $this->assertSame('conn_smtp', $this->freshService()->load()->getDefaultConnectionId());
+
+        $this->assertTrue($this->freshService()->disconnectOAuth('conn_oauth'));
+
+        $loaded = $this->freshService()->load();
+        $this->assertSame('conn_smtp', $loaded->getDefaultConnectionId());
+        $this->assertArrayNotHasKey('refresh_token', $loaded->getConnections()->byId('conn_oauth')->getCredentials());
+    }
+
+    public function testDisconnectOAuthRefusesANonOAuthConnection(): void
+    {
+        // Clearing tokens on an SMTP connection is meaningless; refuse so a no-op clear can't repoint
+        // the default away from a working connection (momus #1).
+        $this->freshService()->saveSettings($this->v2SettingsArray('conn_smtp', 'pw'));
+
+        $this->assertFalse($this->freshService()->disconnectOAuth('conn_smtp'));
+        $this->assertSame('conn_smtp', $this->freshService()->load()->getDefaultConnectionId());
+    }
+
+    public function testDisconnectOAuthRepointsDefaultToAnEnabledSibling(): void
+    {
+        // conn_oauth is the default; disconnecting it (now unsendable) must move the default to the
+        // working SMTP sibling so routing never points at a tokenless OAuth connection.
+        $data                   = $this->v2SettingsArray('conn_oauth', 'unused');
+        $data['connections'][0] = [
+            'id'           => 'conn_oauth',
+            'provider'     => 'gmail',
+            'kind'         => 'oauth',
+            'name'         => 'Gmail',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['token_expires_at' => 9999999999],
+            'credentials'  => [
+                'client_secret' => ['source' => 'database', 'value' => 'cs'],
+                'access_token'  => ['source' => 'database', 'value' => 'at'],
+                'refresh_token' => ['source' => 'database', 'value' => 'rt'],
+            ],
+        ];
+        $data['connections'][] = [
+            'id'           => 'conn_smtp',
+            'provider'     => 'other_smtp',
+            'kind'         => 'smtp',
+            'name'         => 'SMTP',
+            'enabled'      => true,
+            'fromEmail'    => 'b@example.com',
+            'fromName'     => 'B',
+            'replyToEmail' => '',
+            'settings'     => ['host' => 'smtp.example.com', 'port' => 587, 'encryption' => 'tls', 'auth' => false, 'username' => '', 'smtp_debug' => false],
+            'credentials'  => ['password' => ['source' => 'database', 'value' => 'pw']],
+        ];
+        $this->freshService()->saveSettings($data);
+        $this->assertSame('conn_oauth', $this->freshService()->load()->getDefaultConnectionId());
+
+        $this->freshService()->disconnectOAuth('conn_oauth');
+
+        $this->assertSame('conn_smtp', $this->freshService()->load()->getDefaultConnectionId());
+    }
+
+    public function testDisconnectOAuthReturnsFalseForUnknownConnection(): void
+    {
+        $this->assertFalse($this->freshService()->disconnectOAuth('conn_nope'));
+    }
+
     private function v2SettingsArray(string $connId, string $password): array
     {
         return [

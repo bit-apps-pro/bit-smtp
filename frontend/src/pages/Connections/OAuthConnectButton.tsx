@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, Tag } from 'antd'
+import { Button, Popconfirm, Space, Tag } from 'antd'
 import { MAIL_SETTINGS_QUERY_KEY } from './data/useMailSettings'
 import useOAuthAuthorize from './data/useOAuthAuthorize'
+import useOAuthDisconnect from './data/useOAuthDisconnect'
 
 const OAUTH_MESSAGE_TYPE = 'bit-smtp-oauth'
 const POPUP_NAME = 'bitsmtp_oauth'
@@ -35,6 +36,7 @@ export default function OAuthConnectButton({
   persistConnection: () => Promise<string>
 }) {
   const { mutateAsync, isPending } = useOAuthAuthorize()
+  const { mutateAsync: disconnect, isPending: isDisconnecting } = useOAuthDisconnect()
   const [isSaving, setIsSaving] = useState(false)
   const queryClient = useQueryClient()
 
@@ -81,16 +83,41 @@ export default function OAuthConnectButton({
     }
   }
 
+  // Revoke the stored grant without deleting the connection; the mutation refetches mail settings,
+  // flipping `connected` back to false.
+  const handleDisconnect = async () => {
+    try {
+      await disconnect(connectionId)
+      notify.success(__('OAuth account disconnected'))
+    } catch {
+      notify.error(__('Failed to disconnect OAuth account'))
+    }
+  }
+
   return (
-    <>
+    <Space wrap>
       <Button onClick={handleClick} loading={isPending || isSaving}>
         {connected ? __('Reconnect') : __('Connect')}
       </Button>
       {connected ? (
-        <Tag color="success" style={{ marginInlineStart: 8 }}>
-          {__('Connected')}
-        </Tag>
+        <>
+          <Tag color="success">{__('Connected')}</Tag>
+          <Popconfirm
+            title={__('Disconnect this account?')}
+            description={__(
+              'Stored tokens are cleared; the connection and its client credentials are kept.'
+            )}
+            okText={__('Disconnect')}
+            okButtonProps={{ danger: true }}
+            cancelText={__('Cancel')}
+            onConfirm={handleDisconnect}
+          >
+            <Button danger loading={isDisconnecting}>
+              {__('Disconnect')}
+            </Button>
+          </Popconfirm>
+        </>
       ) : null}
-    </>
+    </Space>
   )
 }

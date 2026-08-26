@@ -7,8 +7,10 @@ import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import OAuthConnectButton from './OAuthConnectButton'
 import { MAIL_SETTINGS_QUERY_KEY } from './data/useMailSettings'
 import useOAuthAuthorize from './data/useOAuthAuthorize'
+import useOAuthDisconnect from './data/useOAuthDisconnect'
 
 vi.mock('./data/useOAuthAuthorize', () => ({ default: vi.fn() }))
+vi.mock('./data/useOAuthDisconnect', () => ({ default: vi.fn() }))
 vi.mock('@components/Toaster/Toaster', () => ({
   default: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 }))
@@ -33,6 +35,7 @@ describe('OAuthConnectButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    ;(useOAuthDisconnect as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
   })
 
   it('is always enabled, and creates a draft connection before authorizing when unsaved', async () => {
@@ -231,6 +234,36 @@ describe('OAuthConnectButton', () => {
     )
 
     expect(invalidateQueries).not.toHaveBeenCalled()
+  })
+
+  it('offers Disconnect only when connected, and clears tokens on confirm', async () => {
+    const disconnect = vi.fn().mockResolvedValue(undefined)
+    ;(useOAuthDisconnect as Mock).mockReturnValue({ mutateAsync: disconnect, isPending: false })
+
+    renderWithClient(
+      <OAuthConnectButton connectionId="conn_1" provider="gmail" connected persistConnection={vi.fn()} />
+    )
+
+    // Open the confirm, then click its danger OK (both trigger and OK are named "Disconnect").
+    await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    const buttons = await screen.findAllByRole('button', { name: 'Disconnect' })
+    await userEvent.click(buttons[buttons.length - 1])
+
+    expect(disconnect).toHaveBeenCalledWith('conn_1')
+    expect(notify.success).toHaveBeenCalledWith('OAuth account disconnected')
+  })
+
+  it('hides Disconnect when not connected', () => {
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        persistConnection={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).not.toBeInTheDocument()
   })
 
   it('removes the message listener on unmount', () => {

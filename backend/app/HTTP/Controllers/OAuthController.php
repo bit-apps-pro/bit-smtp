@@ -99,6 +99,31 @@ class OAuthController
     }
 
     /**
+     * Clear a connection's stored OAuth tokens without deleting it. Runs under `cap:admin` (nonce
+     * enforced by the route group); the explicit capability check is defence in depth. Keeps the
+     * client_id/secret so the user can re-consent, and never returns any credential.
+     *
+     * @return Response
+     */
+    public function disconnect(Request $request)
+    {
+        if (!Capabilities::check('manage_options')) {
+            return Response::error([])->message(__('Unauthorized', 'bit-smtp'));
+        }
+
+        $connectionId = (string) $request->get('connection_id', '');
+        if ($this->config()->connectionById($connectionId) === null) {
+            return Response::error(__('Connection not found', 'bit-smtp'));
+        }
+
+        if (!$this->config()->disconnectOAuth($connectionId)) {
+            return Response::error(__('Failed to disconnect OAuth account', 'bit-smtp'));
+        }
+
+        return Response::success([])->message(__('OAuth account disconnected', 'bit-smtp'));
+    }
+
+    /**
      * Public browser redirect target. Secured solely by the signed `state`: it is verified before
      * any token exchange, and the response is HTML (never JSON, never the tokens).
      */

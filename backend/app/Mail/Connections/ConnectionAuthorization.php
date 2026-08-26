@@ -14,10 +14,11 @@ final class ConnectionAuthorization
 {
     /**
      * OAuth credential keys that prove consent completed; either one present is enough to send.
+     * Public so disconnectOAuth clears exactly this set — keeping "cleared ⇒ not sendable" structural.
      *
      * @var string[]
      */
-    private const OAUTH_TOKEN_KEYS = ['refresh_token', 'access_token'];
+    public const OAUTH_TOKEN_KEYS = ['refresh_token', 'access_token'];
 
     /**
      * @param array<string,mixed> $connection           raw connection array (id/provider/credentials/...)

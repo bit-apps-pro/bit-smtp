@@ -259,6 +259,48 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->assertSame(1, $this->controller->emitCount);
     }
 
+    // --- disconnect ---
+
+    public function testDisconnectClearsTokensAndReturnsSuccess(): void
+    {
+        $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($this->gmailConnection());
+        $this->config->shouldReceive('disconnectOAuth')->once()->with('conn_1')->andReturn(true);
+
+        $this->controller->disconnect($this->request(['connection_id' => 'conn_1']));
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+    }
+
+    public function testDisconnectRejectsWhenCapabilityMissing(): void
+    {
+        Functions\when('current_user_can')->justReturn(false);
+        $this->config->shouldNotReceive('disconnectOAuth');
+
+        $this->controller->disconnect($this->request(['connection_id' => 'conn_1']));
+
+        $this->assertSame(Response::ERROR, Response::getStatus());
+    }
+
+    public function testDisconnectReturnsErrorForUnknownConnection(): void
+    {
+        $this->config->shouldReceive('connectionById')->with('conn_missing')->andReturn(null);
+        $this->config->shouldNotReceive('disconnectOAuth');
+
+        $this->controller->disconnect($this->request(['connection_id' => 'conn_missing']));
+
+        $this->assertSame(Response::ERROR, Response::getStatus());
+    }
+
+    public function testDisconnectReturnsErrorWhenServiceFails(): void
+    {
+        $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($this->gmailConnection());
+        $this->config->shouldReceive('disconnectOAuth')->once()->with('conn_1')->andReturn(false);
+
+        $this->controller->disconnect($this->request(['connection_id' => 'conn_1']));
+
+        $this->assertSame(Response::ERROR, Response::getStatus());
+    }
+
     // --- helpers ---
 
     private function registerGmailTransport(): void

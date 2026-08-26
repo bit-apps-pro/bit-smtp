@@ -47,6 +47,7 @@ Route::group(function () {
     Route::post('mail/connections/delete', [ConnectionController::class, 'delete']);
     Route::post('mail/connections/test', [ConnectionController::class, 'test']);
     Route::get('mail/oauth/authorize', [OAuthController::class, 'authorize']);
+    Route::post('mail/oauth/disconnect', [OAuthController::class, 'disconnect']);
 
     Route::get('preferences', [PreferencesController::class, 'index']);
     Route::post('preferences/save', [PreferencesController::class, 'save']);

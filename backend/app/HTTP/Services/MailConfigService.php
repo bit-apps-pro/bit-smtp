@@ -311,10 +311,7 @@ class MailConfigService
 
         // Repoint default when the deleted connection held it.
         if ($data['default_connection_id'] === $id) {
-            $remaining  = MailSettings::fromArray(array_merge($data, ['connections' => $connections]));
-            $newDefault = $remaining->getConnections()->enabled()->first()
-                ?? $remaining->getConnections()->first();
-            $data['default_connection_id'] = $newDefault !== null ? $newDefault->getId() : '';
+            $data['default_connection_id'] = $this->chooseNewDefault($data, $connections);
         }
 
         // Remove from fallback list.
@@ -347,6 +344,58 @@ class MailConfigService
         if ($stored) {
             $this->forgetConnectionHealth($id);
         }
+
+        return $stored;
+    }
+
+    /**
+     * Clear a connection's stored OAuth tokens (access/refresh + cached expiry), keeping its client
+     * credentials and the connection itself, so a user can revoke a grant without deleting the
+     * connection. A now-tokenless OAuth connection is not sendable, so repoint the default away from
+     * it (mirroring deleteConnection) to prevent a silently unsendable routing target. Returns false
+     * when the connection is unknown, is not an OAuth connection, or the store fails.
+     */
+    public function disconnectOAuth(string $connectionId): bool
+    {
+        $current    = $this->load();
+        $connection = $current->getConnections()->byId($connectionId);
+
+        // Only OAuth connections carry tokens to clear. Refusing others also stops a no-op token
+        // clear from needlessly repointing the default away from a working non-OAuth connection.
+        if ($connection === null || !$this->requiresOAuthConsent($connection->getProvider())) {
+            return false;
+        }
+
+        $data = $current->toArray();
+        foreach ($data['connections'] as $i => $connection) {
+            if (($connection['id'] ?? '') !== $connectionId) {
+                continue;
+            }
+
+            // Clear exactly the keys isSendable() scans for, so a disconnect always makes the
+            // connection un-sendable (and thus repointable off the default) by construction.
+            foreach (ConnectionAuthorization::OAUTH_TOKEN_KEYS as $tokenKey) {
+                unset($data['connections'][$i]['credentials'][$tokenKey]);
+            }
+            unset($data['connections'][$i]['settings']['token_expires_at']);
+
+            break;
+        }
+
+        // Repoint the default away from the now-unsendable connection (it keeps existing, so exclude
+        // it explicitly from the candidate set).
+        if ($data['default_connection_id'] === $connectionId) {
+            $siblings = array_values(array_filter(
+                $data['connections'],
+                static function (array $c) use ($connectionId): bool {
+                    return ($c['id'] ?? '') !== $connectionId;
+                }
+            ));
+            $data['default_connection_id'] = $this->chooseNewDefault($data, $siblings);
+        }
+
+        $stored = $this->store(MailSettings::fromArray(MailSettingsSanitizer::sanitize($data)));
+        $this->reload();
 
         return $stored;
     }
@@ -410,6 +459,22 @@ class MailConfigService
         $this->reload();
 
         return $stored;
+    }
+
+    /**
+     * Pick the id of the connection that should become the routing default from a candidate set:
+     * first enabled, else first, else '' when none remain. Shared by deleteConnection and
+     * disconnectOAuth so the default-selection policy lives in exactly one place.
+     *
+     * @param array<string,mixed>            $data       full settings array, for schema context
+     * @param array<int,array<string,mixed>> $candidates connections eligible to become the default
+     */
+    private function chooseNewDefault(array $data, array $candidates): string
+    {
+        $connections = MailSettings::fromArray(array_merge($data, ['connections' => $candidates]))->getConnections();
+        $newDefault  = $connections->enabled()->first() ?? $connections->first();
+
+        return $newDefault !== null ? $newDefault->getId() : '';
     }
 
     /**
