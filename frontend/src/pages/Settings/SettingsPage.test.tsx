@@ -36,7 +36,7 @@ const preferences: Preferences = {
   retry_enabled: false,
   retry_max_attempts: 3,
   retry_backoff: 'exponential',
-  retry_on_classes: ['TransportException'],
+  retry_on_classes: ['transient'],
   health_check_enabled: false,
   health_check_interval: 'daily',
   notify_cooldown_minutes: 0,
@@ -320,7 +320,7 @@ describe('SettingsPage', () => {
       expect(savePreferencesMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           log_retention_days: 60,
-          retry_on_classes: ['TransportException'],
+          retry_on_classes: ['transient'],
           notify_events: ['connection_unhealthy']
         })
       )

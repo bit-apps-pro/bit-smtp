@@ -1,7 +1,11 @@
 import { __ } from '@common/helpers/i18nwrap'
 import SettingsPanel, { PanelDivider } from '@pages/Settings/components/SettingsPanel'
 import RetryQueuePanel from '@pages/Settings/sections/RetryQueuePanel'
-import { type PreferencesFormValues } from '@pages/Settings/types'
+import {
+  type PreferencesFormValues,
+  RETRY_FAILURE_CLASSES,
+  type RetryFailureClass
+} from '@pages/Settings/types'
 import { Form, type FormInstance, InputNumber, Select, Switch, Typography } from 'antd'
 
 const { Text } = Typography
@@ -9,6 +13,13 @@ const { Text } = Typography
 /** Reliability preference fields (send timeout, retry behavior) plus the live retry-queue panel. */
 export default function Reliability({ form }: { form: FormInstance<PreferencesFormValues> }) {
   const retryEnabled = Form.useWatch('retry_enabled', form) ?? false
+
+  // Built at render (not module scope) so labels resolve against the translation state at that time,
+  // matching the other Settings sections; the Record type forces a label per known class.
+  const retryClassLabels: Record<RetryFailureClass, string> = {
+    transient: __('Transient errors'),
+    rate_limited: __('Rate limited')
+  }
 
   return (
     <>
@@ -50,6 +61,27 @@ export default function Reliability({ form }: { form: FormInstance<PreferencesFo
               { value: 'exponential', label: __('Exponential') },
               { value: 'fixed', label: __('Fixed') }
             ]}
+          />
+        </Form.Item>
+        <PanelDivider />
+        <Form.Item
+          name="retry_on_classes"
+          label={__('Retry only these failure types')}
+          extra={
+            <Text type="secondary">
+              {__('Leave empty to retry every retryable failure. Select types to retry only those.')}
+            </Text>
+          }
+        >
+          <Select
+            mode="multiple"
+            allowClear
+            disabled={!retryEnabled}
+            placeholder={__('All retryable failures')}
+            options={RETRY_FAILURE_CLASSES.map(failureClass => ({
+              value: failureClass,
+              label: retryClassLabels[failureClass]
+            }))}
           />
         </Form.Item>
       </SettingsPanel>

@@ -6,6 +6,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 use BitApps\SMTP\Deps\BitApps\WPKit\Settings\SettingField;
 use BitApps\SMTP\HTTP\Requests\Rules\EachInRule;
 use BitApps\SMTP\HTTP\Requests\Rules\InRule;
+use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Mail\Notifications\HealthNotification;
 use BitApps\SMTP\Settings\PluginSettings;
 
@@ -63,10 +64,12 @@ class SavePreferencesRequest extends Request
 
             case SettingField::TYPE_ARRAY:
                 $rules[] = 'array';
-                // Restrict the health-alert subscription to known event keys; other array fields
-                // (e.g. retry_on_classes) stay free-form.
+                // Restrict array subscriptions to their known key sets: health-alert events and the
+                // retryable failure classes the retry filter may name.
                 if ($field->key() === 'notify_events') {
                     $rules[] = new EachInRule(HealthNotification::eventKeys());
+                } elseif ($field->key() === 'retry_on_classes') {
+                    $rules[] = new EachInRule(FailureCategory::retryableClasses());
                 }
 
                 break;

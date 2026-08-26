@@ -13,6 +13,7 @@ const baseValues: PreferencesFormValues = {
   retry_enabled: false,
   retry_max_attempts: 3,
   retry_backoff: 'exponential',
+  retry_on_classes: [],
   health_check_enabled: true,
   health_check_interval: 'daily',
   notify_cooldown_minutes: 15,

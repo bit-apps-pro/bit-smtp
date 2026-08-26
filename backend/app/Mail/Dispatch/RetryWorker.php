@@ -28,11 +28,21 @@ class RetryWorker
      */
     private string $backoffMode;
 
+    /**
+     * The admin's retry-class filter, read once at construction (empty = every retryable class); a
+     * class dropped from the filter stops rescheduling the row the next time it is claimed.
+     *
+     * @var string[]
+     */
+    private array $retryOnClasses;
+
     public function __construct(RetryQueue $queue, WpMailBridge $bridge)
     {
-        $this->queue       = $queue;
-        $this->bridge      = $bridge;
-        $this->backoffMode = (string) PluginSettings::make()->get('retry_backoff', 'exponential');
+        $this->queue          = $queue;
+        $this->bridge         = $bridge;
+        $settings             = PluginSettings::make();
+        $this->backoffMode    = (string) $settings->get('retry_backoff', 'exponential');
+        $this->retryOnClasses = (array) $settings->get('retry_on_classes', []);
     }
 
     /**
@@ -61,7 +71,7 @@ class RetryWorker
             $attempts     = $row['attempts'] + 1;
             $failureClass = $outcome['failure_class'];
 
-            if ($failureClass !== null && $attempts < $row['max_attempts'] && FailureCategory::isRetryable($failureClass)) {
+            if ($failureClass !== null && $attempts < $row['max_attempts'] && FailureCategory::isRetryableWithin($failureClass, $this->retryOnClasses)) {
                 $this->queue->reschedule($row['id'], $attempts, $failureClass, $this->backoffDelay($attempts));
 
                 continue;

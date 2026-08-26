@@ -129,6 +129,40 @@ final class RetryWorkerTest extends BaseUnitTestCase
         (new RetryWorker($queue, $bridge))->process();
     }
 
+    public function testProcessDropsARetryableFailureExcludedByTheRetryClassFilter(): void
+    {
+        // Admin restricted retries to rate_limited only. A transient failure is retryable by nature
+        // but excluded by the filter, so the worker drops the row instead of rescheduling it.
+        Functions\when('get_option')->justReturn(['retry_on_classes' => [FailureCategory::RATE_LIMITED]]);
+
+        $queue = Mockery::mock(RetryQueue::class);
+        $queue->shouldReceive('claimDue')->once()->with(20)->andReturn([$this->row(['id' => 5, 'attempts' => 1, 'max_attempts' => 3])]);
+        $queue->shouldReceive('renewClaim')->once()->with(5, 'tok')->andReturn(true);
+        $queue->shouldReceive('delete')->once()->with(5);
+        $queue->shouldNotReceive('reschedule');
+
+        $bridge = $this->mockBridge();
+        $bridge->shouldReceive('dispatchRetry')->once()->andReturn(['succeeded' => false, 'failure_class' => FailureCategory::TRANSIENT]);
+
+        (new RetryWorker($queue, $bridge))->process();
+    }
+
+    public function testProcessStillReschedulesAFailureListedInTheRetryClassFilter(): void
+    {
+        Functions\when('get_option')->justReturn(['retry_on_classes' => [FailureCategory::TRANSIENT]]);
+
+        $queue = Mockery::mock(RetryQueue::class);
+        $queue->shouldReceive('claimDue')->once()->with(20)->andReturn([$this->row(['id' => 6, 'attempts' => 1, 'max_attempts' => 3])]);
+        $queue->shouldReceive('renewClaim')->once()->with(6, 'tok')->andReturn(true);
+        $queue->shouldReceive('reschedule')->once()->with(6, 2, FailureCategory::TRANSIENT, Mockery::type('int'));
+        $queue->shouldNotReceive('delete');
+
+        $bridge = $this->mockBridge();
+        $bridge->shouldReceive('dispatchRetry')->once()->andReturn(['succeeded' => false, 'failure_class' => FailureCategory::TRANSIENT]);
+
+        (new RetryWorker($queue, $bridge))->process();
+    }
+
     public function testProcessSkipsARowWhoseClaimWasLostToAnOverlappingWorker(): void
     {
         $queue = Mockery::mock(RetryQueue::class);

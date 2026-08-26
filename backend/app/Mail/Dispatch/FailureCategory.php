@@ -36,6 +36,32 @@ final class FailureCategory
     }
 
     /**
+     * The failure classes a resend may ever target, exposed for the retry-class filter UI + validation.
+     *
+     * @return string[]
+     */
+    public static function retryableClasses(): array
+    {
+        return self::RETRYABLE;
+    }
+
+    /**
+     * True when a failure is retryable AND permitted by the configured class filter. An empty filter
+     * means "every retryable class" (the default); a non-empty filter additionally requires the class
+     * to be listed, letting an admin retry e.g. transient errors but fail fast on rate limits.
+     *
+     * @param string[] $allowedClasses retry_on_classes preference (empty = all retryable)
+     */
+    public static function isRetryableWithin(string $category, array $allowedClasses): bool
+    {
+        if (!self::isRetryable($category)) {
+            return false;
+        }
+
+        return $allowedClasses === [] || \in_array($category, $allowedClasses, true);
+    }
+
+    /**
      * True when the fallback chain should stop rather than try the next connection.
      */
     public static function stopsFailover(string $category): bool

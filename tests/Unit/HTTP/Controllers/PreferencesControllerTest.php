@@ -7,6 +7,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Controllers\PreferencesController;
 use BitApps\SMTP\HTTP\Requests\SavePreferencesRequest;
 use BitApps\SMTP\HTTP\Services\LogService;
+use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Mail\Notifications\HealthNotification;
 use BitApps\SMTP\Settings\PluginSettings;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
@@ -132,6 +133,28 @@ final class PreferencesControllerTest extends BaseUnitTestCase
 
         $this->assertTrue($request->fails());
         $this->assertArrayHasKey('notify_events', $request->errors());
+    }
+
+    public function testSavePreferencesRequestRulesAcceptKnownRetryClasses(): void
+    {
+        $request = new SavePreferencesRequest();
+        $request->make(['retry_on_classes' => [FailureCategory::TRANSIENT, FailureCategory::RATE_LIMITED]], $request->rules());
+
+        $this->assertFalse($request->fails());
+        $this->assertSame(
+            [FailureCategory::TRANSIENT, FailureCategory::RATE_LIMITED],
+            $request->validated()['retry_on_classes']
+        );
+    }
+
+    public function testSavePreferencesRequestRulesRejectANonRetryableClass(): void
+    {
+        // AUTH is a real FailureCategory but never retryable, so it must not be a valid filter value.
+        $request = new SavePreferencesRequest();
+        $request->make(['retry_on_classes' => [FailureCategory::TRANSIENT, FailureCategory::AUTH]], $request->rules());
+
+        $this->assertTrue($request->fails());
+        $this->assertArrayHasKey('retry_on_classes', $request->errors());
     }
 
     /**

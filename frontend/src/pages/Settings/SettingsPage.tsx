@@ -30,7 +30,7 @@ interface SaveOutcome {
   message?: string
 }
 
-/** Split the loaded preferences blob into the subset the Form binds to (excludes untouched arrays). */
+/** Split the loaded preferences blob into the Form-bound value shape. */
 function toPreferencesFormValues(preferences: Preferences): PreferencesFormValues {
   return {
     logging_enabled: preferences.logging_enabled,
@@ -40,6 +40,8 @@ function toPreferencesFormValues(preferences: Preferences): PreferencesFormValue
     retry_enabled: preferences.retry_enabled,
     retry_max_attempts: preferences.retry_max_attempts,
     retry_backoff: preferences.retry_backoff,
+    // Bound as-is (empty [] stays "retry all"); the Reliability multi-select edits this in place.
+    retry_on_classes: preferences.retry_on_classes,
     health_check_enabled: preferences.health_check_enabled,
     health_check_interval: preferences.health_check_interval,
     notify_cooldown_minutes: preferences.notify_cooldown_minutes,

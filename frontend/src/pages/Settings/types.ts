@@ -13,6 +13,11 @@ export const HEALTH_ALERT_EVENTS = [
 ] as const
 export type HealthAlertEvent = (typeof HEALTH_ALERT_EVENTS)[number]
 
+// Mirrors FailureCategory::retryableClasses() (backend/app/Mail/Dispatch/FailureCategory.php): the
+// only failure classes a resend can target, and thus the values the retry-class filter may name.
+export const RETRY_FAILURE_CLASSES = ['transient', 'rate_limited'] as const
+export type RetryFailureClass = (typeof RETRY_FAILURE_CLASSES)[number]
+
 // Mirrors PluginSettings::schema() (backend/app/Settings/PluginSettings.php): the four preference
 // groups (general/reliability/health/privacy) flattened into one key/value shape.
 export interface Preferences {
@@ -23,8 +28,8 @@ export interface Preferences {
   retry_enabled: boolean
   retry_max_attempts: number
   retry_backoff: RetryBackoff
-  // Not editable in the UI yet; carried through save/import untouched.
-  retry_on_classes: string[]
+  // Empty = retry every retryable failure; a non-empty subset restricts which classes retry.
+  retry_on_classes: RetryFailureClass[]
   health_check_enabled: boolean
   health_check_interval: HealthCheckInterval
   notify_cooldown_minutes: number
@@ -33,6 +38,5 @@ export interface Preferences {
   tracking_enabled: boolean
 }
 
-// The Form only registers Form.Item-bound fields; retry_on_classes is excluded here and re-attached
-// from the last-loaded preferences before the save request is sent.
-export type PreferencesFormValues = Omit<Preferences, 'retry_on_classes'>
+// Every preference is Form.Item-bound, so the form value shape is the full preferences blob.
+export type PreferencesFormValues = Preferences

@@ -445,6 +445,27 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertSame(FailureCategory::TRANSIENT, $outcome['failure_class']);
     }
 
+    public function testDispatchDoesNotEnqueueRetryForAClassExcludedByTheRetryFilter(): void
+    {
+        // Retry is enabled but restricted to rate_limited; a transient failure is retryable by nature
+        // yet excluded by the class filter, so nothing is enqueued.
+        Functions\when('get_option')->justReturn([
+            'retry_enabled'    => true,
+            'retry_on_classes' => [FailureCategory::RATE_LIMITED],
+        ]);
+
+        $transport = new ScriptedTransport([SendResult::failure('Connection refused')]);
+        $bridge    = $this->dispatchableBridge($transport);
+
+        $retryQueue = Mockery::mock(RetryQueue::class);
+        $retryQueue->shouldNotReceive('enqueue');
+        $this->setRetryQueue($bridge, $retryQueue);
+
+        $succeeded = $this->invokeDispatch($bridge, [$this->connection(['id' => 'conn_1'])], $this->message(), []);
+
+        $this->assertFalse($succeeded);
+    }
+
     public function testSuccessfulSendRecordsNoFailureClass(): void
     {
         $transport = new ScriptedTransport([

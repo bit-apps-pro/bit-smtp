@@ -439,6 +439,12 @@ class WpMailBridge
             return;
         }
 
+        // Honor the admin's retry-class filter (empty = every retryable class). Self-contained so the
+        // enqueue never depends on the caller's isRetryable() pre-check for this gate.
+        if (!FailureCategory::isRetryableWithin($failureClass, (array) $settings->get('retry_on_classes', []))) {
+            return;
+        }
+
         $maxAttempts = (int) $settings->get('retry_max_attempts', 3);
         $backoffMode = (string) $settings->get('retry_backoff', 'exponential');
         $firstDelay  = RetryWorker::computeDelay(1, $backoffMode);
