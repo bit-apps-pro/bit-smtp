@@ -109,6 +109,7 @@ const engagementFixture: Engagement = {
   clicks: { total: 12, automated: 2, human: 10, unique: 8 },
   open_rate: { engaged_logs: 25, denominator: 100, rate: 25 },
   click_rate: { engaged_logs: 10, denominator: 100, rate: 10 },
+  top_clicked_links: [],
   engagement_interpretation: 'Attributed per message, not per recipient.'
 }
 

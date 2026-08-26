@@ -16,6 +16,7 @@ function engagementFixture(overrides: Partial<Engagement> = {}): Engagement {
     clicks: { total: 12, automated: 2, human: 10, unique: 8 },
     open_rate: { engaged_logs: 25, denominator: 100, rate: 25 },
     click_rate: { engaged_logs: 10, denominator: 100, rate: 10 },
+    top_clicked_links: [],
     engagement_interpretation: 'Attributed per message, not per recipient.',
     ...overrides
   }
@@ -49,6 +50,30 @@ describe('EngagementMetrics', () => {
     expect(screen.getByText('30')).toBeInTheDocument()
     expect(screen.getByText('Unique clicked messages')).toBeInTheDocument()
     expect(screen.getByText('8')).toBeInTheDocument()
+  })
+
+  it('lists the top clicked links with their confirmed-human vs automated split', () => {
+    renderWithProviders(
+      <EngagementMetrics
+        engagement={engagementFixture({
+          top_clicked_links: [
+            { target: 'https://example.com/pricing', total: 9, automated: 2, human: 7 }
+          ]
+        })}
+      />
+    )
+
+    expect(screen.getByText('Top clicked links (confirmed-human vs automated)')).toBeInTheDocument()
+    expect(screen.getByText('https://example.com/pricing')).toBeInTheDocument()
+    expect(screen.getByText('7')).toBeInTheDocument()
+  })
+
+  it('omits the top-clicked-links table when no links were clicked', () => {
+    renderWithProviders(<EngagementMetrics engagement={engagementFixture({ top_clicked_links: [] })} />)
+
+    expect(
+      screen.queryByText('Top clicked links (confirmed-human vs automated)')
+    ).not.toBeInTheDocument()
   })
 
   it('shows a neutral "—" caveat for the open rate when nothing was accepted or delivered yet', async () => {

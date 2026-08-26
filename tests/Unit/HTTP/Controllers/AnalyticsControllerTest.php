@@ -144,6 +144,7 @@ final class AnalyticsControllerTest extends BaseUnitTestCase
         $request['bucket'] = 'day';
 
         $engagement = Mockery::mock(EngagementRepository::class);
+        $engagement->shouldReceive('topClickedLinks')->andReturn([]);
         $engagement->shouldReceive('engagement')->andReturn([
             'open_hits'            => 8,
             'open_automated_hits'  => 3,

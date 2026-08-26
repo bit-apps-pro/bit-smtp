@@ -76,6 +76,8 @@ final class LogController
         $data                      = $log->jsonSerialize();
         $data['delivery_verified'] = $this->isDeliveryVerified($log, $this->verifiedConnectionMap());
         $data['delivery_events']   = $this->logger->deliveryEvents($logId);
+        // Per-message opens/clicks (with click targets), oldest-first, for the detail view.
+        $data['engagement'] = $this->logger->engagementFor($logId);
         // Resend history: the log this one was resent from (if any) and the resends launched from it.
         $data['resend_of'] = $log->resend_parent_id !== null ? (int) $log->resend_parent_id : null;
         $data['resends']   = $this->logger->resendChildren($logId);

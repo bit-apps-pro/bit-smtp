@@ -116,6 +116,14 @@ export interface EngagementRate {
   rate: number
 }
 
+/** One clicked link target across the range, with its automated-vs-human hit split. */
+export interface ClickedLink {
+  target: string
+  total: number
+  automated: number
+  human: number
+}
+
 /** `GET analytics/engagement` response body (MailAnalyticsService::engagement). */
 export interface Engagement {
   range: AnalyticsRange
@@ -126,6 +134,7 @@ export interface Engagement {
   clicks: EngagementCounts
   open_rate: EngagementRate
   click_rate: EngagementRate
+  top_clicked_links: ClickedLink[]
   engagement_interpretation: string
 }
 

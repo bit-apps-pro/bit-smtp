@@ -191,6 +191,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
             'accepted_delivery' => 2,
         ]));
         $engagement = Mockery::mock(EngagementRepository::class);
+        $engagement->shouldReceive('topClickedLinks')->once()->with($query, Mockery::type('int'))->andReturn([]);
         $engagement->shouldReceive('engagement')->once()->with($query)->andReturn([
             'open_hits'            => 10,
             'open_automated_hits'  => 4,
@@ -221,6 +222,7 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         $repo->shouldNotReceive('summary');
         $engagement = Mockery::mock(EngagementRepository::class);
         $engagement->shouldNotReceive('engagement');
+        $engagement->shouldNotReceive('topClickedLinks');
 
         $result = (new MailAnalyticsService($repo, null, $engagement))->engagement($query);
 

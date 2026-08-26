@@ -120,6 +120,67 @@ final class EngagementRepositoryTest extends IntegrationTestCase
         ], $raw);
     }
 
+    public function testTopClickedLinksRankTargetsByHitsWithTheHumanAutomatedSplit(): void
+    {
+        $log = $this->seedLog('2026-03-02 05:00:00', 'delivered');
+        // Two hits to /a (one automated) and one to /b; folded per target.
+        $this->logs->recordEngagement($log, 'click', 'https://example.test/a', false);
+        $this->logs->recordEngagement($log, 'click', 'https://example.test/a', true);
+        $this->logs->recordEngagement($log, 'click', 'https://example.test/b', false);
+        // Opens must never appear among clicked links.
+        $this->logs->recordEngagement($log, 'open', '', false);
+
+        $links = (new EngagementRepository($GLOBALS['wpdb']))->topClickedLinks($this->query(), 10);
+
+        self::assertSame([
+            ['target' => 'https://example.test/a', 'hits' => 2, 'automated_hits' => 1],
+            ['target' => 'https://example.test/b', 'hits' => 1, 'automated_hits' => 0],
+        ], $links);
+    }
+
+    public function testTopClickedLinksExcludeOutOfRangeAndEmptyTargets(): void
+    {
+        $inRange = $this->seedLog('2026-03-02 05:00:00', 'delivered');
+        $this->logs->recordEngagement($inRange, 'click', 'https://example.test/a', false);
+
+        $outOfRange = $this->seedLog('2026-02-01 05:00:00', 'delivered');
+        $this->logs->recordEngagement($outOfRange, 'click', 'https://example.test/old', false);
+
+        $links = (new EngagementRepository($GLOBALS['wpdb']))->topClickedLinks($this->query(), 10);
+
+        self::assertSame([
+            ['target' => 'https://example.test/a', 'hits' => 1, 'automated_hits' => 0],
+        ], $links);
+    }
+
+    public function testServiceIncludesTopClickedLinksInTheEngagementResponse(): void
+    {
+        $log = $this->seedLog('2026-03-02 05:00:00', 'delivered');
+        $this->logs->recordEngagement($log, 'click', 'https://example.test/a', false);
+        $this->logs->recordEngagement($log, 'click', 'https://example.test/a', true);
+
+        $result = $this->service()->engagement($this->query());
+
+        self::assertSame([
+            ['target' => 'https://example.test/a', 'total' => 2, 'automated' => 1, 'human' => 1],
+        ], $result['top_clicked_links']);
+    }
+
+    public function testEngagementForProjectsAMessagesOpensAndClicksOldestFirst(): void
+    {
+        $log = $this->seedLog('2026-03-02 05:00:00', 'delivered');
+        $this->logs->recordEngagement($log, 'open', '', false);
+        $this->logs->recordEngagement($log, 'click', 'https://example.test/a', false);
+
+        $rows = $this->logs->engagementFor($log);
+
+        self::assertCount(2, $rows);
+        self::assertSame('open', $rows[0]['type']);
+        self::assertSame('click', $rows[1]['type']);
+        self::assertSame('https://example.test/a', $rows[1]['target']);
+        self::assertSame(1, $rows[1]['hits']);
+    }
+
     private function service(): MailAnalyticsService
     {
         return new MailAnalyticsService(

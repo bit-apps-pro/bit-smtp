@@ -64,6 +64,40 @@ class EngagementRepository
     }
 
     /**
+     * The most-clicked link targets across the range: the top $limit by total hits, each carrying its
+     * automated-fire count so the human split stays honest. Non-click events and empty targets are
+     * excluded; values travel only through wpdb::prepare.
+     *
+     * @return array<int,array{target:string,hits:int,automated_hits:int}>|WP_Error
+     */
+    public function topClickedLinks(AnalyticsQuery $query, int $limit)
+    {
+        [$where, $values] = $this->where($query);
+        $sql              = "SELECT e.target AS target,
+            COALESCE(SUM(e.hits), 0) AS hits,
+            COALESCE(SUM(e.automated_hits), 0) AS automated_hits
+            FROM `{$this->eventsTable}` e
+            INNER JOIN `{$this->logsTable}` l ON l.id = e.log_id
+            WHERE {$where} AND e.type = %s AND e.target <> ''
+            GROUP BY e.target
+            ORDER BY hits DESC, e.target ASC
+            LIMIT %d";
+
+        $rows = $this->rows($sql, array_merge($values, ['click', max(1, $limit)]));
+        if ($rows instanceof WP_Error) {
+            return $rows;
+        }
+
+        return array_map(static function (array $row): array {
+            return [
+                'target'         => (string) ($row['target'] ?? ''),
+                'hits'           => (int) ($row['hits'] ?? 0),
+                'automated_hits' => (int) ($row['automated_hits'] ?? 0),
+            ];
+        }, $rows);
+    }
+
+    /**
      * @return array{0:string,1:array<int,mixed>}
      */
     private function where(AnalyticsQuery $query): array

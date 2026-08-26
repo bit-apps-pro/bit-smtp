@@ -117,6 +117,7 @@ final class AnalyticsCacheTest extends BaseUnitTestCase
         $repo  = Mockery::mock(MailAnalyticsRepository::class);
         $repo->shouldReceive('summary')->with($query)->andReturn($this->summary());
         $engagement = Mockery::mock(EngagementRepository::class);
+        $engagement->shouldReceive('topClickedLinks')->with($query, Mockery::type('int'))->andReturn([]);
         $engagement->shouldReceive('engagement')->with($query)->andReturn($this->engagementRow());
         $service = new MailAnalyticsService($repo, new Repository(new ArrayStore()), $engagement);
 
@@ -137,6 +138,7 @@ final class AnalyticsCacheTest extends BaseUnitTestCase
         // error, error, then a success that gets cached. times(3) proves the fourth call is a cache hit.
         $repo->shouldReceive('summary')->with($query)->times(3)->andReturn($error, $error, $this->summary());
         $engagement = Mockery::mock(EngagementRepository::class);
+        $engagement->shouldReceive('topClickedLinks')->with($query, Mockery::type('int'))->andReturn([]);
         $engagement->shouldReceive('engagement')->with($query)->andReturn($this->engagementRow());
         $service = new MailAnalyticsService($repo, new Repository(new ArrayStore()), $engagement);
 

@@ -268,7 +268,8 @@ final class MailAnalyticsService
     {
         $summary    = $this->repository->summary($query);
         $engagement = $this->engagementRepository()->engagement($query);
-        $error      = $this->firstError([$summary, $engagement]);
+        $topLinks   = $this->engagementRepository()->topClickedLinks($query, self::TOP_LIMIT);
+        $error      = $this->firstError([$summary, $engagement, $topLinks]);
         if ($error !== null) {
             return $error;
         }
@@ -282,6 +283,7 @@ final class MailAnalyticsService
             'clicks'                    => $this->engagementCounts($engagement, 'click'),
             'open_rate'                 => $this->engagementRate((int) ($engagement['open_human_logs'] ?? 0), $denominator),
             'click_rate'                => $this->engagementRate((int) ($engagement['click_human_logs'] ?? 0), $denominator),
+            'top_clicked_links'         => $this->clickedLinks($topLinks),
             'engagement_interpretation' => self::ENGAGEMENT_INTERPRETATION,
         ]);
     }
@@ -428,6 +430,29 @@ final class MailAnalyticsService
             'human'     => max(0, $hits - $automated),
             'unique'    => (int) ($engagement[$channel . '_rows'] ?? 0),
         ];
+    }
+
+    /**
+     * Shape the top-clicked-link rows for the API: each target with its total/automated/human hit
+     * counts, the human figure never dropping below zero.
+     *
+     * @param array<int,array{target:string,hits:int,automated_hits:int}> $links
+     *
+     * @return array<int,array{target:string,total:int,automated:int,human:int}>
+     */
+    private function clickedLinks(array $links): array
+    {
+        return array_map(static function (array $link): array {
+            $hits      = (int) $link['hits'];
+            $automated = (int) $link['automated_hits'];
+
+            return [
+                'target'    => (string) $link['target'],
+                'total'     => $hits,
+                'automated' => $automated,
+                'human'     => max(0, $hits - $automated),
+            ];
+        }, $links);
     }
 
     /**

@@ -42,6 +42,16 @@ export type ResendSummary = {
   created_at: string
 }
 
+/** One folded open/click row for a single message (LogService::engagementFor), for the detail view. */
+export type EngagementEvent = {
+  type: 'open' | 'click' | string
+  target: string
+  hits: number
+  automated_hits: number
+  first_at: string | null
+  last_at: string | null
+}
+
 export type LogType = {
   id: number
   status: string
@@ -63,6 +73,8 @@ export type LogType = {
   delivery_updated_at?: string | null
   delivery_verified?: boolean
   delivery_events?: Array<DeliveryEvent>
+  // Per-message opens/clicks (with click targets), for the detail view.
+  engagement?: Array<EngagementEvent>
   // Detail-only resend history: the parent id this was resent from, and the resends launched from it.
   resend_of?: number | null
   resends?: Array<ResendSummary>

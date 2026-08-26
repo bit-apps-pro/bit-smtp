@@ -1,7 +1,7 @@
 import { __ } from '@common/helpers/i18nwrap'
 import { formatExactNumber, formatPercent } from '@pages/Analytics/format'
-import { type Engagement } from '@pages/Analytics/types'
-import { Flex, Tooltip, Typography, theme } from 'antd'
+import { type ClickedLink, type Engagement } from '@pages/Analytics/types'
+import { Flex, type TableColumnsType, Tooltip, Typography, theme } from 'antd'
 import ChartCard from './ChartCard'
 import DataTable from './DataTable'
 
@@ -49,10 +49,41 @@ function StatTile({
   )
 }
 
+/** Columns for the top-clicked-links table: the full URL (ellipsised, tooltip) and its hit split. */
+function clickedLinkColumns(): TableColumnsType<ClickedLink> {
+  const count = (value: number) => formatExactNumber(value)
+
+  return [
+    {
+      title: __('Link'),
+      dataIndex: 'target',
+      key: 'target',
+      ellipsis: true,
+      render: (target: string) => (
+        <Tooltip title={target}>
+          <Text style={{ fontSize: 12 }}>{target}</Text>
+        </Tooltip>
+      )
+    },
+    { title: __('Human'), dataIndex: 'human', key: 'human', align: 'right', width: 90, render: count },
+    {
+      title: __('Automated'),
+      dataIndex: 'automated',
+      key: 'automated',
+      align: 'right',
+      width: 110,
+      render: count
+    },
+    { title: __('Total'), dataIndex: 'total', key: 'total', align: 'right', width: 80, render: count }
+  ]
+}
+
 /** Engagement card: an honest opens/clicks split (automated flagged, never inflated) plus human rates. */
 export default function EngagementMetrics({ engagement }: { engagement: Engagement }) {
   const { token } = theme.useToken()
   const { opens, clicks, open_rate: openRate, click_rate: clickRate } = engagement
+  // Guard against a pre-upgrade cached engagement blob (5-min transient TTL) lacking this field.
+  const topLinks = engagement.top_clicked_links ?? []
   const hasOpenDenominator = openRate.denominator > 0
   const hasClickDenominator = clickRate.denominator > 0
 
@@ -147,6 +178,14 @@ export default function EngagementMetrics({ engagement }: { engagement: Engageme
             />
           ))}
         </Flex>
+        {topLinks.length > 0 ? (
+          <Flex vertical gap={token.paddingXS}>
+            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+              {__('Top clicked links (confirmed-human vs automated)')}
+            </Text>
+            <DataTable rowKey="target" rows={topLinks} columns={clickedLinkColumns()} />
+          </Flex>
+        ) : null}
       </Flex>
     </ChartCard>
   )
