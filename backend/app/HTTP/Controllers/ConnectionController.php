@@ -142,8 +142,13 @@ class ConnectionController
                 return $this->successResponse($provider, $connection, $result);
             }
 
-            return Response::message(__('Connection test failed', 'bit-smtp'))
-                ->error($result->getDebug() ?: [$result->getError()]);
+            // Surface the provider's own error as the message so the UI shows the real cause
+            // (e.g. a mailbox-less Microsoft 401) instead of a generic failure.
+            $detail = $result->getError();
+            $detail = ($detail !== null && $detail !== '') ? $detail : __('Connection test failed', 'bit-smtp');
+
+            return Response::message($detail)
+                ->error($result->getDebug() ?: [$detail]);
         } catch (Throwable $e) {
             return Response::message($e->getMessage())->error([$e->getMessage()]);
         }

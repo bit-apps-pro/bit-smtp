@@ -72,18 +72,38 @@ class Microsoft365Provider implements ProviderInterface
             [
                 'key'         => 'client_id', 'label' => 'Application (client) ID', 'type' => 'text', 'required' => true, 'secret' => false,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'Open your app registration and copy the Application (client) ID from its Overview page.',
+                    'url'       => 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
+                    'linkLabel' => 'Open Microsoft Entra',
+                ],
             ],
             [
                 'key'         => 'client_secret', 'label' => 'Client Secret', 'type' => 'password', 'required' => true, 'secret' => true,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'In Certificates & secrets, create a client secret and copy its Value before leaving the page.',
+                    'url'       => 'https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-credentials#add-a-client-secret',
+                    'linkLabel' => 'View Microsoft instructions',
+                ],
             ],
             [
                 'key'         => 'tenant', 'label' => 'Directory (tenant) ID', 'type' => 'text', 'required' => false, 'secret' => false,
                 'placeholder' => 'common', 'default' => 'common', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'Copy the Directory (tenant) ID from the app Overview. Keep common for personal Outlook/Hotmail or multi-tenant sign-in.',
+                    'url'       => 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
+                    'linkLabel' => 'Open Microsoft Entra',
+                ],
             ],
             [
                 'key'         => 'oauth', 'label' => 'Microsoft account', 'type' => 'oauth', 'required' => false, 'secret' => false,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'Connect the Microsoft mailbox Bit SMTP will send from. Sign in with the account whose address you entered as From Email — it must have an Exchange Online or Outlook.com mailbox, then approve the requested access.',
+                    'url'       => 'https://account.microsoft.com/',
+                    'linkLabel' => 'Open Microsoft account',
+                ],
             ],
         ];
     }

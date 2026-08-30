@@ -90,6 +90,13 @@ class Microsoft365Transport extends AbstractOAuth2Transport implements OAuth2Pro
             return (string) $body['error']['message'];
         }
 
+        // Graph rejects sends from a mailbox-less identity with a bodyless 401/403; spell out the
+        // most common causes since the raw status alone reads as an opaque failure.
+        if ($status === 401 || $status === 403) {
+            return 'Microsoft rejected the send (HTTP ' . $status . '). The connected Microsoft account may not '
+                . 'have a mailbox (no Exchange Online license), or the From address is not a valid send-as address for it.';
+        }
+
         return 'Microsoft 365 error HTTP ' . $status;
     }
 

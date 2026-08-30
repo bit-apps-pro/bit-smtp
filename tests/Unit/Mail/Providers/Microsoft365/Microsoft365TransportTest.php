@@ -236,6 +236,20 @@ class Microsoft365TransportTest extends BaseUnitTestCase
         $this->assertSame('Microsoft 365 error HTTP 500', $result->getError());
     }
 
+    public function testErrorFromExplainsMailboxlessAuthFailure(): void
+    {
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->andReturn('raw-mime');
+        $this->tokenProvider->shouldReceive('accessToken')->once()->andReturn('tok');
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(401, ''));
+
+        $result = $this->transport->send($this->message(), $this->connection());
+
+        $this->assertFalse($result->isOk());
+        $this->assertStringContainsString('HTTP 401', (string) $result->getError());
+        $this->assertStringContainsString('mailbox', (string) $result->getError());
+    }
+
     private function message(): MailMessage
     {
         return MailMessage::fromArray([

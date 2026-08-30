@@ -106,10 +106,14 @@ class Microsoft365ProviderTest extends BaseUnitTestCase
 
     public function testFieldExposesAllRenderMetadataKeys(): void
     {
-        $expectedKeys = ['key', 'label', 'type', 'required', 'secret', 'placeholder', 'default', 'options', 'dependsOn'];
+        $expectedKeys = ['key', 'label', 'type', 'required', 'secret', 'placeholder', 'default', 'options', 'dependsOn', 'help'];
 
         foreach ($this->provider->fields() as $field) {
             $this->assertSame($expectedKeys, array_keys($field), "Field '{$field['key']}' must expose exactly the render-metadata keys");
+            $this->assertSame(['text', 'url', 'linkLabel'], array_keys($field['help']));
+            $this->assertNotSame('', $field['help']['text']);
+            $this->assertStringStartsWith('https://', $field['help']['url']);
+            $this->assertNotSame('', $field['help']['linkLabel']);
         }
     }
 
