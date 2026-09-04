@@ -30,12 +30,13 @@ function readAliasFromTsConfig(): Alias[] {
 
 export default defineConfig(({ mode }) => {
   const isDev = mode === 'development'
+  const devPort = Number.parseInt(process.env.VITE_PORT ?? '3000', 10)
   const folderName = path.basename(process.cwd())
 
   return {
     root: 'frontend/src',
-    // base: isDev ? `/wp-content/plugins/${folderName}/frontend/src/` : '',
-    base: '',
+    // Keep development assets under one prefix so the tunnel gateway can route them to Vite.
+    base: isDev ? '/__vite/' : '',
     assetsDir: 'assets',
     plugins: [
       react({
@@ -45,7 +46,7 @@ export default defineConfig(({ mode }) => {
         },
         jsxRuntime: 'automatic'
       }),
-      setDevServerConfig()
+      setDevServerConfig(devPort)
 
       // babel()
       // !isDev &&
@@ -139,23 +140,23 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['./config/test.setup.ts']
     },
     server: {
+      allowedHosts: ['.trycloudflare.com', 'localhost', 'wp-dev.io'],
       cors: true, // required to load scripts from custom host
       strictPort: true, // strict port to match on PHP side
-      port: 3000,
-      hmr: { host: 'localhost' }
+      port: devPort
       // commonjsOptions: { transformMixedEsModules: true },
     }
   }
 })
 
-function setDevServerConfig(): Plugin {
+function setDevServerConfig(defaultPort: number): Plugin {
   return {
     name: 'vite-plugin-set-dev-server-config',
     async config(_, env) {
       if (env?.mode === 'development') {
         let port = getStoredPort()
         if (!port) {
-          port = await detectPort(3000).then((detectedPort: number) => detectedPort)
+          port = await detectPort(defaultPort).then((detectedPort: number) => detectedPort)
           updateStoredPort(port)
         }
         return { server: { port, origin: `http://localhost:${port}` } }

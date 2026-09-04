@@ -10,6 +10,7 @@ use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
+use BitApps\SMTP\Settings\PluginSettings;
 
 final class LogController
 {
@@ -41,8 +42,10 @@ final class LogController
 
         $filters = $this->extractLogFilters($request);
 
-        $result         = $this->logger->all((($pageNo - 1) * $limit), $limit, $filters);
-        $result['logs'] = $this->enrichLogs($result['logs']);
+        $result                     = $this->logger->all((($pageNo - 1) * $limit), $limit, $filters);
+        $trackingEnabled            = PluginSettings::isTrackingEnabled();
+        $result['tracking_enabled'] = $trackingEnabled;
+        $result['logs']             = $this->enrichLogs($result['logs'], $trackingEnabled);
 
         return Response::success($result);
     }
@@ -153,7 +156,7 @@ final class LogController
      *
      * @return array<int,array<string,mixed>>
      */
-    private function enrichLogs($logs): array
+    private function enrichLogs($logs, bool $trackingEnabled): array
     {
         if ($logs instanceof Log) {
             $logs = [$logs];
@@ -163,13 +166,16 @@ final class LogController
             return [];
         }
 
-        $verifiedMap = $this->verifiedConnectionMap();
+        $verifiedMap   = $this->verifiedConnectionMap();
+        $trackingFlags = $trackingEnabled
+            ? $this->logger->engagementFlagsFor(array_map(static fn (Log $log): int => (int) $log->id, $logs))
+            : [];
 
-        return array_map(function (Log $log) use ($verifiedMap) {
+        return array_map(function (Log $log) use ($verifiedMap, $trackingFlags) {
             $data                      = $log->jsonSerialize();
             $data['delivery_verified'] = $this->isDeliveryVerified($log, $verifiedMap);
 
-            return $data;
+            return $data + ($trackingFlags[(int) $log->id] ?? []);
         }, $logs);
     }
 

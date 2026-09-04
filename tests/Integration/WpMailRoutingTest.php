@@ -2,7 +2,6 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
-use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
@@ -22,7 +21,7 @@ final class WpMailRoutingTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->clearLogs();
+        $this->truncateTables((new Log())->getTable());
     }
 
     public function testMatchingRoutingRuleSendsViaChosenConnectionFirst(): void
@@ -268,16 +267,7 @@ final class WpMailRoutingTest extends IntegrationTestCase
      */
     private function logs(): array
     {
-        $logs = Log::desc()->get();
-
-        return $logs instanceof Collection ? $logs->all() : $logs;
-    }
-
-    private function clearLogs(): void
-    {
-        global $wpdb;
-        $table = (new Log())->getTable();
-        $wpdb->query("TRUNCATE TABLE {$table}");
+        return Log::desc()->get()->all();
     }
 
     private function replaceSourceDetector(object $bridge, MailSourceDetector $detector): MailSourceDetector

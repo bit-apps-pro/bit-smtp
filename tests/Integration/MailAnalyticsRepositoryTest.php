@@ -25,8 +25,7 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        global $wpdb;
-        $wpdb->query('TRUNCATE TABLE ' . (new Log())->getTable());
+        $this->truncateTables((new Log())->getTable());
     }
 
     public function testOverviewUsesOnlyBoundedAggregateQueriesAndDoesNotHydrateRawLogRows(): void

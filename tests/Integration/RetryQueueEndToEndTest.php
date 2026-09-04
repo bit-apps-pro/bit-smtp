@@ -26,8 +26,7 @@ final class RetryQueueEndToEndTest extends IntegrationTestCase
     {
         parent::setUp();
         $this->queueTable = $GLOBALS['wpdb']->prefix . Config::VAR_PREFIX . 'mail_retry_queue';
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE `{$this->queueTable}`");
+        $this->truncateTables($this->queueTable);
     }
 
     public function testRetryableFailureEnqueuesAndTheWorkerDeliversOnceTheConnectionBecomesReachable(): void

@@ -33,8 +33,8 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testFreshMigrationCreatesNullableAttributionColumnsAndIndexes(): void
     {
-        $this->dropLogsTable();
-        $this->dropDeliveryEventsTable();
+        $this->dropTables($this->logsTable);
+        $this->dropTables($this->eventsTable);
 
         $this->migrateLogs();
         (new BitSmtpCleanupOrphanDeliveryEvents())->up();
@@ -54,7 +54,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testOrphanCleanupIsSafeWhenTheDeliveryEventsTableIsMissing(): void
     {
-        $this->dropDeliveryEventsTable();
+        $this->dropTables($this->eventsTable);
 
         try {
             (new BitSmtpCleanupOrphanDeliveryEvents())->up();
@@ -66,7 +66,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testUpgradeMigrationPreservesLegacyRowsWithNullAttribution(): void
     {
-        $this->dropLogsTable();
+        $this->dropTables($this->logsTable);
         $this->createLegacyLogsTable();
         $this->seedLegacyLog();
 
@@ -89,7 +89,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testUpgradeLeavesLegacyTimestampsUnqualifiedWithoutGuessingAcrossTimezoneChanges(): void
     {
-        $this->dropLogsTable();
+        $this->dropTables($this->logsTable);
         $this->createLegacyLogsTable();
         $this->seedLegacyLog('2026-11-01 01:30:00');
         $previousTimezone = get_option('timezone_string');
@@ -175,7 +175,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testCcAndBccColumnsAreAddedIdempotentlyAndNullable(): void
     {
-        $this->dropLogsTable();
+        $this->dropTables($this->logsTable);
         $this->createLegacyLogsTable();
 
         $this->migrateLogs();
@@ -192,7 +192,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testResendParentColumnAndIndexAreAddedIdempotently(): void
     {
-        $this->dropLogsTable();
+        $this->dropTables($this->logsTable);
         $this->createLegacyLogsTable();
 
         $this->migrateLogs();
@@ -209,7 +209,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testMaybeMigrateDbUpgradesAOneSixLogsTableAtTheCurrentPluginVersion(): void
     {
-        $this->dropLogsTable();
+        $this->dropTables($this->logsTable);
         $this->createLegacyLogsTable();
         $this->seedLegacyLog();
 
@@ -239,7 +239,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testMigrationFailureDoesNotAdvanceDbVersionAndCanBeRetried(): void
     {
-        $this->dropLogsTable();
+        $this->dropTables($this->logsTable);
         $this->createLegacyLogsTable();
         global $wpdb;
         $this->assertNotFalse($wpdb->query("ALTER TABLE `{$this->logsTable}` ADD COLUMN `created_at_utc` TEXT NULL"));
@@ -274,7 +274,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testMaybeMigrateDbCleansUpEverySupersededOneSevenIndexAndIsIdempotent(): void
     {
-        $this->dropLogsTable();
+        $this->dropTables($this->logsTable);
         $this->createOneSevenLogsTable();
 
         $previousVersion   = Config::getOption('version');
@@ -304,7 +304,7 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
 
     public function testOneSevenIndexCleanupFailureDoesNotAdvanceDbVersionAndCanBeRetried(): void
     {
-        $this->dropLogsTable();
+        $this->dropTables($this->logsTable);
         $this->createOneSevenLogsTable();
         global $wpdb;
 
@@ -673,20 +673,6 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $event->event_hash = hash('sha256', $hashSuffix);
 
         self::assertTrue((bool) $event->save());
-    }
-
-    private function dropLogsTable(): void
-    {
-        global $wpdb;
-
-        $wpdb->query("DROP TABLE IF EXISTS `{$this->logsTable}`");
-    }
-
-    private function dropDeliveryEventsTable(): void
-    {
-        global $wpdb;
-
-        $wpdb->query("DROP TABLE IF EXISTS `{$this->eventsTable}`");
     }
 
     private function tableName(): string

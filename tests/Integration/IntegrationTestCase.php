@@ -3,8 +3,12 @@
 namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Model\Log;
+use BitApps\SMTP\Model\LogDeliveryEvent;
+use BitApps\SMTP\Model\LogEngagementEvent;
 use BitApps\SMTP\Settings\PluginSettings;
 use PHPUnit\Framework\TestCase;
+use wpdb;
 
 /**
  * Base for integration tests. Real WordPress (wp-phpunit) is loaded by the bootstrap; the
@@ -28,6 +32,35 @@ abstract class IntegrationTestCase extends TestCase
         // test that relies on the legacy-option fallback (no blob written yet) needs a clean slate.
         delete_option(PluginSettings::OPTION_NAME);
         $this->clearMailpit();
+    }
+
+    /**
+     * Empties $tables with foreign-key enforcement suspended for the duration. The schema is InnoDB
+     * with enforced constraints, and MySQL refuses TRUNCATE outright on a table a foreign key
+     * references, so the parent log table cannot be cleared without this.
+     */
+    protected function truncateTables(string ...$tables): void
+    {
+        $tables = $this->withCascadeChildren($tables);
+
+        $this->withoutForeignKeyChecks(static function ($wpdb) use ($tables): void {
+            foreach ($tables as $table) {
+                $wpdb->query("TRUNCATE TABLE `{$table}`");
+            }
+        });
+    }
+
+    /**
+     * Drops $tables with foreign-key enforcement suspended, for migration tests that rebuild a table
+     * a child table still references.
+     */
+    protected function dropTables(string ...$tables): void
+    {
+        $this->withoutForeignKeyChecks(static function ($wpdb) use ($tables): void {
+            foreach ($tables as $table) {
+                $wpdb->query("DROP TABLE IF EXISTS `{$table}`");
+            }
+        });
     }
 
     /**
@@ -93,5 +126,65 @@ abstract class IntegrationTestCase extends TestCase
         $headers  = json_decode(wp_remote_retrieve_body($response), true);
 
         return \is_array($headers) ? $headers : [];
+    }
+
+    /**
+     * Precedes each cascade parent in $tables with its child tables, mirroring the schema's ON DELETE
+     * CASCADE. Enforcement is suspended while truncating, so clearing a parent on its own would
+     * strand child rows pointing at ids that no longer exist and bleed them into later tests.
+     *
+     * @param array<int,string> $tables
+     *
+     * @return array<int,string>
+     */
+    private function withCascadeChildren(array $tables): array
+    {
+        $logsTable = (new Log())->getTable();
+        $expanded  = [];
+
+        foreach ($tables as $table) {
+            if ($table === $logsTable) {
+                foreach ([(new LogDeliveryEvent())->getTable(), (new LogEngagementEvent())->getTable()] as $child) {
+                    if ($this->tableExists($child)) {
+                        $expanded[] = $child;
+                    }
+                }
+            }
+
+            $expanded[] = $table;
+        }
+
+        return array_values(array_unique($expanded));
+    }
+
+    /**
+     * Whether $table is present, so an inferred cascade child is skipped rather than erroring out in a
+     * migration test that has deliberately dropped it. Caller-named tables are never filtered.
+     */
+    private function tableExists(string $table): bool
+    {
+        global $wpdb;
+
+        return (string) $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
+    }
+
+    /**
+     * Runs $callback against $wpdb with FOREIGN_KEY_CHECKS off, restoring it even when the callback
+     * throws. Scoped this narrowly on purpose: enforcement stays on inside the tests themselves, so
+     * the ON DELETE CASCADE behavior they assert is still real.
+     *
+     * @param callable(wpdb):void $callback
+     */
+    private function withoutForeignKeyChecks(callable $callback): void
+    {
+        global $wpdb;
+
+        $wpdb->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        try {
+            $callback($wpdb);
+        } finally {
+            $wpdb->query('SET FOREIGN_KEY_CHECKS = 1');
+        }
     }
 }

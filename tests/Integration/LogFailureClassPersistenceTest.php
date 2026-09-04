@@ -21,7 +21,7 @@ final class LogFailureClassPersistenceTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->truncate((new Log())->getTable());
+        $this->truncateTables((new Log())->getTable());
         $this->service = new LogService();
     }
 
@@ -105,11 +105,5 @@ final class LogFailureClassPersistenceTest extends IntegrationTestCase
 
         $updated = Log::where('id', $saved->id)->first();
         $this->assertSame(FailureCategory::AUTH, $updated->failure_class);
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE {$table}");
     }
 }

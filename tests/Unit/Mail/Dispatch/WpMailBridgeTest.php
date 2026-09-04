@@ -3,14 +3,20 @@
 namespace BitApps\SMTP\Tests\Unit\Mail\Dispatch;
 
 use BitApps\SMTP\HTTP\Services\LogService;
+use BitApps\SMTP\Mail\Config\MailSettings;
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Connections\ConnectionResolver;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
+use BitApps\SMTP\Mail\Dispatch\ConnectionSendability;
 use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Mail\Dispatch\FailureClassifier;
+use BitApps\SMTP\Mail\Dispatch\MailDataBuilder;
 use BitApps\SMTP\Mail\Dispatch\MailEventLogger;
 use BitApps\SMTP\Mail\Dispatch\RetryQueue;
+use BitApps\SMTP\Mail\Dispatch\RoutingPlanner;
+use BitApps\SMTP\Mail\Dispatch\RoutingSkipTracer;
 use BitApps\SMTP\Mail\Dispatch\SendContext;
 use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
@@ -23,6 +29,7 @@ use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
 use BitApps\SMTP\Mail\Routing\RoutingDecision;
+use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Tracking\TokenSigner;
 use BitApps\SMTP\Mail\Tracking\TrackingBodyRewriter;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
@@ -95,22 +102,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertNotNull($spy->received);
         $this->assertSame('wordpress@example.org', $spy->received->getFrom());
         $this->assertSame('WordPress Default', $spy->received->getFromName());
-    }
-
-    public function testConnectionLabelUsesTheConnectionNameWhenPresent(): void
-    {
-        $bridge     = $this->bridgeWithTransport(new SpyTransport());
-        $connection = $this->connection(['name' => 'Primary SMTP', 'provider' => 'smtp']);
-
-        $this->assertSame('Primary SMTP', $this->invokeConnectionLabel($bridge, $connection));
-    }
-
-    public function testConnectionLabelFallsBackToTheProviderKeyWhenNameIsEmpty(): void
-    {
-        $bridge     = $this->bridgeWithTransport(new SpyTransport());
-        $connection = $this->connection(['name' => '', 'provider' => 'brevo']);
-
-        $this->assertSame('brevo', $this->invokeConnectionLabel($bridge, $connection));
     }
 
     public function testDispatchLogsTheConnectionLabelForEachAttempt(): void
@@ -200,6 +191,110 @@ class WpMailBridgeTest extends BaseUnitTestCase
             $this->connection(['id' => 'conn_1']),
             $this->connection(['id' => 'conn_2']),
         ], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
+    }
+
+    public function testRoutingSkipsRecordsARuleMatchedButDisabledConnection(): void
+    {
+        $tracer = new RoutingSkipTracer(new ConnectionSendability($this->registryWith()));
+
+        // A rule matched conn_rule (the preferred id), but it is disabled, so the send falls back to
+        // the enabled default conn_ok — the disabled connection must surface in the trace with a reason.
+        $settings = MailSettings::fromArray([
+            'default_connection_id' => 'conn_ok',
+            'connections'           => [
+                ['id' => 'conn_rule', 'provider' => 'ses', 'kind' => 'api', 'name' => 'Mailgun Prod', 'enabled' => false],
+                ['id' => 'conn_ok', 'provider' => 'ses', 'kind' => 'api', 'name' => 'SES Default', 'enabled' => true],
+            ],
+        ]);
+        $sendable = [$this->connection(['id' => 'conn_ok', 'name' => 'SES Default'])];
+
+        // The priority chain the bridge would compute for a rule-matched conn_rule over this settings.
+        $skips = $tracer->routingSkips($settings, ['conn_rule', 'conn_ok'], $sendable);
+
+        $this->assertSame([
+            ['connection' => 'Mailgun Prod', 'connection_id' => 'conn_rule', 'reason' => 'disabled'],
+        ], $skips);
+    }
+
+    public function testSkipReasonClassifiesEachUnsendableState(): void
+    {
+        // 'fake' passes validation (sendable); an enabled connection on an unregistered provider cannot
+        // resolve one, so it is not sendable -> 'incomplete'.
+        $tracer = new RoutingSkipTracer(new ConnectionSendability($this->registryWith()));
+
+        $this->assertSame('deleted', $tracer->skipReason(null));
+        $this->assertSame('disabled', $tracer->skipReason($this->connection(['enabled' => false])));
+        $this->assertSame('incomplete', $tracer->skipReason($this->connection([
+            'provider' => 'unregistered', 'enabled' => true,
+        ])));
+        $this->assertSame('', $tracer->skipReason($this->connection(['enabled' => true])));
+    }
+
+    public function testIsSendableIsDecidedByTheProviderValidator(): void
+    {
+        $hostRequired = new class() implements ValidatorInterface {
+            public function validate(array $settings, array $credentials): array
+            {
+                return trim((string) ($settings['host'] ?? '')) === '' ? ['host' => 'Host is required.'] : [];
+            }
+        };
+        $sendability = new ConnectionSendability($this->registryWith('fake', $hostRequired));
+
+        $this->assertFalse($sendability->isSendable($this->connection(['settings' => ['host' => '']])));
+        $this->assertTrue($sendability->isSendable($this->connection(['settings' => ['host' => 'smtp.example.com']])));
+        // A connection whose provider is not registered can never send.
+        $this->assertFalse($sendability->isSendable($this->connection(['provider' => 'unregistered'])));
+    }
+
+    public function testSkipsAheadOfKeepsOnlyHigherPrioritySkipsThanTheSendingConnection(): void
+    {
+        $tracer = new RoutingSkipTracer(new ConnectionSendability($this->registryWith()));
+
+        $chain = ['pref', 'def', 'fb1'];
+        $skips = [
+            ['connection' => 'Pref', 'connection_id' => 'pref', 'reason' => 'disabled'],
+            ['connection' => 'Fb1', 'connection_id' => 'fb1', 'reason' => 'disabled'],
+        ];
+
+        // Sent via 'def' (position 1): 'pref' (0) was genuinely bypassed; 'fb1' (2) was never reached.
+        $this->assertSame(
+            [['connection' => 'Pref', 'connection_id' => 'pref', 'reason' => 'disabled']],
+            $tracer->skipsAheadOf($this->connection(['id' => 'def']), $skips, $chain)
+        );
+
+        // A sending connection outside the chain (an unordered "rest" connection) keeps every skip.
+        $this->assertSame($skips, $tracer->skipsAheadOf($this->connection(['id' => 'rest']), $skips, $chain));
+
+        // No sending connection at all (total early failure) keeps every skip.
+        $this->assertSame($skips, $tracer->skipsAheadOf(null, $skips, $chain));
+    }
+
+    public function testDispatchResendSendsOverTheChosenConnectionAsAManualResendChild(): void
+    {
+        $transport = new SpyTransport();
+        $bridge    = $this->bridgeWithTransport($transport);
+
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('bulkInsert')
+            ->once()
+            ->with(Mockery::on(static function (array $logs): bool {
+                return ($logs[0]['routing_type']     ?? null) === 'manual'
+                    && ($logs[0]['resend_parent_id'] ?? null) === 42
+                    && ($logs[0]['connection']       ?? null) === 'Chosen';
+            }));
+        $this->setEventLogger($bridge, $logService);
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $connection = $this->connection(['id' => 'chosen', 'name' => 'Chosen']);
+        $succeeded  = $bridge->dispatchResend(
+            ['to' => ['x@example.org'], 'subject' => 'Hi', 'message' => 'Body'],
+            $connection,
+            42
+        );
+
+        $this->assertTrue($succeeded);
+        $this->assertNotNull($transport->received, 'the chosen connection must be used');
     }
 
     public function testFinalFailureNotifiesOnceAfterAllFallbacksFail(): void
@@ -1014,14 +1109,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertFalse($outcome['succeeded']);
     }
 
-    private function invokeConnectionLabel(WpMailBridge $bridge, Connection $connection): string
-    {
-        $method = new ReflectionMethod(WpMailBridge::class, 'connectionLabel');
-        $method->setAccessible(true);
-
-        return $method->invoke($bridge, $connection);
-    }
-
     /**
      * dispatch() now returns array{succeeded: bool, failure_class: ?string}; every pre-existing
      * caller here only ever cared about the bool, so that shape is unwrapped in one place rather
@@ -1074,6 +1161,16 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('sourceDetector');
         $property->setAccessible(true);
         $property->setValue($bridge, $detector);
+
+        // captureNativeRoutingDecision now lives on RoutingPlanner and reads ITS detector, so the
+        // planner must resolve the source through the same swapped-in instance.
+        $plannerProperty = (new ReflectionClass(WpMailBridge::class))->getProperty('routingPlanner');
+        $plannerProperty->setAccessible(true);
+        $planner = $plannerProperty->getValue($bridge);
+
+        $plannerDetector = (new ReflectionClass(RoutingPlanner::class))->getProperty('sourceDetector');
+        $plannerDetector->setAccessible(true);
+        $plannerDetector->setValue($planner, $detector);
     }
 
     private function setFailureNotifier(WpMailBridge $bridge, FailureNotifierInterface $notifier): void
@@ -1124,10 +1221,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         return $bridge;
     }
 
-    private function bridgeWithTransport(TransportInterface $transport, string $providerKey = 'fake'): WpMailBridge
+    private function bridgeWithTransport(TransportInterface $transport, string $providerKey = 'fake', ?ValidatorInterface $validator = null): WpMailBridge
     {
         $registry = new ProviderRegistry();
-        $registry->register(new FakeProvider($transport, $providerKey));
+        $registry->register(new FakeProvider($transport, $providerKey, $validator));
 
         $refClass = new ReflectionClass(WpMailBridge::class);
         $bridge   = $refClass->newInstanceWithoutConstructor();
@@ -1150,6 +1247,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $retryQueueProperty->setAccessible(true);
         $retryQueueProperty->setValue($bridge, new RetryQueue());
 
+        $mailDataProperty = $refClass->getProperty('mailData');
+        $mailDataProperty->setAccessible(true);
+        $mailDataProperty->setValue($bridge, new MailDataBuilder());
+
         $stamperProperty = $refClass->getProperty('stamper');
         $stamperProperty->setAccessible(true);
         $stamperProperty->setValue($bridge, new TrackingIdStamper());
@@ -1160,16 +1261,46 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $trackingRewriterProperty->setAccessible(true);
         $trackingRewriterProperty->setValue($bridge, new TrackingBodyRewriter());
 
+        $sourceDetector         = new MailSourceDetector();
         $sourceDetectorProperty = $refClass->getProperty('sourceDetector');
         $sourceDetectorProperty->setAccessible(true);
-        $sourceDetectorProperty->setValue($bridge, new MailSourceDetector());
+        $sourceDetectorProperty->setValue($bridge, $sourceDetector);
 
         // The native-path listeners enrich the log with the sender/cc/bcc parsed from the raw headers.
         $messageFactoryProperty = $refClass->getProperty('messageFactory');
         $messageFactoryProperty->setAccessible(true);
         $messageFactoryProperty->setValue($bridge, new MailMessageFactory());
 
+        // The routing collaborators the real constructor builds; dispatch() and the native-path
+        // listeners delegate to them, so a constructor-bypassed bridge must be given them too. The
+        // planner shares the bridge's source detector so setSourceDetector() can swap both at once.
+        $sendability         = new ConnectionSendability($registry);
+        $sendabilityProperty = $refClass->getProperty('sendability');
+        $sendabilityProperty->setAccessible(true);
+        $sendabilityProperty->setValue($bridge, $sendability);
+
+        $routingPlannerProperty = $refClass->getProperty('routingPlanner');
+        $routingPlannerProperty->setAccessible(true);
+        $routingPlannerProperty->setValue($bridge, new RoutingPlanner(
+            new ConnectionResolver(),
+            new RoutingResolver(),
+            $sourceDetector,
+            $sendability
+        ));
+
+        $routingSkipTracerProperty = $refClass->getProperty('routingSkipTracer');
+        $routingSkipTracerProperty->setAccessible(true);
+        $routingSkipTracerProperty->setValue($bridge, new RoutingSkipTracer($sendability));
+
         return $bridge;
+    }
+
+    private function registryWith(string $providerKey = 'fake', ?ValidatorInterface $validator = null): ProviderRegistry
+    {
+        $registry = new ProviderRegistry();
+        $registry->register(new FakeProvider(new SpyTransport(), $providerKey, $validator));
+
+        return $registry;
     }
 
     private function invokeSendVia(WpMailBridge $bridge, Connection $connection, MailMessage $message): SendResult
@@ -1247,10 +1378,18 @@ final class FakeProvider implements ProviderInterface
 
     private string $providerKey;
 
-    public function __construct(TransportInterface $transport, string $providerKey = 'fake')
+    private ValidatorInterface $validator;
+
+    public function __construct(TransportInterface $transport, string $providerKey = 'fake', ?ValidatorInterface $validator = null)
     {
         $this->transport   = $transport;
         $this->providerKey = $providerKey;
+        $this->validator   = $validator ?? new class() implements ValidatorInterface {
+            public function validate(array $settings, array $credentials): array
+            {
+                return [];
+            }
+        };
     }
 
     public function key(): string
@@ -1280,12 +1419,7 @@ final class FakeProvider implements ProviderInterface
 
     public function validator(): ValidatorInterface
     {
-        return new class() implements ValidatorInterface {
-            public function validate(array $settings, array $credentials): array
-            {
-                return [];
-            }
-        };
+        return $this->validator;
     }
 
     public function transport(): TransportInterface

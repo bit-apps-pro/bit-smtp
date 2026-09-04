@@ -27,7 +27,7 @@ final class ResendHistoryTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->truncate((new Log())->getTable());
+        $this->truncateTables((new Log())->getTable());
         $this->service = new LogService();
         $this->useRealPhpMailer();
         $this->configureMailpitTransport();
@@ -141,11 +141,5 @@ final class ResendHistoryTest extends IntegrationTestCase
 
         // The config service caches on first load; refresh it so this test's options take effect.
         Plugin::instance()->mailConfigService()->reload();
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE {$table}");
     }
 }

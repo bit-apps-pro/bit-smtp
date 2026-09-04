@@ -8,7 +8,10 @@ final class RoutingResolver
 {
     public function decide(RoutingContext $context, RoutingRules $rules): RoutingDecision
     {
-        foreach ($rules as $index => $rule) {
+        /**
+         * @var RoutingRule $rule
+         */
+        foreach ($rules->all() as $index => $rule) {
             if ($rule->matches($context)) {
                 return new RoutingDecision($context->getSourcePlugin(), $rule->getConnectionId(), 'rule', $index);
             }

@@ -3,14 +3,18 @@ name: bit-smtp-tunnel
 services:
   cloudflared:
     image: cloudflare/cloudflared:latest
+    restart: unless-stopped
     command:
       - tunnel
       - --no-autoupdate
       - --loglevel
       - info
       - --url
-      - http://host.docker.internal
-      - --http-host-header
-      - wp-dev.io
-    extra_hosts:
-      - host.docker.internal:host-gateway
+      - http://backend
+    networks:
+      - bit-smtp-network
+
+networks:
+  bit-smtp-network:
+    external: true
+    driver: bridge

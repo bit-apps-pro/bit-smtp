@@ -2,7 +2,6 @@
 
 namespace BitApps\SMTP\Tests\Integration\Webhook;
 
-use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\HTTP\Controllers\WebhookController;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Aws\Sns\SnsSubscriptionConfirmer;
@@ -32,8 +31,7 @@ final class WebhookControllerTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->truncate((new Log())->getTable());
-        $this->truncate((new LogDeliveryEvent())->getTable());
+        $this->truncateTables((new Log())->getTable(), (new LogDeliveryEvent())->getTable());
 
         // Drive the REAL SnsSignatureVerifier: generate a keypair, pre-seed the cert cache the verifier
         // reads (so no network fetch), and sign each SNS envelope with the matching private key.
@@ -405,19 +403,7 @@ final class WebhookControllerTest extends IntegrationTestCase
      */
     private function childRows(int $logId): array
     {
-        $rows = LogDeliveryEvent::where('log_id', $logId)->get();
-
-        if ($rows instanceof Collection) {
-            return $rows->all();
-        }
-
-        return \is_array($rows) ? $rows : [];
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE {$table}");
+        return LogDeliveryEvent::where('log_id', $logId)->get()->all();
     }
 }
 

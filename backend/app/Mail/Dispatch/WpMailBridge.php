@@ -3,7 +3,6 @@
 namespace BitApps\SMTP\Mail\Dispatch;
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
-use BitApps\SMTP\Mail\Config\MailSettings;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
@@ -17,10 +16,8 @@ use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotifierInterface;
 use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Routing\MailSourceDetector;
-use BitApps\SMTP\Mail\Routing\RoutingContext;
 use BitApps\SMTP\Mail\Routing\RoutingDecision;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
-use BitApps\SMTP\Mail\Routing\RoutingRules;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Mail\Tracking\TrackingBodyRewriter;
 use BitApps\SMTP\Plugin;
@@ -43,6 +40,8 @@ class WpMailBridge
 
     private RetryQueue $retryQueue;
 
+    private MailDataBuilder $mailData;
+
     private FailureClassifier $classifier;
 
     private TrackingIdStamper $stamper;
@@ -51,13 +50,15 @@ class WpMailBridge
 
     private ProviderRegistry $registry;
 
-    private ConnectionResolver $connectionResolver;
-
     private MailMessageFactory $messageFactory;
 
-    private RoutingResolver $routingResolver;
-
     private MailSourceDetector $sourceDetector;
+
+    private ConnectionSendability $sendability;
+
+    private RoutingPlanner $routingPlanner;
+
+    private RoutingSkipTracer $routingSkipTracer;
 
     private bool $loggingEnabled = false;
 
@@ -84,16 +85,18 @@ class WpMailBridge
         ?HealthRecorder $healthRecorder = null
     ) {
         $this->registry             = $registry;
-        $this->connectionResolver   = $connectionResolver;
         $this->messageFactory       = $messageFactory;
-        $this->routingResolver      = $routingResolver;
         $this->sourceDetector       = $sourceDetector;
         $this->failureNotifier      = $failureNotifier;
         $this->healthRecorder       = $healthRecorder;
         $this->context              = new SendContext();
         $this->eventLogger          = new MailEventLogger(Plugin::instance()->logger());
         $this->retryQueue           = new RetryQueue();
+        $this->mailData             = new MailDataBuilder();
         $this->classifier           = new FailureClassifier();
+        $this->sendability          = new ConnectionSendability($registry);
+        $this->routingPlanner       = new RoutingPlanner($connectionResolver, $routingResolver, $sourceDetector, $this->sendability);
+        $this->routingSkipTracer    = new RoutingSkipTracer($this->sendability);
         $preferences                = PluginSettings::make();
         $this->loggingEnabled       = Plugin::instance()->logger()->isEnabled();
         $this->healthEnabled        = (bool) $preferences->get('health_check_enabled', false);
@@ -162,6 +165,31 @@ class WpMailBridge
         return $this;
     }
 
+    /**
+     * Send an edited manual resend over exactly the chosen connection, bypassing routing/failover and
+     * wp_mail, logging the outcome as a child of $resendParentId. $atts uses wp_mail's atts shape.
+     *
+     * @param array<string,mixed> $atts
+     */
+    public function dispatchResend(array $atts, Connection $connection, int $resendParentId): bool
+    {
+        $this->context->resetForSend();
+        $this->context->setResendParentId($resendParentId);
+        $this->context->setRoutingDecision(new RoutingDecision($this->sourceDetector->detect(), $connection->getId(), 'manual', null));
+
+        $message = $this->messageFactory->fromWpMailAtts($atts);
+
+        return $this->dispatch([$connection], $message, $this->mailData->buildFromAtts($atts, $message))['succeeded'];
+    }
+
+    /**
+     * Whether a connection can attempt a send now, so callers can reject an unusable one before dispatch.
+     */
+    public function canSend(Connection $connection): bool
+    {
+        return $this->sendability->isSendable($connection);
+    }
+
     public function setBatch(bool $status): self
     {
         $this->context->setBatch($status);
@@ -209,7 +237,7 @@ class WpMailBridge
         $this->context->setNativeMailHeaders($atts['headers'] ?? '');
 
         $settings = Plugin::instance()->mailConfigService()->load();
-        $this->captureSourceForSend($settings);
+        $this->routingPlanner->captureSourceForSend($settings, $this->context, $this->loggingEnabled);
         if (!$settings->isEnabled()) {
             return;
         }
@@ -217,7 +245,7 @@ class WpMailBridge
         // Check eligibility before building the message, so the wp_mail_* value filters aren't
         // applied here and then again by native wp_mail when we defer with no usable connection.
         // Routing only reorders the eligible set, so it cannot change emptiness.
-        if ($this->sendableConnections($settings, null) === []) {
+        if ($this->routingPlanner->sendableConnections($settings, null) === []) {
             return;
         }
 
@@ -228,14 +256,23 @@ class WpMailBridge
             return;
         }
 
-        $connections = $this->sendableConnections($settings, $this->routedConnectionId($message, $settings));
+        $routedConnectionId = $this->routingPlanner->routedConnectionId($message, $settings, $this->context);
+        $connections        = $this->routingPlanner->sendableConnections($settings, $routedConnectionId);
         if ($connections === []) {
             return;
         }
 
         $this->context->setResendParentId($resendParentId);
 
-        return $this->dispatch($connections, $message, $this->buildMailData($atts, $message))['succeeded'];
+        // The skip trace is consumed only by the logger, so compute it only when logging is on.
+        $routingChain = [];
+        $routingSkips = [];
+        if ($this->loggingEnabled) {
+            $routingChain = $this->routingPlanner->priorityChainIds($settings, $routedConnectionId);
+            $routingSkips = $this->routingSkipTracer->routingSkips($settings, $routingChain, $connections);
+        }
+
+        return $this->dispatch($connections, $message, $this->mailData->buildFromAtts($atts, $message), false, $routingSkips, $routingChain)['succeeded'];
     }
 
     /**
@@ -275,7 +312,7 @@ class WpMailBridge
         }
 
         if ($this->loggingEnabled) {
-            $this->captureNativeRoutingDecision();
+            $this->routingPlanner->captureNativeRoutingDecision($this->context);
             $this->eventLogger->logMailSuccess($this->enrichNativeMailData((array) $mailData), $this->context);
         }
         if ($this->failureNotifier !== null) {
@@ -293,7 +330,7 @@ class WpMailBridge
         }
 
         if ($this->loggingEnabled) {
-            $this->captureNativeRoutingDecision();
+            $this->routingPlanner->captureNativeRoutingDecision($this->context);
             $this->eventLogger->logMailFailed($this->enrichNativeError($error), $this->context);
         }
         if ($this->failureNotifier !== null) {
@@ -309,7 +346,7 @@ class WpMailBridge
      *
      * @return array{succeeded: bool, failure_class: ?string}
      */
-    private function dispatch(array $connections, MailMessage $message, array $mailData, bool $isWorkerRedispatch = false): array
+    private function dispatch(array $connections, MailMessage $message, array $mailData, bool $isWorkerRedispatch = false, array $routingSkips = [], array $routingChain = []): array
     {
         $this->dispatching = true;
 
@@ -331,14 +368,14 @@ class WpMailBridge
             [$outgoing, $messageTrackingId] = $this->maybeInjectTracking($message);
 
             foreach ($connections as $connection) {
-                $this->advanceRoutingDecision($connection);
+                $this->routingPlanner->advanceRoutingDecision($connection, $this->context);
                 $provider             = $this->resolveProvider($connection);
                 $tracking             = ($provider !== null && $connection->isWebhookEnabled()) ? $provider->tracking() : [];
                 $trackingId           = $messageTrackingId ?? ($tracking !== [] ? $this->stamper->generate() : null);
                 $lastResult           = $this->sendVia($provider, $connection, $outgoing, $tracking, $trackingId);
                 $lastConnection       = $connection;
                 $this->appendDebug($lastResult);
-                $attempts[]           = $this->attemptEntry($connection, $lastResult);
+                $attempts[]           = $this->mailData->attemptEntry($connection, $lastResult);
                 $connectionIdsTried[] = $connection->getId();
 
                 // Observe-only health signal (Fork 1): record the per-attempt outcome (a cheap DB
@@ -382,7 +419,10 @@ class WpMailBridge
             // visible in the log detail rather than split across a row per attempt.
             $winningMessage  = $lastConnection !== null ? $this->applyConnectionFrom($lastConnection, $outgoing) : $outgoing;
             $sender          = SenderFormatter::format($winningMessage->getFrom(), $winningMessage->getFromName());
-            $outcomeMailData = $this->withSender($this->withAttempts($mailData, $attempts), $sender);
+            $aheadSkips      = $this->routingSkipTracer->skipsAheadOf($lastConnection, $routingSkips, $routingChain);
+            $outcomeMailData = $this->mailData->withAttempts($mailData, $attempts);
+            $outcomeMailData = $this->mailData->withSender($outcomeMailData, $sender);
+            $outcomeMailData = $this->mailData->withRoutingSkips($outcomeMailData, $aheadSkips);
             $this->logOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus, $failureClass);
             $this->notifyOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection);
             $this->flushHealth($healthTransitions);
@@ -520,123 +560,6 @@ class WpMailBridge
         ]));
     }
 
-    private function routedConnectionId(MailMessage $message, MailSettings $settings): ?string
-    {
-        $rules    = $this->routingRules($settings);
-        $decision = $this->context->getRoutingDecision();
-
-        if ($rules === null) {
-            if ($decision !== null) {
-                $this->context->setRoutingDecision(new RoutingDecision(
-                    $decision->sourcePlugin(),
-                    $this->defaultConnectionId($settings),
-                    'default',
-                    null
-                ));
-            }
-
-            return null;
-        }
-
-        if ($decision === null) {
-            $decision = new RoutingDecision($this->sourceDetector->detect(), null, 'native', null);
-        }
-
-        $context = RoutingContext::fromArray([
-            'recipients'   => $message->getTo(),
-            'from'         => $message->getFrom() ?? '',
-            'subject'      => $message->getSubject(),
-            'sourcePlugin' => $decision->sourcePlugin(),
-        ]);
-        $decision     = $this->routingResolver->decide($context, $rules);
-        $connectionId = $decision->connectionId() ?? $this->defaultConnectionId($settings);
-
-        $this->context->setRoutingDecision(new RoutingDecision(
-            $decision->sourcePlugin(),
-            $connectionId,
-            $decision->type(),
-            $decision->ruleIndex()
-        ));
-
-        return $decision->connectionId();
-    }
-
-    private function captureSourceForSend(MailSettings $settings): void
-    {
-        if (!$this->loggingEnabled && (!$settings->isEnabled() || $this->routingRules($settings) === null)) {
-            return;
-        }
-
-        $this->context->setRoutingDecision(new RoutingDecision(
-            $this->sourceDetector->detect(),
-            null,
-            'native',
-            null
-        ));
-    }
-
-    private function captureNativeRoutingDecision(): void
-    {
-        $decision = $this->context->getRoutingDecision();
-        if ($decision === null) {
-            $decision = new RoutingDecision($this->sourceDetector->detect(), null, 'native', null);
-        } else {
-            $decision = $decision->withType('native');
-        }
-
-        $this->context->setRoutingDecision($decision);
-    }
-
-    private function advanceRoutingDecision(Connection $connection): void
-    {
-        $decision = $this->context->getRoutingDecision();
-        if ($decision === null || $decision->type() === 'fallback' || $decision->type() === 'native') {
-            return;
-        }
-
-        if ($decision->connectionId() !== null && $decision->connectionId() !== $connection->getId()) {
-            $this->context->setRoutingDecision($decision->withType('fallback'));
-        }
-    }
-
-    private function defaultConnectionId(MailSettings $settings): ?string
-    {
-        $connections = $this->sendableConnections($settings);
-
-        return isset($connections[0]) ? $connections[0]->getId() : null;
-    }
-
-    private function routingRules(MailSettings $settings): ?RoutingRules
-    {
-        $rawRules = $settings->getFeatures()['routing'] ?? [];
-        if (!\is_array($rawRules) || $rawRules === []) {
-            return null;
-        }
-
-        return RoutingRules::fromArray($rawRules);
-    }
-
-    /**
-     * Drop connections that cannot send yet so an incomplete setup falls through to native wp_mail
-     * instead of forcing a broken send (mirrors the pre-refactor guard). Only SMTP connections gate
-     * on a host; API connections carry no host and are always eligible to attempt.
-     *
-     * @return Connection[]
-     */
-    private function sendableConnections(MailSettings $settings, ?string $preferredId = null): array
-    {
-        return array_values(array_filter(
-            $this->connectionResolver->resolveOrdered($settings, $preferredId),
-            static function (Connection $connection): bool {
-                if ($connection->getKind() !== 'smtp') {
-                    return true;
-                }
-
-                return (string) $connection->setting('host', '') !== '';
-            }
-        ));
-    }
-
     private function appendDebug(SendResult $result): void
     {
         foreach ($result->getDebug() as $line) {
@@ -665,54 +588,6 @@ class WpMailBridge
     }
 
     /**
-     * One entry in a message's attempt trail: the connection tried and how it resolved. 'accepted'
-     * marks a hand-off that carried a per-message error (accepted by the provider but not fully ok).
-     *
-     * @return array{connection: string, status: string, error: string|null}
-     */
-    private function attemptEntry(Connection $connection, SendResult $result): array
-    {
-        if ($result->isOk()) {
-            $status = 'sent';
-        } elseif ($result->isAccepted()) {
-            $status = 'accepted';
-        } else {
-            $status = 'failed';
-        }
-
-        return [
-            'connection' => $this->connectionLabel($connection),
-            'status'     => $status,
-            'error'      => $result->getError(),
-        ];
-    }
-
-    /**
-     * @param array<string,mixed>                                                      $mailData
-     * @param array<int,array{connection: string, status: string, error: string|null}> $attempts
-     *
-     * @return array<string,mixed>
-     */
-    private function withAttempts(array $mailData, array $attempts): array
-    {
-        $mailData['attempts'] = $attempts;
-
-        return $mailData;
-    }
-
-    /**
-     * @param array<string,mixed> $mailData
-     *
-     * @return array<string,mixed>
-     */
-    private function withSender(array $mailData, string $sender): array
-    {
-        $mailData['from'] = $sender;
-
-        return $mailData;
-    }
-
-    /**
      * @param array<string,mixed> $mailData
      */
     private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection, ?string $messageId = null, ?string $trackingId = null, ?string $deliveryStatus = null, ?string $failureClass = null): void
@@ -723,7 +598,7 @@ class WpMailBridge
 
         // Store the label for the Logs UI, but correlate delivery webhooks on the stable connection id
         // so a rename (or two unnamed same-provider connections) can't break/mis-attribute status.
-        $connectionLabel = $connection !== null ? $this->connectionLabel($connection) : null;
+        $connectionLabel = $connection !== null ? $connection->label() : null;
         $connectionId    = $connection !== null ? $connection->getId() : null;
 
         if ($succeeded) {
@@ -781,14 +656,6 @@ class WpMailBridge
     }
 
     /**
-     * The label shown in the Logs UI to identify which connection handled (or attempted) a send.
-     */
-    private function connectionLabel(Connection $connection): string
-    {
-        return $connection->label();
-    }
-
-    /**
      * Fire the standard WP action once for the final outcome so third-party wp_mail_succeeded /
      * wp_mail_failed listeners still run on a short-circuited send.
      *
@@ -817,33 +684,6 @@ class WpMailBridge
         $errorMessage                         = $result !== null && $result->getError() !== null ? $result->getError() : '';
 
         return new WP_Error('wp_mail_failed', $errorMessage, $mailData);
-    }
-
-    /**
-     * Mirror core's wp_mail $mail_data so logging and the re-fired actions carry the same shape,
-     * plus the parsed Cc/Bcc recipients — which live inside the raw headers, not the top-level
-     * $atts — sourced from the already-parsed message so they can be logged alongside to_addr.
-     *
-     * @param array<string,mixed> $atts
-     *
-     * @return array<string,mixed>
-     */
-    private function buildMailData(array $atts, MailMessage $message): array
-    {
-        $to = $atts['to'] ?? [];
-        if (!\is_array($to)) {
-            $to = explode(',', $to);
-        }
-
-        return [
-            'to'          => $to,
-            'cc'          => $message->getCc(),
-            'bcc'         => $message->getBcc(),
-            'subject'     => $atts['subject']     ?? '',
-            'message'     => $atts['message']     ?? '',
-            'headers'     => $atts['headers']     ?? '',
-            'attachments' => $atts['attachments'] ?? [],
-        ];
     }
 
     /**

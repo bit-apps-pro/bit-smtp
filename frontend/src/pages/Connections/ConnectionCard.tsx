@@ -1,3 +1,4 @@
+import { type CSSProperties } from 'react'
 import {
   DeleteOutlined,
   EditOutlined,
@@ -12,10 +13,11 @@ import { type Connection, type ConnectionHealth } from '@pages/Connections/types
 import { Button, Card, Flex, Popconfirm, Switch, Tag, Tooltip, Typography, theme } from 'antd'
 import HealthBadge from './HealthBadge'
 
-const { Text } = Typography
+const { Text, Title } = Typography
 
-const PROVIDER_BADGE_SIZE = 30
+const PROVIDER_BADGE_SIZE = 32
 
+/** Renders connection identity in the header and status controls in the body. */
 export default function ConnectionCard({
   connection,
   isDefault,
@@ -45,25 +47,32 @@ export default function ConnectionCard({
   const visual = getProviderVisual(connection.provider)
   const isEnabled = connection.enabled
   const toggleLabel = isEnabled ? __('Disable this connection') : __('Enable this connection')
+  const nameId = `connection-card-name-${connection.id}`
 
-  const highlightStyle = isDefault
-    ? { borderInlineStart: `4px solid ${token.colorPrimary}`, backgroundColor: token.colorPrimaryBg }
-    : undefined
-  // A disabled (non-default) card is dimmed to signal it is paused and out of the failover chain.
-  const cardStyle = highlightStyle ?? (isEnabled ? undefined : { opacity: 0.6 })
+  // The default connection gets a primary accent rail + tint; a disabled (non-default) card is
+  // dimmed to signal it is paused and out of the failover chain.
+  let cardStyle: CSSProperties | undefined
+  if (isDefault) {
+    cardStyle = {
+      borderInlineStart: `4px solid ${token.colorPrimary}`,
+      backgroundColor: token.colorPrimaryBg
+    }
+  } else if (!isEnabled) {
+    cardStyle = { opacity: 0.6 }
+  }
 
   return (
     <Card
       style={cardStyle}
-      styles={{ title: { overflow: 'visible', whiteSpace: 'normal', textOverflow: 'clip' } }}
+      styles={{ title: { overflow: 'visible' } }}
       title={
-        <Flex align="center" gap="small">
+        <Flex align="center" gap={12} style={{ width: '100%' }}>
           <Button
             type="text"
             size="small"
             icon={<HolderOutlined />}
             aria-label={__('Drag to reorder')}
-            style={{ cursor: 'grab' }}
+            style={{ cursor: 'grab', flexShrink: 0 }}
             // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
             {...dragHandleAttributes}
             // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
@@ -97,19 +106,59 @@ export default function ConnectionCard({
               {visual.initial}
             </Flex>
           )}
-          <Text strong>{connection.name}</Text>
+          <Title
+            id={nameId}
+            level={5}
+            style={{
+              margin: 0,
+              lineHeight: 1.35,
+              flex: 1,
+              minWidth: 0,
+              whiteSpace: 'normal',
+              overflowWrap: 'anywhere'
+            }}
+          >
+            {connection.name}
+          </Title>
         </Flex>
       }
-      extra={
-        <Flex gap="small" align="center">
-          {health && <HealthBadge health={health} />}
-          {typeof priority === 'number' && <Tag bordered={false}>{`${__('Priority')} ${priority}`}</Tag>}
-          {isDefault && (
-            <Tag bordered={false} color={token.colorPrimary}>
-              {__('Default')}
-            </Tag>
-          )}
-          {!isEnabled && <Tag bordered={false}>{__('Disabled')}</Tag>}
+      actions={[
+        <Flex
+          key="actions"
+          role="group"
+          aria-label={__('Connection actions')}
+          align="center"
+          justify="space-around"
+          gap={4}
+          wrap
+          style={{ paddingInline: token.paddingXS }}
+        >
+          <Button
+            type="text"
+            icon={<StarOutlined />}
+            disabled={isDefault || !isEnabled}
+            onClick={onSetDefault}
+          >
+            {__('Set default')}
+          </Button>
+          <Button type="text" icon={<EditOutlined />} onClick={onEdit}>
+            {__('Edit')}
+          </Button>
+          <Popconfirm
+            title={__('Delete this connection?')}
+            onConfirm={onDelete}
+            okText={__('OK')}
+            cancelText={__('Cancel')}
+          >
+            <Button type="text" danger icon={<DeleteOutlined />}>
+              {__('Delete')}
+            </Button>
+          </Popconfirm>
+        </Flex>
+      ]}
+    >
+      <Flex vertical gap={12}>
+        <Flex role="group" aria-labelledby={nameId} align="center" gap={8} wrap>
           <Tooltip title={toggleLabel}>
             <Switch
               size="small"
@@ -119,35 +168,15 @@ export default function ConnectionCard({
               aria-label={toggleLabel}
             />
           </Tooltip>
+          {health && <HealthBadge health={health} />}
+          {isDefault && (
+            <Tag bordered={false} color={token.colorPrimary}>
+              {__('Default')}
+            </Tag>
+          )}
+          {!isEnabled && <Tag bordered={false}>{__('Disabled')}</Tag>}
+          {typeof priority === 'number' && <Tag bordered={false}>{`${__('Priority')} ${priority}`}</Tag>}
         </Flex>
-      }
-      actions={[
-        <Button
-          key="default"
-          type="text"
-          icon={<StarOutlined />}
-          disabled={isDefault || !isEnabled}
-          onClick={onSetDefault}
-        >
-          {__('Set default')}
-        </Button>,
-        <Button key="edit" type="text" icon={<EditOutlined />} onClick={onEdit}>
-          {__('Edit')}
-        </Button>,
-        <Popconfirm
-          key="delete"
-          title={__('Delete this connection?')}
-          onConfirm={onDelete}
-          okText={__('OK')}
-          cancelText={__('Cancel')}
-        >
-          <Button type="text" danger icon={<DeleteOutlined />}>
-            {__('Delete')}
-          </Button>
-        </Popconfirm>
-      ]}
-    >
-      <Flex vertical gap={4}>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
           {visual.blurb}
         </Text>

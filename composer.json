@@ -6,7 +6,7 @@
     "php": ">=8.1",
     "bitapps/wp-validator": "^1.2.1",
     "bitapps/wp-kit": "dev-feat/static-router#586152324d8e8fd27e75170d23be7e439cbfc1f8",
-    "bitapps/wp-database": "^2.0.1",
+    "bitapps/wp-database": "^2.0.4",
     "typisttech/imposter-plugin": "^0.6.2",
     "bitapps/wp-telemetry": "^0.0.9"
   },
@@ -18,7 +18,11 @@
   "autoload-dev": {
     "psr-4": {
       "BitApps\\SMTP\\Tests\\": "tests/"
-    }
+    },
+    "exclude-from-classmap": [
+      "tests/stubs/",
+      "tests/Unit/CLI/WpCliSpy.php"
+    ]
   },
   "scripts": {
     "lint": "./vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.php",

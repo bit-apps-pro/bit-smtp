@@ -24,7 +24,7 @@ class Config
 
     public const VERSION = '1.2.4';
 
-    public const DB_VERSION = '2.6';
+    public const DB_VERSION = '2.7';
 
     public const LOGGING_CONTINUITY_FROM_OPTION = 'logging_continuity_from';
 
@@ -177,16 +177,26 @@ class Config
         return delete_option(self::withPrefix($option));
     }
 
+    /** Check whether the Vite development server is active. */
     public static function isDev()
     {
         return is_readable(Config::get('BASEDIR') . '/port');
     }
 
+    /** Return the Vite asset base for local or proxied development. */
     public static function devUrl()
     {
-        $port   = file_get_contents(Config::get('BASEDIR') . '/port');
+        if (!self::isDev()) {
+            return Config::get('ASSET_URI');
+        }
 
-        return self::isDev() ? 'http://localhost:' . $port : Config::get('ASSET_URI');
+        if (($_SERVER['HTTP_X_BIT_SMTP_DEV_PROXY'] ?? '') === '1') {
+            return home_url('/__vite');
+        }
+
+        $port = trim((string) file_get_contents(Config::get('BASEDIR') . '/port'));
+
+        return 'http://localhost:' . $port . '/__vite';
     }
 
     public static function adButton()

@@ -34,8 +34,7 @@ final class EngagementPrivacyTest extends IntegrationTestCase
         parent::setUp();
         $this->engagementTable = (new LogEngagementEvent())->getTable();
         (new BitSmtpEngagementTableMigration())->up();
-        $this->truncate($this->engagementTable);
-        $this->truncate((new Log())->getTable());
+        $this->truncateTables($this->engagementTable, (new Log())->getTable());
         $this->service = new LogService();
     }
 
@@ -137,7 +136,7 @@ final class EngagementPrivacyTest extends IntegrationTestCase
         global $wpdb;
         // Force a delete error by removing the table out from under the eraser; the locator still
         // resolves candidate logs from the intact logs table, so the delete is the failure point.
-        $wpdb->query("DROP TABLE `{$this->engagementTable}`");
+        $this->dropTables($this->engagementTable);
 
         try {
             $wpdb->suppress_errors(true);
@@ -200,11 +199,5 @@ final class EngagementPrivacyTest extends IntegrationTestCase
         sort($ids);
 
         return $ids;
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE `{$table}`");
     }
 }

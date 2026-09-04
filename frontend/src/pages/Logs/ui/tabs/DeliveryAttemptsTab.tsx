@@ -1,4 +1,4 @@
-import { CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons'
+import { CheckCircleTwoTone, CloseCircleTwoTone, MinusCircleTwoTone } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
 import { type LogAttempt, type LogType } from '@pages/Logs/data/useFetchLogs'
 import { Timeline, Typography } from 'antd'
@@ -9,9 +9,25 @@ interface DeliveryAttemptsTabProps {
   log: LogType
 }
 
+/** Map a stable backend skip-reason code ('disabled' | 'deleted' | 'incomplete') to a display label. */
+function reasonLabel(reason: string): string {
+  switch (reason) {
+    case 'disabled':
+      return __('Disabled')
+    case 'deleted':
+      return __('Deleted')
+    case 'incomplete':
+      return __('Incomplete')
+    default:
+      return reason
+  }
+}
+
 export default function DeliveryAttemptsTab({ log }: DeliveryAttemptsTabProps) {
-  const attempts = log?.details?.attempts
-  if (!attempts || attempts.length === 0) {
+  const attempts = log?.details?.attempts ?? []
+  const skipped = log?.details?.routing_skipped ?? []
+
+  if (attempts.length === 0 && skipped.length === 0) {
     return <Text>{__('No delivery attempts recorded')}</Text>
   }
 
@@ -50,5 +66,28 @@ export default function DeliveryAttemptsTab({ log }: DeliveryAttemptsTabProps) {
     }
   })
 
-  return <Timeline items={items} />
+  return (
+    <>
+      {skipped.length > 0 && (
+        <div style={{ marginBottom: '1em' }}>
+          <Text strong>{__('Skipped connections')}</Text>
+          <Timeline
+            style={{ marginTop: '0.5em' }}
+            items={skipped.map(skip => ({
+              dot: <MinusCircleTwoTone twoToneColor="#faad14" />,
+              children: (
+                <div>
+                  <Text strong>{skip.connection}</Text>
+                  <Text type="secondary" style={{ marginLeft: '0.5em' }}>
+                    {reasonLabel(skip.reason)}
+                  </Text>
+                </div>
+              )
+            }))}
+          />
+        </div>
+      )}
+      {items.length > 0 && <Timeline items={items} />}
+    </>
+  )
 }

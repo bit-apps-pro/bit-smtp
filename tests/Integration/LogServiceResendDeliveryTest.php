@@ -26,8 +26,7 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->truncate((new Log())->getTable());
-        $this->truncate((new LogDeliveryEvent())->getTable());
+        $this->truncateTables((new Log())->getTable(), (new LogDeliveryEvent())->getTable());
         $this->service = new LogService();
     }
 
@@ -344,11 +343,5 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->service->recordDeliveryEvent($logId, $event, str_repeat('a', 64));
 
         return $logId;
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE {$table}");
     }
 }

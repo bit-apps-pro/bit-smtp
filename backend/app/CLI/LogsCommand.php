@@ -5,6 +5,7 @@ namespace BitApps\SMTP\CLI;
 use BitApps\SMTP\HTTP\Services\LogCsvExporter;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
+use BitApps\SMTP\Settings\PluginSettings;
 
 \defined('ABSPATH') || exit();
 
@@ -55,8 +56,19 @@ final class LogsCommand
             return;
         }
 
-        $items = array_map(fn (Log $row): array => $this->exporter->rowCells($row), $rows);
-        $reporter->renderItems($format, $items, LogService::EXPORT_SAFE_COLUMNS);
+        $items  = array_map(fn (Log $row): array => $this->exporter->rowCells($row), $rows);
+        $fields = LogService::EXPORT_SAFE_COLUMNS;
+
+        if (PluginSettings::isTrackingEnabled()) {
+            $flags = $this->logService->engagementFlagsFor(array_map(static fn (Log $row): int => (int) $row->id, $rows));
+            foreach ($rows as $index => $row) {
+                $items[$index]['opened']  = $flags[(int) $row->id]['opened'] ? 'yes' : 'no';
+                $items[$index]['clicked'] = $flags[(int) $row->id]['clicked'] ? 'yes' : 'no';
+            }
+            $fields = array_merge($fields, ['opened', 'clicked']);
+        }
+
+        $reporter->renderItems($format, $items, $fields);
     }
 
     /**

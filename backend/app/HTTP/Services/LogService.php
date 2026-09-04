@@ -3,13 +3,12 @@
 namespace BitApps\SMTP\HTTP\Services;
 
 use BitApps\SMTP\Config;
-use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
-use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Deps\BitApps\WPKit\Helpers\Arr;
 use BitApps\SMTP\Mail\Analytics\SubjectPatternNormalizer;
 use BitApps\SMTP\Mail\Dispatch\SenderFormatter;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
+use BitApps\SMTP\Mail\Tracking\EngagementRecorder;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
@@ -59,17 +58,11 @@ class LogService
     ];
 
     /**
-     * Valid `delivery_status` filter values: the DeliveryStatus state machine's constants plus
-     * `pending`, a column value analytics writes that has no DeliveryStatus constant of its own.
+     * Maps an engagement event type onto the per-log flag it raises in engagementFlagsFor().
      */
-    private const ALLOWED_DELIVERY_STATUSES = [
-        DeliveryStatus::DELIVERED,
-        DeliveryStatus::ACCEPTED,
-        DeliveryStatus::DEFERRED,
-        DeliveryStatus::BLOCKED,
-        DeliveryStatus::BOUNCED,
-        DeliveryStatus::SPAM,
-        'pending',
+    private const ENGAGEMENT_TYPE_FLAGS = [
+        EngagementRecorder::TYPE_OPEN  => 'opened',
+        EngagementRecorder::TYPE_CLICK => 'clicked',
     ];
 
     public function __construct()
@@ -86,16 +79,12 @@ class LogService
         }
 
         try {
-            $logsQuery = Log::skip($skip)
-                ->take($take)
-                ->desc();
-            $this->applyFilters($logsQuery, $filters);
-            $logs = $this->toRows($logsQuery->get());
+            $logs = Log::filtered($filters)->skip($skip)->take($take)->desc()->get()->all();
 
             // count() must run against its own unfiltered-of-pagination query: reusing the paged
             // builder would carry its skip/take into the aggregate and starve rows off any page
             // past the first.
-            $count = $this->applyFilters(Log::query(), $filters)->count();
+            $count = Log::filtered($filters)->count();
         } catch (Throwable $th) {
             throw $th;
         }
@@ -109,7 +98,7 @@ class LogService
     /**
      * Fetch up to $limit newest-first log rows matching the same whitelist filters as all(), projected
      * to export-safe metadata columns only (EXPORT_SAFE_COLUMNS) — the message body, credentials, and
-     * debug detail are never selected into memory. Reuses applyFilters() so the export stays in lockstep
+     * debug detail are never selected into memory. Reuses Log::filtered() so the export stays in lockstep
      * with the list view. $limit is clamped to [1, MAX_EXPORT_ROWS + 1] — the extra row lets the caller
      * detect (and honestly flag) truncation by asking for one past the cap.
      *
@@ -121,9 +110,9 @@ class LogService
     {
         $limit = max(1, min($limit, self::MAX_EXPORT_ROWS + 1));
 
-        $query = $this->applyFilters(Log::query()->take((string) $limit)->desc(), $filters);
+        $query = Log::filtered($filters)->take((string) $limit)->desc();
 
-        return $this->toRows($query->get(self::EXPORT_SAFE_COLUMNS));
+        return $query->get(self::EXPORT_SAFE_COLUMNS)->all();
     }
 
     /**
@@ -168,7 +157,7 @@ class LogService
      */
     public function getBulk(array $ids): array
     {
-        return $this->toRows(Log::where('id', $ids)->get());
+        return Log::where('id', $ids)->get()->all();
     }
 
     /**
@@ -183,12 +172,11 @@ class LogService
             return [];
         }
 
-        $children = $this->toRows(
-            Log::where('resend_parent_id', $parentId)
-                ->take((string) self::MAX_RESEND_CHILDREN)
-                ->desc()
-                ->get(['id', 'status', 'created_at'])
-        );
+        $children = Log::where('resend_parent_id', $parentId)
+            ->take((string) self::MAX_RESEND_CHILDREN)
+            ->desc()
+            ->get(['id', 'status', 'created_at'])
+            ->all();
 
         return array_map(static function (Log $child): array {
             return [
@@ -328,42 +316,20 @@ class LogService
      */
     public function recordDeliveryEvent(int $logId, DeliveryEvent $event, string $hash): bool
     {
-        $table = (new LogDeliveryEvent())->getTable();
+        // A null here must land as SQL NULL, not '' — a DATETIME column rejects the empty string.
+        // insertOrIgnore() compiles nulls to a NULL literal rather than binding them.
+        $written = LogDeliveryEvent::query()->insertOrIgnore([
+            'log_id'      => $logId,
+            'recipient'   => $event->recipient(),
+            'status'      => $event->status(),
+            'terminal'    => $event->isTerminal() ? 1 : 0,
+            'detail'      => $event->detail(),
+            'occurred_at' => $event->occurredAt(),
+            'event_hash'  => $hash,
+            'created_at'  => gmdate('Y-m-d H:i:s'),
+        ]);
 
-        // Nullable columns must land as SQL NULL, not '' — wpdb::prepare would coerce a null %s to an
-        // empty string, which a DATETIME column rejects. So emit a NULL literal for absent values.
-        $columns = [
-            'log_id'      => ['%d', $logId],
-            'recipient'   => ['%s', $event->recipient()],
-            'status'      => ['%s', $event->status()],
-            'terminal'    => ['%d', $event->isTerminal() ? 1 : 0],
-            'detail'      => ['%s', $event->detail()],
-            'occurred_at' => ['%s', $event->occurredAt()],
-            'event_hash'  => ['%s', $hash],
-            'created_at'  => ['%s', gmdate('Y-m-d H:i:s')],
-        ];
-
-        $names        = [];
-        $placeholders = [];
-        $args         = [];
-        foreach ($columns as $name => $spec) {
-            $names[] = '`' . $name . '`';
-            if ($spec[1] === null) {
-                $placeholders[] = 'NULL';
-
-                continue;
-            }
-
-            $placeholders[] = $spec[0];
-            $args[]         = $spec[1];
-        }
-
-        $sql = Connection::prepare(
-            'INSERT IGNORE INTO `' . $table . '` (' . implode(', ', $names) . ') VALUES (' . implode(', ', $placeholders) . ')',
-            $args
-        );
-
-        return (int) Connection::query($sql) > 0;
+        return (int) $written > 0;
     }
 
     /**
@@ -374,7 +340,7 @@ class LogService
      */
     public function deliveryEvents(int $logId): array
     {
-        $events = $this->toRows(LogDeliveryEvent::where('log_id', $logId)->orderBy('occurred_at')->orderBy('id')->get());
+        $events = LogDeliveryEvent::where('log_id', $logId)->orderBy('occurred_at')->orderBy('id')->get()->all();
 
         return array_map(static function (LogDeliveryEvent $event) {
             return [
@@ -395,19 +361,29 @@ class LogService
      */
     public function recordEngagement(int $logId, string $type, string $target, bool $automated): void
     {
-        $table         = (new LogEngagementEvent())->getTable();
         $now           = gmdate('Y-m-d H:i:s');
         $automatedSeed = $automated ? 1 : 0;
 
-        $sql = Connection::prepare(
-            'INSERT INTO `' . $table . '`'
-            . ' (`log_id`, `type`, `target`, `hits`, `automated_hits`, `first_at`, `last_at`, `event_key`, `created_at`, `updated_at`)'
-            . ' VALUES (%d, %s, %s, 1, %d, %s, %s, %s, %s, %s)'
-            . ' ON DUPLICATE KEY UPDATE `hits` = `hits` + 1, `automated_hits` = `automated_hits` + %d, `last_at` = %s, `updated_at` = %s',
-            [$logId, $type, $target, $automatedSeed, $now, $now, $this->engagementKey($logId, $type, $target), $now, $now, $automatedSeed, $now, $now]
+        LogEngagementEvent::query()->upsertRaw(
+            [
+                'log_id'         => $logId,
+                'type'           => $type,
+                'target'         => $target,
+                'hits'           => 1,
+                'automated_hits' => $automatedSeed,
+                'first_at'       => $now,
+                'last_at'        => $now,
+                'event_key'      => $this->engagementKey($logId, $type, $target),
+            ],
+            [
+                // upsertRaw never auto-bumps updated_at, so first_at keeps the original fire time
+                // while last_at and updated_at are advanced explicitly.
+                'hits'           => 'hits + 1',
+                'automated_hits' => ['automated_hits + %d', [$automatedSeed]],
+                'last_at'        => ['%s', [$now]],
+                'updated_at'     => ['%s', [$now]],
+            ]
         );
-
-        Connection::query($sql);
     }
 
     /**
@@ -417,7 +393,7 @@ class LogService
      */
     public function engagementFor(int $logId): array
     {
-        $events = $this->toRows(LogEngagementEvent::where('log_id', $logId)->orderBy('first_at')->orderBy('id')->get());
+        $events = LogEngagementEvent::where('log_id', $logId)->orderBy('first_at')->orderBy('id')->get()->all();
 
         return array_map(static function (LogEngagementEvent $event): array {
             return [
@@ -429,6 +405,39 @@ class LogService
                 'last_at'        => $event->last_at,
             ];
         }, $events);
+    }
+
+    /**
+     * Open/click engagement flags for the given logs, keyed by log id. Every requested id is present,
+     * defaulted to both false, so callers can index without a fallback. One grouped query per page.
+     *
+     * @param int[] $logIds
+     *
+     * @return array<int,array{opened: bool, clicked: bool}>
+     */
+    public function engagementFlagsFor(array $logIds): array
+    {
+        $ids = $this->normalizeLogIds($logIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $events = LogEngagementEvent::query()
+            ->select(['log_id', 'type'])
+            ->selectRaw('SUM(hits) - SUM(automated_hits) AS human_hits')
+            ->whereIn('log_id', $ids)
+            ->groupBy(['log_id', 'type'])
+            ->get();
+
+        $flags = array_fill_keys($ids, ['opened' => false, 'clicked' => false]);
+        foreach ($events as $event) {
+            $flag = self::ENGAGEMENT_TYPE_FLAGS[$event->type] ?? null;
+            if ($flag !== null && (int) $event->getAttribute('human_hits') > 0) {
+                $flags[(int) $event->log_id][$flag] = true;
+            }
+        }
+
+        return $flags;
     }
 
     /**
@@ -473,10 +482,7 @@ class LogService
     {
         $this->updateDeliveryRollup($log, null, null);
 
-        $table = (new LogDeliveryEvent())->getTable();
-        Connection::query(
-            Connection::prepare('DELETE FROM `' . $table . '` WHERE `log_id` = %d', [(int) $log->id])
-        );
+        LogDeliveryEvent::where('log_id', (int) $log->id)->delete();
     }
 
     public function delete(array $ids)
@@ -486,21 +492,9 @@ class LogService
             return true;
         }
 
-        // Delivery and engagement events carry recipient-linked PII (provider detail, click targets).
-        // They intentionally have no database FK for WordPress compatibility, so remove the children
-        // before their selected parent logs and fail closed if that privacy cleanup cannot complete.
-        // This deliberately is not a transaction: WordPress installs can use mixed or
-        // non-transactional engines, and child-first cleanup leaves no retained PII if a later parent
-        // deletion fails.
-        if (!$this->deleteDeliveryEventsForLogs($ids)) {
-            return false;
-        }
-
-        if (!$this->deleteEngagementEventsForLogs($ids)) {
-            return false;
-        }
-
-        $deleted = Log::where('id', $ids)->delete();
+        // Delivery and engagement children carry recipient-linked PII (provider detail, click
+        // targets); their ON DELETE CASCADE foreign keys remove them with the parent rows.
+        $deleted = Log::whereIn('id', $ids)->delete();
 
         return $deleted !== false;
     }
@@ -533,17 +527,8 @@ class LogService
         $dateToDelete = date_sub($currentDate, date_interval_create_from_date_string($logRetention . ' days'));
         $dateToDelete = date_format($dateToDelete, QueryBuilder::TIME_FORMAT);
 
-        // Keep retention set-based: materializing every expired id would create an unbounded PHP
-        // collection and a correspondingly unbounded WHERE IN child delete. Each child statement
-        // shares the parent's cutoff and must complete before the parent delete is attempted.
-        if (!$this->deleteDeliveryEventsOlderThan($dateToDelete)) {
-            return false;
-        }
-
-        if (!$this->deleteEngagementEventsOlderThan($dateToDelete)) {
-            return false;
-        }
-
+        // Set-based by design: materializing every expired id would build an unbounded PHP
+        // collection. The children cascade with their parents.
         $deleted = Log::where('created_at', '<', $dateToDelete)->delete();
         if ($deleted === false) {
             return false;
@@ -724,95 +709,6 @@ class LogService
     }
 
     /**
-     * Applies the logs-list filter whitelist to a query builder in place, so the paged query and the
-     * count query stay in lockstep. Every value is bound through the QueryBuilder's parameterized
-     * where()/whereBetween(), never string-interpolated; unrecognized or malformed values are ignored
-     * rather than applied.
-     *
-     * @param array<string,mixed> $filters
-     */
-    private function applyFilters(QueryBuilder $query, array $filters): QueryBuilder
-    {
-        if (!empty($filters['to_addr'])) {
-            $query->where('to_addr', 'LIKE', '%' . Connection::esc_like($filters['to_addr']) . '%');
-        }
-
-        // Send-outcome filter: the string maps to the Log::SUCCESS/ERROR flag; anything else is ignored.
-        $statusMap = ['sent' => Log::SUCCESS, 'failed' => Log::ERROR];
-        if (!empty($filters['status']) && isset($statusMap[$filters['status']])) {
-            $query->where('status', $statusMap[$filters['status']]);
-        }
-
-        if (!empty($filters['delivery_status']) && \in_array($filters['delivery_status'], self::ALLOWED_DELIVERY_STATUSES, true)) {
-            $query->where('delivery_status', $filters['delivery_status']);
-        }
-
-        if (!empty($filters['connection_id'])) {
-            // Match the analytics COALESCE(connection_id, connection) grouping: a top-connection ranked
-            // by a legacy label (empty connection_id) must still resolve to its rows here, or the
-            // "View in logs" deep-link would land on an empty list that contradicts the clicked count.
-            $query->whereRaw(
-                '(connection_id = %s OR connection = %s)',
-                [$filters['connection_id'], $filters['connection_id']]
-            );
-        }
-
-        if (!empty($filters['source_plugin'])) {
-            $query->where('source_plugin', $filters['source_plugin']);
-        }
-
-        $dateFrom = $this->validFilterDate($filters['date_from'] ?? null);
-        $dateTo   = $this->validFilterDate($filters['date_to'] ?? null);
-
-        if ($dateFrom !== null && $dateTo !== null) {
-            $query->whereBetween('created_at', $dateFrom . ' 00:00:00', $dateTo . ' 23:59:59');
-        } elseif ($dateFrom !== null) {
-            $query->where('created_at', '>=', $dateFrom . ' 00:00:00');
-        } elseif ($dateTo !== null) {
-            $query->where('created_at', '<=', $dateTo . ' 23:59:59');
-        }
-
-        return $query;
-    }
-
-    /**
-     * Validates a `date_from`/`date_to` filter value as a strict 'YYYY-MM-DD' string.
-     *
-     * @param mixed $value
-     */
-    private function validFilterDate($value): ?string
-    {
-        if (!\is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
-            return null;
-        }
-
-        return $value;
-    }
-
-    /**
-     * Normalize a QueryBuilder get() result to a plain array: WPDatabase returns a Collection on
-     * newer versions and a plain array on older ones.
-     *
-     * @param mixed $result
-     *
-     * @return array
-     */
-    private function toRows($result): array
-    {
-        if ($result instanceof Collection) {
-            return $result->all();
-        }
-
-        // QueryBuilder::get() returns a single Model (not an array) whenever limit == 1 — e.g. a
-        // filtered page size of 1 — so normalize that back to a one-row list.
-        if ($result instanceof Log) {
-            return [$result];
-        }
-
-        return \is_array($result) ? $result : [];
-    }
-
-    /**
      * @param mixed $recipients
      */
     private function recipientCount($recipients): int
@@ -857,90 +753,12 @@ class LogService
     }
 
     /**
-     * Delete delivery-event children for a closed, normalized list of parent IDs.
-     *
-     * WPDatabase prepares the value-only WHERE IN clause; its table reference comes solely from the
-     * internal model convention and is never derived from a request or provider payload.
-     *
-     * @param array<int,int> $ids
-     */
-    private function deleteDeliveryEventsForLogs(array $ids): bool
-    {
-        if ($ids === []) {
-            return true;
-        }
-
-        $deleted = LogDeliveryEvent::where('log_id', $ids)->delete();
-
-        return $deleted !== false;
-    }
-
-    /**
-     * Remove event PII for every log covered by the retention cutoff without hydrating rows or
-     * creating an unbounded ID list. Table identifiers are model-derived and closed; the cutoff is
-     * passed as a prepared value.
-     */
-    private function deleteDeliveryEventsOlderThan(string $dateToDelete): bool
-    {
-        $logsTable   = (new Log())->getTable();
-        $eventsTable = (new LogDeliveryEvent())->getTable();
-        // Use Connection's dynamic wpdb proxy so this query follows the same prepared-query and
-        // database-error behavior as the rest of the service without exposing a table identifier
-        // to request data.
-        $sql = Connection::__callStatic('prepare', [
-            'DELETE `' . $eventsTable . '` FROM `' . $eventsTable . '` '
-            . 'INNER JOIN `' . $logsTable . '` ON `' . $eventsTable . '`.`log_id` = `' . $logsTable . '`.`id` '
-            . 'WHERE `' . $logsTable . '`.`created_at` < %s',
-            [$dateToDelete],
-        ]);
-
-        return Connection::__callStatic('query', [$sql]) !== false;
-    }
-
-    /**
      * Deterministic dedup key for an engagement row. Delimited so distinct (type, target) pairs can't
      * collide via bare concatenation.
      */
     private function engagementKey(int $logId, string $type, string $target): string
     {
         return hash('sha256', $logId . '|' . $type . '|' . $target);
-    }
-
-    /**
-     * Delete engagement-event children (open/click hits, whose click targets are recipient-clicked
-     * URLs) for a closed, normalized list of parent IDs. Mirrors deleteDeliveryEventsForLogs(): the
-     * table reference is model-derived and never request- or provider-supplied.
-     *
-     * @param array<int,int> $ids
-     */
-    private function deleteEngagementEventsForLogs(array $ids): bool
-    {
-        if ($ids === []) {
-            return true;
-        }
-
-        $deleted = LogEngagementEvent::where('log_id', $ids)->delete();
-
-        return $deleted !== false;
-    }
-
-    /**
-     * Remove engagement-event PII for every log covered by the retention cutoff without hydrating
-     * rows or building an unbounded ID list. Mirrors deleteDeliveryEventsOlderThan(): table
-     * identifiers are model-derived and closed; the cutoff is passed as a prepared value.
-     */
-    private function deleteEngagementEventsOlderThan(string $dateToDelete): bool
-    {
-        $logsTable   = (new Log())->getTable();
-        $eventsTable = (new LogEngagementEvent())->getTable();
-        $sql         = Connection::__callStatic('prepare', [
-            'DELETE `' . $eventsTable . '` FROM `' . $eventsTable . '` '
-            . 'INNER JOIN `' . $logsTable . '` ON `' . $eventsTable . '`.`log_id` = `' . $logsTable . '`.`id` '
-            . 'WHERE `' . $logsTable . '`.`created_at` < %s',
-            [$dateToDelete],
-        ]);
-
-        return Connection::__callStatic('query', [$sql]) !== false;
     }
 
     /**

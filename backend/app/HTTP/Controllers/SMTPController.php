@@ -10,6 +10,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
 use BitApps\SMTP\HTTP\Requests\MailConfigStoreRequest;
 use BitApps\SMTP\HTTP\Requests\MailTestRequest;
+use BitApps\SMTP\HTTP\Requests\ResendEditRequest;
 use BitApps\SMTP\HTTP\Services\LogBodyRedactor;
 use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Views\EmailTemplate;
@@ -131,6 +132,78 @@ class SMTPController
         }
 
         return Response::message(__('Failed to resend mail', 'bit-smtp'))->error($smtpProvider->getDebugOutput());
+    }
+
+    /**
+     * Replay a single logged message with operator-edited recipients/subject over the chosen connection.
+     * The original body/attachments are reused; the send bypasses routing and is logged as a fresh child
+     * row of the original.
+     */
+    public function resendEdit(ResendEditRequest $request): Response
+    {
+        if (!Capabilities::check('manage_options')) {
+            return Response::error([])->message('unauthorized access');
+        }
+
+        $data = $request->validated();
+
+        $log = Plugin::instance()->logger()->get((int) $data['id']);
+        if ($log === null) {
+            return Response::error(__('Log not found', 'bit-smtp'));
+        }
+
+        $body = (string) Arr::get($log->details, 'message', '');
+        // A row whose body was dropped/redacted by the log_store_body preference has nothing to resend.
+        if (!LogBodyRedactor::isBodyRetained($body)) {
+            return Response::error(__('Cannot resend: the message body was not retained (log body storage is set to redacted or metadata only).', 'bit-smtp'));
+        }
+
+        $to = $request->recipients('to');
+        if ($to === []) {
+            return Response::error(__('At least one valid recipient email is required', 'bit-smtp'));
+        }
+
+        $bridge     = Plugin::instance()->smtpProvider()->setDebug(true);
+        $connection = Plugin::instance()->mailConfigService()->connectionById(trim((string) $data['connection_id']));
+        if ($connection === null || !$connection->isEnabled() || !$bridge->canSend($connection)) {
+            return Response::error(__('The selected connection is unavailable', 'bit-smtp'));
+        }
+
+        $atts = [
+            'to'          => $to,
+            'subject'     => (string) $data['subject'],
+            'message'     => trim($body),
+            'headers'     => $this->resendHeaders($request->recipients('cc'), $request->recipients('bcc')),
+            'attachments' => Arr::get($log->details, 'attachments', []),
+        ];
+
+        if ($bridge->dispatchResend($atts, $connection, (int) $log->id)) {
+            return Response::success(__('Mail resent', 'bit-smtp'));
+        }
+
+        return Response::message(__('Failed to resend mail', 'bit-smtp'))->error($bridge->getDebugOutput());
+    }
+
+    /**
+     * Build the wp_mail headers array for an edited resend: content type plus any edited Cc/Bcc. All
+     * addresses are already validated by ResendEditRequest::recipients(), so they are safe in headers.
+     *
+     * @param string[] $cc
+     * @param string[] $bcc
+     *
+     * @return string[]
+     */
+    private function resendHeaders(array $cc, array $bcc): array
+    {
+        $headers = ['Content-Type: text/html; charset=UTF-8'];
+        foreach ($cc as $address) {
+            $headers[] = 'Cc: ' . $address;
+        }
+        foreach ($bcc as $address) {
+            $headers[] = 'Bcc: ' . $address;
+        }
+
+        return $headers;
     }
 
     public function setContentType()

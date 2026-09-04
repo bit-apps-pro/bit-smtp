@@ -27,8 +27,7 @@ final class NativeMailLoggingTest extends IntegrationTestCase
         // A fresh capturing MockPHPMailer so core wp_mail "succeeds" without a real network send.
         reset_phpmailer_instance();
 
-        global $wpdb;
-        $wpdb->query('TRUNCATE TABLE ' . (new Log())->getTable());
+        $this->truncateTables((new Log())->getTable());
     }
 
     public function testNativeDeferredSendLogsTheSenderAndCcBccFromHeaders(): void

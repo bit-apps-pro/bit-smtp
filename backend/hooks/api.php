@@ -24,6 +24,7 @@ Route::group(function () {
     Route::get('mail/config/get', [SMTPController::class, 'index']);
     Route::post('mail/send-test', [SMTPController::class, 'sendTestEmail']);
     Route::post('mail/resend', [SMTPController::class, 'resend']);
+    Route::post('mail/resend-edit', [SMTPController::class, 'resendEdit']);
 
     Route::post('telemetry/handle-permission', [TelemetryPopupController::class, 'handleTelemetryPermission']);
     Route::get('telemetry/popup-status', [TelemetryPopupController::class, 'isPopupDisabled']);

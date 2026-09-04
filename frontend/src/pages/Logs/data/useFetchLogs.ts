@@ -20,11 +20,19 @@ export type LogAttempt = {
   error?: string | null
 }
 
+/** A priority-chain connection that was dropped before the send loop, with a stable reason code. */
+export type LogSkip = {
+  connection: string
+  connection_id: string
+  reason: string
+}
+
 export type LogDetail = {
   message: string
   headers: Record<string, string>
   attachments: Array<string>
   attempts?: Array<LogAttempt>
+  routing_skipped?: Array<LogSkip>
 }
 
 export type DeliveryStatusValue = 'delivered' | 'bounced' | 'spam' | 'blocked' | 'deferred' | 'accepted'
@@ -68,6 +76,9 @@ export type LogType = {
   tracking_id?: string | null
   // Classifier verdict for a failed send (transient/rate_limited/auth/invalid_recipient/permanent).
   failure_class?: string | null
+  // Per-row open/click engagement flags, present only when open/click tracking is enabled.
+  opened?: boolean
+  clicked?: boolean
   // Real provider delivery status, only trustworthy when `delivery_verified` is true.
   delivery_status?: DeliveryStatusValue | string | null
   delivery_updated_at?: string | null
@@ -87,6 +98,7 @@ type FetchLogsType = {
   count: number
   current: number
   pages: number
+  tracking_enabled: boolean
 }
 
 export default function useFetchLogs(searchData: LogQueryType) {
@@ -104,6 +116,7 @@ export default function useFetchLogs(searchData: LogQueryType) {
     logs: data?.data?.logs ?? [],
     total: data?.data?.count ?? 0,
     current: data?.data?.current ?? 0,
-    pages: data?.data?.pages ?? 0
+    pages: data?.data?.pages ?? 0,
+    trackingEnabled: data?.data?.tracking_enabled ?? false
   }
 }

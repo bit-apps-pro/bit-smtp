@@ -20,8 +20,7 @@ final class LogsFilterTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        global $wpdb;
-        $wpdb->query('TRUNCATE TABLE ' . (new Log())->getTable());
+        $this->truncateTables((new Log())->getTable());
         $this->service = new LogService();
 
         $this->seed(['to_addr' => 'delivered@example.test', 'delivery_status' => 'delivered', 'connection_id' => 'conn-a', 'source_plugin' => 'woocommerce', 'created_at' => '2026-01-05 10:00:00']);

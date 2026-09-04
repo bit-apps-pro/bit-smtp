@@ -46,8 +46,7 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        global $wpdb;
-        $wpdb->query('TRUNCATE TABLE ' . (new Log())->getTable());
+        $this->truncateTables((new Log())->getTable());
 
         update_option('timezone_string', 'Asia/Dhaka');
         $this->previousRetention = Config::getOption('log_retention', false);

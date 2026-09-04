@@ -36,9 +36,7 @@ final class EngagementRepositoryTest extends IntegrationTestCase
     {
         parent::setUp();
         (new BitSmtpEngagementTableMigration())->up();
-        global $wpdb;
-        $wpdb->query('TRUNCATE TABLE ' . (new LogEngagementEvent())->getTable());
-        $wpdb->query('TRUNCATE TABLE ' . (new Log())->getTable());
+        $this->truncateTables((new LogEngagementEvent())->getTable(), (new Log())->getTable());
         $this->logs = new LogService();
     }
 

@@ -2,7 +2,6 @@
 
 namespace BitApps\SMTP\Privacy;
 
-use BitApps\SMTP\Mail\Support\ModelRows;
 use BitApps\SMTP\Model\LogEngagementEvent;
 
 \defined('ABSPATH') || exit();
@@ -63,7 +62,7 @@ final class EngagementDataExporter
             ->get(['log_id', 'type', 'target', 'hits', 'automated_hits', 'first_at', 'last_at']);
 
         $items = [];
-        foreach (ModelRows::toArray($rows) as $event) {
+        foreach ($rows as $event) {
             $items[] = $this->toExportItem($event);
         }
 

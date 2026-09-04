@@ -2,7 +2,6 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
-use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
@@ -21,7 +20,7 @@ final class WpMailFallbackTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->clearLogs();
+        $this->truncateTables((new Log())->getTable());
     }
 
     public function testFallsBackToNextConnectionWhenPrimaryIsUnreachable(): void
@@ -424,15 +423,6 @@ final class WpMailFallbackTest extends IntegrationTestCase
      */
     private function logs(): array
     {
-        $logs = Log::desc()->get();
-
-        return $logs instanceof Collection ? $logs->all() : $logs;
-    }
-
-    private function clearLogs(): void
-    {
-        global $wpdb;
-        $table = (new Log())->getTable();
-        $wpdb->query("TRUNCATE TABLE {$table}");
+        return Log::desc()->get()->all();
     }
 }

@@ -36,3 +36,4 @@ vite.config.mts
 /.github
 /.wordpress-org
 AGENTS.md
+CLAUDE.md

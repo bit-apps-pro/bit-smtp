@@ -43,6 +43,21 @@ describe('ConnectionCard', () => {
     expect(screen.getByText('a@b.c')).toBeInTheDocument()
   })
 
+  it('renders the connection name as its own header row', () => {
+    renderCard()
+
+    expect(screen.getByRole('heading', { name: 'Primary SMTP' })).toBeInTheDocument()
+  })
+
+  it('groups connection controls in a subtitle below the name', () => {
+    renderCard({ priority: 1, isDefault: true })
+
+    const subtitle = screen.getByRole('group', { name: 'Primary SMTP' })
+    expect(subtitle).toHaveTextContent('Priority 1')
+    expect(subtitle).toHaveTextContent('Default')
+    expect(screen.getByRole('switch', { name: 'Disable this connection' })).toBeInTheDocument()
+  })
+
   it('shows a Default tag only when isDefault is true', () => {
     const { rerender } = renderCard({ isDefault: false })
     expect(screen.queryByText('Default')).not.toBeInTheDocument()

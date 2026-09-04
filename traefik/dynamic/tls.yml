@@ -1,0 +1,6 @@
+# Traefik dynamic config: register the mkcert-generated certificate so the
+# websecure entrypoint serves it. Loaded via --providers.file.directory.
+tls:
+  certificates:
+    - certFile: /certs/backend.pem
+      keyFile: /certs/backend-key.pem

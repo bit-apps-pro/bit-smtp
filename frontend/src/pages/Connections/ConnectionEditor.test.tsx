@@ -370,6 +370,36 @@ describe('ConnectionEditor', () => {
     expect(screen.queryByLabelText('Google account')).not.toBeInTheDocument()
   })
 
+  it('shows linked guidance for the OAuth connect field', async () => {
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    const provider = {
+      ...gmailMeta,
+      fields: gmailMeta.fields.map(field =>
+        field.type === 'oauth'
+          ? {
+              ...field,
+              help: {
+                text: 'Connect the mailbox that will send email.',
+                url: 'https://account.microsoft.com/',
+                linkLabel: 'Open Microsoft account'
+              }
+            }
+          : field
+      )
+    } satisfies ProviderMeta
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={gmailConnection} provider={provider} onSaved={() => {}} />
+    )
+    await userEvent.hover(screen.getByRole('img', { name: 'question-circle' }))
+
+    expect(await screen.findByText('Connect the mailbox that will send email.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Microsoft account' })).toHaveAttribute(
+      'href',
+      'https://account.microsoft.com/'
+    )
+  })
+
   it('shows the backend-provided OAuth redirect URI as copyable text', () => {
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
     ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
@@ -387,6 +417,28 @@ describe('ConnectionEditor', () => {
     expect(screen.getByText('Redirect URI')).toBeInTheDocument()
     expect(screen.getByText(redirectUrl)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument()
+    expect(
+      screen.getByText("Register this exact URI as a Web redirect URI in your provider's OAuth app.")
+    ).toBeInTheDocument()
+    expect(screen.queryByText('HTTPS redirect URI required')).not.toBeInTheDocument()
+  })
+
+  it('warns when an OAuth redirect URI uses HTTP outside localhost', () => {
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    const oauthProvider = {
+      ...gmailMeta,
+      oauth_redirect_url: 'http://wp-dev.io/bit-smtp/oauth/callback'
+    } as ProviderMeta
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={gmailConnection} provider={oauthProvider} onSaved={() => {}} />
+    )
+
+    expect(screen.getByText('HTTPS redirect URI required')).toBeInTheDocument()
+    expect(
+      screen.getByText(/OAuth providers reject non-HTTPS redirect URIs unless the host is localhost/)
+    ).toBeInTheDocument()
   })
 
   it('does not offer delivery webhooks for Gmail', () => {

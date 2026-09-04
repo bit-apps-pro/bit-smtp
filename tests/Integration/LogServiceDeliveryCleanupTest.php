@@ -29,8 +29,7 @@ final class LogServiceDeliveryCleanupTest extends IntegrationTestCase
         parent::setUp();
         $this->logsTable   = (new Log())->getTable();
         $this->eventsTable = (new LogDeliveryEvent())->getTable();
-        $this->truncate($this->eventsTable);
-        $this->truncate($this->logsTable);
+        $this->truncateTables($this->eventsTable, $this->logsTable);
         Config::deleteOption('log_retention');
         Config::deleteOption('log_deleted_at');
         $this->service = new LogService();
@@ -187,12 +186,6 @@ final class LogServiceDeliveryCleanupTest extends IntegrationTestCase
         $event->event_hash = hash('sha256', $logId . ':' . $recipient);
 
         self::assertTrue((bool) $event->save());
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        self::assertNotFalse($wpdb->query("TRUNCATE TABLE `{$table}`"));
     }
 
     /**

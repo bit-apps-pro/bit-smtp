@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { __ } from '@common/helpers/i18nwrap'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
@@ -165,7 +165,7 @@ export default function Logs() {
     limit: 20,
     ...filtersFromSearchParams(searchParams)
   }))
-  const { isLoading, isLogsFetching, logs, total, refetch } = useFetchLogs(query)
+  const { isLoading, isLogsFetching, logs, total, refetch, trackingEnabled } = useFetchLogs(query)
   const { isLogDeleting, deleteLog } = useDeleteLog()
   const { isResending, resendLogs } = useResendLogs()
   const exportLogs = useExportLogs()
@@ -184,6 +184,28 @@ export default function Logs() {
   const sourceOptions = (mailSources ?? []).map(source => ({ value: source.value, label: source.label }))
   const connectionNameById = labelLookup(connectionOptions)
   const sourceLabelByValue = labelLookup(sourceOptions)
+
+  const tableColumns = useMemo<TableColumnsType<LogType>>(() => {
+    if (!trackingEnabled) {
+      return columns
+    }
+    const trackingColumn: TableColumnsType<LogType>[number] = {
+      title: __('Tracking'),
+      key: 'tracking',
+      render: (_, record) => {
+        if (!record.opened && !record.clicked) {
+          return <Text type="secondary">—</Text>
+        }
+        return (
+          <>
+            {record.opened ? <Tag color="blue">{__('Opened')}</Tag> : null}
+            {record.clicked ? <Tag color="green">{__('Clicked')}</Tag> : null}
+          </>
+        )
+      }
+    }
+    return [...columns.slice(0, -1), trackingColumn, ...columns.slice(-1)]
+  }, [trackingEnabled])
 
   /** Removes a filter param from the URL without touching unrelated params or pushing a history entry. */
   const removeSearchParam = (key: FilterChipKey) => {
@@ -478,7 +500,7 @@ export default function Logs() {
         <Table
           rowKey="id"
           size="middle"
-          columns={columns}
+          columns={tableColumns}
           rowSelection={rowSelection}
           dataSource={logs}
           onRow={onRowClick}

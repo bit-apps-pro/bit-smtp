@@ -11,6 +11,12 @@ export interface FieldDependency {
   value: unknown
 }
 
+export interface FieldHelpMeta {
+  text: string
+  url: string
+  linkLabel: string
+}
+
 export interface FieldMeta {
   key: string
   label: string
@@ -21,6 +27,7 @@ export interface FieldMeta {
   default: unknown
   options: FieldOption[]
   dependsOn: FieldDependency | null
+  help?: FieldHelpMeta
 }
 
 export interface ProviderMeta {

@@ -2,6 +2,8 @@
 
 namespace BitApps\SMTP\CLI;
 
+use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\Mail\Connections\ConnectionCollection;
 use BitApps\SMTP\Mail\Health\ConnectionHealth;
 use BitApps\SMTP\Mail\Health\ConnectionHealthService;
 use BitApps\SMTP\Mail\Health\HealthProbeRunner;
@@ -16,13 +18,12 @@ use BitApps\SMTP\Mail\Health\HealthProbeRunner;
 final class HealthCheckCommand
 {
     /**
-     * Health columns surfaced to the operator, drawn from ConnectionHealth::toPublicArray() plus the
-     * connection id it is keyed by.
+     * Health columns surfaced to the operator, from ConnectionHealth::toPublicArray() plus the
+     * connection label.
      */
     private const FIELDS = [
-        'connection_id',
+        'connection',
         'status',
-        'circuit',
         'consecutive_failures',
         'last_ok_at',
         'last_error',
@@ -33,10 +34,13 @@ final class HealthCheckCommand
 
     private ConnectionHealthService $health;
 
-    public function __construct(HealthProbeRunner $runner, ConnectionHealthService $health)
+    private MailConfigService $config;
+
+    public function __construct(HealthProbeRunner $runner, ConnectionHealthService $health, MailConfigService $config)
     {
         $this->runner = $runner;
         $this->health = $health;
+        $this->config = $config;
     }
 
     /**
@@ -56,9 +60,11 @@ final class HealthCheckCommand
             return;
         }
 
+        $connections = $this->config->load()->getConnections();
+
         $items = [];
         foreach ($health as $connectionId => $record) {
-            $items[] = $this->row((string) $connectionId, $record);
+            $items[] = $this->row((string) $connectionId, $record, $connections);
         }
 
         $reporter->renderItems('table', $items, self::FIELDS);
@@ -69,14 +75,15 @@ final class HealthCheckCommand
      *
      * @return array<string,mixed>
      */
-    private function row(string $connectionId, ConnectionHealth $record): array
+    private function row(string $connectionId, ConnectionHealth $record, ConnectionCollection $connections): array
     {
         $public = $record->toPublicArray();
 
+        $label = $connections->byId($connectionId)?->label() ?? __('Deleted connection', 'bit-smtp');
+
         return [
-            'connection_id'        => $connectionId,
+            'connection'           => $label,
             'status'               => $public['status'],
-            'circuit'              => $public['circuit'],
             'consecutive_failures' => $public['consecutive_failures'],
             'last_ok_at'           => $public['last_ok_at']    ?? '',
             'last_error'           => $public['last_error']    ?? '',

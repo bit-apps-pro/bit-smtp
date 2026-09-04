@@ -171,7 +171,10 @@ final class BitSmtpLogsTableMigration extends Migration
             'log_delivery_events',
             function (Blueprint $table) {
                 $table->id();
-                $table->bigInt('log_id')->index();
+                // Unsigned to match logs.id exactly — MySQL rejects a foreign key whose columns
+                // differ in signedness — and cascading so a purged log takes its delivery events
+                // with it in the engine rather than in PHP.
+                $table->bigInt('log_id')->unsigned()->index()->foreign('logs', 'id')->onDelete()->cascade();
                 $table->varchar('recipient', 254);
                 $table->varchar('status', 32);
                 $table->tinyint('terminal')->defaultValue(0);

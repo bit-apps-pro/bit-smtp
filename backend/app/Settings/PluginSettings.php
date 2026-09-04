@@ -64,6 +64,14 @@ class PluginSettings
     }
 
     /**
+     * Whether open/click tracking is enabled.
+     */
+    public static function isTrackingEnabled(): bool
+    {
+        return (bool) self::make()->get('tracking_enabled', false);
+    }
+
+    /**
      * Read a preference, preferring the seeded blob (read once, cast via schema) and falling back to
      * the legacy standalone option for the window before BitSmtpSettingsSeed (manage_options-gated) runs.
      *

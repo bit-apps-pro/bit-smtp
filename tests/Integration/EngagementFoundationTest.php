@@ -31,8 +31,7 @@ final class EngagementFoundationTest extends IntegrationTestCase
         parent::setUp();
         $this->engagementTable = (new LogEngagementEvent())->getTable();
         $this->migrate();
-        $this->truncate($this->engagementTable);
-        $this->truncate((new Log())->getTable());
+        $this->truncateTables($this->engagementTable, (new Log())->getTable());
         $this->service = new LogService();
     }
 
@@ -207,11 +206,5 @@ final class EngagementFoundationTest extends IntegrationTestCase
         }
 
         return $indexes;
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE `{$table}`");
     }
 }

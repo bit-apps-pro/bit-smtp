@@ -22,7 +22,7 @@ final class LogBodyStorageTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->truncate((new Log())->getTable());
+        $this->truncateTables((new Log())->getTable());
         $this->service = new LogService();
     }
 
@@ -90,11 +90,5 @@ final class LogBodyStorageTest extends IntegrationTestCase
         ]);
 
         return Log::where('subject', $subject)->first();
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE {$table}");
     }
 }

@@ -21,6 +21,8 @@ final class DeliveryStatus
 
     public const SPAM = 'spam';
 
+    public const PENDING = 'pending';
+
     public const UNKNOWN = 'unknown';
 
     private const NEGATIVE_STATES = [self::DEFERRED, self::BLOCKED, self::BOUNCED, self::SPAM];
@@ -36,6 +38,7 @@ final class DeliveryStatus
         self::DELIVERED => 3,
         self::DEFERRED  => 2,
         self::ACCEPTED  => 1,
+        self::PENDING   => 0,
     ];
 
     private string $state;

@@ -65,7 +65,7 @@ const providers: Record<string, ProviderEntry> = {
   cloudflare: {
     logo: null,
     accent: '#F6821F',
-    blurb: 'Email Sending beta · paid plan · sender/domain setup · send-capable token'
+    blurb: 'Cloudflare Email Sender API'
   },
   resend: {
     logo: resendLogo,

@@ -29,7 +29,9 @@
     "pre-commit": "lefthook run pre-commit",
     "sb": "storybook dev -p 6006",
     "all:test": "pnpm ts && pnpm lint",
-    "production": "composer i --no-dev && pnpm install && pnpm build && pnpm i18n:parse-js && pnpm i18n:php"
+    "production": "composer i --no-dev && pnpm install && pnpm build && pnpm i18n:parse-js && pnpm i18n:php",
+    "cert:install-ca": "mkcert -install",
+    "cert:generate": "mkcert -cert-file .certs/backend.pem -key-file .certs/backend-key.pem backend.smtp.btcd-test.io mailpit.smtp.btcd-test.io"
   },
   "dependencies": {
     "@ant-design/cssinjs": "^1.24.0",

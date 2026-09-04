@@ -24,7 +24,7 @@ final class LogSenderPersistenceTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->truncate((new Log())->getTable());
+        $this->truncateTables((new Log())->getTable());
         $this->service = new LogService();
     }
 
@@ -91,12 +91,6 @@ final class LogSenderPersistenceTest extends IntegrationTestCase
         (new LogController())->details($request);
 
         $this->assertSame('Store <a@x.test>', $this->responseData()['sender']);
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE {$table}");
     }
 
     /**

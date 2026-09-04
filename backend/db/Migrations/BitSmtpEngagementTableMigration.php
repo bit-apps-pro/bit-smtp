@@ -51,7 +51,10 @@ final class BitSmtpEngagementTableMigration extends Migration
             'log_engagement_events',
             function (Blueprint $table) {
                 $table->id();
-                $table->bigInt('log_id')->index();
+                // Unsigned to match logs.id exactly — MySQL rejects a foreign key whose columns
+                // differ in signedness — and cascading so a purged log takes its engagement rows
+                // with it in the engine rather than in PHP.
+                $table->bigInt('log_id')->unsigned()->index()->foreign('logs', 'id')->onDelete()->cascade();
                 $table->varchar('type', 16);
                 $table->text('target')->nullable();
                 $table->integer('hits')->unsigned()->defaultValue(1);

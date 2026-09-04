@@ -27,7 +27,7 @@ final class CliLogCommandsTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $GLOBALS['wpdb']->query('TRUNCATE TABLE ' . (new Log())->getTable());
+        $this->truncateTables((new Log())->getTable());
         $this->service  = new LogService();
         $this->exporter = new LogCsvExporter();
     }

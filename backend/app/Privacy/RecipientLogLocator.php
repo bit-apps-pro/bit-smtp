@@ -3,7 +3,6 @@
 namespace BitApps\SMTP\Privacy;
 
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
-use BitApps\SMTP\Mail\Support\ModelRows;
 use BitApps\SMTP\Model\Log;
 
 \defined('ABSPATH') || exit();
@@ -44,14 +43,13 @@ final class RecipientLogLocator
         // esc_like proxies to $wpdb via Connection's dynamic dispatch so LIKE wildcards in the email
         // (e.g. an underscore) are matched literally rather than as single-char wildcards.
         $pattern    = '%' . (string) Connection::__callStatic('esc_like', [$email]) . '%';
-        $candidates = ModelRows::toArray(
-            Log::query()
-                ->where('to_addr', 'LIKE', $pattern)
-                ->orderBy('id')
-                ->skip((string) $skip)
-                ->take((string) self::PAGE_SIZE)
-                ->get(['id', 'to_addr'])
-        );
+        $candidates = Log::query()
+            ->where('to_addr', 'LIKE', $pattern)
+            ->orderBy('id')
+            ->skip((string) $skip)
+            ->take((string) self::PAGE_SIZE)
+            ->get(['id', 'to_addr'])
+            ->all();
 
         $ids = [];
         foreach ($candidates as $log) {

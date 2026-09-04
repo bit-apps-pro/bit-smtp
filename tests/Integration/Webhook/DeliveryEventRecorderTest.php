@@ -2,7 +2,6 @@
 
 namespace BitApps\SMTP\Tests\Integration\Webhook;
 
-use BitApps\SMTP\Deps\BitApps\WPDatabase\Collection;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
@@ -26,8 +25,7 @@ final class DeliveryEventRecorderTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->truncate((new Log())->getTable());
-        $this->truncate((new LogDeliveryEvent())->getTable());
+        $this->truncateTables((new Log())->getTable(), (new LogDeliveryEvent())->getTable());
         $this->recorder = new DeliveryEventRecorder(new LogService());
     }
 
@@ -155,18 +153,6 @@ final class DeliveryEventRecorderTest extends IntegrationTestCase
      */
     private function childRows(int $logId): array
     {
-        $rows = LogDeliveryEvent::where('log_id', $logId)->get();
-
-        if ($rows instanceof Collection) {
-            return $rows->all();
-        }
-
-        return \is_array($rows) ? $rows : [];
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE {$table}");
+        return LogDeliveryEvent::where('log_id', $logId)->get()->all();
     }
 }

@@ -3,7 +3,6 @@
 namespace BitApps\SMTP\Tests\Integration\Tracking;
 
 use BitApps\SMTP\HTTP\Services\LogService;
-use BitApps\SMTP\Mail\Support\ModelRows;
 use BitApps\SMTP\Mail\Tracking\ClickTracker;
 use BitApps\SMTP\Mail\Tracking\OpenTracker;
 use BitApps\SMTP\Mail\Tracking\TokenSigner;
@@ -33,8 +32,7 @@ final class TrackingEndpointTest extends IntegrationTestCase
     {
         parent::setUp();
         $this->engagementTable = (new LogEngagementEvent())->getTable();
-        $this->truncate($this->engagementTable);
-        $this->truncate((new Log())->getTable());
+        $this->truncateTables($this->engagementTable, (new Log())->getTable());
         $this->service = new LogService();
     }
 
@@ -174,12 +172,6 @@ final class TrackingEndpointTest extends IntegrationTestCase
      */
     private function rows(int $logId): array
     {
-        return ModelRows::toArray(LogEngagementEvent::where('log_id', $logId)->orderBy('id')->get());
-    }
-
-    private function truncate(string $table): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE `{$table}`");
+        return LogEngagementEvent::where('log_id', $logId)->orderBy('id')->get()->all();
     }
 }

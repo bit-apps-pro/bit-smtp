@@ -10,11 +10,27 @@ import OAuthConnectButton from './OAuthConnectButton'
 import ProviderFields from './ProviderFields'
 import useSaveConnection from './data/useSaveConnection'
 import { type ConnectionTestResult } from './data/useTestConnection'
+import { getFieldTooltip } from './fields/FieldItem'
 import { getProviderVisual } from './providerVisuals'
 
 const { Text, Paragraph } = Typography
 
 const PROVIDER_BADGE_SIZE = 48
+const OAUTH_HTTP_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+/** Detects callback URLs that OAuth providers reject for lacking HTTPS. */
+function isInsecureOAuthRedirect(url: string | undefined): boolean {
+  if (!url) {
+    return false
+  }
+
+  try {
+    const redirect = new URL(url)
+    return redirect.protocol !== 'https:' && !OAUTH_HTTP_HOSTS.has(redirect.hostname)
+  } catch {
+    return true
+  }
+}
 
 interface ConnectionFormValues {
   name: string
@@ -340,6 +356,7 @@ export default function ConnectionEditor({
     true
   const oauthField = provider.fields.find(field => field.type === 'oauth')
   const inputFields = provider.fields.filter(field => field.type !== 'oauth')
+  const insecureOAuthRedirect = isInsecureOAuthRedirect(provider.oauth_redirect_url)
   const supportsWebhook = provider.supports_webhook === true
   const hasProviderConfiguration =
     inputFields.length > 0 ||
@@ -413,7 +430,10 @@ export default function ConnectionEditor({
         {hasProviderConfiguration ? (
           <FormSection title={__('Credentials & settings')}>
             {provider.oauth_redirect_url ? (
-              <Form.Item label={__('Redirect URI')}>
+              <Form.Item
+                label={__('Redirect URI')}
+                extra={__("Register this exact URI as a Web redirect URI in your provider's OAuth app.")}
+              >
                 <Paragraph
                   copyable={{ text: provider.oauth_redirect_url }}
                   style={{ marginBottom: 0, wordBreak: 'break-all' }}
@@ -422,9 +442,19 @@ export default function ConnectionEditor({
                 </Paragraph>
               </Form.Item>
             ) : null}
+            {insecureOAuthRedirect ? (
+              <Alert
+                type="warning"
+                showIcon
+                message={__('HTTPS redirect URI required')}
+                description={__(
+                  'OAuth providers reject non-HTTPS redirect URIs unless the host is localhost. Enable HTTPS and register the updated URI before connecting.'
+                )}
+              />
+            ) : null}
             <ProviderFields fields={inputFields} />
             {oauthField ? (
-              <Form.Item label={oauthField.label}>
+              <Form.Item label={oauthField.label} tooltip={getFieldTooltip(oauthField)}>
                 <OAuthConnectButton
                   connectionId={draftId}
                   provider={provider.key}

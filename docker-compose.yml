@@ -1,0 +1,119 @@
+services:
+  traefik:
+    image: traefik:latest
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+    ports:
+      - "${TRAEFIK_DASHBOARD_PORT:-8003}:8080"
+      - "${TRAEFIK_HTTP_PORT:-8004}:80"
+      - "${TRAEFIK_HTTPS_PORT:-8043}:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./.certs:/certs:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    networks:
+      - bit-smtp-network
+
+  backend:
+    image: wordpress:${WORDPRESS_VERSION:-latest}
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bit-smtp-wordpress.rule=Host(`backend.${DOMAIN_NAME:-smtp.btcd-test.io}`)"
+      - "traefik.http.routers.bit-smtp-wordpress.entrypoints=websecure"
+      - "traefik.http.routers.bit-smtp-wordpress.tls=true"
+      - "traefik.http.services.wordpress.loadbalancer.server.port=80"
+    environment:
+      WORDPRESS_DB_HOST: database
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-bit_smtp}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:-bitsmtp}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-2dEsW4qw}
+      WORDPRESS_TITLE: "Bit SMTP"
+      WORDPRESS_ADMIN_USER: admin
+      WORDPRESS_ADMIN_PASSWORD: "pas$$wo2d!"
+      WORDPRESS_ADMIN_EMAIL: admin@smtp.btcd-test.io
+      WORDPRESS_DEBUG: "true"
+      WORDPRESS_CONFIG_EXTRA: |
+        $$scheme = !empty($$_SERVER['HTTP_X_FORWARDED_PROTO'])
+            ? strtolower($$_SERVER['HTTP_X_FORWARDED_PROTO'])
+            : ((!empty($$_SERVER['HTTPS']) && $$_SERVER['HTTPS'] !== 'off') ? 'https' : 'http');
+
+        if (!defined('WP_HOME') && !empty($$_SERVER['HTTP_HOST'])) {
+            $$baseUrl = $$scheme . '://' . $$_SERVER['HTTP_HOST'];
+            define('WP_HOME', $$baseUrl);
+            define('WP_SITEURL', $$baseUrl);
+        } elseif (!defined('WP_HOME')) {
+            $$fallback = getenv('WORDPRESS_URL');
+            if (!empty($$fallback)) {
+                define('WP_HOME', $$fallback);
+                define('WP_SITEURL', $$fallback);
+            }
+        }
+        define('WP_ENVIRONMENT_TYPE', 'local');
+      WORDPRESS_URL: "http://backend.${DOMAIN_NAME:-smtp.btcd-test.io}:${TRAEFIK_HTTP_PORT:-8004}"
+    volumes:
+      - .:/var/www/html/wp-content/plugins/bit-smtp
+    ports:
+      - ${APP_PORT:-8001}:80
+    depends_on:
+      - database
+    networks:
+      - bit-smtp-network
+
+  database:
+    image: mysql:${MYSQL_VERSION:-8.0}
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${WORDPRESS_DB_NAME:-bit_smtp}
+      MYSQL_USER: ${WORDPRESS_DB_USER:-bitsmtp}
+      MYSQL_PASSWORD: ${WORDPRESS_DB_PASSWORD:-2dEsW4qw}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - bit-smtp-network
+
+  mailpit:
+    image: axllent/mailpit:${MAILPIT_VERSION:-latest}
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bit-smtp-mailpit.rule=Host(`mailpit.${DOMAIN_NAME:-smtp.btcd-test.io}`)"
+      - "traefik.http.routers.bit-smtp-mailpit.entrypoints=web"
+      - "traefik.http.services.mailpit.loadbalancer.server.port=8025"
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_WEBROOT: /mailpit
+    networks:
+      - bit-smtp-network
+  adminer:
+    image: adminer:${ADMINER_VERSION:-latest}
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bit-smtp-adminer.rule=Host(`adminer.${DOMAIN_NAME:-smtp.btcd-test.io}`)"
+      - "traefik.http.routers.bit-smtp-adminer.entrypoints=web"
+      - "traefik.http.services.adminer.loadbalancer.server.port=8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: database
+      ADMINER_DESIGN: pepa-linha
+    depends_on:
+      - database
+    networks:
+      - bit-smtp-network
+networks:
+  bit-smtp-network:
+    name: bit-smtp-network
+    driver: bridge
+
+volumes:
+  mysql-data:

@@ -28,7 +28,7 @@ final class RetryQueueTest extends IntegrationTestCase
         parent::setUp();
         (new BitSmtpRetryQueueMigration())->up();
         $this->table = $GLOBALS['wpdb']->prefix . Config::VAR_PREFIX . 'mail_retry_queue';
-        $this->truncate();
+        $this->truncateTables($this->table);
         $this->queue = new RetryQueue();
     }
 
@@ -168,11 +168,5 @@ final class RetryQueueTest extends IntegrationTestCase
         $this->assertSame(1, $this->queue->depth());
         $this->assertCount(0, $this->queue->claimDue(10), 'an undecodable row is skipped, not returned');
         $this->assertSame(0, $this->queue->depth(), 'and is reaped so it cannot re-lock and inflate depth every tick');
-    }
-
-    private function truncate(): void
-    {
-        global $wpdb;
-        $wpdb->query("TRUNCATE TABLE `{$this->table}`");
     }
 }

@@ -30,7 +30,7 @@ final class CliRetryCommandsTest extends IntegrationTestCase
         parent::setUp();
         (new BitSmtpRetryQueueMigration())->up();
         $this->table = $GLOBALS['wpdb']->prefix . Config::VAR_PREFIX . 'mail_retry_queue';
-        $GLOBALS['wpdb']->query("TRUNCATE TABLE `{$this->table}`");
+        $this->truncateTables($this->table);
         $this->queue = new RetryQueue();
     }
 

@@ -8,6 +8,7 @@ use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use BitApps\SMTP\Tests\Fake\FakeCliReporter;
+use Brain\Monkey\Functions;
 use Mockery;
 
 /**
@@ -25,6 +26,8 @@ final class LogsCommandTest extends BaseUnitTestCase
         parent::setUp();
         // Log's magic accessors reach the query builder, which reads the wpdb prefix.
         $GLOBALS['wpdb'] = (object) ['prefix' => 'wp_'];
+        // trackingEnabled() reads the preferences option; off by default keeps the base columns.
+        Functions\when('get_option')->justReturn(false);
     }
 
     public function testRendersExportedRowsAsATableByDefaultWithTheSafeColumns(): void
@@ -86,6 +89,31 @@ final class LogsCommandTest extends BaseUnitTestCase
         (new LogsCommand($logService, new LogCsvExporter()))->run([], ['limit' => '0'], $reporter);
 
         $this->assertCount(1, $reporter->rendered);
+    }
+
+    public function testAppendsTrackingColumnsWhenTrackingIsEnabled(): void
+    {
+        Functions\when('get_option')->justReturn(['tracking_enabled' => true]);
+
+        $rows       = [$this->log(['id' => 1]), $this->log(['id' => 2])];
+        $logService = Mockery::mock(LogService::class);
+        $logService->shouldReceive('exportRows')->once()->andReturn($rows);
+        $logService->shouldReceive('engagementFlagsFor')->once()->with([1, 2])->andReturn([
+            1 => ['opened' => true, 'clicked' => false],
+            2 => ['opened' => false, 'clicked' => false],
+        ]);
+
+        $reporter = new FakeCliReporter();
+        (new LogsCommand($logService, new LogCsvExporter()))->run([], [], $reporter);
+
+        $fields = $reporter->rendered[0]['fields'];
+        $this->assertContains('opened', $fields);
+        $this->assertContains('clicked', $fields);
+
+        $items = $reporter->rendered[0]['items'];
+        $this->assertSame('yes', $items[0]['opened']);
+        $this->assertSame('no', $items[0]['clicked']);
+        $this->assertSame('no', $items[1]['opened']);
     }
 
     public function testReportsNoLogsWhenTheResultIsEmpty(): void

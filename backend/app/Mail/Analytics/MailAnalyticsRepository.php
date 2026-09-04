@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Analytics;
 
+use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Model\Log;
 use WP_Error;
 
@@ -21,8 +22,6 @@ class MailAnalyticsRepository
     private const UTC_HOUR_SQL = "DATE_FORMAT(created_at_utc, '%%Y-%%m-%%d %%H:00:00')";
 
     private const VERIFIED_DELIVERY_STATUSES = "'delivered', 'deferred', 'bounced', 'blocked', 'spam'";
-
-    private const PENDING_DELIVERY_STATUS = 'pending';
 
     private const GROUP_SQL = [
         'source'       => "COALESCE(NULLIF(source_plugin, ''), 'unknown')",
@@ -68,7 +67,7 @@ class MailAnalyticsRepository
             COALESCE(SUM(CASE WHEN delivery_status = 'spam' THEN 1 ELSE 0 END), 0) AS spam,
             COALESCE(SUM(CASE WHEN delivery_status IN (" . self::VERIFIED_DELIVERY_STATUSES . ") THEN 1 ELSE 0 END), 0) AS verified_delivery,
             COALESCE(SUM(CASE WHEN delivery_status = 'accepted' THEN 1 ELSE 0 END), 0) AS accepted_delivery,
-            COALESCE(SUM(CASE WHEN delivery_status = '" . self::PENDING_DELIVERY_STATUS . "' THEN 1 ELSE 0 END), 0) AS pending_delivery
+            COALESCE(SUM(CASE WHEN delivery_status = '" . DeliveryStatus::PENDING . "' THEN 1 ELSE 0 END), 0) AS pending_delivery
             FROM `{$this->table}` WHERE {$where}";
 
         $rows = $this->rows($sql, $values);

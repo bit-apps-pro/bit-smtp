@@ -59,12 +59,11 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        global $wpdb;
         $this->table              = (new Log())->getTable();
         $this->previousTimezone   = get_option('timezone_string', null);
         $this->previousRetention  = Config::getOption('log_retention', null);
         $this->previousContinuity = Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, null);
-        $wpdb->query('TRUNCATE TABLE ' . $this->table);
+        $this->truncateTables($this->table);
 
         update_option('timezone_string', 'Asia/Dhaka');
         Config::updateOption('log_retention', self::RETENTION_DAYS, true);

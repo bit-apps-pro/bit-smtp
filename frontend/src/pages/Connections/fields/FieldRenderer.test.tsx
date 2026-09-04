@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Form } from 'antd'
 import { describe, expect, it } from 'vitest'
 import FieldRenderer from './FieldRenderer'
@@ -107,6 +108,39 @@ describe('FieldRenderer', () => {
       </Form>
     )
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
+  })
+
+  it('shows linked provider guidance in the field tooltip', async () => {
+    render(
+      <Form>
+        <FieldRenderer
+          field={{
+            key: 'client_id',
+            label: 'Application (client) ID',
+            type: 'text',
+            options: [],
+            required: true,
+            secret: false,
+            placeholder: '',
+            default: '',
+            dependsOn: null,
+            help: {
+              text: 'Copy the value from the app Overview page.',
+              url: 'https://entra.microsoft.com/',
+              linkLabel: 'Open Microsoft Entra'
+            }
+          }}
+        />
+      </Form>
+    )
+
+    await userEvent.hover(screen.getByRole('img', { name: 'question-circle' }))
+
+    expect(await screen.findByText('Copy the value from the app Overview page.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Microsoft Entra' })).toHaveAttribute(
+      'href',
+      'https://entra.microsoft.com/'
+    )
   })
 
   it('masks a non-password field whose metadata marks it secret', () => {

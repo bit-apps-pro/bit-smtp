@@ -50,7 +50,7 @@ final class WpMailBridgeTest extends IntegrationTestCase
 
     public function testCcAndBccHeadersAreCapturedOnTheLogRow(): void
     {
-        $this->truncateLogs();
+        $this->truncateTables((new Log())->getTable());
 
         wp_mail(
             'to@example.org',
@@ -63,12 +63,6 @@ final class WpMailBridgeTest extends IntegrationTestCase
         $this->assertInstanceOf(Log::class, $log);
         $this->assertSame(['cc@example.org'], $log->cc);
         $this->assertSame(['bcc@example.org'], $log->bcc);
-    }
-
-    private function truncateLogs(): void
-    {
-        global $wpdb;
-        $wpdb->query('TRUNCATE TABLE ' . (new Log())->getTable());
     }
 
     private function configureMailpitTransport(): void

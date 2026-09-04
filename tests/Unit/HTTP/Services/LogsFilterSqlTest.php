@@ -97,9 +97,9 @@ final class LogsFilterSqlTest extends BaseUnitTestCase
                 [],
                 ['delivery_status'],
             ],
-            'connection_id filters by id-or-legacy-label via whereRaw' => [
+            'connection_id filters by id-or-legacy-label via a grouped OR' => [
                 ['connection_id' => 'conn-a'],
-                ["(connection_id = 'conn-a' OR connection = 'conn-a')"],
+                ["( `wp_bit_smtp_logs`.`connection_id` =  'conn-a' OR `wp_bit_smtp_logs`.`connection` =  'conn-a')"],
                 [],
             ],
             'source_plugin is an equality match' => [
@@ -109,7 +109,7 @@ final class LogsFilterSqlTest extends BaseUnitTestCase
             ],
             'date_from + date_to becomes a BETWEEN clause' => [
                 ['date_from' => '2026-01-10', 'date_to' => '2026-01-20'],
-                ["created_at BETWEEN '2026-01-10 00:00:00' AND '2026-01-20 23:59:59'"],
+                ["`created_at` BETWEEN '2026-01-10 00:00:00' AND '2026-01-20 23:59:59'"],
                 [],
             ],
             'date_from alone is a one-sided >= clause' => [
