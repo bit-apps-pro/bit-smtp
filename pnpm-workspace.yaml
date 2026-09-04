@@ -5,3 +5,9 @@ ignoredBuiltDependencies:
 onlyBuiltDependencies:
   - esbuild
   - lefthook
+
+# nwsapi is jsdom's CSS selector engine, so every Testing Library query goes through it. 2.2.27
+# regressed query performance badly enough to push the Settings/Notifications suites past vitest's
+# 5s timeout (~23s -> ~78s for two files). Pinned back until upstream fixes it; carries no advisory.
+overrides:
+  nwsapi: 2.2.22
