@@ -1,4 +1,4 @@
-// A runtime-detected wp_mail sender plugin, offered in the "Source plugin" condition picker.
+/** A runtime-detected wp_mail sender plugin, offered in the "Source plugin" condition picker. */
 export interface MailSource {
   value: string
   label: string
@@ -18,7 +18,7 @@ export interface RoutingRule {
   conditions: RoutingCondition[]
 }
 
-// UI-only id for stable list keys; generated client-side and stripped before persisting.
+/** UI-only condition with client-generated id for stable list keys; id is stripped before persisting to backend. */
 export interface EditableRoutingCondition extends RoutingCondition {
   id: string
 }

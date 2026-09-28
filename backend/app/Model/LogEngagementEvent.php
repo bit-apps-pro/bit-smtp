@@ -5,8 +5,7 @@ namespace BitApps\SMTP\Model;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Model;
 
 /**
- * Model for a single open/click engagement event folded against a log entry. One row per
- * (log_id, type, target); re-fires increment hits/automated_hits rather than inserting duplicates.
+ * Model for open/click engagement event folded against log; one row per (log_id, type, target), increments on re-fire.
  *
  * @property int    $log_id
  * @property string $type

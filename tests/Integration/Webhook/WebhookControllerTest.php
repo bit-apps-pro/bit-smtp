@@ -12,9 +12,7 @@ use BitApps\SMTP\Tests\Integration\IntegrationTestCase;
 use OpenSSLAsymmetricKey;
 
 /**
- * Drives WebhookController::handle() against the real test DB: authentication (unknown/disabled/wrong
- * secret), correlated SendGrid/Postmark events (record a child row + mark the connection verified),
- * and the well-formed-but-uncorrelated post that must still return 200.
+ * Tests WebhookController authentication, correlation, and uncorrelated POST handling.
  *
  * @internal
  *
@@ -28,13 +26,14 @@ final class WebhookControllerTest extends IntegrationTestCase
 
     private OpenSSLAsymmetricKey $snsKey;
 
+    /**
+     * Drives the real SnsSignatureVerifier with a generated keypair and a pre-seeded cert cache, so no network fetch.
+     */
     protected function setUp(): void
     {
         parent::setUp();
         $this->truncateTables((new Log())->getTable(), (new LogDeliveryEvent())->getTable());
 
-        // Drive the REAL SnsSignatureVerifier: generate a keypair, pre-seed the cert cache the verifier
-        // reads (so no network fetch), and sign each SNS envelope with the matching private key.
         $this->snsKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => \OPENSSL_KEYTYPE_RSA]);
         set_transient('bit_smtp_sns_cert_' . md5(self::SNS_CERT_URL), openssl_pkey_get_details($this->snsKey)['key'], 300);
     }
@@ -110,7 +109,6 @@ final class WebhookControllerTest extends IntegrationTestCase
     public function testWellFormedButUncorrelatedPostStillReturns200(): void
     {
         $this->saveApiConnection('conn_pm', 'postmark', self::KNOWN_SECRET, true);
-        // A log exists, but its message-id does not match the incoming event, so nothing correlates.
         $logId = $this->createLog('conn_pm', 'a-different-id');
 
         $status = $this->controller()->handle('conn_pm', self::KNOWN_SECRET, $this->postmarkDelivery('unmatched-id'));
@@ -118,7 +116,6 @@ final class WebhookControllerTest extends IntegrationTestCase
         $this->assertSame(200, $status);
         $this->assertCount(0, $this->childRows($logId));
 
-        // Nothing correlated, so the connection must NOT be marked verified.
         $connection = (new MailConfigService())->connectionById('conn_pm');
         $this->assertNotNull($connection);
         $this->assertFalse($connection->isWebhookVerified());
@@ -177,7 +174,6 @@ final class WebhookControllerTest extends IntegrationTestCase
         $this->saveApiConnection('conn_ses', 'amazon_ses', self::KNOWN_SECRET, true);
         $this->createLog('conn_ses', 'ses-msg-3', null, 'accepted');
 
-        // A well-formed SNS envelope with a bogus signature must not authenticate.
         $forged = WebhookRequest::fromRaw(
             (string) wp_json_encode($this->snsNotificationFields((string) wp_json_encode([
                 'notificationType' => 'Delivery',
@@ -200,7 +196,6 @@ final class WebhookControllerTest extends IntegrationTestCase
 
         $this->assertSame(200, $status);
         $this->assertTrue($confirmer->confirmed, 'a verified SubscriptionConfirmation must be acknowledged');
-        // The confirming topic's AWS account (arn:aws:sns:us-east-1:1:ses) is pinned to the connection.
         $connection = (new MailConfigService())->connectionById('conn_ses');
         $this->assertSame('1', (string) $connection->setting('webhook_sns_account_id', ''));
     }
@@ -208,7 +203,6 @@ final class WebhookControllerTest extends IntegrationTestCase
     public function testSesSnsNotificationFromADifferentAwsAccountIsRejectedWith403(): void
     {
         $this->saveApiConnection('conn_ses', 'amazon_ses', self::KNOWN_SECRET, true);
-        // Pin the connection to account "1" via a confirmation, then deliver a notification from "999".
         (new WebhookController(null, null, null, null, new RecordingSnsConfirmer()))
             ->handle('conn_ses', self::KNOWN_SECRET, $this->snsSubscriptionConfirmation());
         $logId = $this->createLog('conn_ses', 'ses-msg-4', null, 'accepted');
@@ -291,8 +285,7 @@ final class WebhookControllerTest extends IntegrationTestCase
     }
 
     /**
-     * Sign an SNS envelope's canonical string-to-sign with the test key and append the Signature +
-     * SignatureVersion, exactly as AWS SNS would.
+     * Signs SNS envelope with test key, appending Signature + SignatureVersion as AWS SNS does.
      *
      * @param array<string,mixed> $fields
      *
@@ -308,8 +301,7 @@ final class WebhookControllerTest extends IntegrationTestCase
     }
 
     /**
-     * Persist an API connection with a known webhook secret through the real config facade, so
-     * connectionById()/markWebhookVerified() operate against genuinely stored state.
+     * Persists API connection with webhook secret through real config facade for authentic state.
      */
     private function saveApiConnection(string $id, string $provider, string $secret, bool $webhookEnabled): void
     {
@@ -408,8 +400,7 @@ final class WebhookControllerTest extends IntegrationTestCase
 }
 
 /**
- * Records the confirm handshake instead of issuing the outbound GET, so the real SubscribeURL host
- * guard still runs but no network call is made.
+ * Records SNS confirm handshake instead of issuing outbound GET; SubscribeURL host guard still runs.
  *
  * @internal
  */

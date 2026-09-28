@@ -15,8 +15,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Covers the health-check command logic: it runs the probe pass, then renders the refreshed
- * per-connection public health map (keyed by connection id) as a table.
+ * Covers health-check command logic: runs probe pass, renders per-connection health as table.
  *
  * @internal
  *
@@ -41,13 +40,12 @@ final class HealthCheckCommandTest extends BaseUnitTestCase
                 'consecutive_failures' => 4,
                 'last_error'           => 'connect timed out',
             ]),
-            // A health record can outlive a deleted connection; its label must fall back gracefully.
+
             'ghost' => ConnectionHealth::unknown()->with([
                 'status' => HealthStatus::HEALTHY,
             ]),
         ]);
 
-        // conn-2 has no name, so its label falls back to the provider slug ('smtp').
         $settings = MailSettings::fromArray([
             'connections' => [
                 ['id' => 'conn-1', 'provider' => 'ses', 'kind' => 'api', 'name' => 'Primary SES'],
@@ -83,7 +81,6 @@ final class HealthCheckCommandTest extends BaseUnitTestCase
         $health = Mockery::mock(ConnectionHealthService::class);
         $health->shouldReceive('list')->once()->andReturn([]);
 
-        // The empty-map path returns before any connection lookup, so load() is never called.
         $config = Mockery::mock(MailConfigService::class);
 
         $reporter = new FakeCliReporter();

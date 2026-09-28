@@ -7,8 +7,7 @@ namespace BitApps\SMTP\Mail\Support;
 use RuntimeException;
 
 /**
- * Encodes a payload as a multipart/form-data body (WordPress's HTTP layer has no native multipart support).
- * Scalar entries become form fields; array entries (displayFilename => path) become repeated file parts.
+ * Encode payload as multipart/form-data body; WordPress HTTP has no native support.
  */
 final class MultipartEncoder implements EncoderInterface
 {
@@ -88,7 +87,9 @@ final class MultipartEncoder implements EncoderInterface
         return $mime !== false && $mime !== '' ? $mime : self::MIME_FALLBACK;
     }
 
-    // CRLF would smuggle a new header/part; a raw quote would break out of the quoted value.
+    /**
+     * Removes CRLF and quotes to prevent header injection or value escape.
+     */
     private function sanitizeHeaderValue(string $value): string
     {
         return str_replace(["\r", "\n", '"'], '', $value);

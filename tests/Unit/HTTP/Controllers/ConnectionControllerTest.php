@@ -14,10 +14,7 @@ use Mockery;
 use RuntimeException;
 
 /**
- * Pins the delivery-status integration seam that the live test() path (Plugin singleton +
- * Capabilities + a real transport) keeps out of unit reach: the best-effort isolation guarantee
- * and the negative-outcome error flip. Uses a protected-method test subclass, mirroring
- * OAuthControllerTest, rather than reflection.
+ * Tests delivery-status seam and error handling via protected-method subclass, not live transport.
  *
  * @internal
  *
@@ -93,8 +90,7 @@ class ConnectionControllerTest extends BaseUnitTestCase
 }
 
 /**
- * Exposes the protected delivery-status seam so the isolation guarantee and error flip are
- * unit-reachable without the live Plugin singleton / Capabilities / transport dependencies.
+ * Exposes protected delivery-status seam for unit testing without live Plugin/Capabilities/transport dependencies.
  *
  * @internal
  */

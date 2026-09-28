@@ -8,14 +8,12 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Tests\Fake\FakeWpdb;
 
 /**
- * Installs a FakeWpdb as $GLOBALS['wpdb'] so BitApps\WPDatabase's query builder can compile and
- * "execute" SQL with no database, and tears it back down afterward.
+ * Installs/tears down FakeWpdb for compiling/executing SQL without a database.
  */
 trait InteractsWithFakeWpdb
 {
     /**
-     * Installs a fresh FakeWpdb, wires the plugin's table prefix into Connection (mirrors what the
-     * plugin's bootstrap does against the real $wpdb), and returns the fake for query assertions.
+     * Installs FakeWpdb, wires table prefix into Connection, returns fake for query assertions.
      */
     protected function installFakeWpdb(): FakeWpdb
     {

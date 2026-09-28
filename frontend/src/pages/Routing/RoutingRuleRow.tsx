@@ -16,11 +16,13 @@ const { Text } = Typography
 const PROVIDER_BADGE_SIZE = 24
 
 let nextConditionId = 0
+/** Client-side-only id for a newly added condition row. */
 function createConditionId(): string {
   nextConditionId += 1
   return `condition-${nextConditionId}`
 }
 
+/** Blank condition row seeded with sensible defaults. */
 function emptyCondition(): EditableRoutingCondition {
   return { id: createConditionId(), field: 'recipient', operator: 'equals', value: '' }
 }
@@ -62,6 +64,7 @@ function ProviderBadge({ visual }: { visual: ProviderVisual }) {
   )
 }
 
+/** One routing rule: target-connection picker plus its match conditions, with a drag handle and delete. */
 export default function RoutingRuleRow({
   rule,
   connections,

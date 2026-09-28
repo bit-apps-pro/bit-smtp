@@ -5,8 +5,7 @@ namespace BitApps\SMTP\HTTP\Services;
 \defined('ABSPATH') || exit();
 
 /**
- * Applies the `log_store_body` privacy preference to a log's details blob before it is persisted:
- * keeps, redacts, or drops the message body without ever touching subject, recipients, or headers.
+ * Apply log_store_body preference: keep, redact, or drop message body (never headers/recipients).
  */
 final class LogBodyRedactor
 {
@@ -22,17 +21,14 @@ final class LogBodyRedactor
     public const REDACTED_PLACEHOLDER = '[redacted]';
 
     /**
-     * Detail keys holding the (potentially sensitive) message body; only these are governed by the
-     * body-storage preference — the subject/recipients/headers are never redacted here. `message` is
-     * the live body key; `html` is covered defensively for any future separate HTML-body detail.
+     * Detail keys for message body (governed by storage preference; subject/recipients/headers exempt).
      *
      * @var array<int,string>
      */
     private const BODY_KEYS = ['message', 'html'];
 
     /**
-     * Whether $body is real retained content rather than an empty/dropped or redacted body, so
-     * callers that re-send from a stored log (resend) never mail a placeholder or blank message.
+     * Check if body is retained (not redacted/dropped) for safe resend.
      */
     public static function isBodyRetained(string $body): bool
     {
@@ -42,9 +38,7 @@ final class LogBodyRedactor
     }
 
     /**
-     * Return a copy of $details with the message body kept ('full'), replaced by a placeholder
-     * ('redacted'), or removed entirely ('metadata') per $mode. Only body keys are affected; an
-     * unrecognized mode is treated as 'full', so an unexpected value never silently drops the body.
+     * Apply mode to body keys; unrecognized mode defaults to 'full' to never silently drop body.
      *
      * @param array<string,mixed> $details
      *

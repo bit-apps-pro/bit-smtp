@@ -40,6 +40,7 @@ interface ConnectionFormValues {
   [settingKey: string]: unknown
 }
 
+/** Maps form values into the Connection payload shape: identity fields, non-secret settings, secret credentials, optional webhook flag. */
 function buildConnectionPayload(
   values: ConnectionFormValues,
   connection: Connection,
@@ -78,6 +79,7 @@ function buildConnectionPayload(
   }
 }
 
+/** Provider badge (logo halo or initial tile) plus its label and blurb, heading the connection form. */
 function ProviderHeader({ provider }: { provider: ProviderMeta }) {
   const { token } = theme.useToken()
   const visual = getProviderVisual(provider.key, provider.label)
@@ -133,6 +135,7 @@ function ProviderHeader({ provider }: { provider: ProviderMeta }) {
   )
 }
 
+/** Bordered card wrapper with a small title, grouping a related set of form fields. */
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
   const { token } = theme.useToken()
 
@@ -242,15 +245,16 @@ function WebhookHealth({
   }
 }
 
+/** Copyable webhook URL, its health status, and an optional "create webhook in provider" action. */
 function WebhookPanel({ connection, provider }: { connection: Connection; provider: ProviderMeta }) {
   const { token } = theme.useToken()
   const secret = (connection.settings?.webhook_secret as string | undefined) ?? ''
-  // Prefer the server-composed URL; fall back to composing it locally only if the API omitted it.
   const webhookUrl =
     connection.webhook_url || (secret ? `${config.ROOT_URL}/bit-smtp/${connection.id}/${secret}` : '')
   const verified = Boolean(connection.settings?.webhook_verified)
   const [creating, setCreating] = useState(false)
 
+  /** Calls the provider's webhook-create endpoint and toasts the outcome. */
   const createProviderWebhook = async () => {
     setCreating(true)
     try {
@@ -318,6 +322,7 @@ function WebhookPanel({ connection, provider }: { connection: Connection; provid
   )
 }
 
+/** Full connection edit/create form: identity fields, provider-specific settings, OAuth/webhook panels, test + save actions. */
 export default function ConnectionEditor({
   connection,
   provider,
@@ -368,11 +373,7 @@ export default function ConnectionEditor({
 
   const buildPayload = () => buildConnectionPayload(form.getFieldsValue(true), draftConnection, provider)
 
-  // Persist the current form values through the save endpoint and return the connection id. Always
-  // saves — even for an existing connection — so a just-typed OAuth client_id/secret is stored before
-  // the consent flow reads them; a new connection additionally captures and reuses the minted id so a
-  // later Save updates instead of duplicating. Returns '' on any non-success body so the caller aborts
-  // authorization rather than running consent against the stale stored credentials.
+  /** Always saves the current form first (so OAuth consent reads fresh, not stale, credentials) and reuses the minted id; returns '' to abort on failure. */
   const persistConnection = async (): Promise<string> => {
     const response = await mutateAsync(buildPayload())
     if (response?.status !== 'success') {
@@ -387,6 +388,7 @@ export default function ConnectionEditor({
     return savedId
   }
 
+  /** Saves the form, toasts success, and surfaces any non-fatal webhook-provisioning warning. */
   const handleFinish = async (values: ConnectionFormValues) => {
     const response = await mutateAsync(buildConnectionPayload(values, draftConnection, provider))
     notify.success(__('Connection saved'))

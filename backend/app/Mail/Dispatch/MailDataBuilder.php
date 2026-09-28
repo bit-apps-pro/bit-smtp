@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\SendResult;
 
 /**
- * Assembles the mutable `$mailData` array a send is logged from: the base payload from the wp_mail
- * atts, plus the per-send annotations (attempt trail, resolved sender, routing-skip trace) layered on
- * before it reaches the logger. Pure and stateless — every method returns a new/annotated array.
+ * Assemble mutable mailData array for logging: base payload + annotations (attempts, sender, routing skips).
  */
 final class MailDataBuilder
 {
@@ -39,8 +37,7 @@ final class MailDataBuilder
     }
 
     /**
-     * One entry in a message's attempt trail: the connection tried and how it resolved. 'accepted'
-     * marks a hand-off that carried a per-message error (accepted by the provider but not fully ok).
+     * One attempt entry: connection tried and resolution status (sent/accepted/failed).
      *
      * @return array{connection: string, status: string, error: string|null}
      */
@@ -93,8 +90,8 @@ final class MailDataBuilder
     /**
      * Return $mailData with the routing-skip trace attached, when there is one.
      *
-     * @param array<string,mixed>                                                          $mailData
-     * @param array<int,array{connection: string, connection_id: string, reason: string}>  $skips
+     * @param array<string,mixed>                                                         $mailData
+     * @param array<int,array{connection: string, connection_id: string, reason: string}> $skips
      *
      * @return array<string,mixed>
      */

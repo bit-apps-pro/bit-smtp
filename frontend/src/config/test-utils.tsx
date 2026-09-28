@@ -1,5 +1,3 @@
-/* Test-only helper: RTL is a devDependency and a single named export is intentional here. */
-
 /* eslint-disable import/no-extraneous-dependencies, import/prefer-default-export */
 import { type ReactElement } from 'react'
 import { HashRouter } from 'react-router-dom'

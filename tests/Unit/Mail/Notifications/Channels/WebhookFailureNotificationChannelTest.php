@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\Tests\Unit\Mail\Notifications\Channels;
 
 use BitApps\SMTP\Mail\Notifications\Channels\WebhookFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\FailureIncident;
 use BitApps\SMTP\Mail\Notifications\FailureNotification;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
@@ -36,10 +37,10 @@ final class WebhookFailureNotificationChannelTest extends BaseUnitTestCase
                 return $args['redirection']                             === 0
                     && $args['timeout']                                 === 5
                     && $args['headers']['Content-Type']                 === 'application/json'
-                    && $args['headers']['X-Bit-SMTP-Event']             === 'email_send_failed'
+                    && $args['headers']['X-Bit-SMTP-Event']             === 'send_failure.opened'
                     && $args['headers']['X-Bit-SMTP-Timestamp']         === '1700000000'
                     && $args['headers']['X-Bit-SMTP-Signature']         === 'v1=' . $expectedSignature
-                    && json_decode($args['body'], true)['event']        === 'email_send_failed';
+                    && json_decode($args['body'], true)['event']        === 'send_failure.opened';
             }))
             ->andReturn(['response' => ['code' => 204]]);
         Functions\when('is_wp_error')->justReturn(false);
@@ -50,7 +51,7 @@ final class WebhookFailureNotificationChannelTest extends BaseUnitTestCase
         $this->assertTrue($channel->send($notification, [
             'url'            => 'https://hooks.example.com/failure',
             'signing_secret' => $secret,
-        ]));
+        ])->ok());
     }
 
     public function testUnsafeRequestFailureReturnsFalse(): void
@@ -61,10 +62,27 @@ final class WebhookFailureNotificationChannelTest extends BaseUnitTestCase
 
         $channel = new WebhookFailureNotificationChannel();
 
-        $this->assertFalse($channel->send($notification, [
+        $result = $channel->send($notification, [
             'url'            => 'https://127.0.0.1/internal',
             'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
-        ]));
+        ]);
+
+        $this->assertFalse($result->ok());
+        $this->assertSame('Could not connect: unsafe', $result->reason());
+    }
+
+    public function testANon2xxNamesTheStatusOnly(): void
+    {
+        Functions\when('wp_safe_remote_post')->justReturn(['body' => 'internal stack trace with whsec_secret']);
+        Functions\when('is_wp_error')->justReturn(false);
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(500);
+
+        $result = (new WebhookFailureNotificationChannel())->send($this->notification(), [
+            'url'            => 'https://hooks.example.com/alerts',
+            'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+        ]);
+
+        $this->assertSame('The endpoint responded with HTTP 500.', $result->reason());
     }
 
     public function testMissingSigningSecretDoesNotSendAnUnsignedWebhook(): void
@@ -75,11 +93,14 @@ final class WebhookFailureNotificationChannelTest extends BaseUnitTestCase
 
         $this->assertFalse($channel->send($this->notification(), [
             'url' => 'https://hooks.example.com/failure',
-        ]));
+        ])->ok());
     }
 
     private function notification(): FailureNotification
     {
-        return FailureNotification::fromError(new WP_Error('wp_mail_failed', 'Failed'));
+        return FailureNotification::fromIncident(
+            FailureNotification::EVENT_OPENED,
+            FailureIncident::fromArray(['id' => 'incident-1', 'started_at' => 1700000000])
+        );
     }
 }

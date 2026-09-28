@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Providers;
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
 use BitApps\SMTP\Deps\BitApps\WPKit\Installer;
+use BitApps\SMTP\Mail\Notifications\FailureIncidentStore;
 
 class InstallerProvider
 {
@@ -24,7 +25,6 @@ class InstallerProvider
 
         Hooks::addAction($this->_deactivateHook, [$this, 'deactivate']);
 
-        // Only a static class method or function can be used in an uninstall hook.
         register_uninstall_hook(Config::get('MAIN_FILE'), [self::class, 'registerUninstaller']);
     }
 
@@ -52,14 +52,19 @@ class InstallerProvider
         $installer->register();
     }
 
+    /**
+     * Unschedule every plugin cron hook and drop failure incident state.
+     *
+     * @param mixed $networkWide
+     */
     public function deactivate($networkWide)
     {
-        // Clear by explicit hook name: a deactivation request may not have booted the service
-        // providers that call Scheduler::job() this request, so a Scheduler instance's own
-        // bookkeeping can't be relied on here -- WordPress's cron API is the only sure handle.
-        wp_clear_scheduled_hook(Config::RETENTION_GC_HOOK);
-        wp_clear_scheduled_hook(Config::RETRY_QUEUE_HOOK);
-        wp_clear_scheduled_hook(Config::HEALTH_CHECK_HOOK);
+        foreach (Config::scheduledHooks() as $hook) {
+            wp_unschedule_hook($hook);
+        }
+        foreach (FailureIncidentStore::optionNames() as $optionName) {
+            delete_option($optionName);
+        }
     }
 
     public function registerActivator($networkWide)
@@ -77,11 +82,11 @@ class InstallerProvider
         Hooks::doAction(self::$_uninstallHook, $networkWide);
     }
 
+    /**
+     * Migration list with BitSmtpPluginOptions last so failed schema migrations are retryable (idempotent).
+     */
     public static function migration()
     {
-        // BitSmtpPluginOptions (the db_version bump) always runs LAST so a failed schema migration
-        // leaves the version gate open to retry (each migration is idempotent); new schema
-        // migrations are inserted before it, not appended after.
         $migrations = [
             'BitSmtpLogsTableMigration',
             'BitSmtpSettingsSeed',

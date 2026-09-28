@@ -5,8 +5,7 @@ namespace BitApps\SMTP\Mail\Validation;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 
 /**
- * Generic validator that checks a provider's declared required fields are present,
- * driven entirely by that provider's fields() metadata rather than per-provider code.
+ * Generic validator: check provider's declared required fields are present, driven by fields() metadata.
  */
 final class RequiredFieldsValidator implements ValidatorInterface
 {

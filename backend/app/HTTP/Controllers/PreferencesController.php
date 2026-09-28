@@ -17,15 +17,12 @@ use BitApps\SMTP\Settings\PluginSettings;
 class PreferencesController
 {
     /**
-     * Preference keys backed by a canonical side-effecting writer on LogService, rather than the
-     * blob-only fill(); routed separately in persist() so their continuity/legacy-option side
-     * effects fire regardless of which endpoint (save/import) persists them.
+     * Preference keys managed via LogService (not blob-only) to preserve continuity/legacy-option side-effects.
      */
     private const LOG_SERVICE_MANAGED_KEYS = ['logging_enabled', 'log_retention_days'];
 
     /**
-     * Lazily resolved so index()/export() and any save() payload without a managed key never force
-     * LogService's construction (it side-effects via initializeLoggingContinuity()).
+     * Lazily resolved so unmanagedkeys never force LogService construction.
      */
     private ?LogService $logger;
 
@@ -62,9 +59,7 @@ class PreferencesController
     }
 
     /**
-     * Validate an imported preferences blob with the same rules save() uses, then persist it.
-     * Accepts both export()'s `{preferences: {...}}` envelope and a flat body so an exported file
-     * round-trips as-is.
+     * Validate imported blob with save() rules; accepts envelope or flat body for round-trip.
      */
     public function import(Request $request): Response
     {
@@ -83,10 +78,7 @@ class PreferencesController
     }
 
     /**
-     * Persist the given (already-validated) preference values, returning the full resulting blob.
-     * LOG_SERVICE_MANAGED_KEYS are routed through LogService's canonical writers instead of the
-     * blob-only fill(), so their continuity-marker/legacy-option side effects stay correct; every
-     * other key is fill()->save()'d as before.
+     * Persist validated values; route managed keys through LogService, others via fill()->save().
      *
      * @param array<string, mixed> $validated
      */
@@ -103,10 +95,7 @@ class PreferencesController
     }
 
     /**
-     * Route logging_enabled/log_retention_days through LogService::setEnabled()/updateRetention()
-     * when present in the payload. logging_enabled is only forwarded when it actually changes: both
-     * to avoid needlessly resetting the logging-continuity marker and to match fill()'s existing
-     * "unsent key is left untouched" semantics.
+     * Route managed keys through LogService; only forward logging_enabled on actual change.
      *
      * @param array<string, mixed> $validated
      */
@@ -133,8 +122,7 @@ class PreferencesController
     }
 
     /**
-     * Group the schema's fields by their `group`, exposing enough per-field metadata (key, type,
-     * default, and enum choices) for the UI to render grouped preference sections.
+     * Group schema fields by group; expose metadata for UI preference sections.
      *
      * @return array<int,array<string,mixed>>
      */

@@ -33,8 +33,7 @@ final class ApiErrorFormatter
     }
 
     /**
-     * Some providers (e.g. Mailjet) answer a per-message failure with a 2xx status, so the HTTP
-     * status alone cannot decide success — the body must be checked for a provider error too.
+     * Check for per-message failure in 2xx response; HTTP status alone insufficient.
      *
      * @param mixed    $body       decoded response body
      * @param string[] $errorPaths ordered dot-paths tried against an array $body

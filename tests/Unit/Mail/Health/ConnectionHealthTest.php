@@ -40,6 +40,7 @@ final class ConnectionHealthTest extends BaseUnitTestCase
             'oauth_expires_at'     => 1893456000,
             'last_alerted_state'   => HealthStatus::UNHEALTHY,
             'last_alerted_at'      => '2026-08-24 12:05:00',
+            'last_outage_alert'    => HealthStatus::UNHEALTHY,
             'updated_at'           => '2026-08-24 12:10:00',
         ];
 
@@ -58,7 +59,6 @@ final class ConnectionHealthTest extends BaseUnitTestCase
         $this->assertSame(HealthStatus::CIRCUIT_CLOSED, $record->getCircuit());
         $this->assertSame(2, $record->getConsecutiveFailures());
         $this->assertSame(1893456000, $record->getOauthExpiresAt());
-        // An empty-string timestamp normalizes to null, never a stray ''.
         $this->assertNull($record->getLastOkAt());
         $this->assertNotSame('', $record->getUpdatedAt());
     }
@@ -73,7 +73,6 @@ final class ConnectionHealthTest extends BaseUnitTestCase
         $this->assertSame(HealthStatus::DEGRADED, $record->getStatus());
         $this->assertSame(1, $record->getConsecutiveFailures());
         $this->assertTrue($record->isDegraded());
-        // Untouched fields keep their prior values.
         $this->assertSame(HealthStatus::CIRCUIT_CLOSED, $record->getCircuit());
         $this->assertNull($record->getLastOkAt());
     }

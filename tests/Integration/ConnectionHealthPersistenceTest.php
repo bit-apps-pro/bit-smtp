@@ -56,14 +56,15 @@ final class ConnectionHealthPersistenceTest extends IntegrationTestCase
         $this->assertSame($record->toArray(), $reloaded->toArray());
     }
 
+    /**
+     * Health is read on demand, so it must never join the autoloaded options loaded on every request.
+     */
     public function testTheOptionIsNotAutoloaded(): void
     {
         (new ConnectionHealthStore())->put('conn_1', ConnectionHealth::unknown());
 
         wp_cache_delete('alloptions', 'options');
 
-        // Health is read on demand (admin/cron), so it must never join the autoloaded blob loaded on
-        // every page request.
         $this->assertArrayNotHasKey(self::OPTION, wp_load_alloptions());
     }
 
@@ -104,8 +105,6 @@ final class ConnectionHealthPersistenceTest extends IntegrationTestCase
 
     public function testDeletingAConnectionRemovesItsHealthRecord(): void
     {
-        // Two connections so the delete has a survivor to repoint the default to; both carry a health
-        // record. Deleting one must drop its record immediately and leave the survivor's intact.
         $this->storeOptions([
             'schema_version'          => 2,
             'enabled'                 => true,

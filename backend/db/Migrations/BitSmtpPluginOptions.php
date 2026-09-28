@@ -14,10 +14,7 @@ if (!\defined('ABSPATH')) {
 final class BitSmtpPluginOptions extends Migration
 {
     /**
-     * Every bare (unprefixed) bit_smtp_* option key ever written outside the preferences blob,
-     * including the encrypted credential store (`options`) and its legacy plaintext backup
-     * (`options_v1_backup`) — the two keys a prior version of this migration LEFT BEHIND on
-     * uninstall.
+     * Every bit_smtp_* option key outside preferences blob (includes encrypted store + legacy plaintext backup).
      */
     private const PURGEABLE_OPTION_KEYS = [
         'db_version',
@@ -33,6 +30,7 @@ final class BitSmtpPluginOptions extends Migration
         'options_v1_backup',
         'logging_enabled',
         'failure_notification_active',
+        'failure_resolved_incidents',
     ];
 
     public function up()
@@ -43,9 +41,7 @@ final class BitSmtpPluginOptions extends Migration
     }
 
     /**
-     * Purges every bit_smtp_* option — including the encrypted credential store and its legacy
-     * plaintext backup — unless the user opted out via the `uninstall_purge` preference. Leaves
-     * everything untouched when the user chose to keep their data.
+     * Purge bit_smtp_* options and unschedule every plugin cron hook, unless uninstall_purge is disabled.
      */
     public function down()
     {
@@ -61,8 +57,8 @@ final class BitSmtpPluginOptions extends Migration
         delete_option(ConnectionHealthStore::OPTION_NAME);
         delete_option(HealthProbeRunner::LAST_RUN_OPTION);
 
-        wp_clear_scheduled_hook(Config::RETENTION_GC_HOOK);
-        wp_clear_scheduled_hook(Config::RETRY_QUEUE_HOOK);
-        wp_clear_scheduled_hook(Config::HEALTH_CHECK_HOOK);
+        foreach (Config::scheduledHooks() as $hook) {
+            wp_unschedule_hook($hook);
+        }
     }
 }

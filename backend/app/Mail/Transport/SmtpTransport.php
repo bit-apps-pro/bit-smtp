@@ -13,8 +13,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 
 /**
- * Explicit SMTP send seam: builds and drives its own PHPMailer, bypassing wp_mail().
- * Fires `phpmailer_init` on the fully-built mailer (as core does) so third-party tweaks still apply.
+ * SMTP send seam: build and drive PHPMailer directly, firing phpmailer_init for third-party tweaks.
  */
 class SmtpTransport implements TransportInterface
 {
@@ -35,11 +34,9 @@ class SmtpTransport implements TransportInterface
      */
     public function configure(PHPMailer $mailer, Connection $connection): void
     {
-        $mailer->Mailer = 'smtp';
-        $mailer->Host   = (string) $connection->setting('host', '');
-        $mailer->Port   = (int) $connection->setting('port', 0);
-        // PHPMailer defaults to a 300s socket timeout; without this, a dead/unreachable host hangs
-        // the whole request instead of failing within the configured send_timeout_seconds pref.
+        $mailer->Mailer  = 'smtp';
+        $mailer->Host    = (string) $connection->setting('host', '');
+        $mailer->Port    = (int) $connection->setting('port', 0);
         $mailer->Timeout = $this->timeoutSeconds;
 
         if ($connection->setting('auth')) {
@@ -72,7 +69,6 @@ class SmtpTransport implements TransportInterface
         $debugLines = [];
         $mailer     = new PHPMailer(true);
 
-        // Keep at DEBUG_CONNECTION (level 3): level 4 (DEBUG_LOWLEVEL) includes the base64 AUTH payload, which is returned to the client by the connection-test endpoint.
         $mailer->SMTPDebug   = SMTP::DEBUG_CONNECTION;
         $mailer->Debugoutput = static function ($str, $level) use (&$debugLines) {
             $debugLines[] = $str;
@@ -82,15 +78,10 @@ class SmtpTransport implements TransportInterface
             $this->configure($mailer, $connection);
             $this->applyMessage($mailer, $message);
 
-            // Our connection config is the baseline; fire phpmailer_init last (mirroring core's
-            // do_action_ref_array by-reference call) so third-party listeners (DKIM, custom headers)
-            // can tweak — or even reassign — the fully-built mailer.
             do_action_ref_array('phpmailer_init', [&$mailer]);
 
             $mailer->send();
 
-            // PHPMailer sets the Message-ID while building headers during send(); read it afterwards
-            // so SMTP sends log a message_id for webhook correlation, matching the API/HTTP providers.
             $messageId = $mailer->getLastMessageID();
 
             return $messageId !== ''

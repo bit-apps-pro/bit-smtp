@@ -33,8 +33,6 @@ export default function BusiestHours({ hours }: { hours: Array<BusyTimeSlot> }) 
   const reducedMotion = usePrefersReducedMotion()
   const hue = rankingHue(isDark)
   const [detail, setDetail] = useState<DetailState | null>(null)
-  // The backend returns the top-N busiest hours ranked by volume; re-sort chronologically so the
-  // bar row reads as a daily rhythm instead of a jumbled rank list.
   const chronological = [...hours].sort((a, b) => a.hour - b.hour)
 
   /** Opens the point-detail modal for the bar under the clicked point, matched by its x-axis label. */

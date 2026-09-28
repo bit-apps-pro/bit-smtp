@@ -13,8 +13,7 @@ use BitSmtpRetryQueueMigration;
 use Mockery;
 
 /**
- * Drives RetryController's status/flush against the real retry queue: the panel sees depth and
- * pending metadata (never the encrypted payload), and flush clears every queued row.
+ * Verifies status/flush endpoints expose queue depth/metadata without leaking encrypted payload.
  *
  * @internal
  *

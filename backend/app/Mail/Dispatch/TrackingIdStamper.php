@@ -5,16 +5,12 @@ namespace BitApps\SMTP\Mail\Dispatch;
 use BitApps\SMTP\Mail\Message\MailMessage;
 
 /**
- * Injects a delivery-webhook correlation token into an outgoing message on the channel a provider
- * round-trips (Postmark metadata, Brevo header), so an inbound webhook can be matched back to its
- * log row even when the provider's own message-id is unavailable.
+ * Inject delivery-webhook correlation token into outgoing message for webhook matching.
  */
 class TrackingIdStamper
 {
     /**
-     * The message-metadata key that carries our delivery-webhook correlation token. Declared by every
-     * metadata-channel provider on send and read back by its webhook adapter on receive — one literal,
-     * so the two sides can never drift. (Brevo correlates over a header, not this key.)
+     * Metadata key for delivery-webhook correlation token (stable across send/receive).
      */
     public const METADATA_KEY = 'bit_tracking_id';
 
@@ -24,9 +20,7 @@ class TrackingIdStamper
     }
 
     /**
-     * Return a copy of the message carrying $trackingId on the channel declared by $tracking
-     * (['channel' => 'metadata'|'header', 'key' => string]); the message is returned unchanged when
-     * the provider declares no tracking channel or the channel is unrecognized.
+     * Return message copy with tracking stamped on declared channel; unchanged if channel absent/invalid.
      *
      * @param array{channel?: string, key?: string} $tracking
      */

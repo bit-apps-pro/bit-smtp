@@ -6,8 +6,7 @@ use BitApps\SMTP\Mail\Tracking\BotDetector;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 
 /**
- * Exercises each automated-fire heuristic (Gmail proxy UA, Apple proxy IP block, scanner UA
- * substrings, prefetch window) plus the human path. Pure classifier — no WordPress runtime.
+ * Exercises automated-fire heuristics: proxy UAs, IP blocks, scanner substrings, prefetch window, human path.
  *
  * @internal
  *
@@ -52,7 +51,6 @@ final class BotDetectorTest extends BaseUnitTestCase
 
     public function testOpenAtTheWindowBoundaryIsNotFlagged(): void
     {
-        // The window is exclusive: a fire exactly at the boundary is treated as human.
         self::assertFalse(BotDetector::classify(self::HUMAN_UA, '203.0.113.7', 10));
     }
 

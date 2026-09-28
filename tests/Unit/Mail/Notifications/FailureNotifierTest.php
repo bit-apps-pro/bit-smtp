@@ -2,18 +2,13 @@
 
 namespace BitApps\SMTP\Tests\Unit\Mail\Notifications;
 
-use BitApps\SMTP\HTTP\Services\MailConfigService;
-use BitApps\SMTP\Mail\Config\MailSettings;
-use BitApps\SMTP\Mail\Notifications\AlertChannelDispatcher;
-use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
+use BitApps\SMTP\Config;
+use BitApps\SMTP\Mail\Notifications\ChannelDeliveryResult;
+use BitApps\SMTP\Mail\Notifications\FailureIncident;
 use BitApps\SMTP\Mail\Notifications\FailureNotification;
-use BitApps\SMTP\Mail\Notifications\FailureNotificationChannelRegistry;
-use BitApps\SMTP\Mail\Notifications\FailureNotificationGate;
-use BitApps\SMTP\Mail\Notifications\FailureNotifier;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
-use Brain\Monkey\Functions;
-use Mockery;
-use RuntimeException;
+use BitApps\SMTP\Tests\Fake\LosingFailureNotificationGate;
+use BitApps\SMTP\Tests\Unit\Mail\Notifications\Support\FailureAlertFixtures;
 use WP_Error;
 
 /**
@@ -23,166 +18,245 @@ use WP_Error;
  */
 final class FailureNotifierTest extends BaseUnitTestCase
 {
+    use FailureAlertFixtures;
+
     protected function setUp(): void
     {
         parent::setUp();
-        Functions\when('get_bloginfo')->justReturn('Example Site');
-        Functions\when('home_url')->justReturn('https://example.test/');
+        $this->setUpFailureAlertFixtures();
     }
 
-    public function testFirstFailureSendsEveryEnabledChannel(): void
-    {
-        $email   = $this->channel('email');
-        $webhook = $this->channel('webhook');
-        $email->shouldReceive('send')
-            ->once()
-            ->with(Mockery::type(FailureNotification::class), ['enabled' => true, 'recipients' => ['ops@example.com']])
-            ->andReturn(true);
-        $webhook->shouldReceive('send')
-            ->once()
-            ->with(Mockery::type(FailureNotification::class), ['enabled' => true, 'url' => 'https://hooks.example.com/failure'])
-            ->andReturn(true);
-        $gate = Mockery::mock(FailureNotificationGate::class);
-        $gate->shouldReceive('acquire')->once()->withNoArgs()->andReturn(true);
-
-        $this->notifier($this->config(), $gate, [$email, $webhook])
-            ->notifyFailure(new WP_Error('wp_mail_failed', 'Failed', ['to' => ['to@example.com']]));
-    }
-
-    public function testRepeatedFailureIsSuppressedByTheGate(): void
+    public function testFirstFailureOpensTheIncidentAndOnlySchedulesTheOpenedAlert(): void
     {
         $email = $this->channel('email');
         $email->shouldReceive('send')->never();
-        $gate = Mockery::mock(FailureNotificationGate::class);
-        $gate->shouldReceive('acquire')->once()->withNoArgs()->andReturn(false);
 
-        $this->notifier($this->config(), $gate, [$email])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->notifier([$email], $this->emailAlerts())->notifyFailure($this->error('Connection refused'));
+
+        $this->assertCount(1, $this->scheduled);
+        $this->assertSame($this->now, $this->scheduled[0]['timestamp']);
+        $this->assertSame(Config::FAILURE_ALERT_HOOK, $this->scheduled[0]['hook']);
+        $this->assertSame([FailureNotification::EVENT_OPENED, 'incident-1', 1], $this->scheduled[0]['args']);
+        $this->assertSame(1, $this->storedIncident()?->failedCount());
+        $this->assertSame('Connection refused', $this->storedIncident()?->error()['message']);
     }
 
-    public function testDisabledAlertsDoNotAcquireTheGate(): void
+    public function testNoEnabledChannelIsANoOpThatOpensNoIncident(): void
     {
-        $config = Mockery::mock(MailConfigService::class);
-        $config->shouldReceive('load')->once()->andReturn($this->settings([]));
-        $gate = Mockery::mock(FailureNotificationGate::class);
-        $gate->shouldReceive('acquire')->never();
+        $email  = $this->channel('email');
+        $alerts = ['enabled' => false] + $this->emailAlerts();
 
-        $this->notifier($config, $gate, [$this->channel('email')])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->notifier([$email], $alerts)->notifyFailure($this->error());
+
+        $this->assertSame([], $this->scheduled);
+        $this->assertNull($this->gate->state);
     }
 
-    public function testSuccessResetsTheFailureEpisode(): void
+    public function testFailuresWhileTheOpenedAlertIsInFlightOnlyCount(): void
     {
-        $gate = Mockery::mock(FailureNotificationGate::class);
-        $gate->shouldReceive('reset')->once();
+        $notifier = $this->notifier([$this->channel('email')], $this->emailAlerts());
 
-        $this->notifier($this->config(), $gate, [])->notifySuccess();
+        $notifier->notifyFailure($this->error());
+        $this->now += 30;
+        $notifier->notifyFailure($this->error());
+        $notifier->notifyFailure($this->error('Last straw'));
+
+        $this->assertCount(1, $this->scheduled);
+        $this->assertSame(3, $this->storedIncident()?->failedCount());
+        $this->assertSame('Last straw', $this->storedIncident()?->error()['message']);
     }
 
-    public function testOneFailingChannelDoesNotStopTheNextEnabledChannel(): void
-    {
-        $slack    = $this->channel('slack');
-        $telegram = $this->channel('telegram');
-        $slack->shouldReceive('send')->once()->andThrow(new RuntimeException('provider body: secret'));
-        $telegram->shouldReceive('send')->once()->andReturn(true);
-        $gate = Mockery::mock(FailureNotificationGate::class);
-        $gate->shouldReceive('acquire')->once()->andReturn(true);
-
-        $config = $this->config([
-            'enabled'  => true,
-            'slack'    => ['enabled' => true, 'webhook_url' => 'https://hooks.slack.com/services/T000/B000/secret'],
-            'telegram' => ['enabled' => true, 'bot_token' => '123456:secret', 'chat_id' => '-1001234567890'],
-        ]);
-
-        $this->notifier($config, $gate, [$slack, $telegram])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
-    }
-
-    public function testAllChannelsFailingReleasesTheGate(): void
+    public function testReminderIsSuppressedWithinTheWindowAndQueuedAfterItWithTheRunningCount(): void
     {
         $email = $this->channel('email');
-        $email->shouldReceive('send')->once()->andReturn(false);
-        $gate = Mockery::mock(FailureNotificationGate::class);
-        $gate->shouldReceive('acquire')->once()->andReturn(true);
-        $gate->shouldReceive('reset')->once();
+        $email->shouldReceive('send')->andReturn(ChannelDeliveryResult::delivered());
+        $notifier = $this->notifier([$email], $this->emailAlerts(60));
+        $handler  = $this->handler([$email], $this->emailAlerts(60));
 
-        $config = $this->config([
-            'enabled' => true,
-            'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
-        ]);
+        $notifier->notifyFailure($this->error());
+        $this->runScheduled($handler);
 
-        $this->notifier($config, $gate, [$email])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->now += 59 * 60;
+        $notifier->notifyFailure($this->error());
+        $this->assertSame([], $this->scheduled);
+
+        $this->now += 60;
+        $notifier->notifyFailure($this->error('Still down'));
+
+        $this->assertCount(1, $this->scheduled);
+        $this->assertSame([FailureNotification::EVENT_REMINDER, 'incident-1', 2], $this->scheduled[0]['args']);
+        $this->assertSame(3, $this->scheduledIncident(0)?->failedCount());
+        $this->assertSame('Still down', $this->scheduledIncident(0)?->error()['message']);
     }
 
-    public function testAThrowingChannelReleasesTheGateWhenNoOtherChannelDelivers(): void
-    {
-        $slack = $this->channel('slack');
-        $slack->shouldReceive('send')->once()->andThrow(new RuntimeException('provider body: secret'));
-        $gate = Mockery::mock(FailureNotificationGate::class);
-        $gate->shouldReceive('acquire')->once()->andReturn(true);
-        $gate->shouldReceive('reset')->once();
-
-        $config = $this->config([
-            'enabled' => true,
-            'slack'   => ['enabled' => true, 'webhook_url' => 'https://hooks.slack.com/services/T000/B000/secret'],
-        ]);
-
-        $this->notifier($config, $gate, [$slack])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
-    }
-
-    public function testADeliveredChannelKeepsTheGateLocked(): void
+    public function testZeroReminderMinutesSendsOnlyOpenedAndResolved(): void
     {
         $email = $this->channel('email');
-        $email->shouldReceive('send')->once()->andReturn(true);
-        $gate = Mockery::mock(FailureNotificationGate::class);
-        $gate->shouldReceive('acquire')->once()->andReturn(true);
-        $gate->shouldReceive('reset')->never();
+        $email->shouldReceive('send')->andReturn(ChannelDeliveryResult::delivered());
+        $notifier = $this->notifier([$email], $this->emailAlerts(0));
 
-        $config = $this->config([
-            'enabled' => true,
-            'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
-        ]);
+        $notifier->notifyFailure($this->error());
+        $this->runScheduled($this->handler([$email], $this->emailAlerts(0)));
+        $this->now += 86400;
+        $notifier->notifyFailure($this->error());
 
-        $this->notifier($config, $gate, [$email])->notifyFailure(new WP_Error('wp_mail_failed', 'Failed'));
+        $this->assertSame([], $this->scheduled);
+    }
+
+    public function testUndeliveredOpenedAlertIsRetriedByTheNextFailure(): void
+    {
+        $email = $this->channel('email');
+        $email->shouldReceive('send')->once()->andReturn(ChannelDeliveryResult::failed('Rejected.'));
+        $notifier = $this->notifier([$email], $this->emailAlerts());
+
+        $notifier->notifyFailure($this->error());
+        $this->runScheduled($this->handler([$email], $this->emailAlerts()));
+        $this->now += 5;
+        $notifier->notifyFailure($this->error());
+
+        $this->assertCount(1, $this->scheduled);
+        $this->assertSame([FailureNotification::EVENT_OPENED, 'incident-1', 2], $this->scheduled[0]['args']);
+        $this->assertSame(2, $this->scheduledIncident(0)?->failedCount());
+    }
+
+    public function testAnAlertStuckInFlightIsRequeuedAfterThePendingTimeout(): void
+    {
+        $notifier = $this->notifier([$this->channel('email')], $this->emailAlerts());
+
+        $notifier->notifyFailure($this->error());
+        $this->now += FailureIncident::PENDING_TIMEOUT_SECONDS;
+        $notifier->notifyFailure($this->error());
+
+        $this->assertCount(2, $this->scheduled);
+        $this->assertSame(FailureNotification::EVENT_OPENED, $this->scheduled[1]['args'][0]);
+        $this->assertNotSame($this->scheduled[0]['args'], $this->scheduled[1]['args']);
+    }
+
+    public function testSuccessResolvesWithTheTotalFailedCountAndDuration(): void
+    {
+        $email = $this->channel('email');
+        $email->shouldReceive('send')->andReturn(ChannelDeliveryResult::delivered());
+        $notifier = $this->notifier([$email], $this->emailAlerts());
+        $started  = $this->now;
+
+        $notifier->notifyFailure($this->error());
+        $this->runScheduled($this->handler([$email], $this->emailAlerts()));
+        $this->now += 60;
+        $notifier->notifyFailure($this->error());
+        $notifier->notifyFailure($this->error('Final error'));
+        $this->now = $started + 4380;
+        $notifier->notifySuccess();
+
+        $this->assertNull($this->gate->state);
+        $this->assertCount(1, $this->scheduled);
+        $this->assertSame([FailureNotification::EVENT_RESOLVED, 'incident-1', 1], $this->scheduled[0]['args']);
+        $resolved = $this->scheduledIncident(0);
+        $this->assertSame(3, $resolved?->failedCount());
+        $this->assertSame($started, $resolved?->startedAt());
+        $this->assertSame($started + 4380, $resolved?->resolvedAt());
+        $this->assertSame('Final error', $resolved?->error()['message']);
+    }
+
+    public function testNoResolvedAlertIsQueuedWhenTheIncidentCannotBeKept(): void
+    {
+        $email = $this->channel('email');
+        $email->shouldReceive('send')->andReturn(ChannelDeliveryResult::delivered());
+        $this->resolvedGate = new LosingFailureNotificationGate();
+        $notifier           = $this->notifier([$email], $this->emailAlerts());
+
+        $notifier->notifyFailure($this->error());
+        $this->runScheduled($this->handler([$email], $this->emailAlerts()));
+        $notifier->notifySuccess();
+
+        $this->assertNull($this->gate->state);
+        $this->assertSame([], $this->scheduled);
+    }
+
+    public function testSuccessWithoutAnOpenIncidentSchedulesNothing(): void
+    {
+        $this->notifier([$this->channel('email')], $this->emailAlerts())->notifySuccess();
+
+        $this->assertSame([], $this->scheduled);
+    }
+
+    public function testSuccessAfterAnUndeliveredOpenedAlertClosesTheIncidentSilently(): void
+    {
+        $email = $this->channel('email');
+        $email->shouldReceive('send')->once()->andReturn(ChannelDeliveryResult::failed('Rejected.'));
+        $notifier = $this->notifier([$email], $this->emailAlerts());
+
+        $notifier->notifyFailure($this->error());
+        $this->runScheduled($this->handler([$email], $this->emailAlerts()));
+        $notifier->notifySuccess();
+
+        $this->assertSame([], $this->scheduled);
+        $this->assertNull($this->gate->state);
+        $this->assertSame([], $this->keptResolved());
+    }
+
+    public function testScheduledArgsCarryOnlyNonPersonalIdentifiers(): void
+    {
+        $email = $this->channel('email');
+        $email->shouldReceive('send')->andReturn(ChannelDeliveryResult::delivered());
+        $notifier = $this->notifier([$email], $this->emailAlerts(1));
+        $handler  = $this->handler([$email], $this->emailAlerts(1));
+        $args     = [];
+
+        $notifier->notifyFailure($this->error('Mailbox secret-host refused'));
+        $args = array_merge($args, array_column($this->scheduled, 'args'));
+        $this->runScheduled($handler);
+        $this->now += 60;
+        $notifier->notifyFailure($this->error('Mailbox secret-host refused'));
+        $args = array_merge($args, array_column($this->scheduled, 'args'));
+        $this->runScheduled($handler);
+        $notifier->notifySuccess();
+        $args = array_merge($args, array_column($this->scheduled, 'args'));
+
+        $this->assertSame(
+            [
+                [FailureNotification::EVENT_OPENED, 'incident-1', 1],
+                [FailureNotification::EVENT_REMINDER, 'incident-1', 2],
+                [FailureNotification::EVENT_RESOLVED, 'incident-1', 2],
+            ],
+            $args
+        );
+        $encoded = (string) json_encode($args);
+        foreach (['to@example.com', 'Invoice', 'secret-host', 'wp_mail_failed'] as $personal) {
+            $this->assertStringNotContainsString($personal, $encoded);
+        }
+    }
+
+    public function testQuickRecoveryInTheSameSecondQueuesDistinctEventsThatWordPressCannotDedup(): void
+    {
+        $notifier = $this->notifier([$this->channel('email')], $this->emailAlerts());
+
+        $notifier->notifyFailure($this->error());
+        $notifier->notifySuccess();
+        $notifier->notifyFailure($this->error());
+
+        $this->assertSame(
+            [FailureNotification::EVENT_OPENED, FailureNotification::EVENT_RESOLVED, FailureNotification::EVENT_OPENED],
+            array_map(static fn (array $event): string => $event['args'][0], $this->scheduled)
+        );
+        $args = array_map(static fn (array $event): string => serialize($event['args']), $this->scheduled);
+        $this->assertSame($args, array_values(array_unique($args)));
+    }
+
+    public function testAnUndecodableStoredRowCountsAsNoOpenIncident(): void
+    {
+        $this->gate->state = 'not-an-incident';
+
+        $this->notifier([$this->channel('email')], $this->emailAlerts())->notifyFailure($this->error());
+
+        $this->assertSame([FailureNotification::EVENT_OPENED, 'incident-1', 1], $this->scheduled[0]['args'] ?? null);
+        $this->assertSame('incident-1', $this->storedIncident()?->id());
     }
 
     /**
-     * @param FailureNotificationChannelInterface[] $channels
+     * A wp_mail failure with the given message.
      */
-    private function notifier(MailConfigService $config, FailureNotificationGate $gate, array $channels): FailureNotifier
+    private function error(string $message = 'Failed'): WP_Error
     {
-        return new FailureNotifier(
-            new AlertChannelDispatcher($config, new FailureNotificationChannelRegistry($channels)),
-            $gate
-        );
-    }
-
-    private function config(?array $alerts = null): MailConfigService
-    {
-        $config = Mockery::mock(MailConfigService::class);
-        $config->shouldReceive('load')->andReturn($this->settings($alerts ?? [
-            'enabled' => true,
-            'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
-            'webhook' => ['enabled' => true, 'url' => 'https://hooks.example.com/failure'],
-        ]));
-
-        return $config;
-    }
-
-    private function settings(array $alerts): MailSettings
-    {
-        return MailSettings::fromArray([
-            'schema_version'          => 2,
-            'enabled'                 => false,
-            'default_connection_id'   => '',
-            'fallback_connection_ids' => [],
-            'connections'             => [],
-            'features'                => ['alerts' => $alerts],
-        ]);
-    }
-
-    private function channel(string $key): FailureNotificationChannelInterface
-    {
-        $channel = Mockery::mock(FailureNotificationChannelInterface::class);
-        $channel->shouldReceive('key')->andReturn($key);
-
-        return $channel;
+        return new WP_Error('wp_mail_failed', $message, ['to' => ['to@example.com'], 'subject' => 'Invoice']);
     }
 }

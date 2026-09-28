@@ -8,8 +8,7 @@ use BitApps\SMTP\Mail\Status\DeliveryStatus;
 interface MessageStatusCheckerInterface
 {
     /**
-     * Best-effort lookup of a sent message's real delivery outcome. Returns null when the
-     * outcome is indeterminate or the lookup is unsupported/failed — it must never throw.
+     * Best-effort lookup of message delivery outcome; never throws.
      */
     public function check(string $messageId, Connection $connection): ?DeliveryStatus;
 }

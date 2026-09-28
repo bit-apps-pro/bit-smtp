@@ -8,9 +8,7 @@ use BitApps\SMTP\Mail\Support\FormMultipartEncoder;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 
 /**
- * Proves the auto-upgrade rule (spec: Mailgun's descriptor uses this as its 'multipart' encoder):
- * a payload with no file-group values stays the light urlencoded form, a payload with any
- * file-group value (an assoc name=>path array) upgrades to a full multipart/form-data body.
+ * Proves auto-upgrade rule: no files stays urlencoded form, files upgrade to multipart/form-data.
  *
  * @internal
  *

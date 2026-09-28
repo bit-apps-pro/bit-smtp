@@ -3,8 +3,7 @@
 namespace BitApps\SMTP\Mail\Credentials;
 
 /**
- * Reads PHP constants (wp-config.php defines) behind a seam so credential overrides stay unit-testable
- * without having to declare real constants at test time.
+ * Read PHP constants behind a seam for testable credential overrides.
  */
 interface ConstantReader
 {

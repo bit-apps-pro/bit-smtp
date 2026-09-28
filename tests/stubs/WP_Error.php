@@ -1,9 +1,6 @@
 <?php
 
-/**
- * Minimal WP_Error stub for the unit tier (real WP is only loaded in the integration tier).
- * Mirrors the surface MailEventLogger relies on: get_error_data, get_error_messages, add.
- */
+/** Minimal WP_Error stub for unit tier; mirrors plugin's required surface. */
 if (!class_exists('WP_Error')) {
     class WP_Error
     {
@@ -50,6 +47,14 @@ if (!class_exists('WP_Error')) {
         public function get_error_messages(): array
         {
             return $this->messages;
+        }
+
+        /**
+         * The first error message, or '' when there is none (mirrors core's default-code lookup).
+         */
+        public function get_error_message(): string
+        {
+            return $this->messages[0] ?? '';
         }
 
         public function get_error_code(): string

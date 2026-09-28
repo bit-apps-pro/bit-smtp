@@ -9,7 +9,6 @@ use BitApps\SMTP\Tests\BaseUnitTestCase;
 use BitSmtpSettingsSeed;
 use Brain\Monkey\Functions;
 
-// Global-namespace migration class, included directly by MigrationHelper (not PSR-4 autoloaded).
 require_once \dirname(__DIR__, 3) . '/backend/db/Migrations/BitSmtpSettingsSeed.php';
 
 /**

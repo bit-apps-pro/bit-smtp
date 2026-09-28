@@ -11,6 +11,9 @@ class DatabaseCredentialResolver implements CredentialResolverInterface
         return $source === 'database';
     }
 
+    /**
+     * Resolves a database credential; treats only null/'' as absent so a secret of "0" is valid.
+     */
     public function resolve(Credential $credential): ?string
     {
         if (!$this->supports($credential->getSource())) {
@@ -19,7 +22,6 @@ class DatabaseCredentialResolver implements CredentialResolverInterface
 
         $value = $credential->getValue();
 
-        // Treat only null/'' as absent — a secret of "0" is valid.
         return ($value === null || $value === '') ? null : $value;
     }
 }

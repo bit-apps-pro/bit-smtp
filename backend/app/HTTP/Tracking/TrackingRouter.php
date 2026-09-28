@@ -9,41 +9,33 @@ use BitApps\SMTP\Mail\Tracking\OpenTracker;
 use BitApps\SMTP\Mail\Tracking\TrackingRoutes;
 
 /**
- * Front-end HTTP entry point for the public open/click endpoints (bit-smtp/track/{open|click}/{token}):
- * matches the request on template_redirect, then always returns a benign response — a 1x1 GIF for an
- * open, a 302 for a click — whether or not the token is valid, so token validity can never be probed.
- * The four-segment path cannot collide with the two-segment webhook or three-segment OAuth routes.
+ * Front-end for public open/click endpoints (benign response regardless of token validity).
  */
 final class TrackingRouter
 {
-    // Derived from TrackingRoutes so the matcher and the URL builder share one path definition; the
-    // segments are metacharacter-free literals, so no preg_quote is needed to keep it a compile-time const.
     private const ROUTE_PATTERN = '#^' . TrackingRoutes::BASE . '/(' . TrackingRoutes::OPEN . '|' . TrackingRoutes::CLICK . ')/([^/]+)$#';
 
     /**
-     * Tokens longer than this are rejected before any crypto work — a signed token is far shorter, so
-     * an oversized value is only ever an abuse probe.
+     * Max token length (detect oversized abuse probes before crypto work).
      */
     private const MAX_TOKEN_LENGTH = 4096;
 
     private const THROTTLE_KEY_PREFIX = 'bit_smtp_track_throttle_';
 
     /**
-     * Per-IP write budget per window. Defense-in-depth only: storage is already bounded by the
-     * ON DUPLICATE KEY fold, so an exceeded budget skips the DB write but still returns the response.
+     * Per-IP write budget per window (defense-in-depth, doesn't block response).
      */
     private const THROTTLE_LIMIT = 120;
 
     private const THROTTLE_WINDOW = 60;
 
     /**
-     * A 1x1 transparent GIF (43 bytes), base64-encoded. Emitted for every open hit, valid or not.
+     * 1x1 transparent GIF base64-encoded (emitted for all open hits).
      */
     private const PIXEL_GIF_BASE64 = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
     /**
-     * Extract the endpoint type + token from a request path, or null when it is not a tracking URL.
-     * Pure (no WordPress) so it can be unit-tested in isolation; matches ONLY the four-segment shape.
+     * Extract endpoint type/token from path (pure, testable in isolation, four-segment only).
      *
      * @return array{type: string, token: string}|null
      */
@@ -71,8 +63,7 @@ final class TrackingRouter
     }
 
     /**
-     * template_redirect glue: on a tracking match, records the hit (throttle- and length-gated) and
-     * terminates with the benign response; otherwise returns so WordPress keeps handling the request.
+     * template_redirect hook (match + record hit, return benign response, or pass through).
      */
     public function match(): void
     {
@@ -86,15 +77,13 @@ final class TrackingRouter
             return;
         }
 
-        // GET only. A wrong verb still returns a benign status and never writes or leaks validity.
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
             status_header(405);
 
             exit;
         }
 
-        $token = $matched['token'];
-        // Skip the write on an oversized token or a throttled IP, but always send the response below.
+        $token  = $matched['token'];
         $record = \strlen($token) <= self::MAX_TOKEN_LENGTH && !$this->throttled();
 
         if ($matched['type'] === TrackingRoutes::OPEN) {
@@ -109,8 +98,6 @@ final class TrackingRouter
             ? (new ClickTracker())->handle($token, $this->clientSignals())
             : ClickTracker::destination($token);
 
-        // wp_redirect (not wp_safe_redirect): a click destination is legitimately off-site, and the
-        // HMAC on the token has already vouched that this is a URL this site itself emitted.
         wp_redirect($destination ?? home_url('/'));
 
         exit;
@@ -133,8 +120,7 @@ final class TrackingRouter
     }
 
     /**
-     * True once the connecting IP has spent its write budget for the current window. Buckets on the
-     * hashed REMOTE_ADDR (never a forwarded header, which is spoofable); a missing IP is not throttled.
+     * Check if connecting IP has exceeded write budget; bucket on hashed REMOTE_ADDR (not forwarded headers).
      */
     private function throttled(): bool
     {

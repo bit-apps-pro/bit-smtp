@@ -8,9 +8,7 @@ use BitApps\SMTP\HTTP\Controllers\WebhookController;
 use BitApps\SMTP\Mail\Webhook\WebhookRequest;
 
 /**
- * Front-end HTTP entry point for the delivery-webhook endpoint (bit-smtp/{id}/{secret}): matches the
- * request on template_redirect, enforces method + body-size limits, then delegates to
- * WebhookController.
+ * Front-end for delivery-webhook endpoint (match, enforce limits, delegate to controller).
  */
 final class WebhookRouter
 {
@@ -19,8 +17,7 @@ final class WebhookRouter
     private const ROUTE_PATTERN = '#^bit-smtp/([^/]+)/([^/]+)$#';
 
     /**
-     * Extract the connection id + secret from a request path, or null when it is not a webhook URL.
-     * Pure (no WordPress) so it can be unit-tested in isolation.
+     * Extract connection id/secret from path (pure, testable in isolation).
      *
      * @return array{id: string, secret: string}|null
      */
@@ -48,8 +45,7 @@ final class WebhookRouter
     }
 
     /**
-     * template_redirect glue: on a webhook match, runs the request end-to-end and terminates;
-     * otherwise returns so WordPress keeps handling the request.
+     * template_redirect hook (match + run request end-to-end, or pass through).
      */
     public function match(): void
     {
@@ -69,8 +65,6 @@ final class WebhookRouter
             exit;
         }
 
-        // Reject on the declared size BEFORE reading, so a hostile Content-Length never buffers a huge
-        // payload into memory.
         if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > self::MAX_BODY_BYTES) {
             status_header(413);
 
@@ -101,7 +95,6 @@ final class WebhookRouter
             }
         }
 
-        // Fallback for SAPIs without getallheaders(): reconstruct from $_SERVER's HTTP_* entries.
         $headers = [];
         foreach ($_SERVER as $key => $value) {
             if (strncmp($key, 'HTTP_', 5) !== 0 || !\is_string($value)) {

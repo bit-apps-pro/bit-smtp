@@ -9,8 +9,7 @@ use BitApps\SMTP\Tests\Fake\FakeCliReporter;
 use Mockery;
 
 /**
- * Covers the retry-status command logic: it prints the queue depth and renders the metadata-only
- * pending rows as a table, with a notice when nothing is pending.
+ * Covers retry-status command logic: prints queue depth and renders pending rows as table with zero-pending notice.
  *
  * @internal
  *

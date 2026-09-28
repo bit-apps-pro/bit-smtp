@@ -7,11 +7,7 @@ use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Plugin;
 
 /**
- * Drives wp_mail() through the Microsoft 365 Graph OAuth2 API transport (mocking the outbound HTTP
- * call) and proves the access_token reaches graph.microsoft.com as a Bearer token whether it was
- * stored encrypted-at-rest or as legacy plaintext, and that an expired token triggers a refresh
- * against login.microsoftonline.com whose rotated refresh_token is persisted (Microsoft rotates the
- * refresh_token on every refresh).
+ * Verifies MS365 API transport handles encrypted/legacy credentials and token refresh with rotation.
  *
  * @internal
  *
@@ -49,6 +45,9 @@ final class Microsoft365SendTest extends IntegrationTestCase
         $this->assertGraphRequestCarriedTheAccessToken($sent, $captured, $accessToken, 'Encrypted M365 Send');
     }
 
+    /**
+     * Send works with access token stored as pre-encryption plaintext (bypasses service API to simulate).
+     */
     public function testSendsSuccessfullyWhenTheAccessTokenIsStoredAsLegacyPlaintext(): void
     {
         $accessToken = 'EwB.legacy-plaintext-token';
@@ -58,7 +57,6 @@ final class Microsoft365SendTest extends IntegrationTestCase
         add_filter('pre_http_request', $filter, 10, 3);
 
         try {
-            // Bypasses MailConfigService::store(), mimicking an option row written before encryption existed.
             $this->storeOptions($this->cachedTokenConfig($accessToken));
             Plugin::instance()->mailConfigService()->reload();
 
@@ -77,6 +75,9 @@ final class Microsoft365SendTest extends IntegrationTestCase
         $this->assertGraphRequestCarriedTheAccessToken($sent, $captured, $accessToken, 'Legacy Plaintext M365 Send');
     }
 
+    /**
+     * Expired token triggers refresh; freshly minted token is used for send; rotated refresh_token persists.
+     */
     public function testExpiredTokenRefreshesAndPersistsRotatedRefreshToken(): void
     {
         $newAccessToken  = 'EwB.freshly-minted-access-token';
@@ -96,19 +97,16 @@ final class Microsoft365SendTest extends IntegrationTestCase
 
         $this->assertTrue($sent, 'wp_mail() should report the refreshed Microsoft 365 send as successful');
 
-        // The expired token forced a refresh call before the send.
         $this->assertArrayHasKey('token_url', $captured, 'an expired token must trigger the OAuth token endpoint');
         $this->assertStringContainsString('login.microsoftonline.com', (string) $captured['token_url']);
         $this->assertSame(self::SEND_ENDPOINT, $captured['url'], 'the send must go to the Graph sendMail endpoint');
 
-        // The send carried the freshly minted access token, never the expired one.
         $this->assertStringContainsString(
             'Bearer ' . $newAccessToken,
             (string) wp_json_encode($captured['headers']),
             'the send must use the refreshed access_token'
         );
 
-        // Microsoft rotates the refresh_token on every refresh: the new one must be persisted (encrypted).
         Plugin::instance()->mailConfigService()->reload();
         $stored = Plugin::instance()->mailConfigService()->connectionById(self::CONNECTION_ID);
         $this->assertNotNull($stored);
@@ -129,6 +127,8 @@ final class Microsoft365SendTest extends IntegrationTestCase
     }
 
     /**
+     * Assert send succeeded and used cached token directly; cached token needs no refresh call.
+     *
      * @param array<string,mixed> $captured
      */
     private function assertGraphRequestCarriedTheAccessToken(bool $sent, array $captured, string $accessToken, string $subject): void
@@ -136,7 +136,6 @@ final class Microsoft365SendTest extends IntegrationTestCase
         $this->assertTrue($sent, 'wp_mail() should report the Microsoft 365 send as successful');
         $this->assertNotEmpty($captured, 'the Microsoft 365 transport should have issued an outbound HTTP request');
 
-        // A cached, future-dated token must be used directly: the only outbound call is the send.
         $this->assertArrayNotHasKey('token_url', $captured, 'a cached token must not trigger an OAuth refresh call');
         $this->assertSame(self::SEND_ENDPOINT, $captured['url'], 'the only outbound request must be the Graph send');
 
@@ -208,9 +207,7 @@ final class Microsoft365SendTest extends IntegrationTestCase
     }
 
     /**
-     * Intercepts the Graph send call, and (when refresh values are given) answers the OAuth token
-     * endpoint with a new access_token plus a rotated refresh_token so the test can prove both the
-     * cached-token short-circuit and the refresh-rotation persistence.
+     * Intercepts Graph send and OAuth token endpoints to test cached-token and refresh-rotation.
      *
      * @param array<string,mixed> $captured
      */

@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Health\ConnectionHealth;
 use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 
 /**
- * A connection-health / OAuth-expiry alert payload. Carries only non-sensitive identity and status
- * (connection id/label/provider, derived status, a sanitized last error, OAuth expiry) — never
- * credentials, tokens, message payloads, or recipients.
+ * Connection-health/OAuth-expiry alert payload; never carries credentials or tokens.
  */
 final class HealthNotification implements NotificationMessage
 {
@@ -22,8 +20,7 @@ final class HealthNotification implements NotificationMessage
     public const EVENT_OAUTH_EXPIRED = 'oauth_expired';
 
     /**
-     * Cap the surfaced error length; the recorded error is already a short host/auth string, but keep
-     * it bounded and single-line so nothing unexpected is ever placed into an alert.
+     * Cap surfaced error length; ensure bounded single-line alert formatting.
      */
     private const MAX_ERROR_LENGTH = 300;
 
@@ -72,8 +69,7 @@ final class HealthNotification implements NotificationMessage
     }
 
     /**
-     * The full set of alertable event keys, for the notify-events subscription default and payload
-     * validation. Single source of truth so the UI and validator cannot drift from the emitter.
+     * Get all alertable event keys; single source of truth for UI and validation.
      *
      * @return array<int,string>
      */

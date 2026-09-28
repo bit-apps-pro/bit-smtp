@@ -5,12 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Tests\Fake;
 
 /**
- * Minimal stand-in for $wpdb, modeled on bitapps/wp-database's own
- * tests/bootstrap.php FakeWpdb. BitApps\WPDatabase\Connection forwards every
- * call to $GLOBALS['wpdb'] via __call/__callStatic/prop(), so installing this
- * as $GLOBALS['wpdb'] lets QueryBuilder compile and "execute" SQL with no
- * database — query() and prepare() just record what they were given, so a
- * test can assert on the generated SQL instead of a query result.
+ * Stand-in for $wpdb that records SQL calls without executing anything.
  */
 class FakeWpdb
 {
@@ -36,15 +31,12 @@ class FakeWpdb
     public $queries = [];
 
     /**
-     * @var array<int,string> the raw prepare() template (pre-substitution) for each prepare()
-     *                        call, in call order — lets a test prove a bound value never reached
-     *                        the SQL template itself, only the post-substitution string
+     * @var array<int,string> Raw prepare() templates before substitution, in call order.
      */
     public $preparedTemplates = [];
 
     /**
-     * Records the SQL passed to query() and returns a fake affected-row count; this fake never
-     * talks to a database, so nothing is actually executed.
+     * Records SQL calls without executing anything.
      *
      * @param mixed $sql
      */
@@ -57,11 +49,7 @@ class FakeWpdb
     }
 
     /**
-     * Substitutes %d/%s/%f/%F placeholders with their bound values. Mirrors wpdb::prepare()'s
-     * support for either a variadic arg list or a single array argument (Connection::prepare()
-     * always calls through with the bindings as one array argument). Values are quoted/unquoted
-     * by type, not real-escaped: this fake favors the bound value being legible in the captured
-     * SQL over exact wpdb escaping fidelity.
+     * Substitutes %d/%s/%f/%F placeholders with bound values, prioritizing legibility over escaping fidelity.
      *
      * @param mixed $query
      */
@@ -86,8 +74,7 @@ class FakeWpdb
     }
 
     /**
-     * Escapes LIKE wildcard characters exactly as wpdb::esc_like() does, so a bound LIKE value's
-     * shape round-trips through this fake unchanged.
+     * Escapes LIKE wildcard characters so bound values round-trip unchanged.
      *
      * @param mixed $text
      */
@@ -97,8 +84,7 @@ class FakeWpdb
     }
 
     /**
-     * Unused by LogService::all()'s query path (which reads last_result directly after query()),
-     * stubbed for any other read path the query builder might exercise.
+     * Stubbed for query-builder read paths; typically unused (LogService reads last_result directly).
      *
      * @param mixed $query
      */
@@ -114,7 +100,6 @@ class FakeWpdb
      */
     public function get_var($query)
     {
-
     }
 
     /**
@@ -124,6 +109,5 @@ class FakeWpdb
      */
     public function get_row($query)
     {
-
     }
 }

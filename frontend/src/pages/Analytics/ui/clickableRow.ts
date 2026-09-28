@@ -22,7 +22,6 @@ export default function clickableRowProps(onActivate: () => void): ClickableRowP
     onClick: onActivate,
     onKeyDown: event => {
       if (!isActivationKey(event.key)) return
-      // Space would otherwise scroll the page like it does for a native button.
       event.preventDefault()
       onActivate()
     }

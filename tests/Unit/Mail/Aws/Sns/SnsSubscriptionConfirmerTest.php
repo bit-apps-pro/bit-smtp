@@ -56,8 +56,7 @@ class SnsSubscriptionConfirmerTest extends BaseUnitTestCase
     }
 
     /**
-     * A confirmer whose network fetch is replaced by an in-memory recorder, so the trusted/untrusted
-     * branch is exercised without any outbound request.
+     * Confirmer with in-memory fetch recorder, tests trusted/untrusted branches without outbound request.
      */
     private function confirmer(bool $fetchResult): SnsSubscriptionConfirmer
     {

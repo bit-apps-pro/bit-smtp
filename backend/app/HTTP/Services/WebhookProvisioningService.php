@@ -14,17 +14,12 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Registers a connection's delivery webhook with its provider and persists the resulting signature
- * material. Centralising the persistence here keeps the manual and the auto-on-save paths in lockstep
- * — either both enable signature verification or neither does; an inbound webhook is never accepted
- * unverified because one path forgot to store the key.
+ * Register webhook and persist signature material (keep manual/auto paths in lockstep).
  */
 final class WebhookProvisioningService
 {
     /**
-     * Per-request timeout so a slow provider API can't hang the admin save. A provisioner may issue a
-     * few sequential requests, so worst-case wall time is a small multiple of this — kept at/below WP's
-     * default for that reason. Provisioning is best-effort: a timed-out call degrades to a warning.
+     * Per-request timeout (prevent slow provider API from hanging admin save).
      */
     private const PROVISION_REQUEST_TIMEOUT_SECONDS = 5;
 
@@ -53,8 +48,7 @@ final class WebhookProvisioningService
     }
 
     /**
-     * Register (or reuse) the provider-side webhook and persist its signature material. Throws on any
-     * failure; the manual "create webhook" path surfaces the message.
+     * Register/reuse provider webhook and persist signature material (throws on failure).
      *
      * @return array<string,mixed>
      */
@@ -74,29 +68,21 @@ final class WebhookProvisioningService
 
         $result = $provisioner->ensure($connection);
 
-        // Persist the signature material (if any) and the short-circuit marker together in one atomic
-        // write. webhook_provisioned_url is always recorded; the signature fields depend on the scheme.
         $settings    = ['webhook_provisioned_url' => WebhookUrl::forConnection($connection)];
         $credentials = [];
 
-        // Asymmetric-signature scheme (e.g. SendGrid): the verifier reads the public key from settings.
         if (!empty($result['public_key'])) {
             $settings['webhook_signature_enabled'] = true;
             $settings['webhook_public_key']        = (string) $result['public_key'];
             unset($result['public_key']);
         }
 
-        // HMAC scheme (e.g. Resend): the secret is a credential, so it rides the encrypt-at-rest path.
         if (!empty($result['signing_secret'])) {
             $settings['webhook_signature_enabled'] = true;
             $credentials['webhook_signing_secret'] = (string) $result['signing_secret'];
             unset($result['signing_secret']);
         }
 
-        // Fail loudly if the write does not land: the provider may already be signing, but a verifier
-        // with no key fails OPEN (accepts unverified events), so the connection must not be stamped as
-        // provisioned unless the material persisted — throwing lets the next save retry instead of
-        // locking in an unverified webhook.
         if (!$this->config->persistConnectionProvisioning($connection->getId(), $credentials, $settings)) {
             throw new RuntimeException(esc_html__('The webhook was registered but its signature material could not be saved.', 'bit-smtp'));
         }
@@ -105,9 +91,7 @@ final class WebhookProvisioningService
     }
 
     /**
-     * Best-effort removal of a connection's provider-side webhook (on connection delete). Never throws:
-     * a provider/API failure must not block the delete that triggered it, and it is a no-op for
-     * providers without an API provisioner or connections that never provisioned one.
+     * Best-effort webhook removal (never throws, doesn't block delete).
      */
     public function deregisterFor(Connection $connection): void
     {
@@ -133,14 +117,12 @@ final class WebhookProvisioningService
     }
 
     /**
-     * Best-effort provisioning triggered by saving a connection. Never throws and never fails the
-     * save: a provider error yields a saved connection plus a warning the caller can surface.
+     * Best-effort provisioning on save (never throws, never fails save; warn on provider error).
      *
      * @return array<string,mixed>
      */
     public function provisionOnSave(Connection $connection): array
     {
-        // A user opt-out is not a provisioning failure, so it records no outcome.
         if (!$connection->isWebhookEnabled()) {
             return ['status' => 'skipped'];
         }
@@ -151,9 +133,6 @@ final class WebhookProvisioningService
             return ['status' => 'skipped'];
         }
 
-        // Composed ahead of and separately from the provisioning attempt below, so a non-public/
-        // non-HTTPS site (no provider API ever reached) is recorded as 'unavailable' rather than
-        // conflated with a provider-side 'failed' outcome.
         try {
             $webhookUrl = WebhookUrl::forConnection($connection);
         } catch (Throwable $e) {
@@ -163,7 +142,6 @@ final class WebhookProvisioningService
         }
 
         try {
-            // Already registered for this exact URL: don't re-hit the provider API on every subsequent save.
             if ((string) $connection->setting('webhook_provisioned_url', '') === $webhookUrl) {
                 return ['status' => 'skipped'];
             }
@@ -180,9 +158,7 @@ final class WebhookProvisioningService
     }
 
     /**
-     * Best-effort persistence of the last provisioning attempt's outcome, so the UI can surface
-     * webhook health. Failure to persist is swallowed: the outcome is a display aid, not the
-     * signature material recordOutcome's caller already fails loudly on.
+     * Best-effort persist provisioning outcome for UI health display (swallowed on failure).
      */
     private function recordOutcome(Connection $connection, string $status, ?string $reason): void
     {
@@ -208,8 +184,7 @@ final class WebhookProvisioningService
     }
 
     /**
-     * Strip the per-connection webhook URL and secret from a message before it is logged — defence in
-     * depth beyond the provisioner's own redaction, since the message may originate anywhere.
+     * Redact webhook URL/secret from message before logging (defense-in-depth).
      */
     private function redact(string $message, Connection $connection): string
     {
@@ -218,7 +193,6 @@ final class WebhookProvisioningService
         try {
             $replacements[WebhookUrl::forConnection($connection)] = '[redacted webhook URL]';
         } catch (Throwable $e) {
-            // No composable URL to redact.
         }
 
         $secret = $connection->getWebhookSecret();
@@ -234,16 +208,12 @@ final class WebhookProvisioningService
     }
 
     /**
-     * Scrub common secret shapes from an arbitrary provider error body before it is logged or shown
-     * in the admin UI: bearer tokens and long API-key-like runs the connection redaction can't know.
+     * Scrub bearer tokens and API-key-like strings before logging (beyond connection redaction).
      */
     private function scrubSecrets(string $message): string
     {
-        // "Authorization: Bearer <token>" / bare "Bearer <token>" — keep the label, drop the token.
         $message = preg_replace('/\bBearer\s+[A-Za-z0-9._~+\/=-]+/i', 'Bearer [redacted]', $message) ?? $message;
 
-        // Any remaining long token-alphabet run (API keys, JWTs, base64url secrets); 20+ chars. The
-        // class omits `=`/`+`/`/` so a `key=<secret>` separator survives while the value is scrubbed.
         return preg_replace('/[A-Za-z0-9._~-]{20,}/', '[redacted]', $message) ?? $message;
     }
 }

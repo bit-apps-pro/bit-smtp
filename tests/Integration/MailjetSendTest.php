@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Plugin;
 
 /**
- * Drives wp_mail() through the Mailjet API transport (mocking the outbound HTTP call) and proves
- * both the api_key and secret_key credentials reach the request as the Basic auth header
- * whether they were stored encrypted-at-rest or as legacy (pre-encryption) plaintext.
+ * Verifies Mailjet API transport handles both encrypted and legacy plaintext credentials.
  *
  * @internal
  *
@@ -50,6 +48,9 @@ final class MailjetSendTest extends IntegrationTestCase
         $this->assertMailjetRequestCarriedTheCredentials($sent, $captured, $apiKey, $secretKey, 'Encrypted Mailjet Send');
     }
 
+    /**
+     * Send works with credentials stored as pre-encryption plaintext (bypasses service API to simulate).
+     */
     public function testSendsSuccessfullyWhenTheCredentialsAreStoredAsLegacyPlaintext(): void
     {
         $apiKey    = 'legacy-plaintext-api-key';
@@ -60,7 +61,6 @@ final class MailjetSendTest extends IntegrationTestCase
         add_filter('pre_http_request', $filter, 10, 3);
 
         try {
-            // Bypasses MailConfigService::store(), mimicking an option row written before encryption existed.
             $this->storeOptions($this->v2($apiKey, $secretKey));
             Plugin::instance()->mailConfigService()->reload();
 

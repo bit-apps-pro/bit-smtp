@@ -43,7 +43,6 @@ const engagementColumns: TableColumnsType<EngagementEvent> = [
         <Text type="secondary">—</Text>
       )
   },
-  // Confirmed-human hits keep automated fires (Apple MPP / proxies / prefetch) out of the headline.
   {
     title: __('Human'),
     key: 'human',
@@ -82,6 +81,7 @@ const columns: TableColumnsType<DeliveryEvent> = [
   }
 ]
 
+/** Renders overall delivery status, per-recipient delivery events, and per-message engagement (opens/clicks). */
 export default function DeliveryStatusTab({ log }: { log: LogType }) {
   const events = log?.delivery_events ?? []
   const engagement = log?.engagement ?? []

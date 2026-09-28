@@ -7,8 +7,7 @@ use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 
 /**
- * Covers Cloudflare's full save/read/edit credential lifecycle. The test catches a provider
- * sanitizer omission, a missing encrypt/decrypt walk, or a masked-edit resolver regression.
+ * Verifies Cloudflare credential lifecycle through save/read/edit with proper encryption/masking.
  *
  * @internal
  *

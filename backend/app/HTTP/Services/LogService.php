@@ -24,22 +24,17 @@ use WP_Error;
 class LogService
 {
     /**
-     * Hard cap on the rows a single CSV export may return, so a filtered export of a large log table
-     * stays bounded in memory and response size. The controller surfaces a `truncated` flag when a
-     * result is clamped to this cap, so the truncation is never silent.
+     * Hard cap on export rows; truncated flag prevents silent clamps.
      */
     public const MAX_EXPORT_ROWS = 5000;
 
     /**
-     * Hard cap on the resend-history children returned for one log's detail view, so a log resent
-     * many times cannot bloat the detail payload.
+     * Hard cap on resend-history children to prevent payload bloat.
      */
     public const MAX_RESEND_CHILDREN = 50;
 
     /**
-     * The only columns an export may read, in CSV order: safe send/delivery metadata (including the
-     * recipient To/Cc/Bcc). Message body, credentials, and debug detail are deliberately excluded and
-     * never selected into memory.
+     * Export-safe columns in CSV order; body/credentials/debug never selected.
      */
     public const EXPORT_SAFE_COLUMNS = [
         'id',
@@ -70,6 +65,13 @@ class LogService
         self::initializeLoggingContinuity();
     }
 
+    /**
+     * Paginated logs matching filters; count runs on the unfiltered query to avoid pagination starving rows.
+     *
+     * @param mixed $skip
+     * @param mixed $take
+     * @param mixed $filters
+     */
     public function all($skip = 0, $take = 20, $filters = [])
     {
         $logs  = [];
@@ -81,9 +83,6 @@ class LogService
         try {
             $logs = Log::filtered($filters)->skip($skip)->take($take)->desc()->get()->all();
 
-            // count() must run against its own unfiltered-of-pagination query: reusing the paged
-            // builder would carry its skip/take into the aggregate and starve rows off any page
-            // past the first.
             $count = Log::filtered($filters)->count();
         } catch (Throwable $th) {
             throw $th;
@@ -96,11 +95,7 @@ class LogService
     }
 
     /**
-     * Fetch up to $limit newest-first log rows matching the same whitelist filters as all(), projected
-     * to export-safe metadata columns only (EXPORT_SAFE_COLUMNS) — the message body, credentials, and
-     * debug detail are never selected into memory. Reuses Log::filtered() so the export stays in lockstep
-     * with the list view. $limit is clamped to [1, MAX_EXPORT_ROWS + 1] — the extra row lets the caller
-     * detect (and honestly flag) truncation by asking for one past the cap.
+     * Fetch export rows (newest-first, export-safe columns, body/credentials never selected).
      *
      * @param array<string,mixed> $filters
      *
@@ -116,9 +111,7 @@ class LogService
     }
 
     /**
-     * Filter-scoped export rows plus whether the set was clamped to the cap. Probes one past the cap so
-     * an exactly-at-cap result is not falsely flagged truncated, then trims to the cap. The single place
-     * REST and CLI exports derive truncation, so the two can never drift.
+     * Export rows with truncation flag (probe past cap to detect exact-at-cap vs over).
      *
      * @param array<string,mixed> $filters
      *
@@ -161,8 +154,7 @@ class LogService
     }
 
     /**
-     * The manual-resend children of a log, newest-first and bounded, projected to the summary the
-     * detail view renders as the resend chain.
+     * Fetch manual-resend children of a log, newest-first and bounded, formatted for the detail view.
      *
      * @return array<int,array{id:int,status:string,created_at:string}>
      */
@@ -222,6 +214,14 @@ class LogService
         return $log->save();
     }
 
+    /**
+     * Update log for resend (fresh message_id/tracking_id, clear delivery/events, update sender if present).
+     *
+     * @param mixed      $id
+     * @param mixed      $status
+     * @param mixed      $details
+     * @param null|mixed $message
+     */
     public function update($id, $status, $details, $message = null, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null, ?string $sourcePlugin = null, ?string $routingType = null, ?int $routingRuleIndex = null, ?string $failureClass = null)
     {
         $log = $this->get($id);
@@ -240,18 +240,11 @@ class LogService
             $log->routing_rule_index = $routingRuleIndex;
         }
 
-        // A resend gets a fresh provider message-id + tracking token; overwrite so delivery webhooks
-        // correlate to this resend, not the original send.
         $log->message_id  = $messageId;
         $log->tracking_id = $trackingId;
 
-        // ...and its delivery outcome is superseded: clear the prior send's rollup + child events so
-        // stale webhook status can't linger against this row.
         $this->resetDelivery($log);
 
-        // A resend may record its non-terminal transport hand-off, never a terminal delivery
-        // inference. Terminal statuses are exclusively folded by updateDeliveryRollup() after an
-        // authenticated webhook event has correlated to this new send.
         if ($deliveryStatus === DeliveryStatus::ACCEPTED) {
             $log->delivery_status     = DeliveryStatus::ACCEPTED;
             $log->delivery_updated_at = gmdate('Y-m-d H:i:s');
@@ -265,11 +258,7 @@ class LogService
             $log->debug_info    = \is_scalar($message) ? [$message] : $message;
         }
 
-        // subject/to_addr are content-stable across a resend, but details must be refreshed so the
-        // attempt trail reflects this resend's outcome rather than the original send's stale trail.
         if (\is_array($details)) {
-            // Only overwrite sender when this call's details actually carry a 'from': an absent key
-            // must not blank out a sender captured by an earlier save/update.
             if (Arr::has($details, 'from')) {
                 $log->sender = $this->sanitizeSender((string) Arr::get($details, 'from', ''));
             }
@@ -281,9 +270,7 @@ class LogService
     }
 
     /**
-     * Locate the log a delivery event belongs to, scoped to the sending connection's stable id (not
-     * its mutable label). An empty key never matches: a NULL-keyed row must not be correlated by an
-     * absent identifier.
+     * Locate log by connection_id and messageId/trackingId (empty key never matches).
      */
     public function findForCorrelation(string $connectionId, ?string $messageId, ?string $trackingId): ?Log
     {
@@ -309,15 +296,12 @@ class LogService
     }
 
     /**
-     * Append a provider delivery event as a child row. The event_hash UNIQUE key makes this
-     * idempotent; INSERT IGNORE drops a replayed event without erroring.
+     * Append delivery event (idempotent via event_hash); return true if new row, false if duplicate.
      *
      * @return bool true when a new row was written, false when the event was a duplicate
      */
     public function recordDeliveryEvent(int $logId, DeliveryEvent $event, string $hash): bool
     {
-        // A null here must land as SQL NULL, not '' — a DATETIME column rejects the empty string.
-        // insertOrIgnore() compiles nulls to a NULL literal rather than binding them.
         $written = LogDeliveryEvent::query()->insertOrIgnore([
             'log_id'      => $logId,
             'recipient'   => $event->recipient(),
@@ -333,8 +317,7 @@ class LogService
     }
 
     /**
-     * A log's delivery-event child rows, ordered oldest-first (occurred_at then id). Shaped for both
-     * DeliveryRollup::compute() (needs created_at for its recency fallback) and the delivery-status UI.
+     * Delivery-event child rows (oldest-first); shaped for rollup compute and status UI.
      *
      * @return array<int,array{recipient:string,status:string,terminal:int,occurred_at:string,created_at:string}>
      */
@@ -354,10 +337,7 @@ class LogService
     }
 
     /**
-     * Fold an open/click engagement fire onto its (log_id, type, target) row. The event_key UNIQUE
-     * key makes re-fires idempotent: ON DUPLICATE KEY UPDATE increments the totals instead of
-     * inserting a duplicate row. A machine-fired hit (Apple MPP / image proxy / prefetch bot) is
-     * counted separately into automated_hits so human engagement stays honest.
+     * Record engagement (idempotent via event_key); separate automated hits for honest human counts.
      */
     public function recordEngagement(int $logId, string $type, string $target, bool $automated): void
     {
@@ -376,8 +356,6 @@ class LogService
                 'event_key'      => $this->engagementKey($logId, $type, $target),
             ],
             [
-                // upsertRaw never auto-bumps updated_at, so first_at keeps the original fire time
-                // while last_at and updated_at are advanced explicitly.
                 'hits'           => 'hits + 1',
                 'automated_hits' => ['automated_hits + %d', [$automatedSeed]],
                 'last_at'        => ['%s', [$now]],
@@ -387,7 +365,7 @@ class LogService
     }
 
     /**
-     * A log's engagement rows (opens + clicks), oldest-first, shaped for the detail view.
+     * Engagement rows (opens + clicks, oldest-first) shaped for detail view.
      *
      * @return array<int,array{type:string,target:string,hits:int,automated_hits:int,first_at:string,last_at:string}>
      */
@@ -408,8 +386,7 @@ class LogService
     }
 
     /**
-     * Open/click engagement flags for the given logs, keyed by log id. Every requested id is present,
-     * defaulted to both false, so callers can index without a fallback. One grouped query per page.
+     * Engagement flags per log (defaulted false, one query per page).
      *
      * @param int[] $logIds
      *
@@ -441,9 +418,7 @@ class LogService
     }
 
     /**
-     * Resolve the log for a tracking token via idx_tracking_id, returning the whole model so one fetch
-     * can supply both its id and its send time. The UUID is globally unique so no connection scoping is
-     * needed; an empty token never matches a NULL-keyed row.
+     * Resolve log by tracking token (globally unique, empty never matches NULL-keyed row).
      */
     public function findByTrackingId(string $trackingId): ?Log
     {
@@ -457,8 +432,7 @@ class LogService
     }
 
     /**
-     * Resolve only the log id for a tracking token — a thin projection over findByTrackingId() for
-     * callers that need the identifier alone.
+     * Resolve only the log id for a tracking token (projection over findByTrackingId).
      */
     public function findLogIdByTrackingId(string $trackingId): ?int
     {
@@ -475,8 +449,7 @@ class LogService
     }
 
     /**
-     * Clear a log's delivery outcome and drop its child events, so a superseding resend cannot
-     * inherit stale webhook status from the previous send.
+     * Clear delivery outcome and drop child events (prevent resend stale webhook inherit).
      */
     public function resetDelivery(Log $log): void
     {
@@ -485,6 +458,9 @@ class LogService
         LogDeliveryEvent::where('log_id', (int) $log->id)->delete();
     }
 
+    /**
+     * Delete logs; ON DELETE CASCADE removes child rows (delivery/engagement with PII).
+     */
     public function delete(array $ids)
     {
         $ids = $this->normalizeLogIds($ids);
@@ -492,18 +468,16 @@ class LogService
             return true;
         }
 
-        // Delivery and engagement children carry recipient-linked PII (provider detail, click
-        // targets); their ON DELETE CASCADE foreign keys remove them with the parent rows.
         $deleted = Log::whereIn('id', $ids)->delete();
 
         return $deleted !== false;
     }
 
+    /**
+     * Fallback retention cleanup (throttled) when cron job not scheduled.
+     */
     public function maybeDeleteOlder()
     {
-        // The bit_smtp_retention_gc cron job (CoreServiceProvider) owns retention cleanup; this
-        // opportunistic throttle-based path is only a bounded fallback for sites where WP-Cron
-        // isn't scheduled to run it (e.g. WP_CRON disabled/broken).
         if (wp_next_scheduled(Config::RETENTION_GC_HOOK)) {
             return;
         }
@@ -515,6 +489,9 @@ class LogService
         }
     }
 
+    /**
+     * Delete logs older than the retention window using set-based DELETE to avoid unbounded PHP collection.
+     */
     public function deleteOlder()
     {
         $logRetention = (int) PluginSettings::getWithLegacyFallback('log_retention_days', 'log_retention', 30);
@@ -527,8 +504,6 @@ class LogService
         $dateToDelete = date_sub($currentDate, date_interval_create_from_date_string($logRetention . ' days'));
         $dateToDelete = date_format($dateToDelete, QueryBuilder::TIME_FORMAT);
 
-        // Set-based by design: materializing every expired id would build an unbounded PHP
-        // collection. The children cascade with their parents.
         $deleted = Log::where('created_at', '<', $dateToDelete)->delete();
         if ($deleted === false) {
             return false;
@@ -539,6 +514,11 @@ class LogService
         return $deleted;
     }
 
+    /**
+     * Update retention window in prefs blob and legacy option for backward compatibility.
+     *
+     * @param mixed $days
+     */
     public function updateRetention($days)
     {
         if ($days < 1) {
@@ -547,15 +527,13 @@ class LogService
             $days = 200;
         }
 
-        // Write-through: the prefs blob is the source of truth the retention reader consults; keep
-        // the legacy option coherent for any external legacy reader.
         PluginSettings::make()->set('log_retention_days', $days)->save();
 
         return (bool) Config::updateOption('log_retention', $days);
     }
 
     /**
-     * Check if logging is enabled
+     * Check if logging is enabled.
      *
      * @return bool
      */
@@ -565,7 +543,7 @@ class LogService
     }
 
     /**
-     * Enable or disable logging
+     * Enable/disable logging (writes legacy option + prefs blob, source of truth).
      *
      * @param bool $enable
      *
@@ -579,8 +557,6 @@ class LogService
                 return false;
             }
 
-            // Write-through: the prefs blob is the source of truth isEnabled() consults, so the
-            // toggle must land there too, not only in the legacy option.
             PluginSettings::make()->set('logging_enabled', $enable)->save();
         }
 
@@ -596,9 +572,7 @@ class LogService
     }
 
     /**
-     * Start (or retain) the proven-continuous UTC interval for precise log analytics. Existing
-     * installs without the marker deliberately begin at first migration/service boot instead of
-     * inferring continuity from legacy local display timestamps.
+     * Start/retain proven-continuous UTC interval for analytics (ignore legacy local timestamps).
      */
     public static function initializeLoggingContinuity(): ?string
     {
@@ -621,7 +595,7 @@ class LogService
     }
 
     /**
-     * Bulk insert multiple mail logs
+     * Bulk insert logs (runs retention cleanup if cron unavailable; resolve body mode once).
      *
      * @param array<int,array{status: string, data: array|WP_Error}> $logs Array of log entries
      *
@@ -633,11 +607,8 @@ class LogService
             return false;
         }
 
-        // See maybeDeleteOlder(): no-op when the retention cron is scheduled, bounded fallback
-        // otherwise.
         $this->maybeDeleteOlder();
 
-        // Resolve the body-storage preference once for the whole batch rather than per row.
         $bodyMode = $this->bodyStorageMode();
 
         $records = [];
@@ -734,8 +705,7 @@ class LogService
     }
 
     /**
-     * The active `log_store_body` privacy preference (full|redacted|metadata), defaulting to full.
-     * Read on every write path so a redacted/metadata choice is honored the moment it is saved.
+     * Active log_store_body privacy preference (full|redacted|metadata); read on every write.
      */
     private function bodyStorageMode(): string
     {
@@ -743,9 +713,7 @@ class LogService
     }
 
     /**
-     * Defense-in-depth for a persisted From display name (attacker-influenceable free text): drop
-     * invalid UTF-8 via WordPress, then strip control chars (incl. CR/LF) while preserving the
-     * literal "Name <email>" bracket that sanitize_text_field() would wrongly strip as an HTML tag.
+     * Sanitize sender display name: validate UTF-8, strip control chars, preserve "Name <email>" format.
      */
     private function sanitizeSender(string $sender): string
     {
@@ -753,8 +721,7 @@ class LogService
     }
 
     /**
-     * Deterministic dedup key for an engagement row. Delimited so distinct (type, target) pairs can't
-     * collide via bare concatenation.
+     * Deterministic dedup key (delimited to prevent collisions).
      */
     private function engagementKey(int $logId, string $type, string $target): string
     {

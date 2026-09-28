@@ -1,0 +1,140 @@
+{
+    "all": {
+        "engagement": {
+            "open_hits": 3,
+            "open_automated_hits": 2,
+            "open_rows": 2,
+            "open_human_logs": 1,
+            "click_hits": 6,
+            "click_automated_hits": 1,
+            "click_rows": 5,
+            "click_human_logs": 3
+        },
+        "top_links": [
+            {
+                "target": "https://example.test/a",
+                "hits": 2,
+                "automated_hits": 0
+            },
+            {
+                "target": "https://example.test/b",
+                "hits": 2,
+                "automated_hits": 1
+            },
+            {
+                "target": "https://example.test/c",
+                "hits": 1,
+                "automated_hits": 0
+            }
+        ],
+        "top_one": [
+            {
+                "target": "https://example.test/a",
+                "hits": 2,
+                "automated_hits": 0
+            }
+        ]
+    },
+    "woocommerce": {
+        "engagement": {
+            "open_hits": 3,
+            "open_automated_hits": 2,
+            "open_rows": 2,
+            "open_human_logs": 1,
+            "click_hits": 4,
+            "click_automated_hits": 1,
+            "click_rows": 3,
+            "click_human_logs": 2
+        },
+        "top_links": [
+            {
+                "target": "https://example.test/a",
+                "hits": 2,
+                "automated_hits": 0
+            },
+            {
+                "target": "https://example.test/b",
+                "hits": 2,
+                "automated_hits": 1
+            }
+        ],
+        "top_one": [
+            {
+                "target": "https://example.test/a",
+                "hits": 2,
+                "automated_hits": 0
+            }
+        ]
+    },
+    "unknown": {
+        "engagement": {
+            "open_hits": 0,
+            "open_automated_hits": 0,
+            "open_rows": 0,
+            "open_human_logs": 0,
+            "click_hits": 0,
+            "click_automated_hits": 0,
+            "click_rows": 0,
+            "click_human_logs": 0
+        },
+        "top_links": [],
+        "top_one": []
+    },
+    "connection": {
+        "engagement": {
+            "open_hits": 2,
+            "open_automated_hits": 1,
+            "open_rows": 1,
+            "open_human_logs": 1,
+            "click_hits": 3,
+            "click_automated_hits": 1,
+            "click_rows": 2,
+            "click_human_logs": 1
+        },
+        "top_links": [
+            {
+                "target": "https://example.test/a",
+                "hits": 2,
+                "automated_hits": 0
+            },
+            {
+                "target": "https://example.test/b",
+                "hits": 1,
+                "automated_hits": 1
+            }
+        ],
+        "top_one": [
+            {
+                "target": "https://example.test/a",
+                "hits": 2,
+                "automated_hits": 0
+            }
+        ]
+    },
+    "combined": {
+        "engagement": {
+            "open_hits": 1,
+            "open_automated_hits": 1,
+            "open_rows": 1,
+            "open_human_logs": 0,
+            "click_hits": 1,
+            "click_automated_hits": 0,
+            "click_rows": 1,
+            "click_human_logs": 1
+        },
+        "top_links": [
+            {
+                "target": "https://example.test/b",
+                "hits": 1,
+                "automated_hits": 0
+            }
+        ],
+        "top_one": [
+            {
+                "target": "https://example.test/b",
+                "hits": 1,
+                "automated_hits": 0
+            }
+        ]
+    }
+}

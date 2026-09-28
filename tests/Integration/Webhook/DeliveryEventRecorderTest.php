@@ -11,8 +11,7 @@ use BitApps\SMTP\Model\LogDeliveryEvent;
 use BitApps\SMTP\Tests\Integration\IntegrationTestCase;
 
 /**
- * Drives DeliveryEventRecorder against the real test DB: correlation by message-id and tracking-id,
- * connection scoping, empty-key rejection, replay dedup, and the uncorrelated-drop path.
+ * Tests DeliveryEventRecorder: correlation, scoping, key validation, dedup, uncorrelated drops.
  *
  * @internal
  *
@@ -137,9 +136,11 @@ final class DeliveryEventRecorderTest extends IntegrationTestCase
         ], $overrides));
     }
 
+    /**
+     * Builds a minimal connection; correlation scopes on its id alone.
+     */
     private function connection(string $id): Connection
     {
-        // Correlation scopes on the connection id, so conn_a/conn_b stay distinct via getId() alone.
         return Connection::fromArray(['id' => $id, 'provider' => 'postmark', 'kind' => 'api']);
     }
 

@@ -6,9 +6,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Client\HttpClient;
 use Traversable;
 
 /**
- * Provider-agnostic HTTP client for API-based mail transports: wraps the WPKit HttpClient,
- * owns its own header state (bypassing HttpClient's own accumulating setHeader()), and
- * normalizes every response into an ApiResponse.
+ * Provider-agnostic HTTP client for API-based transports; normalizes responses.
  */
 class ApiClient
 {
@@ -31,10 +29,7 @@ class ApiClient
     }
 
     /**
-     * A clone with a request timeout applied. Left unset, HttpClient's own default applies; callers that
-     * must not hang a foreground request (e.g. webhook provisioning during an admin save) lower it. A
-     * clone (not $this) so a lowered timeout — and the callee's own header mutations — never leak back
-     * onto the shared ApiClient singleton for the rest of the request.
+     * Return a clone with timeout applied to avoid leaking mutations onto the shared instance.
      */
     public function withTimeout(?int $seconds): self
     {
@@ -77,9 +72,7 @@ class ApiClient
     }
 
     /**
-     * POST an application/x-www-form-urlencoded body. OAuth2 token endpoints (RFC 6749) require
-     * form encoding and reject JSON. Header state is reset to exactly the form content-type so a
-     * prior call on this shared client cannot leak stale headers (e.g. a bearer token) into it.
+     * POST form-encoded body; resets headers to prevent leaking stale headers.
      *
      * @param array<string,mixed> $fields
      */
@@ -115,14 +108,12 @@ class ApiClient
     }
 
     /**
+     * Send HTTP request; redirection disabled to prevent SSRF via compromised provider redirects.
+     *
      * @param array|string|null $body
      */
     private function send(string $method, string $url, $body): ApiResponse
     {
-        // Never auto-follow redirects: plain wp_remote_* follows up to 5 by default, so a compromised
-        // or MITM'd provider could 30x us to an internal host (169.254.169.254, localhost) and have WP
-        // replay the Authorization/api-key header there. Every provider endpoint answers directly, so
-        // pinning redirection to 0 costs nothing and closes the upstream-driven SSRF vector.
         $options = ['redirection' => 0];
         if ($this->timeout !== null) {
             $options['timeout'] = $this->timeout;
@@ -154,9 +145,7 @@ class ApiClient
     }
 
     /**
-     * HttpClient::request() already attempts an opportunistic JSON decode (as a stdClass, or
-     * an array only for JSON arrays); this normalizes that — and recovers the cases its own
-     * decode misses entirely, e.g. a JSON body it treated as "empty", like "[]".
+     * Normalize JSON decoding and recover cases HttpClient misses.
      *
      * @param mixed $result
      *

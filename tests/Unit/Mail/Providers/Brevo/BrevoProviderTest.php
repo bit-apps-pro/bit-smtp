@@ -15,8 +15,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Drives BrevoProvider::transport()->send() over a mocked ApiClient, proving the shipped
- * descriptor engine renders Brevo's contract correctly (spec §5/§11).
+ * Drives BrevoProvider::transport()->send() over mocked ApiClient, verifies descriptor engine renders contract correctly.
  *
  * @internal
  *
@@ -112,7 +111,7 @@ class BrevoProviderTest extends BaseUnitTestCase
         $result = $this->provider()->transport()->send($message, $this->connection());
 
         $this->assertTrue($result->isOk());
-        // The 'single' unwrap must produce a bare {email} object, not a one-element list [{email}].
+
         $this->assertSame(['email' => 'reply@example.com'], $captured['replyTo']);
         $this->assertArrayNotHasKey(0, $captured['replyTo']);
     }
@@ -193,7 +192,6 @@ class BrevoProviderTest extends BaseUnitTestCase
 
     public function testStatusOutsideTheDeclaredSuccessListMapsToFailure(): void
     {
-        // success => [201] in the descriptor; a 2xx like 200 is still a failure by that contract.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, []));
 

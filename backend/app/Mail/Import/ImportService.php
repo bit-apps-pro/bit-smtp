@@ -7,9 +7,7 @@ namespace BitApps\SMTP\Mail\Import;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 
 /**
- * Orchestrates settings import: lists detectable source plugins, previews a mapped connection without
- * persisting, and persists an import through the SAME new-connection save path (MailConfigService), so
- * sanitization and at-rest credential encryption apply exactly as for a manually added connection.
+ * Orchestrate settings import via MailConfigService for consistent sanitization and encryption.
  */
 final class ImportService
 {
@@ -40,8 +38,7 @@ final class ImportService
     }
 
     /**
-     * The mapped connection for a plugin key WITHOUT persisting (dry-run); null when the key is unknown
-     * or the source plugin is not configured.
+     * Get mapped connection for a plugin key without persisting (dry-run).
      *
      * @return null|array<string,mixed>
      */
@@ -53,8 +50,7 @@ final class ImportService
     }
 
     /**
-     * Persist an import as a new connection, returning the minted connection id, or null when there was
-     * nothing to import or the store failed.
+     * Persist import as new connection; return connection id or null on failure.
      */
     public function import(string $key): ?string
     {

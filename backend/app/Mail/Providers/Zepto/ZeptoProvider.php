@@ -11,8 +11,7 @@ use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
 
 /**
- * ZeptoMail, wired entirely through the descriptor engine (spec §5/§11). First region-mapped
- * provider: the send host is a per-account data center, closed to us/eu/in and defaulting to us.
+ * ZeptoMail provider via descriptor engine with region-mapped data-center endpoints.
  */
 final class ZeptoProvider extends DescriptorProvider
 {

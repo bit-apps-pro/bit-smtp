@@ -7,8 +7,7 @@ namespace BitApps\SMTP\Mail\Webhook;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
 
 /**
- * Pure reducer: folds a log's delivery-event rows into one parent status + timestamp.
- * Per recipient the most recent event wins; for the parent the worst terminal outcome wins.
+ * Pure reducer: fold delivery-event rows into parent status + timestamp; most recent per recipient, worst terminal for parent.
  */
 final class DeliveryRollup
 {
@@ -133,8 +132,7 @@ final class DeliveryRollup
     }
 
     /**
-     * Recency key for a row: the provider timestamp, or created_at when the provider omitted one.
-     * An empty string (no usable time) sorts earliest under lexicographic `Y-m-d H:i:s` comparison.
+     * Compute recency key: provider timestamp or created_at if omitted; empty string sorts earliest.
      *
      * @param array<string,mixed> $row
      */

@@ -10,9 +10,7 @@ use BitApps\SMTP\Settings\PluginSettings;
 \defined('ABSPATH') || exit();
 
 /**
- * `wp bit-smtp logs`: list recent mail logs (safe metadata columns only) filtered by send status,
- * rendered in the requested format. Reuses LogService::exportRows so it shares the list view's filter
- * whitelist and never selects body/credentials/debug into memory.
+ * List recent mail logs (safe columns only) filtered by status in requested format.
  */
 final class LogsCommand
 {
@@ -32,8 +30,7 @@ final class LogsCommand
     }
 
     /**
-     * Fetch the newest export-safe rows for the optional status filter and render them as
-     * table/csv/json; an empty result prints a notice rather than an empty table.
+     * Fetch and render export-safe rows for optional status filter (notice on empty result).
      *
      * @param array<int,string>    $args
      * @param array<string,string> $assocArgs

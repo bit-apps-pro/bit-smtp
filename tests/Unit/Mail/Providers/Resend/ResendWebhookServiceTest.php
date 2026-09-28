@@ -135,8 +135,7 @@ final class ResendWebhookServiceTest extends BaseUnitTestCase
     }
 
     /**
-     * Stand-in for BearerTokenStrategy: writes the connection's api_key as a Bearer header onto the
-     * request, proving the provisioner forwards whatever the auth strategy produced onto the client.
+     * Stand-in for BearerTokenStrategy: proves provisioner forwards auth strategy output to client.
      */
     private function bearerAuth(): AuthStrategyInterface
     {

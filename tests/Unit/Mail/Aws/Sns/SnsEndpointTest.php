@@ -61,8 +61,6 @@ class SnsEndpointTest extends BaseUnitTestCase
 
     public function testRejectsHostWithNoRegionLabelBetweenSnsAndAmazonaws(): void
     {
-        // `sns.amazonaws.com`: after `sns.` the pattern needs `<region>.amazonaws.com`, but only a
-        // single `amazonaws` label precedes `.com` here, so the regex cannot match.
         $this->assertFalse(SnsEndpoint::isAwsSnsUrl('https://sns.amazonaws.com/x'));
     }
 }

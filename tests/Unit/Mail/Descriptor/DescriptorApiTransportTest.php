@@ -123,7 +123,6 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
 
     public function testADefaultRegionAbsentFromTheHostMapStillFailsTheClosedMapGuard(): void
     {
-        // defaultRegion is descriptor-controlled, but a misconfigured one must never bypass the SSRF guard.
         $this->apiClient->shouldNotReceive('post');
 
         $descriptor = ProviderDescriptor::fromArray($this->descriptorConfig([
@@ -173,8 +172,6 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
 
     public function testSuccessStatusWithProviderErrorBodyIsAFailureWhenTheProviderOptsIn(): void
     {
-        // A provider that opts into 2xx-body error detection via errorDetectPaths: HTTP 200 with a
-        // per-message error in the body must be treated as a failed send, not a false positive.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
             'errors' => [['message' => 'Recipient rejected']],
@@ -193,8 +190,6 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
 
     public function testSuccessStatusWithProviderErrorBodyIsAcceptedButNotOkSoNoFallback(): void
     {
-        // The 2xx-with-body-error case (Mailjet-style): the provider DID accept/hand off the
-        // message, so the dispatch fallback must not re-send it to the next connection.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
             'errors' => [['message' => 'Recipient rejected']],
@@ -212,8 +207,6 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
 
     public function testSemanticResponseConditionsRequireAValidEnvelopeBeforeAcceptance(): void
     {
-        // A descriptor may require documented response semantics in addition to an allowed HTTP
-        // status. A failed semantic envelope was not accepted, so dispatch fallback can continue.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
             'success'  => false,
@@ -238,8 +231,6 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
 
     public function testNonSuccessStatusIsNotAcceptedSoFallbackCanRun(): void
     {
-        // A 4xx was never handed off by the provider, so the dispatch fallback must be allowed to
-        // try the next connection.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(400, [
             'errors' => [['message' => 'Recipient rejected']],
@@ -264,8 +255,6 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
 
     public function testSuccessStatusWithBenignBodyKeyIsNotAFalseFailureWhenErrorDetectPathsIsEmpty(): void
     {
-        // The default descriptor sets no errorDetectPaths (→ []), so a benign top-level `message`
-        // (e.g. Mailgun's "Queued. Thank you.") on a 200 must NOT be mistaken for an error.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
             'id'      => 'msg_1',
@@ -571,7 +560,6 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
             ],
         ]));
 
-        // Whitespace-only recipient survives the raw-empty guard but the formatter drops it.
         $result = $this->transportWith($descriptor)->send($this->message(['to' => ['   ']]), $this->connection());
 
         $this->assertTrue($result->isOk());

@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
 \defined('ABSPATH') || exit();
 
 /**
- * `wp bit-smtp send-test <to>`: send a test email through the plugin's wp_mail dispatch path and
- * report success or the transport debug output on failure. Reuses WpMailBridge exactly as the REST
- * test-mail controller does.
+ * Send test email via wp_mail and report success or transport debug output on failure.
  */
 final class SendTestCommand
 {
@@ -21,8 +19,7 @@ final class SendTestCommand
     }
 
     /**
-     * Validate the recipient, dispatch a debug-enabled test send, then report the outcome; on failure
-     * the transport's debug lines are printed before the terminal error.
+     * Validate recipient, dispatch debug-enabled test send, report outcome (debug on failure).
      *
      * @param array<int,string>    $args
      * @param array<string,string> $assocArgs

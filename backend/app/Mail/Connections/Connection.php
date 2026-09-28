@@ -93,9 +93,7 @@ class Connection
     }
 
     /**
-     * The identifier stored on a mail-log row's `connection` column and shown in the Logs UI:
-     * the connection name, or its provider slug when unnamed. Delivery-webhook correlation scopes
-     * on this same value, so both paths must derive it here (never drift).
+     * Connection label for logs and webhook correlation: name or provider slug.
      */
     public function label(): string
     {
@@ -169,8 +167,7 @@ class Connection
     }
 
     /**
-     * True once the receiver has accepted at least one correlated event for this connection,
-     * proving the provider is actually posting. Gates whether delivery status is shown at all.
+     * True once a correlated webhook event is accepted; gates delivery status visibility.
      */
     public function isWebhookVerified(): bool
     {
@@ -185,8 +182,7 @@ class Connection
     }
 
     /**
-     * Outcome of the most recent auto-provision attempt: 'registered'|'failed'|'unsupported'|
-     * 'unavailable', or '' when never attempted.
+     * Auto-provision attempt outcome: 'registered'|'failed'|'unsupported'|'unavailable' or ''.
      */
     public function getWebhookProvisioningStatus(): string
     {

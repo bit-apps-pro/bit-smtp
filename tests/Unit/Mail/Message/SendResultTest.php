@@ -59,14 +59,11 @@ class SendResultTest extends BaseUnitTestCase
 
     public function testFailureIsNotAccepted(): void
     {
-        // Not handed off by the provider: fallback to the next connection must be allowed.
         $this->assertFalse(SendResult::failure('Connection refused')->isAccepted());
     }
 
     public function testAcceptedWithErrorIsAcceptedButNotOk(): void
     {
-        // Handed off (e.g. HTTP 2xx) but the provider reported a per-message error in the body:
-        // no fallback (would duplicate-send), yet reported as a failed attempt.
         $debugInfo = ['status' => 200, 'body' => ['errors' => ['Recipient rejected']]];
         $result    = SendResult::acceptedWithError('Recipient rejected', '200', $debugInfo);
 

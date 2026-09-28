@@ -2,26 +2,35 @@
 
 namespace BitApps\SMTP\Mail\Notifications\Channels;
 
+use BitApps\SMTP\Mail\Config\AlertChannelSettings;
+use BitApps\SMTP\Mail\Notifications\ChannelDeliveryResult;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
 use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 use Throwable;
 
 final class TelegramFailureNotificationChannel implements FailureNotificationChannelInterface
 {
+    private const MAX_ERROR_LENGTH = 120;
+
+    /**
+     * The channel key, matched against each alert channel instance's `type`.
+     */
     public function key(): string
     {
         return 'telegram';
     }
 
     /**
+     * Send the alert through the Bot API's sendMessage; delivered only when Telegram answers `ok: true`.
+     *
      * @param array<string,mixed> $settings
      */
-    public function send(NotificationMessage $notification, array $settings): bool
+    public function send(NotificationMessage $notification, array $settings): ChannelDeliveryResult
     {
-        $token  = self::setting($settings, 'bot_token');
-        $chatId = self::setting($settings, 'chat_id');
-        if (!self::isBotToken($token) || !self::isChatId($chatId)) {
-            return false;
+        $token  = AlertChannelSettings::scalarString($settings, 'bot_token');
+        $chatId = AlertChannelSettings::scalarString($settings, 'chat_id');
+        if (!AlertChannelSettings::isTelegramBotToken($token) || !AlertChannelSettings::isTelegramChatId($chatId)) {
+            return ChannelDeliveryResult::failed(__('The Telegram bot token or chat ID is not valid.', 'bit-smtp'));
         }
 
         try {
@@ -35,42 +44,39 @@ final class TelegramFailureNotificationChannel implements FailureNotificationCha
                 'redirection' => 0,
             ]);
         } catch (Throwable) {
-            return false;
+            return ChannelFailureReason::requestFailed();
         }
         if (is_wp_error($response)) {
-            return false;
+            return ChannelFailureReason::transport($response, [$token, $chatId]);
         }
 
-        $status = wp_remote_retrieve_response_code($response);
-        if ($status < 200 || $status >= 300) {
-            return false;
+        $status  = (int) wp_remote_retrieve_response_code($response);
+        $payload = json_decode((string) wp_remote_retrieve_body($response), true);
+        if ($status >= 200 && $status < 300 && \is_array($payload) && ($payload['ok'] ?? false) === true) {
+            return ChannelDeliveryResult::delivered();
         }
 
-        $body = wp_remote_retrieve_body($response);
-        if (!\is_string($body)) {
-            return false;
-        }
-
-        $payload = json_decode($body, true);
-
-        return \is_array($payload) && ($payload['ok'] ?? false) === true;
+        return self::rejected($status, \is_array($payload) ? $payload : [], [$token, $chatId]);
     }
 
     /**
-     * @param array<string,mixed> $settings
+     * Telegram's rejection, naming its `description` (redacted, truncated, bot tokens removed) when present.
+     *
+     * @param array<string,mixed> $payload
+     * @param string[]            $secrets the bot token and chat id, removed from the description
      */
-    private static function setting(array $settings, string $key): string
+    private static function rejected(int $status, array $payload, array $secrets): ChannelDeliveryResult
     {
-        return isset($settings[$key]) && \is_scalar($settings[$key]) ? trim((string) $settings[$key]) : '';
-    }
+        $description = \is_string($payload['description'] ?? null)
+            ? ChannelFailureReason::redact($payload['description'], self::MAX_ERROR_LENGTH, $secrets)
+            : '';
 
-    private static function isBotToken(string $token): bool
-    {
-        return preg_match('/^\d{6,20}:[A-Za-z0-9_-]{20,}$/', $token) === 1;
-    }
+        if ($description === '') {
+            // translators: %d: HTTP status code
+            return ChannelDeliveryResult::failed(\sprintf(__('Telegram rejected the request (HTTP %d).', 'bit-smtp'), $status));
+        }
 
-    private static function isChatId(string $chatId): bool
-    {
-        return preg_match('/^-?\d{1,20}$/', $chatId) === 1;
+        // translators: %s: Telegram's error description such as Unauthorized
+        return ChannelDeliveryResult::failed(\sprintf(__('Telegram rejected the request: %s.', 'bit-smtp'), rtrim($description, '.')));
     }
 }

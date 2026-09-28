@@ -114,7 +114,6 @@ describe('TopList', () => {
     await user.click(screen.getByText('Other'))
 
     const dialog = screen.getByRole('dialog')
-    // 8 visible rows fold the remaining 2 groups into "Other": total 2, accepted 2, delivered 2, failed 0.
     expect(within(dialog).getAllByText('Other').length).toBeGreaterThanOrEqual(1)
     expect(within(dialog).getAllByText('2')).toHaveLength(3)
     expect(within(dialog).getByText('0')).toBeInTheDocument()

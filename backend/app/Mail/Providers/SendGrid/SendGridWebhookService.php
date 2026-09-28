@@ -60,11 +60,12 @@ final class SendGridWebhookService extends AbstractWebhookProvisioner
         return ['created' => $created, 'id' => $existingId, 'public_key' => $publicKey];
     }
 
+    /**
+     * Deregister webhook, matching strictly by connection URL to avoid deleting siblings' webhooks.
+     */
     public function deregister(Connection $connection): void
     {
         $this->assertProvider($connection, 'sendgrid');
-        // Matched strictly by this connection's own webhook URL: a shared-account sibling that has since
-        // overwritten SendGrid's Event Webhook (a different URL) will not match, so it is never deleted.
         $this->deregisterMatchedWebhook($connection, self::ENDPOINT, [], 'webhooks', 'url', 'id', self::ENDPOINT . '/');
     }
 }

@@ -115,6 +115,8 @@ final class AnalyticsQueryFactory
     }
 
     /**
+     * Parse ISO-8601 timestamp; fractional seconds are discarded (second precision is sufficient).
+     *
      * @param mixed $value
      */
     private function parseIso($value): ?DateTimeImmutable
@@ -123,7 +125,6 @@ final class AnalyticsQueryFactory
             return null;
         }
 
-        // Fractional seconds (e.g. JS Date.toISOString()) are validated but discarded; second precision is enough for bucketing.
         $value = preg_replace('/\.\d+(?=Z|[+-]\d{2}:\d{2}$)/', '', $value);
 
         $parsed = DateTimeImmutable::createFromFormat(

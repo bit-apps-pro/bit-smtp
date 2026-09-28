@@ -5,9 +5,7 @@ namespace BitApps\SMTP\HTTP\Requests;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
 
 /**
- * Validates an edited manual resend: the log id, edited recipients/subject, and the required sending
- * connection. recipients() validates each address (the validator has no array-of-email rule) and
- * `sanitize:text` strips CR/LF from the subject — both block mail-header injection.
+ * Validate edited resend (log id, recipients/subject, connection); block mail-header injection.
  */
 class ResendEditRequest extends Request
 {
@@ -45,12 +43,10 @@ class ResendEditRequest extends Request
         $clean = [];
         foreach ($values as $value) {
             $value = trim((string) $value);
-            // Reject CR/LF: it can't belong to one recipient and would inject extra Cc/Bcc headers.
             if ($value === '' || preg_match('/[\r\n]/', $value) === 1) {
                 continue;
             }
 
-            // Validate the address inside a "Name <addr>" form so named recipients survive the edit.
             $address = preg_match('/<([^>]+)>/', $value, $matches) === 1 ? trim($matches[1]) : $value;
             if (is_email($address)) {
                 $clean[strtolower($address)] = $value;

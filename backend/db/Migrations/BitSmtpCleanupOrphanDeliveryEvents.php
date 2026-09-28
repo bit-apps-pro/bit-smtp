@@ -10,12 +10,13 @@ if (! \defined('ABSPATH')) {
 }
 
 /**
- * Removes delivery-event PII that predates application-level log cleanup and no longer has a log
- * parent. No foreign key is used because WordPress sites may run on database configurations where
- * relying on FK creation or cascades is unsafe.
+ * Remove delivery-event PII predating app-level cleanup with no log parent (no FK due to WordPress DB config fragility).
  */
 final class BitSmtpCleanupOrphanDeliveryEvents extends Migration
 {
+    /**
+     * Remove orphaned delivery events; all SQL identifiers are model-derived (safe from injection).
+     */
     public function up()
     {
         $logsTable   = (new Log())->getTable();
@@ -31,9 +32,6 @@ final class BitSmtpCleanupOrphanDeliveryEvents extends Migration
             return;
         }
 
-        // These are closed model-derived identifiers. The migration never interpolates request,
-        // provider, or option data into SQL identifiers; only values in table-existence checks are
-        // supplied through wpdb::prepare.
         $sql = 'DELETE `' . $eventsTable . '` FROM `' . $eventsTable . '` '
             . 'LEFT JOIN `' . $logsTable . '` ON `' . $eventsTable . '`.`log_id` = `' . $logsTable . '`.`id` '
             . 'WHERE `' . $logsTable . '`.`id` IS NULL';
@@ -43,10 +41,11 @@ final class BitSmtpCleanupOrphanDeliveryEvents extends Migration
         }
     }
 
+    /**
+     * No-op: data cleanup is deliberately irreversible to honor deletion guarantees.
+     */
     public function down()
     {
-        // Data cleanup is deliberately irreversible: restoring PII after a downgrade would be
-        // both impossible and contrary to the deletion guarantee.
     }
 
     private function tableExists(string $table): bool

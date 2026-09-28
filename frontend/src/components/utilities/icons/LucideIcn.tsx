@@ -3,8 +3,6 @@ import * as icons from 'lucide-react'
 import { type LucideIcon as LucideIconType } from 'lucide-react'
 import AntIconWrapper from './AntIconWrapper'
 
-// import AntIconWrapper from './AntIconWrapper'
-
 interface LucideIcnPropsTypes {
   name: keyof typeof icons
   color?: string
@@ -12,6 +10,7 @@ interface LucideIcnPropsTypes {
   strokeWidth?: number
   style?: CSSProperties
 }
+/** Renders a lucide-react icon by name inside the shared AntIconWrapper. */
 export default function LucideIcn({
   name,
   color,

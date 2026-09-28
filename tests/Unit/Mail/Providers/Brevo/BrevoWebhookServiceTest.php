@@ -130,8 +130,7 @@ final class BrevoWebhookServiceTest extends BaseUnitTestCase
     }
 
     /**
-     * Stand-in for the Brevo api_key strategy: writes the connection's api_key as the api-key header,
-     * proving the provisioner forwards whatever the auth strategy produced onto the client.
+     * Stand-in for Brevo api_key strategy: proves provisioner forwards auth strategy output to client.
      */
     private function apiKeyAuth(): AuthStrategyInterface
     {

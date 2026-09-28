@@ -9,10 +9,7 @@ import { Form, type FormInstance, InputNumber, Select, Switch, Typography } from
 
 const { Text } = Typography
 
-/**
- * Health preference fields: periodic connection health checks, their run interval, and — the actual
- * consumers of the health notifier — which transitions to alert on and how often to repeat an alert.
- */
+/** Health preference fields: check toggle, run interval, which events alert, and the alert cooldown. */
 export default function Health({ form }: { form: FormInstance<PreferencesFormValues> }) {
   const healthCheckEnabled = Form.useWatch('health_check_enabled', form) ?? false
   const selectedEvents = Form.useWatch('notify_events', form) ?? []

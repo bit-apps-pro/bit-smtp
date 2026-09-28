@@ -7,8 +7,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
 
 /**
- * Authorization gate for the admin REST group: requires manage_options.
- * CSRF is enforced separately by WP core's wp_rest cookie nonce (rest_cookie_check_errors), not here.
+ * Authorization gate for admin REST (manage_options); CSRF enforced separately by WP.
  */
 final class CapabilityCheckerMiddleware
 {

@@ -22,10 +22,11 @@ abstract class AbstractAuthStrategy implements AuthStrategyInterface
         $this->wpConfig = $wpConfig ?? new WpConfigCredentialSource();
     }
 
+    /**
+     * Resolve credential from wp-config constant (if set) or stored connection value.
+     */
     protected function secret(Connection $connection, string $key): string
     {
-        // A wp-config constant (BIT_SMTP_<CONNID>_<KEY>) overrides the stored value so an API key can
-        // live outside the database; the DB value is used only when no such constant is defined.
         $override = $this->wpConfig->resolve($connection->getId(), $key);
         if ($override !== null) {
             return $override;
@@ -45,12 +46,14 @@ abstract class AbstractAuthStrategy implements AuthStrategyInterface
         return $value;
     }
 
+    /**
+     * Replace template placeholders {key} with values from wp-config, credentials, or settings.
+     */
     protected function interpolate(string $template, Connection $connection): string
     {
         return preg_replace_callback('/\{([^{}]+)\}/', function (array $matches) use ($connection) {
             $key = $matches[1];
 
-            // wp-config override wins for any interpolated key (opt-in — only when the constant is set).
             $override = $this->wpConfig->resolve($connection->getId(), $key);
             if ($override !== null) {
                 return $override;

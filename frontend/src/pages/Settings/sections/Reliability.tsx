@@ -6,7 +6,7 @@ import {
   RETRY_FAILURE_CLASSES,
   type RetryFailureClass
 } from '@pages/Settings/types'
-import { Form, type FormInstance, InputNumber, Select, Switch, Typography } from 'antd'
+import { Divider, Form, type FormInstance, InputNumber, Select, Switch, Typography } from 'antd'
 
 const { Text } = Typography
 
@@ -14,8 +14,6 @@ const { Text } = Typography
 export default function Reliability({ form }: { form: FormInstance<PreferencesFormValues> }) {
   const retryEnabled = Form.useWatch('retry_enabled', form) ?? false
 
-  // Built at render (not module scope) so labels resolve against the translation state at that time,
-  // matching the other Settings sections; the Record type forces a label per known class.
   const retryClassLabels: Record<RetryFailureClass, string> = {
     transient: __('Transient errors'),
     rate_limited: __('Rate limited')
@@ -38,7 +36,6 @@ export default function Reliability({ form }: { form: FormInstance<PreferencesFo
           }
           rules={[{ type: 'number', required: true, min: 1, message: __('Enter at least 1 second') }]}
         >
-          {/* No min prop here: InputNumber would silently clamp on blur, pre-empting the rule above. */}
           <InputNumber style={{ width: '100%' }} />
         </Form.Item>
         <PanelDivider />
@@ -85,6 +82,7 @@ export default function Reliability({ form }: { form: FormInstance<PreferencesFo
           />
         </Form.Item>
       </SettingsPanel>
+      <Divider />
       <RetryQueuePanel />
     </>
   )

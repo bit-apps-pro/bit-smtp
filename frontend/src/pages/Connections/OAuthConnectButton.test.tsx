@@ -15,6 +15,7 @@ vi.mock('@components/Toaster/Toaster', () => ({
   default: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 }))
 
+/** Renders with a QueryClientProvider and a spy on its invalidateQueries, for cache-invalidation assertions. */
 function renderWithClient(ui: React.ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const invalidateQueries = vi.spyOn(client, 'invalidateQueries')
@@ -25,6 +26,7 @@ function renderWithClient(ui: React.ReactElement) {
   return { invalidateQueries, ...view }
 }
 
+/** Dispatches a window "message" event shaped like the OAuth popup's callback payload. */
 function postOAuthMessage(data: Record<string, unknown>, origin = window.location.origin) {
   act(() => {
     window.dispatchEvent(new MessageEvent('message', { origin, data }))
@@ -62,8 +64,6 @@ describe('OAuthConnectButton', () => {
   })
 
   it('re-saves the current form values before authorizing an existing connection', async () => {
-    // Regression (#7): an existing connection must persist just-typed client_id/secret before the
-    // consent flow reads them; the button authorizes against the id persistConnection returns.
     const mutateAsync = vi.fn().mockResolvedValue(undefined)
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync, isPending: false })
     const persistConnection = vi.fn().mockResolvedValue('conn_1')
@@ -86,8 +86,6 @@ describe('OAuthConnectButton', () => {
   it('shows an error and never opens the popup when creating the draft connection fails', async () => {
     const mutateAsync = vi.fn()
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync, isPending: false })
-    // Mirrors ConnectionEditor's real persistConnection: it notifies the user itself before
-    // resolving to '', so the button only needs to bail out on an empty id.
     const persistConnection = vi.fn().mockImplementation(async () => {
       notify.error('Failed to prepare this connection for OAuth. Please try again.')
       return ''
@@ -244,7 +242,6 @@ describe('OAuthConnectButton', () => {
       <OAuthConnectButton connectionId="conn_1" provider="gmail" connected persistConnection={vi.fn()} />
     )
 
-    // Open the confirm, then click its danger OK (both trigger and OK are named "Disconnect").
     await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
     const buttons = await screen.findAllByRole('button', { name: 'Disconnect' })
     await userEvent.click(buttons[buttons.length - 1])

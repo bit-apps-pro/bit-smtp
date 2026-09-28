@@ -1,0 +1,457 @@
+{
+    "bounds": {
+        "earliest": "2026-02-28 23:59:59",
+        "latest": "2026-03-05 00:00:00",
+        "qualified_timestamp_count": 10,
+        "unqualified_timestamp_count": 1
+    },
+    "sources": [
+        "contact-form-7",
+        "woocommerce",
+        "wpforms"
+    ],
+    "all": {
+        "summary": {
+            "total": 8,
+            "recipient_count": 13,
+            "unknown_recipient_count": 1,
+            "unknown_subject_pattern_count": 2,
+            "accepted": 6,
+            "failed": 2,
+            "unknown_source_count": 2,
+            "delivered": 1,
+            "deferred": 1,
+            "bounced": 1,
+            "blocked": 1,
+            "spam": 1,
+            "verified_delivery": 5,
+            "accepted_delivery": 1,
+            "pending_delivery": 1
+        },
+        "time_series": [
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 1,
+                "verified_delivery": 1,
+                "utc_hour": "2026-03-01 05:00:00"
+            },
+            {
+                "total": 1,
+                "accepted": 0,
+                "failed": 1,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "utc_hour": "2026-03-01 07:00:00"
+            },
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "utc_hour": "2026-03-02 09:00:00"
+            },
+            {
+                "total": 2,
+                "accepted": 1,
+                "failed": 1,
+                "delivered": 0,
+                "verified_delivery": 2,
+                "utc_hour": "2026-03-03 12:00:00"
+            },
+            {
+                "total": 1,
+                "accepted": 1,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 0,
+                "utc_hour": "2026-03-04 23:00:00"
+            }
+        ],
+        "source": [
+            {
+                "total": 3,
+                "accepted": 2,
+                "failed": 1,
+                "delivered": 0,
+                "verified_delivery": 2,
+                "dimension": "unknown"
+            },
+            {
+                "total": 3,
+                "accepted": 2,
+                "failed": 1,
+                "delivered": 1,
+                "verified_delivery": 2,
+                "dimension": "woocommerce"
+            },
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "contact-form-7"
+            }
+        ],
+        "connection": [
+            {
+                "total": 4,
+                "accepted": 4,
+                "failed": 0,
+                "delivered": 1,
+                "verified_delivery": 2,
+                "dimension": "conn_primary"
+            },
+            {
+                "total": 2,
+                "accepted": 0,
+                "failed": 2,
+                "delivered": 0,
+                "verified_delivery": 2,
+                "dimension": "conn_backup"
+            }
+        ],
+        "routing_type": [
+            {
+                "total": 3,
+                "accepted": 3,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "default"
+            }
+        ],
+        "subjects": [
+            {
+                "pattern": "Contact <text>",
+                "total": 2
+            },
+            {
+                "pattern": "Order <number>",
+                "total": 2
+            },
+            {
+                "pattern": "Receipt <number>",
+                "total": 1
+            },
+            {
+                "pattern": "Welcome",
+                "total": 1
+            }
+        ]
+    },
+    "woocommerce": {
+        "summary": {
+            "total": 3,
+            "recipient_count": 6,
+            "unknown_recipient_count": 0,
+            "unknown_subject_pattern_count": 0,
+            "accepted": 2,
+            "failed": 1,
+            "unknown_source_count": 0,
+            "delivered": 1,
+            "deferred": 0,
+            "bounced": 1,
+            "blocked": 0,
+            "spam": 0,
+            "verified_delivery": 2,
+            "accepted_delivery": 1,
+            "pending_delivery": 0
+        },
+        "time_series": [
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 1,
+                "verified_delivery": 1,
+                "utc_hour": "2026-03-01 05:00:00"
+            },
+            {
+                "total": 1,
+                "accepted": 0,
+                "failed": 1,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "utc_hour": "2026-03-01 07:00:00"
+            }
+        ],
+        "source": [
+            {
+                "total": 3,
+                "accepted": 2,
+                "failed": 1,
+                "delivered": 1,
+                "verified_delivery": 2,
+                "dimension": "woocommerce"
+            }
+        ],
+        "connection": [
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 1,
+                "verified_delivery": 1,
+                "dimension": "conn_primary"
+            },
+            {
+                "total": 1,
+                "accepted": 0,
+                "failed": 1,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "conn_backup"
+            }
+        ],
+        "routing_type": [
+            {
+                "total": 2,
+                "accepted": 1,
+                "failed": 1,
+                "delivered": 1,
+                "verified_delivery": 2,
+                "dimension": "rule"
+            }
+        ],
+        "subjects": [
+            {
+                "pattern": "Order <number>",
+                "total": 2
+            },
+            {
+                "pattern": "Receipt <number>",
+                "total": 1
+            }
+        ]
+    },
+    "unknown": {
+        "summary": {
+            "total": 2,
+            "recipient_count": 1,
+            "unknown_recipient_count": 1,
+            "unknown_subject_pattern_count": 2,
+            "accepted": 2,
+            "failed": 0,
+            "unknown_source_count": 2,
+            "delivered": 0,
+            "deferred": 1,
+            "bounced": 0,
+            "blocked": 0,
+            "spam": 0,
+            "verified_delivery": 1,
+            "accepted_delivery": 0,
+            "pending_delivery": 1
+        },
+        "time_series": [
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "utc_hour": "2026-03-02 09:00:00"
+            }
+        ],
+        "source": [
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "unknown"
+            }
+        ],
+        "connection": [
+            {
+                "total": 1,
+                "accepted": 1,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 0,
+                "dimension": "legacy_label"
+            },
+            {
+                "total": 1,
+                "accepted": 1,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "unknown"
+            }
+        ],
+        "routing_type": [
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "unknown"
+            }
+        ],
+        "subjects": []
+    },
+    "connection": {
+        "summary": {
+            "total": 4,
+            "recipient_count": 8,
+            "unknown_recipient_count": 0,
+            "unknown_subject_pattern_count": 0,
+            "accepted": 4,
+            "failed": 0,
+            "unknown_source_count": 0,
+            "delivered": 1,
+            "deferred": 0,
+            "bounced": 0,
+            "blocked": 1,
+            "spam": 0,
+            "verified_delivery": 2,
+            "accepted_delivery": 1,
+            "pending_delivery": 0
+        },
+        "time_series": [
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 1,
+                "verified_delivery": 1,
+                "utc_hour": "2026-03-01 05:00:00"
+            },
+            {
+                "total": 1,
+                "accepted": 1,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "utc_hour": "2026-03-03 12:00:00"
+            },
+            {
+                "total": 1,
+                "accepted": 1,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 0,
+                "utc_hour": "2026-03-04 23:00:00"
+            }
+        ],
+        "source": [
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "contact-form-7"
+            },
+            {
+                "total": 2,
+                "accepted": 2,
+                "failed": 0,
+                "delivered": 1,
+                "verified_delivery": 1,
+                "dimension": "woocommerce"
+            }
+        ],
+        "connection": [
+            {
+                "total": 4,
+                "accepted": 4,
+                "failed": 0,
+                "delivered": 1,
+                "verified_delivery": 2,
+                "dimension": "conn_primary"
+            }
+        ],
+        "routing_type": [
+            {
+                "total": 3,
+                "accepted": 3,
+                "failed": 0,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "default"
+            }
+        ],
+        "subjects": [
+            {
+                "pattern": "Contact <text>",
+                "total": 2
+            },
+            {
+                "pattern": "Order <number>",
+                "total": 2
+            }
+        ]
+    },
+    "combined": {
+        "summary": {
+            "total": 1,
+            "recipient_count": 3,
+            "unknown_recipient_count": 0,
+            "unknown_subject_pattern_count": 0,
+            "accepted": 0,
+            "failed": 1,
+            "unknown_source_count": 0,
+            "delivered": 0,
+            "deferred": 0,
+            "bounced": 1,
+            "blocked": 0,
+            "spam": 0,
+            "verified_delivery": 1,
+            "accepted_delivery": 0,
+            "pending_delivery": 0
+        },
+        "time_series": [
+            {
+                "total": 1,
+                "accepted": 0,
+                "failed": 1,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "utc_hour": "2026-03-01 07:00:00"
+            }
+        ],
+        "source": [
+            {
+                "total": 1,
+                "accepted": 0,
+                "failed": 1,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "woocommerce"
+            }
+        ],
+        "connection": [
+            {
+                "total": 1,
+                "accepted": 0,
+                "failed": 1,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "conn_backup"
+            }
+        ],
+        "routing_type": [
+            {
+                "total": 1,
+                "accepted": 0,
+                "failed": 1,
+                "delivered": 0,
+                "verified_delivery": 1,
+                "dimension": "rule"
+            }
+        ],
+        "subjects": [
+            {
+                "pattern": "Receipt <number>",
+                "total": 1
+            }
+        ]
+    }
+}

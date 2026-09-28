@@ -7,9 +7,7 @@ use BitApps\SMTP\Model\LogEngagementEvent;
 \defined('ABSPATH') || exit();
 
 /**
- * WordPress personal-data exporter for open/click engagement events. Returns the opens and link
- * clicks recorded against logs the requested address was a recipient of, paginated per WP's
- * exporter contract ({data: groups[], done: bool}).
+ * WordPress personal-data exporter for open/click engagement events (paginated per WP contract).
  */
 final class EngagementDataExporter
 {
@@ -70,8 +68,7 @@ final class EngagementDataExporter
     }
 
     /**
-     * Shape a single engagement row as a WP export item; the click destination is only included for
-     * clicks, and automated (bot/proxy) fires are surfaced separately from the honest total.
+     * Shape engagement row as WP export item (click destination for clicks only, automated hits separate).
      *
      * @return array<string,mixed>
      */
@@ -99,8 +96,6 @@ final class EngagementDataExporter
             'group_id'          => self::GROUP_ID,
             'group_label'       => __('Email open & click tracking', 'bit-smtp'),
             'group_description' => __('Opens and link clicks this site recorded for emails sent to you while open/click tracking was enabled.', 'bit-smtp'),
-            // (log_id, type, target) is the engagement row's UNIQUE key, so it yields a stable, unique
-            // export item id without depending on the surrogate primary key.
             'item_id'           => self::GROUP_ID . '-' . $logId . '-' . sha1($type . '|' . $target),
             'data'              => $data,
         ];

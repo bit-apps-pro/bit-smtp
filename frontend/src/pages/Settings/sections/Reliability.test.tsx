@@ -5,8 +5,6 @@ import { Form } from 'antd'
 import { describe, expect, it, vi } from 'vitest'
 import Reliability from './Reliability'
 
-// The live retry-queue panel fetches over the network; stub it so this suite exercises only the
-// preference fields.
 vi.mock('@pages/Settings/sections/RetryQueuePanel', () => ({ default: () => null }))
 
 const baseValues: PreferencesFormValues = {

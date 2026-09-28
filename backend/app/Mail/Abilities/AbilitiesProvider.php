@@ -20,8 +20,7 @@ final class AbilitiesProvider
     private const CATEGORY = 'bit-smtp-analytics';
 
     /**
-     * Expected callback errors that result from a caller's input or current capability state.
-     * Database and unexpected service failures intentionally remain 500 below.
+     * Expected callback errors from invalid input or capability state; database/service errors return 500+.
      *
      * @var array<int,string>
      */
@@ -256,18 +255,16 @@ final class AbilitiesProvider
         }
     }
 
+    /**
+     * Returns the supplied factory (for test/customization) or creates a new default one per execution to avoid stale timezone/time values in long-running processes.
+     */
     private function queryFactory(): AnalyticsQueryFactory
     {
-        // A supplied factory is a deliberate test/customization dependency. The default factory
-        // captures the site timezone and current time, so create it per execution rather than
-        // retaining stale values when this provider is used by a long-running process.
         return $this->queryFactory ?? new AnalyticsQueryFactory();
     }
 
     /**
-     * The injected MailAnalyticsService, or the plugin's shared container singleton on first use --
-     * resolved lazily (only when an ability actually executes) so its dependencies are never built
-     * before Plugin::load() has finished its own setup (see AbilitiesServiceProvider::register()).
+     * Return the injected MailAnalyticsService or lazily resolve from the plugin container to avoid stale initialization.
      */
     private function analyticsService(): MailAnalyticsService
     {

@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Config;
 
 /**
- * Analysis-only PHPStan shape aliases for the frozen persistence + REST boundaries.
- * Contains no runtime code; not loaded at runtime. Edit only when the frozen shape
- * legitimately changes (which is a breaking change and must be gated by golden tests).
+ * PHPStan shape aliases for persistence and REST boundaries (analysis-only, not runtime).
  *
  * @phpstan-type PersistedConnectionV2 array{
  *   id: string, provider: string, kind: string, name: string, enabled: bool,

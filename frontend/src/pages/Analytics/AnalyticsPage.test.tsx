@@ -11,8 +11,6 @@ import AnalyticsPage from './AnalyticsPage'
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
-// Keep the real analyticsQueryState/AnalyticsApiError - only the network-touching hooks are stubbed,
-// so the page's loading/error/logging-off/ready branching runs for real against these mocks.
 vi.mock('@pages/Analytics/data/useAnalytics', async importOriginal => {
   const actual = await importOriginal()
   return {
@@ -113,6 +111,7 @@ const engagementFixture: Engagement = {
   engagement_interpretation: 'Attributed per message, not per recipient.'
 }
 
+/** Wraps fixture data in the query-result shape returned by the mocked analytics hooks. */
 function readyResult<T>(data: T) {
   return { isPending: false, isError: false, error: null, data: { loggingDisabled: false, data } }
 }
@@ -143,8 +142,6 @@ describe('AnalyticsPage', () => {
     const params = (useOverview as Mock).mock.calls.at(-1)?.[0]
     const spanMs = dayjs(params.end).diff(dayjs(params.start))
 
-    // startOf('day')/endOf('day') widen the span past the raw day count, so it must stay
-    // strictly under 30x24h even though the default still covers 30 calendar days.
     expect(spanMs).toBeLessThan(THIRTY_DAYS_MS)
     expect(params.start).toBe(dayjs().subtract(29, 'day').startOf('day').toISOString())
     expect(params.end).toBe(dayjs().endOf('day').toISOString())
@@ -199,8 +196,6 @@ describe('AnalyticsPage', () => {
   it('renders Top sources/Top connections straight from the overview response - no separate deliverability query', () => {
     renderWithProviders(<AnalyticsPage />)
 
-    // Only overviewFixture.top_sources/top_connections feed these panels; there is no deliverability
-    // fixture in this suite at all, so this content can only have come from the overview response.
     expect(screen.getByText('wordpress')).toBeInTheDocument()
     expect(screen.getByText('conn_1')).toBeInTheDocument()
   })
@@ -230,7 +225,6 @@ describe('AnalyticsPage', () => {
     expect(screen.queryByText('Delivery breakdown')).not.toBeInTheDocument()
     expect(screen.queryByText('Engagement')).not.toBeInTheDocument()
     expect(screen.queryByText('Anomalies')).not.toBeInTheDocument()
-    // Stat tiles (all zero) still render above the empty state - they read the total directly.
     expect(screen.getByText('Total sent')).toBeInTheDocument()
   })
 

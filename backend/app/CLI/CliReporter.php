@@ -5,8 +5,7 @@ namespace BitApps\SMTP\CLI;
 \defined('ABSPATH') || exit();
 
 /**
- * Output sink for the WP-CLI commands, abstracting the WP_CLI static surface so command logic stays
- * unit-testable with a fake and never couples to the (test-absent) WP_CLI class directly.
+ * Output sink for WP-CLI commands, abstracting the static surface for unit testability.
  */
 interface CliReporter
 {
@@ -16,8 +15,7 @@ interface CliReporter
     public function success(string $message): void;
 
     /**
-     * Emit a terminal failure message; under WP-CLI this halts the command, so callers must return
-     * right after calling it.
+     * Emit terminal failure message (halts command, caller must return after).
      */
     public function error(string $message): void;
 

@@ -15,31 +15,41 @@ const defaultContext: ThemeContextType = {
   toggleTheme: () => {}
 }
 
+const THEME_STORAGE_KEY = 'bit_smtp_theme'
+
 const ThemeContext = createContext<ThemeContextType>(defaultContext)
 
+/** Save the theme mode, returning false when storage is unavailable (private mode, blocked site data). */
+function persistThemeMode(mode: 'dark' | 'light'): boolean {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, mode)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Access the current theme context (isDark, toggleTheme). */
 export const useTheme = () => useContext(ThemeContext)
 
+/** Provides the antd theme (light/dark) to descendants, persisting the user's choice to localStorage. */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // prefer stored user preference
   const [isDark, setIsDark] = useState<boolean>(() => {
     try {
-      const v = localStorage.getItem('bit_smtp_theme')
+      const v = localStorage.getItem(THEME_STORAGE_KEY)
       return v === 'dark'
-    } catch (e) {
+    } catch {
       return false
     }
   })
 
   useEffect(() => {
-    try {
-      localStorage.setItem('bit_smtp_theme', isDark ? 'dark' : 'light')
-      // update html data-attribute for global css overrides
-      document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
-    } catch (e) {
-      // ignore
-    }
+    const mode = isDark ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', mode)
+    persistThemeMode(mode)
   }, [isDark])
 
+  /** Flip between light and dark. */
   const toggleTheme = useCallback(() => setIsDark(prev => !prev), [])
 
   const appliedTheme = isDark ? darkTheme : lightTheme

@@ -70,8 +70,7 @@ final class BrevoStatusChecker implements MessageStatusCheckerInterface
     }
 
     /**
-     * Collapses the event feed to the single worst outcome; empty means the send was accepted
-     * but no downstream event has landed yet.
+     * Collapse event feed to worst outcome; empty means send accepted, pending downstream.
      *
      * @param array<int,mixed> $events
      */

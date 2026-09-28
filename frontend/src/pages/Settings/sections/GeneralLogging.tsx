@@ -31,7 +31,6 @@ export default function GeneralLogging({ form }: { form: FormInstance<Preference
           }
         ]}
       >
-        {/* No min/max prop here: InputNumber would silently clamp on blur, pre-empting the rule above. */}
         <InputNumber disabled={!loggingEnabled} style={{ width: '100%' }} />
       </Form.Item>
       <PanelDivider />

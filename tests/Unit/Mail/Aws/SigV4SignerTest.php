@@ -13,8 +13,7 @@ use BitApps\SMTP\Tests\BaseUnitTestCase;
 class SigV4SignerTest extends BaseUnitTestCase
 {
     /**
-     * Pinned against the AWS SigV4 canonical "get-vanilla" test suite vector, proving the
-     * canonical-request/string-to-sign/signing-key derivation matches AWS byte-for-byte.
+     * Pinned against AWS SigV4 canonical "get-vanilla" test suite vector, verifies byte-for-byte signature match.
      *
      * @see https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html
      */

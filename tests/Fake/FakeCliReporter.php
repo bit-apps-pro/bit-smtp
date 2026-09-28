@@ -7,8 +7,7 @@ namespace BitApps\SMTP\Tests\Fake;
 use BitApps\SMTP\CLI\CliReporter;
 
 /**
- * In-memory CliReporter that records every call instead of writing to WP-CLI, so command-logic tests
- * can assert on exactly what a command reported without loading the real WP_CLI class.
+ * Records CLI calls for testing without loading WP_CLI.
  */
 final class FakeCliReporter implements CliReporter
 {

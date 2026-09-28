@@ -41,8 +41,6 @@ class ConnectionController
             Plugin::instance()->mailConfigService()->load()
         )['connections'][0];
 
-        // Save-stage validation checks only user-entered required fields, so OAuth-based providers
-        // can persist before consent (their access/refresh tokens are not fields() and arrive later).
         $fields          = Plugin::instance()->providerRegistry()->get($provider)->fields();
         $validationError = $this->validateConnection($resolved, new RequiredFieldsValidator($fields));
         if ($validationError !== null) {
@@ -54,7 +52,6 @@ class ConnectionController
             return Response::error(__('Failed to save connection', 'bit-smtp'));
         }
 
-        // Re-load so the minted webhook secret and decrypted credentials the provisioner needs exist.
         $connection = Plugin::instance()->mailConfigService()->connectionById($connId);
         $webhook    = $connection !== null
             ? Plugin::instance()->webhookProvisioningService()->provisionOnSave($connection)
@@ -114,8 +111,6 @@ class ConnectionController
                 Plugin::instance()->mailConfigService()->load()
             )['connections'][0];
 
-            // Test-stage validation enforces full send-readiness via the provider's own validator
-            // (e.g. Gmail cannot send without a refresh_token, SES needs a valid region).
             $validator       = Plugin::instance()->providerRegistry()->get($provider)->validator();
             $validationError = $this->validateConnection($resolved, $validator);
             if ($validationError !== null) {
@@ -142,8 +137,6 @@ class ConnectionController
                 return $this->successResponse($provider, $connection, $result);
             }
 
-            // Surface the provider's own error as the message so the UI shows the real cause
-            // (e.g. a mailbox-less Microsoft 401) instead of a generic failure.
             $detail = $result->getError();
             $detail = ($detail !== null && $detail !== '') ? $detail : __('Connection test failed', 'bit-smtp');
 
@@ -155,8 +148,7 @@ class ConnectionController
     }
 
     /**
-     * Best-effort poll of the provider's real outcome, isolated so a checker/poll failure degrades
-     * to null (today's plain-success behaviour) instead of failing the already-successful send.
+     * Best-effort poll for delivery status; failure degrades to null instead of failing send.
      */
     protected function resolveDelivery(?MessageStatusCheckerInterface $checker, ?string $messageId, Connection $connection): ?DeliveryStatus
     {
@@ -172,8 +164,7 @@ class ConnectionController
     }
 
     /**
-     * A negative outcome (deferred/blocked/bounced/spam) flips the result to an error so the caller
-     * learns the API's 2xx did not mean the mail actually landed; otherwise it stays a success.
+     * Return error if delivery is negative (deferred/blocked/bounced/spam), else success.
      */
     protected function deliveryResponse(SendResult $result, ?DeliveryStatus $delivery): Response
     {
@@ -189,9 +180,7 @@ class ConnectionController
     }
 
     /**
-     * Build the response for an accepted send, upgrading it with the provider's real delivery
-     * outcome when available. Obtaining the registry (Plugin singleton) is guarded here too, so
-     * even that failing degrades to plain success rather than failing an already-successful send.
+     * Build success response with optional delivery outcome; degrade to success if checker fails.
      */
     private function successResponse(string $provider, Connection $connection, SendResult $result): Response
     {
@@ -212,8 +201,7 @@ class ConnectionController
     }
 
     /**
-     * Poll a few times because Brevo's event feed lags the send, stopping as soon as a terminal
-     * outcome lands and never discarding an earlier non-null result to a later null.
+     * Poll for terminal delivery status, retaining earlier non-null results over later nulls.
      */
     private function pollDelivery(MessageStatusCheckerInterface $checker, string $messageId, Connection $connection): ?DeliveryStatus
     {
@@ -242,9 +230,7 @@ class ConnectionController
     }
 
     /**
-     * Run the given validator against a resolved (sentinel-free) connection. Credentials are
-     * flattened to their scalar `value` first, since the stored/incoming shape is
-     * `['source' => ..., 'value' => ...]` and passing that array to the validator vacuously passes.
+     * Validate connection with flattened scalar credentials (extracted from source/value pairs).
      */
     private function validateConnection(array $resolved, ValidatorInterface $validator): ?Response
     {

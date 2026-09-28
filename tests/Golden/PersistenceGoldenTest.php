@@ -52,13 +52,11 @@ final class PersistenceGoldenTest extends GoldenTestCase
 
     public function testV2RoundTripPreservesUnknownKeys(): void
     {
-        $v2 = MailSettingsMigrator::migrate(self::LEGACY_V1);
-        // Inject provider-specific + future keys that MUST survive fromArray->toArray.
+        $v2                                                            = MailSettingsMigrator::migrate(self::LEGACY_V1);
         $v2['connections'][0]['settings']['webhook_signature_enabled'] = true;
         $v2['connections'][0]['settings']['some_future_provider_key']  = 'keepme';
         $out                                                           = MailSettings::fromArray($v2)->toArray();
         $this->assertMatchesGolden($out, 'persistence_v2_roundtrip');
-        // Explicit losslessness invariant (documents the #1 break risk):
         self::assertSame(true, $out['connections'][0]['settings']['webhook_signature_enabled'] ?? null);
         self::assertSame('keepme', $out['connections'][0]['settings']['some_future_provider_key'] ?? null);
     }

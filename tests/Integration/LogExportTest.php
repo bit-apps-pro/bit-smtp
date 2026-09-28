@@ -9,9 +9,7 @@ use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
 
 /**
- * Drives LogController::export against the real log table: the CSV honors the same filter whitelist as
- * the list view, exposes only safe metadata columns (never body/debug), defuses formula-injection cells,
- * and reports a bounded, non-silently-truncated result.
+ * Verifies CSV export honors filters, exposes safe columns only, defuses formula injections.
  *
  * @internal
  *
@@ -85,13 +83,11 @@ final class LogExportTest extends IntegrationTestCase
         $data = $this->export([]);
         self::assertLessThanOrEqual(LogService::MAX_EXPORT_ROWS, $data['count']);
 
-        // The service honors a smaller requested limit exactly.
         self::assertCount(2, $this->service->exportRows([], 2));
     }
 
     public function testExportOverTheCapReportsTruncatedAndClampsToTheCap(): void
     {
-        // One past the cap: the controller's +1 probe must detect this and flag truncation (never silent).
         $this->seedManyRows(LogService::MAX_EXPORT_ROWS + 1);
 
         $data = $this->export([]);

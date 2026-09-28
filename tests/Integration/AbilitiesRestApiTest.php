@@ -210,6 +210,9 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
         self::assertStringNotContainsString('Private receipt 884422', (string) wp_json_encode($response->get_data()));
     }
 
+    /**
+     * Uses a fresh range because the overview is cached for 5 minutes and would mask the offline table.
+     */
     public function testRestDatabaseFailuresRemainInternalServerErrors(): void
     {
         global $wpdb;
@@ -219,9 +222,6 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
         $previousSuppressErrors = $wpdb->suppress_errors(true);
 
         try {
-            // A range distinct from $this->range: the overview is cached for 5 minutes, and reusing
-            // an already-queried range would return the earlier successful (cached) response instead
-            // of hitting this test's offline table.
             $response = $this->runAbility('bit-smtp/get-email-analytics', [
                 'start'  => '2026-08-03T00:00:00+06:00',
                 'end'    => '2026-08-04T00:00:00+06:00',
@@ -262,9 +262,6 @@ final class AbilitiesRestApiTest extends IntegrationTestCase
     {
         $keys = [];
         $this->collectKeys($response, $keys);
-        // Aggregate count metadata such as recipients and unknown_recipient_count is allowed;
-        // protected key matching is case-insensitive and exact, so subject_patterns remains a
-        // documented aggregate while a raw Subject field cannot silently enter a nested response.
         foreach ($keys as $key) {
             self::assertNotContains(strtolower($key), [
                 'to',

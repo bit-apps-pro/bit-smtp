@@ -3,8 +3,7 @@
 namespace BitApps\SMTP\Mail\Notifications\Contracts;
 
 /**
- * A dispatchable alert payload the notification channels consume, independent of what produced it
- * (a send failure or a health/OAuth event), so every channel and formatter works against one shape.
+ * Dispatchable alert payload for notification channels; uniform interface for all sources.
  */
 interface NotificationMessage
 {
@@ -13,8 +12,7 @@ interface NotificationMessage
     public function emailBody(): string;
 
     /**
-     * Plain-text rendering for chat channels (Slack/Telegram), so each message type labels itself
-     * rather than every channel assuming the send-failure shape.
+     * Render plain-text message for chat channels, with message type self-labeling.
      */
     public function chatText(): string;
 

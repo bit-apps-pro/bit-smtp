@@ -29,8 +29,7 @@ final class RetryWorkerTest extends BaseUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // RetryWorker's constructor reads retry_backoff via PluginSettings::make(), which always
-        // hits get_option() on construction; no preferences blob means schema defaults apply.
+
         Functions\when('get_option')->justReturn(false);
     }
 
@@ -131,8 +130,6 @@ final class RetryWorkerTest extends BaseUnitTestCase
 
     public function testProcessDropsARetryableFailureExcludedByTheRetryClassFilter(): void
     {
-        // Admin restricted retries to rate_limited only. A transient failure is retryable by nature
-        // but excluded by the filter, so the worker drops the row instead of rescheduling it.
         Functions\when('get_option')->justReturn(['retry_on_classes' => [FailureCategory::RATE_LIMITED]]);
 
         $queue = Mockery::mock(RetryQueue::class);
@@ -167,8 +164,7 @@ final class RetryWorkerTest extends BaseUnitTestCase
     {
         $queue = Mockery::mock(RetryQueue::class);
         $queue->shouldReceive('claimDue')->once()->with(20)->andReturn([$this->row(['id' => 9])]);
-        // Lost the lock (a concurrent worker reclaimed the stale row): the message must NOT be sent
-        // again, and the row is left untouched for its new owner to resolve.
+
         $queue->shouldReceive('renewClaim')->once()->with(9, 'tok')->andReturn(false);
         $queue->shouldNotReceive('delete');
         $queue->shouldNotReceive('reschedule');
@@ -206,9 +202,7 @@ final class RetryWorkerTest extends BaseUnitTestCase
     }
 
     /**
-     * A Mockery mock of the concrete WpMailBridge bypasses its constructor, leaving eventLogger
-     * uninitialized; WpMailBridge::__destruct() unconditionally flushes it, so a harmless instance
-     * is wired in the same way WpMailBridgeTest's bridgeWithTransport() helper does.
+     * Mocks WpMailBridge bypassing constructor; wires harmless eventLogger to avoid __destruct() error.
      */
     private function mockBridge(): WpMailBridge
     {

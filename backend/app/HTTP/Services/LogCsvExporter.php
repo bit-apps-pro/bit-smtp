@@ -7,15 +7,12 @@ use BitApps\SMTP\Model\Log;
 \defined('ABSPATH') || exit();
 
 /**
- * Renders export-safe log rows as an RFC-4180 CSV. Shared by the REST export controller and the
- * WP-CLI export/logs commands so both use one safe-column projection and one formula-injection defusal.
+ * Render export-safe log rows as RFC-4180 CSV with formula-injection defusal.
  */
 final class LogCsvExporter
 {
     /**
-     * Render export rows as an RFC-4180 CSV string (header + data) via fputcsv for correct quoting,
-     * with each data cell defused against spreadsheet formula injection. The escape argument is empty
-     * so quoting follows pure RFC-4180 (double the inner quote) rather than backslash-escaping.
+     * Render rows as RFC-4180 CSV with formula-injection defusal; fputcsv handles quoting.
      *
      * @param array<int,Log> $rows
      */
@@ -28,7 +25,6 @@ final class LogCsvExporter
 
         fputcsv($handle, LogService::EXPORT_SAFE_COLUMNS, ',', '"', '');
         foreach ($rows as $row) {
-            // Project through EXPORT_SAFE_COLUMNS (the header) so cell order can never drift from it.
             $cellsByColumn = $this->rowCells($row);
             $cells         = array_map(
                 fn (string $column): string => $this->defuseCsvValue($cellsByColumn[$column] ?? ''),
@@ -45,9 +41,7 @@ final class LogCsvExporter
     }
 
     /**
-     * Project one log to its ordered, export-safe cell values (keys mirror EXPORT_SAFE_COLUMNS); the
-     * send status is humanized and the To/Cc/Bcc recipient lists flattened, everything else
-     * stringified as-is.
+     * Project log to export-safe cells (humanize status, flatten recipients).
      *
      * @return array<string,string>
      */
@@ -85,8 +79,7 @@ final class LogCsvExporter
     }
 
     /**
-     * Neutralize spreadsheet formula injection: a cell that opens with a formula trigger (=, +, -, @,
-     * tab, CR) is prefixed with a single quote so Excel/Sheets treat it as literal text, not a formula.
+     * Defuse formula injection by prefixing formula triggers (=, +, -, @, tab, CR) with quote.
      */
     private function defuseCsvValue(string $value): string
     {

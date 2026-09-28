@@ -7,8 +7,7 @@ use BitApps\SMTP\Mail\Dispatch\RetryQueue;
 \defined('ABSPATH') || exit();
 
 /**
- * `wp bit-smtp retry status`: print the retry queue depth and a metadata-only table of the pending
- * rows (never the encrypted payload). Reuses RetryQueue::depth()/pending() as the REST status does.
+ * Print retry queue depth and metadata-only table of pending rows (no encrypted payload).
  */
 final class RetryStatusCommand
 {

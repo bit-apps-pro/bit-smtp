@@ -14,9 +14,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Covers the retry-queue cron wiring (the Scheduler's second consumer, alongside retention): the
- * every-5-minutes schedule/job registration, the in-callback retry_enabled guard (so toggling the
- * preference takes effect without re-scheduling), and the deactivate-time cron clear.
+ * Covers retry-queue cron wiring: 5-minute schedule, in-callback retry_enabled guard, deactivate cleanup.
  *
  * @internal
  *
@@ -53,7 +51,6 @@ final class RetryCronTest extends BaseUnitTestCase
     public function testRetryCallbackSkipsResolvingRetryWorkerWhenRetryIsDisabled(): void
     {
         Functions\when('wp_next_scheduled')->justReturn(true);
-        // Default get_option stub (setUp) means retry_enabled reads its schema default of false.
 
         $capturedCallback = null;
         Functions\when('add_action')->alias(static function (string $hook, $callback) use (&$capturedCallback): void {
@@ -64,8 +61,6 @@ final class RetryCronTest extends BaseUnitTestCase
 
         $app = new Application();
         $app->register(new CoreServiceProvider($app));
-        // A container that fatals if RetryWorker is ever resolved proves the guard short-circuits
-        // before the container is touched, not merely that process() happens not to have been called.
         $app->singleton(RetryWorker::class, static function (): RetryWorker {
             self::fail('RetryWorker must not be resolved when retry_enabled is false.');
         });
@@ -99,19 +94,20 @@ final class RetryCronTest extends BaseUnitTestCase
         $capturedCallback();
     }
 
-    public function testDeactivateClearsTheRetryCronHookByExplicitName(): void
+    public function testDeactivateUnschedulesTheRetryCronHookByExplicitName(): void
     {
         Functions\when('register_activation_hook')->justReturn(null);
         Functions\when('register_deactivation_hook')->justReturn(null);
         Functions\when('register_uninstall_hook')->justReturn(null);
 
-        $clearedHooks = [];
-        Functions\when('wp_clear_scheduled_hook')->alias(static function (string $hook) use (&$clearedHooks): void {
-            $clearedHooks[] = $hook;
+        $unscheduledHooks = [];
+        Functions\when('wp_unschedule_hook')->alias(static function (string $hook) use (&$unscheduledHooks): void {
+            $unscheduledHooks[] = $hook;
         });
+        Functions\when('delete_option')->justReturn(true);
 
         (new InstallerProvider())->deactivate(false);
 
-        self::assertContains(Config::RETRY_QUEUE_HOOK, $clearedHooks);
+        self::assertContains(Config::RETRY_QUEUE_HOOK, $unscheduledHooks);
     }
 }

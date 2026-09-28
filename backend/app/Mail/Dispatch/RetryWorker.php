@@ -5,14 +5,13 @@ namespace BitApps\SMTP\Mail\Dispatch;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
- * Cron-driven consumer of the retry queue: claims due rows, re-dispatches each through
- * WpMailBridge, and either deletes (delivered / terminal) or reschedules (retryable) the row.
+ * Cron-driven retry queue consumer: claims due rows, dispatches, deletes or reschedules.
  */
 class RetryWorker
 {
-    private const BASE_SECONDS = 300; // 5 minutes
+    private const BASE_SECONDS = 300;
 
-    private const CAP_SECONDS = 21600; // 6 hours
+    private const CAP_SECONDS = 21600;
 
     private const JITTER_RATIO = 0.15;
 
@@ -23,14 +22,12 @@ class RetryWorker
     private WpMailBridge $bridge;
 
     /**
-     * Read once at construction (this class is built fresh per cron tick), so backoffDelay() stays
-     * a cheap, single-purpose calculation rather than re-reading options on every claimed row.
+     * Read once at construction; enables cheap backoffDelay() calculation without re-reading options.
      */
     private string $backoffMode;
 
     /**
-     * The admin's retry-class filter, read once at construction (empty = every retryable class); a
-     * class dropped from the filter stops rescheduling the row the next time it is claimed.
+     * Admin's retry-class filter (empty = all retryable); dropped classes stop rescheduling on next claim.
      *
      * @var string[]
      */
@@ -46,16 +43,11 @@ class RetryWorker
     }
 
     /**
-     * Claim up to $batch due rows and resolve each: delivered rows are removed, retryable failures
-     * are rescheduled with backoff, everything else (attempts exhausted or no-longer-retryable) is
-     * dropped.
+     * Claim due rows and resolve: remove delivered, reschedule retryable, drop terminal failures.
      */
     public function process(int $batch = self::DEFAULT_BATCH): void
     {
         foreach ($this->queue->claimDue($batch) as $row) {
-            // Re-assert the lock right before sending: a batch can outlive its claim, letting an
-            // overlapping cron run reclaim the tail. Skipping a row we no longer own is what stops
-            // the same message from being delivered twice.
             if (!$this->queue->renewClaim($row['id'], $row['claim_token'])) {
                 continue;
             }
@@ -77,7 +69,6 @@ class RetryWorker
                 continue;
             }
 
-            // Terminal: attempts exhausted, or the re-classified failure is no longer retryable.
             $this->queue->delete($row['id']);
         }
     }
@@ -91,9 +82,7 @@ class RetryWorker
     }
 
     /**
-     * Pure base/cap/jitter backoff formula, callable without a RetryWorker instance so
-     * WpMailBridge can compute an initial enqueue delay without constructing one. Already jittered
-     * — callers must not apply jitter a second time.
+     * Pure base/cap/jitter backoff formula; callable without instance, already jittered (no double-jitter).
      */
     public static function computeDelay(int $attempt, string $mode): int
     {
@@ -105,8 +94,7 @@ class RetryWorker
     }
 
     /**
-     * +/- JITTER_RATIO random spread so rows enqueued in the same burst don't all wake in the same
-     * cron tick and hammer the same provider simultaneously; clamped to [1, CAP_SECONDS].
+     * Apply +/- JITTER_RATIO spread to prevent synchronized wakeups hammering the provider.
      */
     private static function applyJitter(int $seconds): int
     {

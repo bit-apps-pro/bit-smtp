@@ -28,8 +28,7 @@ final class DeliveryStatus
     private const NEGATIVE_STATES = [self::DEFERRED, self::BLOCKED, self::BOUNCED, self::SPAM];
 
     /**
-     * Worst-outcome ranking (higher = worse). Hard negatives dominate; a confirmed delivery outranks
-     * a merely transient deferral, so a feed carrying both resolves to delivered, not a false failure.
+     * Worst-outcome ranking (higher = worse); negatives dominate delivery.
      */
     private const SEVERITY = [
         self::BLOCKED   => 6,

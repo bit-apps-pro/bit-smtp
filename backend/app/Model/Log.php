@@ -115,10 +115,7 @@ class Log extends Model
     ];
 
     /**
-     * A query narrowed by the logs-list filter whitelist, so the paged read, the count and the export
-     * all derive their WHERE clause from one place. Every value is bound through the builder's
-     * parameterized where()/whereBetween(), never string-interpolated; an unrecognized or malformed
-     * filter is ignored rather than applied.
+     * Return query narrowed by logs-list filter whitelist with parameterized bindings (unknown filters ignored).
      *
      * @param array<string,mixed> $filters
      */
@@ -127,8 +124,6 @@ class Log extends Model
         $query = self::query();
 
         if (!empty($filters['to_addr'])) {
-            // esc_like proxies to $wpdb through Connection's dynamic dispatch, so LIKE wildcards in
-            // the filter value (e.g. an underscore) match literally instead of as wildcards.
             $pattern = (string) Connection::__callStatic('esc_like', [$filters['to_addr']]);
             $query->where('to_addr', 'LIKE', '%' . $pattern . '%');
         }
@@ -142,9 +137,6 @@ class Log extends Model
         }
 
         if (!empty($filters['connection_id'])) {
-            // Match the analytics COALESCE(connection_id, connection) grouping: a top-connection ranked
-            // by a legacy label (empty connection_id) must still resolve to its rows here, or the
-            // "View in logs" deep-link would land on an empty list that contradicts the clicked count.
             $connectionId = $filters['connection_id'];
             $query->where(static function ($group) use ($connectionId): void {
                 $group->where('connection_id', $connectionId)->orWhere('connection', $connectionId);
@@ -176,8 +168,7 @@ class Log extends Model
     }
 
     /**
-     * Narrows $query to the `date_from`/`date_to` filter window, each side applied only when it parses
-     * as a strict 'YYYY-MM-DD' date.
+     * Narrow query to date_from/date_to window (strict YYYY-MM-DD format, applied only when valid).
      *
      * @param array<string,mixed> $filters
      */

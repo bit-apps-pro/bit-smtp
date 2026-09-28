@@ -12,8 +12,7 @@ use BitApps\SMTP\HTTP\Webhook\WebhookRouter;
 use ReflectionProperty;
 
 /**
- * Verifies OAuth authorization remains protected by REST while the public callback uses the exact
- * static route ahead of dynamic webhook dispatch.
+ * Verifies OAuth protected by REST; public callback uses static route ahead of webhooks.
  *
  * @internal
  *
@@ -26,11 +25,13 @@ final class OAuthRouteTest extends IntegrationTestCase
      */
     private array $routesByPath = [];
 
+    /**
+     * Defines REST_REQUEST because loadApi() only registers routes under it.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        // loadApi() is gated on REST_REQUEST; define it to unlock route registration.
         if (!\defined('REST_REQUEST')) {
             \define('REST_REQUEST', true);
         }
@@ -105,8 +106,7 @@ final class OAuthRouteTest extends IntegrationTestCase
     }
 
     /**
-     * Guards the OAuth flow's persistence contract: the consent handshake is worthless if the
-     * connection's client_id and the stored token expiry do not survive a save round-trip.
+     * Verifies OAuth connection settings (client_id, token_expires_at) survive save/reload.
      */
     public function testOauthConnectionSettingsSurviveSaveAndReload(): void
     {

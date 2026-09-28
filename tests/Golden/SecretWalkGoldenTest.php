@@ -29,7 +29,6 @@ final class SecretWalkGoldenTest extends GoldenTestCase
         $stored   = MailSettings::fromArray(MailSettingsMigrator::migrate([
             'status' => '1', 'smtp_host' => 'h', 'smtp_password' => 'STORED_SECRET',
         ]));
-        // Incoming payload carries the mask sentinel for the password → resolver must restore STORED_SECRET.
         $incoming                                                       = $stored->toArray();
         $incoming['connections'][0]['credentials']['password']['value'] = MailSettingsSerializer::MASK_SENTINEL;
         $resolved                                                       = MaskedSecretResolver::apply($incoming, $stored);

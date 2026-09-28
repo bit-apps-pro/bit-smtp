@@ -3,6 +3,7 @@ import { theme } from 'antd'
 import AntIconWrapper from './AntIconWrapper'
 import type IconTypes from './IconTypes'
 
+/** Renders the Bit SMTP wordmark as an inline SVG. */
 export default function LogoText({ h, w }: IconTypes) {
   const { useToken } = theme
   const { token } = useToken()

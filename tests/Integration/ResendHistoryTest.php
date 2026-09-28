@@ -12,9 +12,7 @@ use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
- * Drives SMTPController::resend end-to-end against mailpit: a manual resend must preserve the
- * original log row and INSERT a new child row linked to it, so the resend is visible as history
- * rather than overwriting the log it was launched from.
+ * Verifies resend preserves original log and creates child row for resend history visibility.
  *
  * @internal
  *
@@ -78,10 +76,11 @@ final class ResendHistoryTest extends IntegrationTestCase
         $this->assertSame([], $child['resends']);
     }
 
+    /**
+     * A non-full body-storage mode drops/redacts the stored body; the endpoint must skip resend.
+     */
     public function testResendSkipsALogWhoseBodyWasNotRetained(): void
     {
-        // Under a non-full body-storage mode the stored body is dropped/redacted, so there is
-        // nothing to resend; the endpoint must skip it rather than mail an empty/placeholder body.
         PluginSettings::make()->set('log_store_body', 'metadata')->save();
         $originalId = $this->seedOriginalLog();
 
@@ -127,6 +126,9 @@ final class ResendHistoryTest extends IntegrationTestCase
         return (array) Response::getData();
     }
 
+    /**
+     * Store SMTP config and refresh the cached service to apply new options.
+     */
     private function configureMailpitTransport(): void
     {
         $this->storeOptions([
@@ -139,7 +141,6 @@ final class ResendHistoryTest extends IntegrationTestCase
             'from_name'          => 'From',
         ]);
 
-        // The config service caches on first load; refresh it so this test's options take effect.
         Plugin::instance()->mailConfigService()->reload();
     }
 }

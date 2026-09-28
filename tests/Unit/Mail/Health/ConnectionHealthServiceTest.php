@@ -32,7 +32,6 @@ final class ConnectionHealthServiceTest extends BaseUnitTestCase
         $this->assertSame(HealthStatus::DEGRADED, $first->after());
         $this->assertTrue($store->records['conn_1']->isDegraded());
 
-        // Second failure stays degraded, so no status transition is emitted.
         $this->assertNull($service->recordOutcome($conn, FailureCategory::TRANSIENT));
         $this->assertSame(2, $store->records['conn_1']->getConsecutiveFailures());
 
@@ -93,7 +92,6 @@ final class ConnectionHealthServiceTest extends BaseUnitTestCase
         $this->assertNotNull($store->records['conn_1']->getLastOkAt());
         $this->assertSame(2, $store->writes);
 
-        // A second, steady-state success within the throttle window is neither a transition nor a write.
         $this->assertNull($service->recordOutcome($conn, FailureCategory::OK));
         $this->assertSame(2, $store->writes);
     }
@@ -134,8 +132,6 @@ final class ConnectionHealthServiceTest extends BaseUnitTestCase
         $this->assertNotNull($store->records['conn_1']->getLastProbeAt());
         $this->assertSame(1, $store->writes);
 
-        // A send success here would be throttled, but a probe always persists to keep last_probe_at
-        // fresh; the status does not change, so no transition is emitted.
         $this->assertNull($service->recordProbe($conn, ProbeResult::ok()));
         $this->assertSame(2, $store->writes);
     }
@@ -191,9 +187,9 @@ final class ConnectionHealthServiceTest extends BaseUnitTestCase
 
         $this->assertNotNull($transition);
         $this->assertSame(HealthStatus::HEALTHY, $transition->after());
-        // Marker cleared so a later unhealthy crossing is not deduped away as a repeat...
+
         $this->assertNull($store->records['conn_1']->getLastAlertedState());
-        // ...but the cooldown timestamp survives so rapid flapping is still throttled.
+
         $this->assertSame('2026-08-24 10:00:00', $store->records['conn_1']->getLastAlertedAt());
     }
 
@@ -202,8 +198,6 @@ final class ConnectionHealthServiceTest extends BaseUnitTestCase
         $store   = new InMemoryHealthStore();
         $service = $this->service($store, ['conn_1']);
 
-        // A blocklisted host (554) classifies PERMANENT — message-scoped for a SEND, but for a PROBE it
-        // is a real connection problem that must be recorded, not silently skipped.
         $transition = $service->recordProbe(
             $this->connection('conn_1'),
             ProbeResult::failure('554 5.7.1 blocked', FailureCategory::PERMANENT)
@@ -264,8 +258,7 @@ final class ConnectionHealthServiceTest extends BaseUnitTestCase
 }
 
 /**
- * In-memory ConnectionHealthStore double: keeps records in a public array and counts put() writes so
- * a test can assert the write-throttle skipped a persist without stubbing WordPress option functions.
+ * In-memory ConnectionHealthStore double: keeps records and counts put() writes for write-throttle testing.
  */
 final class InMemoryHealthStore extends ConnectionHealthStore
 {

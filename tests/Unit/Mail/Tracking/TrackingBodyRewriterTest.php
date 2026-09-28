@@ -36,7 +36,6 @@ final class TrackingBodyRewriterTest extends BaseUnitTestCase
         $this->assertStringContainsString('https://site.test/bit-smtp/track/click/', $body, 'the link must be rewritten');
         $this->assertStringNotContainsString('href="https://example.com/order/42"', $body);
 
-        // Non-body fields must be carried through untouched on the copy.
         $this->assertSame($message->getTo(), $rewritten->getTo());
         $this->assertSame($message->getSubject(), $rewritten->getSubject());
         $this->assertSame('text/html', $rewritten->getContentType());
@@ -57,7 +56,6 @@ final class TrackingBodyRewriterTest extends BaseUnitTestCase
 
     public function testReturnsTheOriginalMessageWhenRewritingThrows(): void
     {
-        // Force a failure inside rewrite() (home_url) to prove a broken rewrite never mutates the send.
         Functions\when('home_url')->alias(static function (): string {
             throw new RuntimeException('boom');
         });

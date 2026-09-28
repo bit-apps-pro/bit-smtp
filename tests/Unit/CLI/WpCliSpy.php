@@ -1,9 +1,7 @@
 <?php
 
 /**
- * Global-namespace recording stand-in for WP-CLI's command bus, used only by CliServiceProviderTest.
- * Declaring the CLASS is inert for every other test: `defined('WP_CLI')` (the constant) stays false,
- * so CliServiceProvider still no-ops on the web. Loaded via an explicit require, never autoloaded.
+ * Global-namespace recording stand-in for WP-CLI command bus; inert when WP_CLI constant undefined.
  */
 
 namespace {

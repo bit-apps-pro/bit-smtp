@@ -1,11 +1,6 @@
 <?php
 
-/**
- * Minimal WP-CLI stub, used ONLY as a phpstan `scanFiles` symbol source (never required at runtime).
- * WP-CLI is not a composer dependency, so without this phpstan cannot resolve the WP_CLI class or the
- * WP_CLI\Utils\format_items() function that WpCliReporter/CliServiceProvider reference behind their
- * `defined('WP_CLI')` guard. Kept deliberately tiny: only the surface this plugin actually calls.
- */
+/** Minimal WP-CLI stub for phpstan symbol resolution; never required at runtime. */
 
 namespace {
     if (!class_exists('WP_CLI')) {

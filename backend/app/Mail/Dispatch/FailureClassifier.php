@@ -5,8 +5,7 @@ namespace BitApps\SMTP\Mail\Dispatch;
 use BitApps\SMTP\Mail\Message\SendResult;
 
 /**
- * Pure mapping from a SendResult outcome to a FailureCategory, driven by HTTP status codes for
- * API transports and by message-content heuristics for SMTP/sendmail and network exceptions.
+ * Map SendResult outcome to FailureCategory via HTTP status or message-content heuristics.
  */
 class FailureClassifier
 {
@@ -21,7 +20,7 @@ class FailureClassifier
     private const PERMANENT_PATTERN = '/(\b(552|554)\b|blocked|blacklist|spam|policy|permanently)/';
 
     /**
-     * Classify a send outcome into a FailureCategory constant.
+     * Classify a send outcome into a FailureCategory constant; treats only HTTP status codes in range 100-599 (SMTP's PHPMailer codes 0/1/2 must never be read as HTTP statuses).
      */
     public function classify(SendResult $result): string
     {
@@ -36,7 +35,6 @@ class FailureClassifier
         $code = $result->getCode();
         $msg  = strtolower((string) $result->getError());
 
-        // Numeric AND in 100..599 only: SMTP's small PHPMailer codes (0/1/2) must never be read as HTTP statuses.
         if ($code !== null && is_numeric($code) && (int) $code >= 100 && (int) $code <= 599) {
             $category = $this->classifyHttpStatus((int) $code, $msg);
 
@@ -79,7 +77,7 @@ class FailureClassifier
     }
 
     /**
-     * Map an error message to a category via ordered regex heuristics; first match wins.
+     * Map an error message to a category via ordered regex heuristics (first match wins); TRANSIENT is tested before INVALID_RECIPIENT to avoid misclassifying 4xx/greylist rejections as permanent.
      */
     private function classifyMessage(string $msg): string
     {
@@ -91,10 +89,6 @@ class FailureClassifier
             return FailureCategory::RATE_LIMITED;
         }
 
-        // TRANSIENT is tested BEFORE INVALID_RECIPIENT: a 4xx/greylist reply often carries
-        // "recipient ... rejected" wording (e.g. Postgrey's "450 Recipient address rejected:
-        // Greylisted"), which is temporary, not a bad address — misreading it as permanent would
-        // stop failover and drop retryable mail.
         if (preg_match(self::TRANSIENT_PATTERN, $msg) === 1) {
             return FailureCategory::TRANSIENT;
         }
@@ -107,7 +101,6 @@ class FailureClassifier
             return FailureCategory::PERMANENT;
         }
 
-        // Conservative default: retryable-but-attempt-capped beats silently dropping mail as permanent.
         return FailureCategory::TRANSIENT;
     }
 }

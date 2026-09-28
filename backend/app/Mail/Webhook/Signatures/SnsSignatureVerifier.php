@@ -11,10 +11,7 @@ use BitApps\SMTP\Mail\Webhook\Signatures\Contracts\WebhookSignatureVerifierInter
 use BitApps\SMTP\Mail\Webhook\WebhookRequest;
 
 /**
- * Verifies an inbound Amazon SNS message (Amazon SES delivery notifications) against a signing
- * certificate fetched from AWS. The certificate URL is host-allow-listed BEFORE any fetch so a
- * spoofed SigningCertURL can never point us at an attacker host; the signature is checked with the
- * digest the message's SignatureVersion declares (SHA1 for v1, SHA256 for v2).
+ * Verify SNS message against AWS certificate; host-allow-list URL before fetch to prevent SSRF, verify signature with declared digest.
  */
 class SnsSignatureVerifier implements WebhookSignatureVerifierInterface
 {
@@ -26,7 +23,7 @@ class SnsSignatureVerifier implements WebhookSignatureVerifierInterface
     }
 
     /**
-     * True only when $sns is a known SNS type whose signature validates against an AWS-hosted cert.
+     * Verify SNS message signature against AWS-hosted certificate; return true for valid known types.
      */
     public function verifyMessage(SnsMessage $sns): bool
     {
@@ -58,8 +55,7 @@ class SnsSignatureVerifier implements WebhookSignatureVerifierInterface
     }
 
     /**
-     * Fetch the PEM over HTTPS. Overridable so tests supply a fixture cert without a network call; the
-     * URL is already host-allow-listed by the caller.
+     * Fetch PEM certificate over HTTPS; overridable for tests; caller ensures URL is host-allow-listed.
      */
     protected function fetchCertificate(string $url): ?string
     {
@@ -74,7 +70,7 @@ class SnsSignatureVerifier implements WebhookSignatureVerifierInterface
     }
 
     /**
-     * The OpenSSL digest for a declared SignatureVersion, or null for an unknown version (rejected).
+     * Map SignatureVersion to OpenSSL digest algorithm; return null for unknown version.
      */
     private function digestFor(string $version): ?int
     {
@@ -96,8 +92,7 @@ class SnsSignatureVerifier implements WebhookSignatureVerifierInterface
     }
 
     /**
-     * The signing certificate PEM, cached per URL (AWS rotates infrequently) so repeated events don't
-     * re-fetch it. A fetch failure returns null and is never cached.
+     * Fetch signing certificate PEM, cached per URL to avoid re-fetching; null on failure (not cached).
      */
     private function certificate(string $url): ?string
     {

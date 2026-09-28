@@ -3,7 +3,7 @@
 namespace BitApps\SMTP\Mail\Dispatch;
 
 /**
- * Send-failure taxonomy consumed by retry/failover decisions.
+ * Send-failure taxonomy for retry/failover decisions.
  */
 final class FailureCategory
 {
@@ -21,10 +21,6 @@ final class FailureCategory
 
     private const RETRYABLE = [self::TRANSIENT, self::RATE_LIMITED];
 
-    // Only an invalid/nonexistent recipient is undeliverable on EVERY connection, so only it stops
-    // the fallback chain. PERMANENT (content/reputation/policy rejections) and AUTH are
-    // connection-scoped — a clean-reputation or differently-credentialed connection may still
-    // deliver — so failover must keep trying them.
     private const STOPS_FAILOVER = [self::INVALID_RECIPIENT];
 
     /**
@@ -46,9 +42,7 @@ final class FailureCategory
     }
 
     /**
-     * True when a failure is retryable AND permitted by the configured class filter. An empty filter
-     * means "every retryable class" (the default); a non-empty filter additionally requires the class
-     * to be listed, letting an admin retry e.g. transient errors but fail fast on rate limits.
+     * True when failure is retryable and (if filter non-empty) listed in allowedClasses.
      *
      * @param string[] $allowedClasses retry_on_classes preference (empty = all retryable)
      */

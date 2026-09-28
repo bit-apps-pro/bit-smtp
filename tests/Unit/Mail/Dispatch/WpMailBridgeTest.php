@@ -50,12 +50,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
     {
         parent::setUp();
         Functions\when('wp_generate_uuid4')->justReturn('track-uuid');
-        // dispatch()'s retry-enqueue guard reads PluginSettings::make(), which always hits
-        // get_option() on construction; no preferences blob means retry_enabled defaults to false,
-        // so every pre-existing dispatch() test below is unaffected unless it overrides this stub.
         Functions\when('get_option')->justReturn(false);
-        // The native-path log listeners now parse the raw headers via MailMessageFactory, which applies
-        // the wp_mail_from/from_name/content_type filters and resolves the default sender host.
         Functions\when('apply_filters')->returnArg(2);
         Functions\when('network_home_url')->justReturn('https://www.example.com');
     }
@@ -80,7 +75,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertNotNull($spy->received);
         $this->assertSame('verified@example.com', $spy->received->getFrom());
         $this->assertSame('Verified Sender', $spy->received->getFromName());
-        // Everything else about the message must pass through untouched.
         $this->assertSame(['to@example.com'], $spy->received->getTo());
         $this->assertSame('Subject', $spy->received->getSubject());
     }
@@ -129,9 +123,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testAcceptedWithErrorStopsTheFallbackAndReportsTheSendAsFailed(): void
     {
-        // The regression this guards: a provider that ACCEPTED the message but reported a
-        // partial/soft error (2xx-with-error body) must never trigger a fallback re-send —
-        // that would duplicate-deliver to the recipients the first provider already accepted.
         $transport = new ScriptedTransport([
             SendResult::acceptedWithError('Recipient rejected', '200'),
         ]);
@@ -148,7 +139,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testNotAcceptedFailureFallsBackToTheNextConnection(): void
     {
-        // A genuine non-acceptance (connection refused, 4xx, etc.) is the real fallback case.
         $transport = new ScriptedTransport([
             SendResult::failure('Connection refused'),
             SendResult::success(),
@@ -197,8 +187,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
     {
         $tracer = new RoutingSkipTracer(new ConnectionSendability($this->registryWith()));
 
-        // A rule matched conn_rule (the preferred id), but it is disabled, so the send falls back to
-        // the enabled default conn_ok — the disabled connection must surface in the trace with a reason.
         $settings = MailSettings::fromArray([
             'default_connection_id' => 'conn_ok',
             'connections'           => [
@@ -208,7 +196,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         ]);
         $sendable = [$this->connection(['id' => 'conn_ok', 'name' => 'SES Default'])];
 
-        // The priority chain the bridge would compute for a rule-matched conn_rule over this settings.
         $skips = $tracer->routingSkips($settings, ['conn_rule', 'conn_ok'], $sendable);
 
         $this->assertSame([
@@ -218,8 +205,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testSkipReasonClassifiesEachUnsendableState(): void
     {
-        // 'fake' passes validation (sendable); an enabled connection on an unregistered provider cannot
-        // resolve one, so it is not sendable -> 'incomplete'.
         $tracer = new RoutingSkipTracer(new ConnectionSendability($this->registryWith()));
 
         $this->assertSame('deleted', $tracer->skipReason(null));
@@ -242,7 +227,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
         $this->assertFalse($sendability->isSendable($this->connection(['settings' => ['host' => '']])));
         $this->assertTrue($sendability->isSendable($this->connection(['settings' => ['host' => 'smtp.example.com']])));
-        // A connection whose provider is not registered can never send.
         $this->assertFalse($sendability->isSendable($this->connection(['provider' => 'unregistered'])));
     }
 
@@ -256,16 +240,13 @@ class WpMailBridgeTest extends BaseUnitTestCase
             ['connection' => 'Fb1', 'connection_id' => 'fb1', 'reason' => 'disabled'],
         ];
 
-        // Sent via 'def' (position 1): 'pref' (0) was genuinely bypassed; 'fb1' (2) was never reached.
         $this->assertSame(
             [['connection' => 'Pref', 'connection_id' => 'pref', 'reason' => 'disabled']],
             $tracer->skipsAheadOf($this->connection(['id' => 'def']), $skips, $chain)
         );
 
-        // A sending connection outside the chain (an unordered "rest" connection) keeps every skip.
         $this->assertSame($skips, $tracer->skipsAheadOf($this->connection(['id' => 'rest']), $skips, $chain));
 
-        // No sending connection at all (total early failure) keeps every skip.
         $this->assertSame($skips, $tracer->skipsAheadOf(null, $skips, $chain));
     }
 
@@ -360,9 +341,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testPermanentFailureStillFallsBackToTheNextConnection(): void
     {
-        // A permanent (content/reputation/policy) rejection is connection-scoped — a different,
-        // clean-reputation connection may still deliver — so failover must still try it
-        // (FailureCategory::STOPS_FAILOVER is INVALID_RECIPIENT only).
         $transport = new ScriptedTransport([
             SendResult::failure('Message blocked due to policy'),
             SendResult::success(),
@@ -380,8 +358,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testAllConnectionsPermanentlyFailingRecordsThePermanentFailureClass(): void
     {
-        // When every connection exhausts with a PERMANENT rejection, the final (non-stopping)
-        // outcome must still surface as PERMANENT on the log row.
         $transport = new ScriptedTransport([
             SendResult::failure('Message blocked due to policy'),
             SendResult::failure('554 blocked as spam'),
@@ -426,8 +402,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testAuthFailureStillFallsBackToTheNextConnection(): void
     {
-        // Bad credentials on one connection say nothing about an independent connection, so
-        // failover must still try it (FailureCategory::STOPS_FAILOVER deliberately excludes AUTH).
         $transport = new ScriptedTransport([
             SendResult::failure('Invalid username or password'),
             SendResult::success(),
@@ -472,7 +446,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testDispatchDoesNotEnqueueRetryWhenPreferenceIsDisabled(): void
     {
-        // setUp()'s default get_option stub yields retry_enabled = false (the schema default).
         $transport = new ScriptedTransport([SendResult::failure('Connection refused')]);
         $bridge    = $this->dispatchableBridge($transport);
 
@@ -487,10 +460,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testDispatchDoesNotEnqueueRetryOnWorkerRedispatch(): void
     {
-        // retry_enabled is true specifically so this proves the worker-redispatch param blocks the
-        // enqueue -- not merely that the preference happens to be off. The param (not
-        // SendContext::isRetrying, which logOutcome resets) is the authoritative guard: a worker's
-        // own re-dispatch must never enqueue a second, orphaned queue row.
         Functions\when('get_option')->justReturn([
             'retry_enabled'      => true,
             'retry_max_attempts' => 5,
@@ -542,8 +511,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testDispatchDoesNotEnqueueRetryForAClassExcludedByTheRetryFilter(): void
     {
-        // Retry is enabled but restricted to rate_limited; a transient failure is retryable by nature
-        // yet excluded by the class filter, so nothing is enqueued.
         Functions\when('get_option')->justReturn([
             'retry_enabled'    => true,
             'retry_on_classes' => [FailureCategory::RATE_LIMITED],
@@ -603,7 +570,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->setContext($bridge, new SendContext());
         $this->setLoggingEnabled($bridge, true);
 
-        // api-kind connection with webhook enabled by default.
         $connection = $this->connection(['name' => 'Postmark']);
 
         $succeeded = $this->invokeDispatch($bridge, [$connection], $this->message(), ['subject' => 'Hi', 'to' => ['a@example.org']]);
@@ -652,8 +618,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testSmtpAcceptedSendDoesNotEnterAVerifiedDeliveryOutcome(): void
     {
-        // SMTP has no provider-verified delivery callback. A successful hand-off is accepted, not
-        // delivered; delivery analytics must therefore exclude it from the verified denominator.
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]));
 
         $logService = Mockery::mock(LogService::class);
@@ -672,9 +636,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testWebhookBackedProviderIsStampedAcceptedAtSendTimeAsAFloor(): void
     {
-        // A provider with an inbound adapter and the webhook enabled still gets stamped accepted at
-        // hand-off time: a non-public install may never receive the webhook, so a floor the rollup can
-        // later overwrite is stamped instead of leaving the row permanently null.
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), 'postmark');
 
         $logService = Mockery::mock(LogService::class);
@@ -693,8 +654,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testWebhookDisabledApiAcceptedSendDoesNotEnterAVerifiedDeliveryOutcome(): void
     {
-        // The adapter exists but this connection disabled callbacks. The API hand-off is still only
-        // accepted; no terminal delivery value may be persisted until a verified callback arrives.
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::success()]), 'postmark');
 
         $logService = Mockery::mock(LogService::class);
@@ -717,8 +676,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testAcceptedWithErrorNeverStampsDeliveryStatus(): void
     {
-        // An accepted-but-partial send (2xx carrying a per-message error) is a failure row, so a
-        // provider's send-accept delivery status must not be stamped onto it.
         $bridge = $this->bridgeWithTransport(new ScriptedTransport([SendResult::acceptedWithError('Recipient rejected', '200')]));
 
         $logService = Mockery::mock(LogService::class);
@@ -892,7 +849,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
             ->once()
             ->with(Mockery::on(static fn (Connection $c): bool => $c->getId() === 'conn_2'), FailureCategory::OK)
             ->andReturnNull();
-        // Alerts are flushed once after the failover loop, not inside it.
         $recorder->shouldReceive('notify')->once()->with(Mockery::type('array'));
         $this->setHealthRecorder($bridge, $recorder);
 
@@ -907,7 +863,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testDispatchRecordsNoHealthWhenTheFeatureIsDisabled(): void
     {
-        // health_check_enabled defaults to false on the bridge, so the recorder must never be touched.
         $transport = new ScriptedTransport([
             SendResult::failure('Connection refused'),
             SendResult::success(),
@@ -928,8 +883,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testWorkerRedispatchStillRecordsHealth(): void
     {
-        // dispatchRetry() re-enters dispatch() with $isWorkerRedispatch = true; the health signal must
-        // still be recorded on that path (it feeds the same per-attempt loop).
         $bridge = $this->dispatchableBridge(new ScriptedTransport([SendResult::success()]));
         $this->setHealthEnabled($bridge, true);
 
@@ -948,8 +901,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testTrackingDisabledSendsTheHtmlBodyByteIdenticalAndKeepsTrackingIdBehavior(): void
     {
-        // The OFF invariant: trackingEnabled defaults false, so the body must reach the transport
-        // byte-identical and the webhook tracking_id must be minted exactly as it is today.
         $spy    = new SpyTransport();
         $bridge = $this->bridgeWithTransport($spy);
 
@@ -997,7 +948,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->setContext($bridge, new SendContext());
         $this->setLoggingEnabled($bridge, true);
 
-        // Webhook disabled so the log's tracking_id can only be the injected token, never the stamper.
         $connection = $this->connection(['name' => 'Postmark', 'settings' => ['webhook_enabled' => false]]);
         $message    = $this->message([
             'body'        => '<html><body><p>Visit <a href="https://example.com/order/42">here</a>.</p></body></html>',
@@ -1014,7 +964,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertStringContainsString('href="https://site.test/bit-smtp/track/click/', $sentBody);
         $this->assertStringNotContainsString('href="https://example.com/order/42"', $sentBody);
 
-        // The log's tracking_id is the injected token, and both embedded tokens verify back to it.
         $this->assertSame('inject-token', $capturedTrackingId);
 
         preg_match('#track/open/([A-Za-z0-9\-_]+\.[a-f0-9]{64})#', $sentBody, $open);
@@ -1046,7 +995,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testTrackingEnabledButLoggingDisabledDoesNotRewrite(): void
     {
-        // Tracking requires a persisted log row to attribute a hit to; with logging off it is a no-op.
         $spy    = new SpyTransport();
         $bridge = $this->bridgeWithTransport($spy);
         $this->setTrackingEnabled($bridge, true);
@@ -1064,7 +1012,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     public function testRetryEnqueuesTheOriginalUninjectedMessage(): void
     {
-        // A retry must re-run the gate on the pristine message, never a body with a baked-in pixel.
         Functions\when('wp_generate_uuid4')->justReturn('inject-token');
         Functions\when('wp_salt')->justReturn('unit-test-tracking-salt');
         Functions\when('home_url')->alias(static fn ($path = '') => 'https://site.test/' . ltrim((string) $path, '/'));
@@ -1110,10 +1057,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
     }
 
     /**
-     * dispatch() now returns array{succeeded: bool, failure_class: ?string}; every pre-existing
-     * caller here only ever cared about the bool, so that shape is unwrapped in one place rather
-     * than touching each call site. testDispatchEnqueuesRetryWhenEnabledAndFailureIsRetryable below
-     * invokes dispatch() directly (via invokeDispatchFull()) when it needs the failure_class too.
+     * dispatch() returns array{succeeded: bool, failure_class: ?string}; unwraps bool at one place, not each call site.
      *
      * @param Connection[] $connections
      */
@@ -1162,8 +1106,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $property->setAccessible(true);
         $property->setValue($bridge, $detector);
 
-        // captureNativeRoutingDecision now lives on RoutingPlanner and reads ITS detector, so the
-        // planner must resolve the source through the same swapped-in instance.
         $plannerProperty = (new ReflectionClass(WpMailBridge::class))->getProperty('routingPlanner');
         $plannerProperty->setAccessible(true);
         $planner = $plannerProperty->getValue($bridge);
@@ -1209,8 +1151,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
     }
 
     /**
-     * A bridge wired to also run dispatch() (not just sendVia()): dispatch touches $context and
-     * $loggingEnabled, which bridgeWithTransport() leaves uninitialized.
+     * Bridge wired to run dispatch() not just sendVia(): initializes $context and $loggingEnabled.
      */
     private function dispatchableBridge(TransportInterface $transport): WpMailBridge
     {
@@ -1233,8 +1174,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $registryProperty->setAccessible(true);
         $registryProperty->setValue($bridge, $registry);
 
-        // sendVia() never touches eventLogger, but __destruct() unconditionally flushes it; give it a
-        // harmless instance so bypassing the real constructor doesn't blow up on teardown.
         $eventLoggerProperty = $refClass->getProperty('eventLogger');
         $eventLoggerProperty->setAccessible(true);
         $eventLoggerProperty->setValue($bridge, new MailEventLogger(Mockery::mock(LogService::class)));
@@ -1255,8 +1194,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $stamperProperty->setAccessible(true);
         $stamperProperty->setValue($bridge, new TrackingIdStamper());
 
-        // dispatch() reads trackingBodyRewriter only when tracking is enabled, but the property is
-        // non-nullable, so give the constructor-bypassed instance a real one to reflect production.
         $trackingRewriterProperty = $refClass->getProperty('trackingBodyRewriter');
         $trackingRewriterProperty->setAccessible(true);
         $trackingRewriterProperty->setValue($bridge, new TrackingBodyRewriter());
@@ -1266,14 +1203,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $sourceDetectorProperty->setAccessible(true);
         $sourceDetectorProperty->setValue($bridge, $sourceDetector);
 
-        // The native-path listeners enrich the log with the sender/cc/bcc parsed from the raw headers.
         $messageFactoryProperty = $refClass->getProperty('messageFactory');
         $messageFactoryProperty->setAccessible(true);
         $messageFactoryProperty->setValue($bridge, new MailMessageFactory());
 
-        // The routing collaborators the real constructor builds; dispatch() and the native-path
-        // listeners delegate to them, so a constructor-bypassed bridge must be given them too. The
-        // planner shares the bridge's source detector so setSourceDetector() can swap both at once.
         $sendability         = new ConnectionSendability($registry);
         $sendabilityProperty = $refClass->getProperty('sendability');
         $sendabilityProperty->setAccessible(true);
@@ -1346,8 +1279,7 @@ final class SpyTransport implements TransportInterface
 }
 
 /**
- * Returns the queued SendResult for each successive send() call, so a test can assert both the
- * dispatch outcome and how many connections were actually attempted.
+ * Returns queued SendResult for each send() call, lets test assert dispatch outcome and connection attempts.
  */
 final class ScriptedTransport implements TransportInterface
 {

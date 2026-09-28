@@ -3,9 +3,7 @@
 namespace BitApps\SMTP\Mail\Health;
 
 /**
- * Read/write the per-connection health map. Backed by a single standalone option (autoload `no`,
- * read on demand — never on the hot page-load path), via plain get_option/update_option rather than
- * Config::getOption which would re-prefix the key. Mirrors how PluginSettings treats its own option.
+ * Read/write per-connection health map via standalone option (autoload no, on-demand read).
  */
 class ConnectionHealthStore
 {
@@ -46,8 +44,7 @@ class ConnectionHealthStore
     }
 
     /**
-     * Write the whole map in one option update, so a caller that has already read + mutated (and
-     * pruned) the records in memory pays a single read-modify-write instead of one per record.
+     * Write whole map in one update; caller pays single read-modify-write instead of per-record writes.
      *
      * @param array<string,ConnectionHealth> $records
      */

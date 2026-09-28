@@ -2,16 +2,15 @@
 
 namespace BitApps\SMTP\Mail\Dispatch;
 
-use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection as DbConnection;
+use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Mail\Exceptions\CredentialCipherException;
 use BitApps\SMTP\Mail\Message\MailMessage;
+use BitApps\SMTP\Model\RetryQueueEntry;
 use InvalidArgumentException;
 
 /**
- * Durable store for sends deferred to a later retry attempt. Talks to the real `$wpdb` directly
- * (not the Schema/Blueprint/Model DSL) because claiming due rows needs a raw conditional
- * `UPDATE ... ORDER BY ... LIMIT` that the DSL doesn't expose.
+ * Durable store for sends deferred to a later retry attempt, backed by the RetryQueueEntry model.
  */
 class RetryQueue
 {
@@ -23,72 +22,51 @@ class RetryQueue
      */
     public function enqueue(MailMessage $message, array $mailData, array $connectionIds, string $failureClass, ?int $logId, int $maxAttempts, int $firstDelaySeconds): void
     {
-        global $wpdb;
-
         $payload = CredentialCipher::encrypt((string) wp_json_encode([
             'message'   => $message->toArray(),
             'mail_data' => $mailData,
         ]));
-        $now = gmdate('Y-m-d H:i:s');
+        $now = self::utcNow();
 
-        $wpdb->insert(
-            $this->table(),
-            [
-                'log_id'           => $logId,
-                'payload'          => $payload,
-                'connection_chain' => implode(',', $connectionIds),
-                'attempts'         => 0,
-                'max_attempts'     => $maxAttempts,
-                'failure_class'    => $failureClass,
-                'next_attempt_at'  => gmdate('Y-m-d H:i:s', time() + $firstDelaySeconds),
-                'created_at'       => $now,
-                'updated_at'       => $now,
-            ],
-            ['%d', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s']
-        );
+        RetryQueueEntry::query()->insert([
+            'log_id'           => $logId,
+            'payload'          => $payload,
+            'connection_chain' => implode(',', $connectionIds),
+            'attempts'         => 0,
+            'max_attempts'     => $maxAttempts,
+            'failure_class'    => $failureClass,
+            'next_attempt_at'  => self::utcIn($firstDelaySeconds),
+            'created_at'       => $now,
+            'updated_at'       => $now,
+        ]);
     }
 
     /**
-     * Atomically claim up to $limit due-and-unlocked (or stale-locked) rows for this worker run and
-     * return them decoded, oldest-due first. Safe to call from overlapping cron runs. Each row
-     * carries this run's claim_token so the worker can re-assert ownership (renewClaim) before it
-     * actually sends.
+     * Atomically claim due rows for this worker run; safe from overlapping cron; returns decoded oldest-first.
      *
      * @return array<int,array{id:int,log_id:?int,message:MailMessage,mail_data:array<string,mixed>,connection_ids:string[],attempts:int,max_attempts:int,claim_token:string}>
      */
     public function claimDue(int $limit, int $lockTtlSeconds = 600): array
     {
-        global $wpdb;
-
-        $table       = $this->table();
         $token       = wp_generate_uuid4();
-        $now         = gmdate('Y-m-d H:i:s');
-        $staleBefore = gmdate('Y-m-d H:i:s', time() - $lockTtlSeconds);
+        $now         = self::utcNow();
+        $staleBefore = self::utcIn(-$lockTtlSeconds);
 
-        // Row-level locking during this UPDATE is what makes two concurrent claimDue() calls (e.g.
-        // overlapping cron runs) mutually exclusive: a row a first UPDATE has already claimed (fresh
-        // claim_token + locked_at) fails a second UPDATE's WHERE until locked_at goes stale, so the
-        // same row can never be claimed by two callers at once.
-        $wpdb->query($wpdb->prepare(
-            "UPDATE `{$table}` SET claim_token = %s, locked_at = %s, updated_at = %s
-             WHERE next_attempt_at <= %s AND (claim_token IS NULL OR locked_at < %s)
-             ORDER BY next_attempt_at ASC LIMIT %d",
-            $token,
-            $now,
-            $now,
-            $now,
-            $staleBefore,
-            $limit
-        ));
+        $candidateIds = array_map(
+            static fn (RetryQueueEntry $entry): int => (int) $entry->id,
+            $this->claimable($now, $staleBefore)->orderBy('next_attempt_at')->take((string) $limit)->get(['id'])->all()
+        );
+        if ($candidateIds === []) {
+            return [];
+        }
 
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM `{$table}` WHERE claim_token = %s ORDER BY next_attempt_at ASC",
-            $token
-        ), ARRAY_A);
+        $this->claimable($now, $staleBefore)
+            ->whereIn('id', $candidateIds)
+            ->update(['claim_token' => $token, 'locked_at' => $now, 'updated_at' => $now]);
 
         $claimed = [];
-        foreach ($rows as $row) {
-            $decoded = $this->decodeRow($row);
+        foreach (RetryQueueEntry::query()->where('claim_token', $token)->orderBy('next_attempt_at')->get()->all() as $entry) {
+            $decoded = $this->decodeRow($entry->toArray());
             if ($decoded !== null) {
                 $decoded['claim_token'] = $token;
                 $claimed[]              = $decoded;
@@ -99,32 +77,20 @@ class RetryQueue
     }
 
     /**
-     * Re-assert and extend this worker's lock on a claimed row immediately before dispatch. Returns
-     * false when the claim was lost to an overlapping worker -- a long batch can outlive its lock and
-     * let the tail be reclaimed -- so the caller skips the row instead of delivering it a second time.
+     * Re-assert and extend lock; returns false if claim lost to overlapping worker.
      */
     public function renewClaim(int $id, string $token): bool
     {
-        global $wpdb;
+        $now = self::utcNow();
 
-        $table = $this->table();
-        $now   = gmdate('Y-m-d H:i:s');
+        RetryQueueEntry::query()
+            ->where('id', $id)
+            ->where('claim_token', $token)
+            ->update(['locked_at' => $now, 'updated_at' => $now]);
 
-        // Push the stale horizon forward so this row can't be reclaimed while its own send is in flight.
-        $wpdb->query($wpdb->prepare(
-            "UPDATE `{$table}` SET locked_at = %s, updated_at = %s WHERE id = %d AND claim_token = %s",
-            $now,
-            $now,
-            $id,
-            $token
-        ));
+        $entry = RetryQueueEntry::query()->select(['claim_token'])->where('id', $id)->first();
 
-        // Confirm ownership by re-reading the token: a MySQL UPDATE that changes no column value still
-        // reports zero affected rows, so the affected-count can't tell "not ours" from "already fresh".
-        return (string) $wpdb->get_var($wpdb->prepare(
-            "SELECT claim_token FROM `{$table}` WHERE id = %d",
-            $id
-        )) === $token;
+        return $entry instanceof RetryQueueEntry && $entry->claim_token === $token;
     }
 
     /**
@@ -132,22 +98,14 @@ class RetryQueue
      */
     public function reschedule(int $id, int $attempts, string $failureClass, int $delaySeconds): void
     {
-        global $wpdb;
-
-        $wpdb->update(
-            $this->table(),
-            [
-                'attempts'        => $attempts,
-                'failure_class'   => $failureClass,
-                'next_attempt_at' => gmdate('Y-m-d H:i:s', time() + $delaySeconds),
-                'claim_token'     => null,
-                'locked_at'       => null,
-                'updated_at'      => gmdate('Y-m-d H:i:s'),
-            ],
-            ['id' => $id],
-            ['%d', '%s', '%s', '%s', '%s', '%s'],
-            ['%d']
-        );
+        RetryQueueEntry::query()->where('id', $id)->update([
+            'attempts'        => $attempts,
+            'failure_class'   => $failureClass,
+            'next_attempt_at' => self::utcIn($delaySeconds),
+            'claim_token'     => null,
+            'locked_at'       => null,
+            'updated_at'      => self::utcNow(),
+        ]);
     }
 
     /**
@@ -155,9 +113,7 @@ class RetryQueue
      */
     public function delete(int $id): void
     {
-        global $wpdb;
-
-        $wpdb->delete($this->table(), ['id' => $id], ['%d']);
+        RetryQueueEntry::query()->where('id', $id)->delete();
     }
 
     /**
@@ -165,57 +121,48 @@ class RetryQueue
      */
     public function depth(): int
     {
-        global $wpdb;
-
-        return (int) $wpdb->get_var('SELECT COUNT(*) FROM `' . $this->table() . '`');
+        return RetryQueueEntry::query()->count();
     }
 
     /**
-     * List queued rows as display metadata (never the encrypted payload) for the admin panel,
-     * oldest-due first.
+     * List queued rows as display metadata (never encrypted payload) for the admin panel, oldest-due first.
      *
      * @return array<int,array{id:int,attempts:int,max_attempts:int,failure_class:?string,connection_chain:string,next_attempt_at:string,created_at:string,locked:bool}>
      */
     public function pending(int $limit = 100): array
     {
-        global $wpdb;
+        $entries = RetryQueueEntry::query()
+            ->orderBy('next_attempt_at')
+            ->take((string) $limit)
+            ->get(['id', 'attempts', 'max_attempts', 'failure_class', 'connection_chain', 'next_attempt_at', 'created_at', 'locked_at'])
+            ->all();
 
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, attempts, max_attempts, failure_class, connection_chain, next_attempt_at, created_at, locked_at
-             FROM `{$this->table()}` ORDER BY next_attempt_at ASC LIMIT %d",
-            $limit
-        ), ARRAY_A);
-
-        return array_map(static function (array $row): array {
+        return array_map(static function (RetryQueueEntry $entry): array {
             return [
-                'id'               => (int) $row['id'],
-                'attempts'         => (int) $row['attempts'],
-                'max_attempts'     => (int) $row['max_attempts'],
-                'failure_class'    => $row['failure_class'] !== null ? (string) $row['failure_class'] : null,
-                'connection_chain' => (string) $row['connection_chain'],
-                'next_attempt_at'  => (string) $row['next_attempt_at'],
-                'created_at'       => (string) $row['created_at'],
-                'locked'           => $row['locked_at'] !== null,
+                'id'               => (int) $entry->id,
+                'attempts'         => (int) $entry->attempts,
+                'max_attempts'     => (int) $entry->max_attempts,
+                'failure_class'    => $entry->failure_class !== null ? (string) $entry->failure_class : null,
+                'connection_chain' => (string) $entry->connection_chain,
+                'next_attempt_at'  => (string) $entry->next_attempt_at,
+                'created_at'       => (string) $entry->created_at,
+                'locked'           => $entry->locked_at !== null,
             ];
-        }, $rows ?: []);
+        }, $entries);
     }
 
     /**
-     * Discard every queued row (admin "clear queue" action); returns the number removed, or false on a
-     * database error so the caller reports the failure instead of a misleading "0 discarded".
+     * Discard every queued row (admin "clear queue" action); returns count or false on database error.
      *
      * @return false|int
      */
     public function clear()
     {
-        global $wpdb;
-
-        return $wpdb->query('DELETE FROM `' . $this->table() . '`');
+        return RetryQueueEntry::query()->whereNotNull('id')->delete();
     }
 
     /**
-     * Decode a raw queue row into its typed shape; a corrupted/unrecoverable payload (rotated
-     * wp_salt, malformed JSON) is skipped rather than allowed to crash the whole claimed batch.
+     * Decode a raw queue row into its typed shape; a corrupted/unrecoverable payload (rotated wp_salt, malformed JSON) is deleted rather than allowed to crash the whole claimed batch or cause infinite re-locks.
      *
      * @param array<string,mixed> $row
      *
@@ -241,9 +188,6 @@ class RetryQueue
                 'max_attempts'   => (int) $row['max_attempts'],
             ];
         } catch (CredentialCipherException | InvalidArgumentException $e) {
-            // A poisoned row (rotated wp_salt, corrupted/malformed payload) can never be decoded, so
-            // drop it outright -- leaving it in place would re-lock it every cron tick and inflate
-            // depth() forever. Never log the payload/decrypted content itself, only the row id.
             $this->delete((int) $row['id']);
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- degrade gracefully per row
             error_log('Bit SMTP: retry queue row ' . $row['id'] . ' could not be decoded, deleted.');
@@ -253,11 +197,30 @@ class RetryQueue
     }
 
     /**
-     * Fully-qualified retry queue table name, built the same way every other migration/model in
-     * this plugin derives its prefixed table name.
+     * Due rows that are unclaimed or whose claim went stale before $staleBefore.
      */
-    private function table(): string
+    private function claimable(string $now, string $staleBefore): QueryBuilder
     {
-        return DbConnection::getPrefix() . 'mail_retry_queue';
+        return RetryQueueEntry::query()
+            ->where('next_attempt_at', '<=', $now)
+            ->where(static function (QueryBuilder $lease) use ($staleBefore): void {
+                $lease->whereNull('claim_token')->orWhere('locked_at', '<', $staleBefore);
+            });
+    }
+
+    /**
+     * The current UTC time as a MySQL DATETIME string.
+     */
+    private static function utcNow(): string
+    {
+        return gmdate('Y-m-d H:i:s');
+    }
+
+    /**
+     * The UTC time $seconds from now as a MySQL DATETIME string.
+     */
+    private static function utcIn(int $seconds): string
+    {
+        return gmdate('Y-m-d H:i:s', time() + $seconds);
     }
 }

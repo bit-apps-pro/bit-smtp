@@ -11,9 +11,7 @@ use BitApps\SMTP\Tests\Fake\FakeCliReporter;
 use Mockery;
 
 /**
- * Covers the export command logic: it reuses LogService::exportRowsWithTruncation + the shared
- * LogCsvExporter to build a bounded, truncation-flagged CSV, then either dumps it cleanly to STDOUT or
- * writes it to a file. The safe-column projection and formula defusal are covered by LogCsvExporterTest.
+ * Covers export command logic: builds bounded, truncation-flagged CSV via LogCsvExporter, dumps to STDOUT or file.
  *
  * @internal
  *
@@ -80,7 +78,6 @@ final class ExportCommandTest extends BaseUnitTestCase
 
     public function testFlagsTruncationAndClampsToTheCapWhenOverTheLimit(): void
     {
-        // The service returns the already-clamped rows + truncated flag; reuse one Log so the fixture is cheap.
         $capped = array_fill(0, LogService::MAX_EXPORT_ROWS, $this->log(1, 'row'));
 
         $logService = Mockery::mock(LogService::class);
@@ -93,7 +90,6 @@ final class ExportCommandTest extends BaseUnitTestCase
         $this->assertCount(1, $reporter->warning);
         $this->assertStringContainsString((string) LogService::MAX_EXPORT_ROWS, $reporter->warning[0]);
 
-        // Header + exactly MAX_EXPORT_ROWS data rows.
         $lineCount = substr_count(rtrim($reporter->lines[0], "\r\n"), "\n") + 1;
         $this->assertSame(LogService::MAX_EXPORT_ROWS + 1, $lineCount);
     }

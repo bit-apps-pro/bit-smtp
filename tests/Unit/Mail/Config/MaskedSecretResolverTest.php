@@ -18,6 +18,14 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
 {
     private const SENTINEL = MailSettingsSerializer::MASK_SENTINEL;
 
+    private const WEBHOOK_URL = 'https://hooks.example.com/secret';
+
+    private const WHSEC = 'whsec_abcdefghijklmnopqrstuvwxyz012345';
+
+    private const SLACK_URL = 'https://hooks.slack.com/services/T00000000/B00000000/X';
+
+    private const BOT_TOKEN = '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -28,7 +36,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
     {
         $current = $this->currentSettings();
 
-        // $incomingV2 has conn_abc with NO credentials key at all (not just an empty array).
         $incoming = [
             'schema_version'          => 2,
             'enabled'                 => true,
@@ -39,7 +46,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
                     'id'       => 'conn_abc',
                     'provider' => 'other_smtp',
                     'kind'     => 'smtp',
-                    // credentials key is intentionally absent
                 ],
             ],
             'features' => [],
@@ -58,7 +64,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
     {
         $current = $this->currentSettings();
 
-        // A brand-new connection (id not in $current) with no credentials key stays as-is.
         $incoming = [
             'schema_version'          => 2,
             'enabled'                 => true,
@@ -69,7 +74,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
                     'id'       => 'conn_new',
                     'provider' => 'other_smtp',
                     'kind'     => 'smtp',
-                    // credentials key is intentionally absent, and there is no stored connection
                 ],
             ],
             'features' => [],
@@ -156,8 +160,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
 
     public function testBrandNewConnectionSentinelResolvesToEmptyString(): void
     {
-        // $current holds conn_abc + conn_other — neither matches conn_new, so the id-lookup-miss
-        // path is genuinely exercised and the sentinel must blank to ''.
         $current  = $this->currentSettings();
         $incoming = [
             'schema_version'          => 2,
@@ -187,7 +189,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
 
     public function testNonCredentialFieldsAreUntouched(): void
     {
-        // $current has two connections; incoming targets conn_abc only.
         $current  = $this->currentSettings();
         $incoming = $this->incomingV2([
             'password' => ['source' => 'database', 'value' => self::SENTINEL],
@@ -202,13 +203,7 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
     }
 
     /**
-     * Sentinel must be restored by connection id, not array position.
-     *
-     * $current: [conn_A (password="A"), conn_B (password="B")]
-     * $incoming: [conn_B at index 0 with sentinel password]
-     *
-     * A position-based matcher would restore "A" (index 0 → conn_A).
-     * An id-based matcher correctly restores "B" (id conn_B → conn_B).
+     * Sentinel restored by connection id, not array position; prevents restoration mix-ups when reordering.
      */
     public function testSentinelRestoredByIdNotPosition(): void
     {
@@ -228,7 +223,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
             'features' => [],
         ]);
 
-        // conn_B is at index 0 in the incoming array.
         $incomingV2 = [
             'schema_version'          => 2,
             'enabled'                 => true,
@@ -256,197 +250,171 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
         );
     }
 
-    public function testFailureWebhookSentinelsRestoreStoredSecretsWithoutConnections(): void
+    public function testAWebhookSigningSecretSentinelRestoresTheStoredSecretWithoutConnections(): void
     {
-        $current = MailSettings::fromArray([
-            'schema_version'          => 2,
-            'enabled'                 => false,
-            'default_connection_id'   => '',
-            'fallback_connection_ids' => [],
-            'connections'             => [],
-            'features'                => [
-                'alerts' => [
-                    'webhook' => [
-                        'enabled'        => true,
-                        'url'            => 'https://hooks.example.com/secret',
-                        'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
-                    ],
-                ],
-            ],
+        $current = $this->alertSettings([
+            $this->instance('ch_hook001', 'webhook', ['url' => self::WEBHOOK_URL, 'signing_secret' => self::WHSEC]),
         ]);
-        $incoming = [
-            'features' => [
-                'alerts' => [
-                    'webhook' => [
-                        'enabled'        => true,
-                        'url'            => self::SENTINEL,
-                        'signing_secret' => self::SENTINEL,
-                    ],
-                ],
-            ],
-        ];
 
-        $result = MaskedSecretResolver::apply($incoming, $current);
+        $result = MaskedSecretResolver::apply($this->incomingAlerts([
+            $this->instance('ch_hook001', 'webhook', ['url' => self::WEBHOOK_URL, 'signing_secret' => self::SENTINEL]),
+        ]), $current);
 
         $this->assertSame(
-            'https://hooks.example.com/secret',
-            $result['features']['alerts']['webhook']['url']
-        );
-        $this->assertSame(
-            'whsec_abcdefghijklmnopqrstuvwxyz012345',
-            $result['features']['alerts']['webhook']['signing_secret']
+            ['url' => self::WEBHOOK_URL, 'signing_secret' => self::WHSEC],
+            $result['features']['alerts']['channels'][0]['settings']
         );
     }
 
-    public function testOmittedFailureWebhookUrlPreservesStoredUrl(): void
+    public function testASentinelInAUrlFieldIsNotTreatedAsMasked(): void
     {
-        $current = MailSettings::fromArray([
-            'schema_version'          => 2,
-            'enabled'                 => false,
-            'default_connection_id'   => '',
-            'fallback_connection_ids' => [],
-            'connections'             => [],
-            'features'                => [
-                'alerts' => [
-                    'webhook' => [
-                        'enabled'        => true,
-                        'url'            => 'https://hooks.example.com/secret',
-                        'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
-                    ],
-                ],
-            ],
+        $current = $this->alertSettings([
+            $this->instance('ch_slackaa', 'slack', ['webhook_url' => self::SLACK_URL]),
+            $this->instance('ch_hook001', 'webhook', ['url' => self::WEBHOOK_URL, 'signing_secret' => self::WHSEC]),
         ]);
-        $incoming = [
-            'features' => [
-                'alerts' => [
-                    'webhook' => ['enabled' => false],
-                ],
-            ],
-        ];
 
-        $result = MaskedSecretResolver::apply($incoming, $current);
+        $result = MaskedSecretResolver::apply($this->incomingAlerts([
+            $this->instance('ch_slackaa', 'slack', ['webhook_url' => self::SENTINEL]),
+            $this->instance('ch_hook001', 'webhook', ['url' => self::SENTINEL, 'signing_secret' => self::SENTINEL]),
+        ]), $current);
+
+        $channels = $result['features']['alerts']['channels'];
+        $this->assertSame(self::SENTINEL, $channels[0]['settings']['webhook_url']);
+        $this->assertSame(self::SENTINEL, $channels[1]['settings']['url']);
+        $this->assertSame(self::WHSEC, $channels[1]['settings']['signing_secret']);
+    }
+
+    public function testEachSameTypeInstanceRestoresItsOwnSecretById(): void
+    {
+        $current = $this->alertSettings([
+            $this->instance('ch_teleaaa', 'telegram', ['bot_token' => self::BOT_TOKEN . 'A', 'chat_id' => '-1']),
+            $this->instance('ch_telebbb', 'telegram', ['bot_token' => self::BOT_TOKEN . 'B', 'chat_id' => '-2']),
+        ]);
+
+        $result = MaskedSecretResolver::apply($this->incomingAlerts([
+            $this->instance('ch_telebbb', 'telegram', ['bot_token' => self::SENTINEL, 'chat_id' => '-2']),
+            $this->instance('ch_teleaaa', 'telegram', ['bot_token' => self::SENTINEL, 'chat_id' => '-1']),
+        ]), $current);
+
+        $channels = $result['features']['alerts']['channels'];
+        $this->assertSame(self::BOT_TOKEN . 'B', $channels[0]['settings']['bot_token']);
+        $this->assertSame(self::BOT_TOKEN . 'A', $channels[1]['settings']['bot_token']);
+    }
+
+    public function testATypeChangeNeverInheritsTheStoredSecret(): void
+    {
+        $current = $this->alertSettings([
+            $this->instance('ch_swap001', 'telegram', ['bot_token' => self::BOT_TOKEN, 'chat_id' => '-1']),
+        ]);
+
+        $result = MaskedSecretResolver::apply($this->incomingAlerts([
+            $this->instance('ch_swap001', 'webhook', ['url' => self::WEBHOOK_URL, 'signing_secret' => self::SENTINEL]),
+        ]), $current);
+
+        $this->assertSame('', $result['features']['alerts']['channels'][0]['settings']['signing_secret']);
+    }
+
+    public function testASentinelOnANewInstanceResolvesToBlank(): void
+    {
+        $current = $this->alertSettings([
+            $this->instance('ch_teleaaa', 'telegram', ['bot_token' => self::BOT_TOKEN, 'chat_id' => '-1']),
+        ]);
+
+        $result = MaskedSecretResolver::apply($this->incomingAlerts([
+            $this->instance('ch_brandnew', 'telegram', ['bot_token' => self::SENTINEL, 'chat_id' => '-1']),
+        ]), $current);
+
+        $this->assertSame('', $result['features']['alerts']['channels'][0]['settings']['bot_token']);
+    }
+
+    public function testExplicitBlankSecretClearsTheStoredValue(): void
+    {
+        $current = $this->alertSettings([
+            $this->instance('ch_tele001', 'telegram', ['bot_token' => self::BOT_TOKEN, 'chat_id' => '-1001234567890']),
+        ]);
+
+        $result = MaskedSecretResolver::apply($this->incomingAlerts([
+            $this->instance('ch_tele001', 'telegram', ['bot_token' => '', 'chat_id' => '-1001234567890']),
+        ]), $current);
+
+        $this->assertSame('', $result['features']['alerts']['channels'][0]['settings']['bot_token']);
+    }
+
+    public function testOmittedSettingsOfAnExistingInstanceArePreserved(): void
+    {
+        $current = $this->alertSettings([
+            $this->instance('ch_tele001', 'telegram', ['bot_token' => self::BOT_TOKEN, 'chat_id' => '-1001234567890']),
+        ]);
+
+        $result = MaskedSecretResolver::apply($this->incomingAlerts([
+            $this->instance('ch_tele001', 'telegram', []),
+        ]), $current);
 
         $this->assertSame(
-            'https://hooks.example.com/secret',
-            $result['features']['alerts']['webhook']['url']
-        );
-        $this->assertSame(
-            'whsec_abcdefghijklmnopqrstuvwxyz012345',
-            $result['features']['alerts']['webhook']['signing_secret']
+            ['bot_token' => self::BOT_TOKEN, 'chat_id' => '-1001234567890'],
+            $result['features']['alerts']['channels'][0]['settings']
         );
     }
 
-    public function testAlertChannelSentinelsRestoreStoredSecretsWhileExplicitBlanksClearThem(): void
+    public function testTheIncomingListIsAuthoritativeSoOmittedInstancesAreDeleted(): void
     {
-        $current = MailSettings::fromArray([
-            'schema_version'          => 2,
-            'enabled'                 => false,
-            'default_connection_id'   => '',
-            'fallback_connection_ids' => [],
-            'connections'             => [],
-            'features'                => [
-                'alerts' => [
-                    'slack'    => ['webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'],
-                    'telegram' => ['bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz'],
-                ],
-            ],
+        $current = $this->alertSettings([
+            $this->instance('ch_slackaa', 'slack', ['webhook_url' => self::SLACK_URL]),
+            $this->instance('ch_hook001', 'webhook', ['url' => self::WEBHOOK_URL, 'signing_secret' => self::WHSEC]),
         ]);
-        $incoming = [
-            'features' => [
-                'alerts' => [
-                    'slack'    => ['webhook_url' => self::SENTINEL],
-                    'telegram' => ['bot_token' => ''],
-                ],
-            ],
-        ];
 
-        $result = MaskedSecretResolver::apply($incoming, $current);
+        $result = MaskedSecretResolver::apply($this->incomingAlerts([
+            $this->instance('ch_hook001', 'webhook', ['url' => self::SENTINEL, 'signing_secret' => self::SENTINEL]),
+        ]), $current);
 
-        $this->assertSame(
-            'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
-            $result['features']['alerts']['slack']['webhook_url']
-        );
-        $this->assertSame('', $result['features']['alerts']['telegram']['bot_token']);
+        $this->assertSame(['ch_hook001'], array_column($result['features']['alerts']['channels'], 'id'));
     }
 
-    public function testPartialTelegramChannelPreservesOmittedFieldsWhileExplicitBlankClearsChatId(): void
+    public function testResolveAlertChannelRestoresAMaskedSecretForAnUnsavedTestSend(): void
     {
-        $current = MailSettings::fromArray([
-            'schema_version'          => 2,
-            'enabled'                 => false,
-            'default_connection_id'   => '',
-            'fallback_connection_ids' => [],
-            'connections'             => [],
-            'features'                => [
-                'alerts' => [
-                    'telegram' => [
-                        'enabled'   => true,
-                        'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
-                        'chat_id'   => '-1001234567890',
-                    ],
-                ],
-            ],
+        $current = $this->alertSettings([
+            $this->instance('ch_hook001', 'webhook', ['url' => self::WEBHOOK_URL, 'signing_secret' => self::WHSEC]),
         ]);
-        $incoming = [
-            'features' => [
-                'alerts' => [
-                    'telegram' => ['enabled' => false],
-                ],
-            ],
-        ];
 
-        $preserved = MaskedSecretResolver::apply($incoming, $current);
-
-        $this->assertSame(false, $preserved['features']['alerts']['telegram']['enabled']);
-        $this->assertSame(
-            '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
-            $preserved['features']['alerts']['telegram']['bot_token']
+        $settings = MaskedSecretResolver::resolveAlertChannel(
+            'ch_hook001',
+            'webhook',
+            ['url' => 'https://edited.example.com/hook', 'signing_secret' => self::SENTINEL],
+            $current
         );
-        $this->assertSame('-1001234567890', $preserved['features']['alerts']['telegram']['chat_id']);
 
-        $incoming['features']['alerts']['telegram']['chat_id']  = '';
-        $cleared                                                = MaskedSecretResolver::apply($incoming, $current);
-
-        $this->assertSame('', $cleared['features']['alerts']['telegram']['chat_id']);
+        $this->assertSame(['url' => 'https://edited.example.com/hook', 'signing_secret' => self::WHSEC], $settings);
     }
 
-    public function testOmittedAlertChannelsPreserveTheirEntireStoredConfiguration(): void
+    /**
+     * A channel instance in the stored/API list shape.
+     */
+    private function instance(string $id, string $type, array $settings): array
     {
-        $storedSlack = [
-            'enabled'     => true,
-            'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
-        ];
-        $storedTelegram = [
-            'enabled'   => true,
-            'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
-            'chat_id'   => '-1001234567890',
-        ];
-        $current = MailSettings::fromArray([
+        return ['id' => $id, 'type' => $type, 'name' => '', 'enabled' => true, 'settings' => $settings];
+    }
+
+    /**
+     * Stored settings holding only the given alert channel instances.
+     */
+    private function alertSettings(array $channels): MailSettings
+    {
+        return MailSettings::fromArray([
             'schema_version'          => 2,
             'enabled'                 => false,
             'default_connection_id'   => '',
             'fallback_connection_ids' => [],
             'connections'             => [],
-            'features'                => [
-                'alerts' => [
-                    'webhook'  => ['enabled' => true, 'url' => 'https://hooks.example.com/failure'],
-                    'slack'    => $storedSlack,
-                    'telegram' => $storedTelegram,
-                ],
-            ],
+            'features'                => ['alerts' => ['enabled' => true, 'channels' => $channels]],
         ]);
-        $incoming = [
-            'features' => [
-                'alerts' => [
-                    'webhook' => ['enabled' => false],
-                ],
-            ],
-        ];
+    }
 
-        $result = MaskedSecretResolver::apply($incoming, $current);
-
-        $this->assertSame($storedSlack, $result['features']['alerts']['slack']);
-        $this->assertSame($storedTelegram, $result['features']['alerts']['telegram']);
+    /**
+     * An incoming save payload carrying only the given alert channel instances.
+     */
+    private function incomingAlerts(array $channels): array
+    {
+        return ['features' => ['alerts' => ['enabled' => true, 'channels' => $channels]]];
     }
 
     private function connectionStub(string $id, array $credentials): array
@@ -466,8 +434,7 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
     }
 
     /**
-     * Two-connection current settings so id-lookup-miss path is exercised when the
-     * incoming connection id does not match any stored id.
+     * Two-connection settings to exercise id-lookup-miss path for non-matching connection ids.
      */
     private function currentSettings(array $credentialValue = []): MailSettings
     {

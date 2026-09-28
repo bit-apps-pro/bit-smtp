@@ -139,7 +139,6 @@ export default function DeliveryBreakdown({ delivery, dateFrom, dateTo }: Delive
                     width: `${(row.value / max) * 100}%`,
                     height: '100%',
                     background: row.color,
-                    // Rounded at the tip, square at the baseline (the bar grows from the left edge).
                     borderRadius: '0 4px 4px 0',
                     transition: 'width 200ms ease'
                   }}

@@ -11,6 +11,7 @@ export type ResendEditPayload = {
   connection_id: string
 }
 
+/** Submits an edited resend payload for a log entry and tracks its pending state. */
 export default function useResendEditLog() {
   const { mutateAsync, isPending } = useMutation<Response<unknown>, Error, ResendEditPayload>({
     mutationFn: payload => request({ action: 'mail/resend-edit', data: payload })

@@ -12,18 +12,12 @@ use BitSmtpPluginOptions;
 use BitSmtpSettingsSeed;
 use Brain\Monkey\Functions;
 
-// Global-namespace migration classes, included directly by MigrationHelper (not PSR-4 autoloaded).
 require_once \dirname(__DIR__, 3) . '/backend/db/Migrations/BitSmtpPluginOptions.php';
 require_once \dirname(__DIR__, 3) . '/backend/db/Migrations/BitSmtpLogsTableMigration.php';
 require_once \dirname(__DIR__, 3) . '/backend/db/Migrations/BitSmtpSettingsSeed.php';
 
 /**
- * Proves Task 19: BitSmtpPluginOptions::down() purges every bit_smtp_* option on uninstall —
- * critically the AES-encrypted credential blob (`options`) and the legacy plaintext credential
- * backup (`options_v1_backup`) a prior version of this migration left behind — unless the user
- * opted out via the `uninstall_purge` preference, in which case nothing is touched. Also covers the
- * sibling uninstall migrations (BitSmtpLogsTableMigration, BitSmtpSettingsSeed) sharing that same
- * gate via Settings\UninstallPurge::shouldPurge(), so logs/prefs survive alongside credentials.
+ * Proves Task 19: BitSmtpPluginOptions::down() purges bit_smtp_* options unless uninstall_purge opted out.
  *
  * @internal
  *
@@ -49,21 +43,20 @@ final class PurgeTest extends BaseUnitTestCase
             'bit_smtp_tracking_skipped'             => true,
             'bit_smtp_test_mail_form_submitted'     => 3,
             'bit_smtp_failure_notification_active'  => 'incident-uuid',
+            'bit_smtp_failure_resolved_incidents'   => ['incident-uuid' => ['id' => 'incident-uuid']],
         ];
         $this->stubOptionsApi($options);
-        $clearedHooks = [];
-        Functions\when('wp_clear_scheduled_hook')->alias(static function (string $hook) use (&$clearedHooks): void {
-            $clearedHooks[] = $hook;
+        $unscheduledHooks = [];
+        Functions\when('wp_unschedule_hook')->alias(static function (string $hook) use (&$unscheduledHooks): void {
+            $unscheduledHooks[] = $hook;
         });
 
         (new BitSmtpPluginOptions())->down();
 
-        // Security-critical: both credential keys must be gone.
         self::assertArrayNotHasKey('bit_smtp_options', $options);
         self::assertArrayNotHasKey('bit_smtp_options_v1_backup', $options);
-        // Every other bit_smtp_* option is gone too.
         self::assertSame([], $options);
-        self::assertSame([Config::RETENTION_GC_HOOK, Config::RETRY_QUEUE_HOOK, Config::HEALTH_CHECK_HOOK], $clearedHooks);
+        self::assertSame(Config::scheduledHooks(), $unscheduledHooks);
     }
 
     public function testDownPreservesEverythingIncludingCredentialsWhenPurgeIsDisabled(): void
@@ -76,7 +69,7 @@ final class PurgeTest extends BaseUnitTestCase
         ];
         $original = $options;
         $this->stubOptionsApi($options);
-        Functions\when('wp_clear_scheduled_hook')->justReturn(true);
+        Functions\when('wp_unschedule_hook')->justReturn(true);
 
         (new BitSmtpPluginOptions())->down();
 
@@ -155,9 +148,7 @@ final class PurgeTest extends BaseUnitTestCase
     }
 
     /**
-     * Swap $GLOBALS['wpdb'] for the given double for the callback's duration, restoring whatever was
-     * there before (BitSmtpLogsTableMigration::down() runs real SQL through Schema/Blueprint, which
-     * read the wpdb global directly rather than through a mockable function).
+     * Swaps $GLOBALS['wpdb'] for test double during callback; BitSmtpLogsTableMigration reads wpdb global directly.
      */
     private function withWpdb(PurgeTestDatabaseSpy $wpdb, callable $callback): void
     {
@@ -178,8 +169,7 @@ final class PurgeTest extends BaseUnitTestCase
 }
 
 /**
- * Minimal wpdb double covering what Schema::drop()/Blueprint need: the collation capability probe,
- * the query itself, and the last_error/suppress_errors state Blueprint toggles around each statement.
+ * Minimal wpdb double for Schema::drop()/Blueprint: collation probe, query, and error state.
  */
 final class PurgeTestDatabaseSpy
 {

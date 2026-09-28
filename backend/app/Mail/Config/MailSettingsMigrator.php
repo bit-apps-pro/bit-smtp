@@ -7,10 +7,7 @@ namespace BitApps\SMTP\Mail\Config;
 final class MailSettingsMigrator
 {
     /**
-     * Deterministic id for the single connection a legacy config migrates to.
-     * Must be stable: migrate-on-load runs on every request until the first v2 save,
-     * so a random id would mismatch between the frontend's load and the backend's
-     * re-migration during save, creating a duplicate connection.
+     * Stable id for the legacy connection migration to avoid duplicates across load/save cycles.
      */
     public const MIGRATED_CONNECTION_ID = 'conn_default';
 

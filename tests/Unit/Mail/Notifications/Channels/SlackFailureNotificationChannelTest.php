@@ -50,7 +50,7 @@ final class SlackFailureNotificationChannelTest extends BaseUnitTestCase
         $channel = new SlackFailureNotificationChannel();
 
         $this->assertSame('slack', $channel->key());
-        $this->assertTrue($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]));
+        $this->assertTrue($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL])->ok());
     }
 
     public function testRejectsUrlsOutsideTheExactSlackIncomingWebhookHostAndPath(): void
@@ -65,7 +65,7 @@ final class SlackFailureNotificationChannelTest extends BaseUnitTestCase
             'https://evil.test/services/T/B/X',
             'https://hooks.slack.com/services/',
         ] as $url) {
-            $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => $url]));
+            $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => $url])->ok());
         }
     }
 
@@ -74,7 +74,7 @@ final class SlackFailureNotificationChannelTest extends BaseUnitTestCase
     {
         Functions\expect('wp_safe_remote_post')->never();
 
-        $this->assertFalse((new SlackFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => $url]));
+        $this->assertFalse((new SlackFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => $url])->ok());
     }
 
     /**
@@ -100,7 +100,8 @@ final class SlackFailureNotificationChannelTest extends BaseUnitTestCase
 
         try {
             $result = $channel->send(FailureNotification::forTest(), ['webhook_url' => $secretUrl]);
-            $this->assertFalse($result);
+            $this->assertFalse($result->ok());
+            $this->assertStringNotContainsString($secretUrl, (string) $result->reason());
         } catch (Throwable $exception) {
             $this->assertStringNotContainsString($secretUrl, $exception->getMessage());
 
@@ -116,7 +117,7 @@ final class SlackFailureNotificationChannelTest extends BaseUnitTestCase
         $channel = new SlackFailureNotificationChannel();
 
         $this->expectOutputString('');
-        $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]));
+        $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL])->ok());
     }
 
     public function testReturnsFalseForANon2xxResponse(): void
@@ -124,9 +125,35 @@ final class SlackFailureNotificationChannelTest extends BaseUnitTestCase
         Functions\when('wp_safe_remote_post')->justReturn(['response' => ['code' => 500]]);
         Functions\when('is_wp_error')->justReturn(false);
         Functions\when('wp_remote_retrieve_response_code')->justReturn(500);
+        Functions\when('wp_remote_retrieve_body')->justReturn('');
 
-        $channel = new SlackFailureNotificationChannel();
+        $result = (new SlackFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]);
 
-        $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]));
+        $this->assertFalse($result->ok());
+        $this->assertSame('Slack rejected the request (HTTP 500).', $result->reason());
+    }
+
+    public function testNamesSlacksPlainTextErrorCode(): void
+    {
+        Functions\when('wp_safe_remote_post')->justReturn([]);
+        Functions\when('is_wp_error')->justReturn(false);
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(404);
+        Functions\when('wp_remote_retrieve_body')->justReturn("no_service\n");
+
+        $result = (new SlackFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]);
+
+        $this->assertSame('Slack rejected the request (HTTP 404: no_service).', $result->reason());
+    }
+
+    public function testNeverEchoesAnUnexpectedSlackBody(): void
+    {
+        Functions\when('wp_safe_remote_post')->justReturn([]);
+        Functions\when('is_wp_error')->justReturn(false);
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(400);
+        Functions\when('wp_remote_retrieve_body')->justReturn('<html>' . self::WEBHOOK_URL . '</html>');
+
+        $result = (new SlackFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]);
+
+        $this->assertSame('Slack rejected the request (HTTP 400).', $result->reason());
     }
 }

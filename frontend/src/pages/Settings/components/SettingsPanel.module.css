@@ -1,8 +1,6 @@
-/* Centered reading column; max-width is set inline from CONTENT_MAX_WIDTH (SettingsPanel.tsx),
-   the single source of truth also imported by SettingsPage's save bar. */
+/* Left-aligned reading column; max-width is set inline from CONTENT_MAX_WIDTH (SettingsPanel.tsx). */
 .panel {
   width: 100%;
-  margin-inline: auto;
 }
 
 .intro {

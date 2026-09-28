@@ -5,9 +5,7 @@ namespace BitApps\SMTP\Tests\Integration;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 
 /**
- * Regression guard for the settings sanitizer wiping provider-specific settings: a stored Amazon
- * SES connection must keep its non-secret settings (access_key, region) and its secret (secret_key)
- * across a saveConnection round-trip — the exact persistence path the sanitizer allow-list broke.
+ * Regression guard: SES connection persists settings and secrets across save/reload round-trips.
  *
  * @internal
  *
@@ -15,6 +13,9 @@ use BitApps\SMTP\HTTP\Services\MailConfigService;
  */
 final class SesConnectionPersistenceTest extends IntegrationTestCase
 {
+    /**
+     * Save and reload connection to verify settings/secret persistence (cold service reloads per request).
+     */
     public function testSesSettingsAndSecretSurviveSaveConnectionRoundTrip(): void
     {
         (new MailConfigService())->saveConnection([
@@ -30,7 +31,6 @@ final class SesConnectionPersistenceTest extends IntegrationTestCase
             'credentials'  => ['secret_key' => ['source' => 'database', 'value' => 'ses-secret-value']],
         ]);
 
-        // A cold service (production rebuilds it per request) reloads the persisted connection.
         $connection = (new MailConfigService())->load()->getConnections()->first();
 
         $this->assertNotNull($connection);

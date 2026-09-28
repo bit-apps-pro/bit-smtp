@@ -36,14 +36,12 @@ use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
- * Binds the plugin's foundational singletons: logging, mail config, HTTP client/auth, cache,
- * preferences, cron scheduling, and webhook provisioning.
+ * Bind foundational singletons: logging, mail config, HTTP, cache, preferences, cron, webhook provisioning.
  */
 class CoreServiceProvider extends ServiceProvider
 {
     /**
-     * Register core singleton bindings and the retention cron job spec; no WordPress hook or DB
-     * side effects happen here -- those are deferred to boot().
+     * Register core singleton bindings and retention cron job (WordPress/DB side effects deferred to boot()).
      */
     public function register(): void
     {
@@ -70,8 +68,6 @@ class CoreServiceProvider extends ServiceProvider
 
         $this->app->singleton(EngagementRepository::class, static fn (): EngagementRepository => new EngagementRepository());
 
-        // Shared by AnalyticsController and AbilitiesProvider so both read through the same overview
-        // cache instead of each maintaining an independent (and independently stale) copy.
         $this->app->singleton(
             MailAnalyticsService::class,
             static fn (Container $app): MailAnalyticsService => new MailAnalyticsService(
@@ -154,9 +150,7 @@ class CoreServiceProvider extends ServiceProvider
     }
 
     /**
-     * Wire the Scheduler onto WP cron: filters/actions/scheduled events every request (init:11).
-     * register() only configured the job spec; the actual add_action()/wp_schedule_event() calls
-     * are side effects that belong here, not in register().
+     * Wire Scheduler onto WP cron; register() only configured job spec, side effects belong here (init:11).
      */
     public function boot(): void
     {
@@ -164,9 +158,7 @@ class CoreServiceProvider extends ServiceProvider
     }
 
     /**
-     * Configure the daily log-retention cleanup job on the Scheduler. LogService is resolved from
-     * the container lazily, inside the job callback, so this stays free of the option/DB side
-     * effects LogService's constructor performs -- those happen only when the job actually fires.
+     * Configure daily log-retention cleanup job (LogService resolved lazily to defer DB side effects).
      */
     private function configureRetentionCron(): void
     {
@@ -182,9 +174,7 @@ class CoreServiceProvider extends ServiceProvider
     }
 
     /**
-     * Configure the every-5-minutes retry-queue processing job on the Scheduler. The retry_enabled
-     * check happens inside the job callback (not by skipping registration), so toggling the
-     * preference off/on takes effect immediately without re-scheduling/clearing the WP cron event.
+     * Configure every-5-min retry-queue job (retry_enabled gate in callback, no re-schedule on toggle).
      */
     private function configureRetryCron(): void
     {
@@ -206,10 +196,7 @@ class CoreServiceProvider extends ServiceProvider
     }
 
     /**
-     * Configure the health-probe job on an hourly base tick. Both the enabled check and the
-     * interval-elapsed gate run inside the callback (not by skipping registration), so toggling
-     * health_check_enabled or the interval preference takes effect without re-scheduling; the gate
-     * throttles the actual probe to the configured cadence, and HealthProbeRunner is resolved lazily.
+     * Configure health-probe job (hourly base, gates in callback for no re-schedule on toggle, HealthProbeRunner lazy).
      */
     private function configureHealthCron(): void
     {
@@ -230,8 +217,6 @@ class CoreServiceProvider extends ServiceProvider
                     return;
                 }
 
-                // Stamp the interval marker for the SCHEDULED run only (run() no longer does), so a
-                // manual "Check now" can't shift the cadence.
                 update_option(HealthProbeRunner::LAST_RUN_OPTION, time(), false);
                 $container->make(HealthProbeRunner::class)->run();
             }

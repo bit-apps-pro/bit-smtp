@@ -5,9 +5,7 @@ namespace BitApps\SMTP\Mail\Tracking;
 \defined('ABSPATH') || exit();
 
 /**
- * Injects a 1x1 transparent open-tracking pixel into an HTML email body so an open can be attributed
- * to the message's signed token. The pixel is placed just before </body> when present, otherwise
- * appended to the end.
+ * Inject 1x1 transparent open-tracking pixel into HTML email body before </body> or at end.
  */
 final class OpenPixelInjector
 {
@@ -22,7 +20,7 @@ final class OpenPixelInjector
     }
 
     /**
-     * Return $html with the signed open-pixel <img> injected before </body> (else appended).
+     * Inject signed open-pixel image into HTML before </body> or at end; return modified HTML.
      */
     public function inject(string $html, string $token): string
     {
@@ -36,8 +34,7 @@ final class OpenPixelInjector
     }
 
     /**
-     * The hidden tracking <img>. The src is composed only of trusted parts (our own endpoint plus a
-     * URL-safe base64url/hex token), so it carries no attribute-injection surface.
+     * Generate hidden tracking image tag; src uses only trusted parts (endpoint + token) to prevent injection.
      */
     private function pixel(string $token): string
     {

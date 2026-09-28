@@ -6,6 +6,11 @@ use BitApps\SMTP\Mail\Credentials\Credential;
 use BitApps\SMTP\Mail\Credentials\DatabaseCredentialResolver;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class DatabaseCredentialResolverTest extends BaseUnitTestCase
 {
     private DatabaseCredentialResolver $resolver;
@@ -34,7 +39,7 @@ class DatabaseCredentialResolverTest extends BaseUnitTestCase
     public function testResolveReturnsValueForDatabaseCredential(): void
     {
         $credential = Credential::fromArray(['source' => 'database', 'value' => 'secret_value']);
-        $result = $this->resolver->resolve($credential);
+        $result     = $this->resolver->resolve($credential);
 
         $this->assertSame('secret_value', $result);
     }
@@ -42,7 +47,7 @@ class DatabaseCredentialResolverTest extends BaseUnitTestCase
     public function testResolveReturnsNullForNonDatabaseSource(): void
     {
         $credential = Credential::fromArray(['source' => 'env', 'value' => 'secret_value']);
-        $result = $this->resolver->resolve($credential);
+        $result     = $this->resolver->resolve($credential);
 
         $this->assertNull($result);
     }
@@ -50,7 +55,7 @@ class DatabaseCredentialResolverTest extends BaseUnitTestCase
     public function testResolveReturnsNullForEmptyValue(): void
     {
         $credential = Credential::fromArray(['source' => 'database', 'value' => '']);
-        $result = $this->resolver->resolve($credential);
+        $result     = $this->resolver->resolve($credential);
 
         $this->assertNull($result);
     }
@@ -58,7 +63,7 @@ class DatabaseCredentialResolverTest extends BaseUnitTestCase
     public function testResolveReturnsNullForNullValue(): void
     {
         $credential = Credential::fromArray(['source' => 'database', 'value' => null]);
-        $result = $this->resolver->resolve($credential);
+        $result     = $this->resolver->resolve($credential);
 
         $this->assertNull($result);
     }
@@ -66,7 +71,7 @@ class DatabaseCredentialResolverTest extends BaseUnitTestCase
     public function testResolveReturnsZeroStringValue(): void
     {
         $credential = Credential::fromArray(['source' => 'database', 'value' => '0']);
-        $result = $this->resolver->resolve($credential);
+        $result     = $this->resolver->resolve($credential);
 
         $this->assertSame('0', $result);
     }

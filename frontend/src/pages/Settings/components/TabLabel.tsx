@@ -1,9 +1,11 @@
-import { Flex, theme } from 'antd'
+import { __ } from '@common/helpers/i18nwrap'
+import { Flex, Typography, theme } from 'antd'
 import { type LucideIcon } from 'lucide-react'
+
+const { Text } = Typography
 
 interface StatusDotProps {
   active: boolean
-  // Override the "on" color (e.g. a warning tone); defaults to success. Off is always muted.
   activeColor?: string
 }
 
@@ -28,17 +30,20 @@ export function StatusDot({ active, activeColor }: StatusDotProps) {
 interface TabLabelProps {
   icon: LucideIcon
   label: string
-  // Omitted entirely (not just false) for tabs that don't reflect live on/off state.
-  dotActive?: boolean
+  enabled?: boolean
 }
 
-/** Settings tab label: icon + text, plus a live status dot for tabs that reflect on/off state. */
-export default function TabLabel({ icon: Icon, label, dotActive }: TabLabelProps) {
+/** Settings menu label: icon + text, plus a muted "Off" hint when the section's feature is disabled. */
+export default function TabLabel({ icon: Icon, label, enabled }: TabLabelProps) {
   return (
-    <Flex align="center" gap={6}>
-      <Icon size={15} strokeWidth={1.75} aria-hidden="true" />
-      <span>{label}</span>
-      {dotActive !== undefined && <StatusDot active={dotActive} />}
+    <Flex align="center" gap={10}>
+      <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
+      <span style={{ flex: 1 }}>{label}</span>
+      {enabled === false && (
+        <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+          {__('Off')}
+        </Text>
+      )}
     </Flex>
   )
 }

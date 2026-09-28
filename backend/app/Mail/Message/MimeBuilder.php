@@ -9,8 +9,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use RuntimeException;
 
 /**
- * Builds a raw RFC822 MIME string from a MailMessage via the WP-bundled PHPMailer, for
- * providers that submit a pre-built message (e.g. raw-MIME API sends) rather than JSON fields.
+ * Build RFC822 MIME string from MailMessage via WP-bundled PHPMailer.
  */
 class MimeBuilder
 {
@@ -36,6 +35,8 @@ class MimeBuilder
     }
 
     /**
+     * Applies message fields to the PHPMailer instance; From/Reply-To follow the shared message-wins, connection-fallback policy so raw-MIME transports never emit an empty From. Headers are stripped of CRLF to prevent injection.
+     *
      * @throws PHPMailerException
      */
     private function applyMessage(PHPMailer $mailer, MailMessage $message, Connection $connection): void
@@ -54,9 +55,6 @@ class MimeBuilder
         $mailer->Body    = $message->getBody();
         $mailer->isHTML($message->getContentType() === 'text/html');
 
-        // From/Reply-To follow the shared message-wins, connection-fallback policy so raw-MIME
-        // transports (SES/Gmail/M365) never emit an empty From — SES rejects that outright with
-        // "There can be only one From address."
         $sender = new SenderResolver();
 
         foreach ($sender->from($message, $connection) as $from) {
@@ -70,11 +68,9 @@ class MimeBuilder
         }
 
         foreach ($message->getHeaders() as $name => $content) {
-            // PHPMailer emits MIME-Version and X-Mailer itself; skip to avoid duplicates (mirrors core).
             if (\in_array($name, ['MIME-Version', 'X-Mailer'], true)) {
                 continue;
             }
-            // Drop CRLF from both name and value to prevent header injection.
             $name    = str_replace(["\r", "\n"], '', $name);
             $content = str_replace(["\r", "\n"], '', $content);
             $mailer->addCustomHeader(\sprintf('%s: %s', $name, $content));
@@ -95,8 +91,7 @@ class MimeBuilder
     }
 
     /**
-     * Split an RFC822 "Name <addr>" string into [address, display name], mirroring core, so a
-     * display name survives instead of failing PHPMailer validation.
+     * Split RFC822 address string into [address, display name] for PHPMailer.
      *
      * @return array{0:string,1:string}
      */

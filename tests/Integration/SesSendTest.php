@@ -8,13 +8,7 @@ use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Plugin;
 
 /**
- * Drives wp_mail() through the Amazon SES SigV4-signed API transport (mocking the outbound HTTP
- * call) and proves the secret_key credential reaches the SigV4 signature as plaintext whether it
- * was stored encrypted-at-rest or as legacy (pre-encryption) plaintext. Because HMAC-SHA256 is
- * one-way, the secret cannot be read back out of the signature directly; instead the test
- * independently recomputes the expected SigV4Signer output with the known secret_key and asserts
- * it reproduces the exact Authorization header the transport sent — which only happens if the
- * transport signed with that same plaintext secret.
+ * Verifies SES SigV4 transport handles both encrypted and legacy plaintext credentials.
  *
  * @internal
  *
@@ -52,6 +46,9 @@ final class SesSendTest extends IntegrationTestCase
         $this->assertSesRequestWasSignedWithTheSecretKey($sent, $captured, $secretKey, 'Encrypted SES Send');
     }
 
+    /**
+     * Send works with secret key stored as pre-encryption plaintext (bypasses service API to simulate).
+     */
     public function testSendsSuccessfullyWhenTheSecretKeyIsStoredAsLegacyPlaintext(): void
     {
         $secretKey = 'legacy-plaintext-secret';
@@ -61,7 +58,6 @@ final class SesSendTest extends IntegrationTestCase
         add_filter('pre_http_request', $filter, 10, 3);
 
         try {
-            // Bypasses MailConfigService::store(), mimicking an option row written before encryption existed.
             $this->storeOptions($this->v2($secretKey));
             Plugin::instance()->mailConfigService()->reload();
 

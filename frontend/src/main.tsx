@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
+import '@ant-design/v5-patch-for-react-19'
 import '@resource/styles/global.css'
 import '@resource/styles/utilities.sass'
 import '@resource/styles/wp-css-reset.css'
@@ -9,10 +10,7 @@ import 'antd/dist/reset.css'
 import { enableMapSet } from 'immer'
 import AppRoutes from './AppRoutes'
 
-// to enable immer to work with Map and Set
 enableMapSet()
-
-// if (config.IS_DEV) window.appState = {}
 
 const elm = document.getElementById('bit-apps-root')
 

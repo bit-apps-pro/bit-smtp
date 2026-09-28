@@ -6,8 +6,7 @@ use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Plugin;
 
 /**
- * Pins MailMessageFactory (our wp_mail fork) against a LIVE wp_mail() delivery: the From and
- * Content-Type the factory resolves from $atts must match what core actually puts on the wire.
+ * Pins MailMessageFactory resolution against live wp_mail() delivery for From/Content-Type.
  *
  * @internal
  *
@@ -40,21 +39,18 @@ final class MailMessageFactoryPinTest extends IntegrationTestCase
 
         $message = $this->factory->fromWpMailAtts($atts);
 
-        // Factory-side assertions.
         $this->assertSame('factory-sender@example.org', $message->getFrom());
         $this->assertSame('Factory Sender', $message->getFromName());
         $this->assertSame('text/html', $message->getContentType());
         $this->assertSame('factory-reply@example.org', $message->getReplyTo());
         $this->assertSame([], $message->getHeaders());
 
-        // Deliver the SAME $atts through the real wp_mail path.
         $sent = wp_mail($atts['to'], $atts['subject'], $atts['message'], $atts['headers']);
         $this->assertTrue($sent);
 
         $delivered = $this->latestMailpitMessage();
         $this->assertNotNull($delivered);
 
-        // The fork's resolution must equal what core delivered.
         $this->assertSame($message->getFrom(), $delivered['From']['Address']);
         $this->assertSame($message->getFromName(), $delivered['From']['Name']);
         $this->assertStringContainsStringIgnoringCase(
@@ -65,9 +61,7 @@ final class MailMessageFactoryPinTest extends IntegrationTestCase
     }
 
     /**
-     * Point wp_mail at mailpit but leave the connection From empty, so the bridge's phpmailer_init
-     * does NOT override From. This lets wp_mail()'s own header-derived From reach the wire — which
-     * is exactly what the factory forks, so the two must agree.
+     * Configures mailpit SMTP with empty connection From so wp_mail header-derived From reaches wire.
      */
     private function configureMailpitTransport(): void
     {

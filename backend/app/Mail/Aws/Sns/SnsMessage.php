@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Aws\Sns;
 
 /**
- * A parsed Amazon SNS HTTP notification envelope, with the exact byte-sorted string-to-sign AWS
- * requires for signature verification. Parsing never throws; missing fields become '' so a malformed
- * body simply fails verification rather than fataling the public endpoint.
+ * Parsed Amazon SNS notification with byte-sorted string-to-sign for signature verification.
  */
 final class SnsMessage
 {
@@ -49,10 +47,7 @@ final class SnsMessage
     }
 
     /**
-     * The AWS account id embedded in the TopicArn (`arn:aws:sns:<region>:<account>:<topic>`), or '' if
-     * the ARN is malformed. Used to pin a connection to one AWS account: every SES notification topic
-     * (bounce/complaint/delivery) for that account shares this id, so it blocks cross-account spoofing
-     * without breaking SES's multi-topic model.
+     * AWS account id from TopicArn; pins connection to one account to prevent cross-account spoofing.
      */
     public function topicAccountId(): string
     {
@@ -97,9 +92,7 @@ final class SnsMessage
     }
 
     /**
-     * The canonical string to sign: each required field as "key\nvalue\n" in byte-sort (alphabetical)
-     * order, per the AWS "Verifying the signature of an Amazon SNS message" reference. A Notification's
-     * optional Subject is included only when present; a confirmation adds SubscribeURL + Token.
+     * Canonical string to sign in byte-sort order per AWS SNS signature verification spec.
      */
     public function stringToSign(): string
     {
@@ -116,12 +109,13 @@ final class SnsMessage
     }
 
     /**
+     * Notification fields in byte-sort order including optional Subject.
+     *
      * @return string[]
      */
     private function notificationFields(): array
     {
         $fields = ['Message', 'MessageId'];
-        // Subject sits in its byte-sort position between MessageId and Timestamp, and only when present.
         if (\array_key_exists('Subject', $this->data)) {
             $fields[] = 'Subject';
         }

@@ -133,8 +133,7 @@ final class PostmarkWebhookServiceTest extends BaseUnitTestCase
     }
 
     /**
-     * Stand-in for the Postmark api_key strategy: writes the connection's api_key as the server-token
-     * header, proving the provisioner forwards whatever the auth strategy produced onto the client.
+     * Stand-in for Postmark api_key strategy: proves provisioner forwards auth strategy output to client.
      */
     private function serverTokenAuth(): AuthStrategyInterface
     {

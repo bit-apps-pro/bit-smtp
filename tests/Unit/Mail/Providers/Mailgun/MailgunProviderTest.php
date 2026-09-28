@@ -14,11 +14,7 @@ use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Mockery;
 
 /**
- * Drives MailgunProvider::transport()->send() over a mocked ApiClient, proving the shipped
- * descriptor engine renders Mailgun's contract correctly (spec §5/§11): Basic auth with the
- * literal "api" user, the region-mapped host with an SSRF-validated {domain} path segment, and
- * the form/multipart auto-upgrade (FormMultipartEncoder) driven by whether the message carries
- * attachments.
+ * Drives MailgunProvider::transport()->send() over mocked ApiClient, verifies descriptor engine renders Mailgun contract.
  *
  * @internal
  *
@@ -330,7 +326,6 @@ class MailgunProviderTest extends BaseUnitTestCase
 
     public function testStatusOutsideTheDeclaredSuccessListMapsToFailure(): void
     {
-        // success => [200] in the descriptor; a 202 is still a failure by that contract.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(202, []));
 
@@ -342,8 +337,6 @@ class MailgunProviderTest extends BaseUnitTestCase
 
     public function testA200SuccessBodyWithABenignMessageKeyIsNotAFalseFailure(): void
     {
-        // Mailgun's success 200 carries {"id":"...","message":"Queued. Thank you."}; "message" is its
-        // errorPath but Mailgun never returns 200-with-error, so it must not opt into errorDetectPaths.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
             'id'      => '<msg@mg.example.com>',

@@ -5,15 +5,12 @@ namespace BitApps\SMTP\Mail\Tracking;
 \defined('ABSPATH') || exit();
 
 /**
- * Rewrites absolute http(s) <a href> targets in an HTML email body to signed, self-hosted click
- * URLs so clicks can be attributed without leaking recipient identity. Only genuinely clickable
- * external links are touched; mailto/tel/#fragment/relative/protocol-relative hrefs, over-length
- * URLs, and links already pointing at our own track path are left byte-for-byte intact.
+ * Rewrite absolute http(s) hrefs in email body to signed click URLs for attribution without leaking identity.
  */
 final class LinkRewriter
 {
     /**
-     * Original hrefs longer than this are left untouched to avoid pathological token/URL bloat.
+     * Maximum tracked URL length; longer URLs left untouched to avoid token/URL bloat.
      */
     private const MAX_TRACKED_URL = 2048;
 
@@ -28,12 +25,10 @@ final class LinkRewriter
     }
 
     /**
-     * Rewrite every eligible absolute http(s) href in $html to a signed click URL carrying $token.
+     * Rewrite eligible absolute http(s) hrefs to signed click URLs; null-safe on PCRE failure.
      */
     public function rewrite(string $html, string $token): string
     {
-        // \shref (not \bhref) so a preceding whitespace is required — otherwise `data-href` (and any
-        // *-href attribute) would match and the real href be left untracked.
         $rewritten = preg_replace_callback(
             '/(<a\b[^>]*?\shref\s*=\s*)(["\'])(.*?)\2/is',
             function (array $matches) use ($token): string {
@@ -47,15 +42,11 @@ final class LinkRewriter
             $html
         );
 
-        // preg_replace_callback returns null on a PCRE failure (e.g. backtrack-limit exhaustion on a
-        // huge/pathological body); fall back to the untouched body so a rewrite failure never emits an
-        // empty email (the (string) cast would silently turn that null into '').
         return $rewritten ?? $html;
     }
 
     /**
-     * True only for an absolute http(s) URL within the length cap that does not already point at our
-     * own click path (idempotency guard against a double rewrite).
+     * Check if URL is rewritable: absolute http(s), within length cap, and not already a click path.
      */
     private function isRewritable(string $url): bool
     {

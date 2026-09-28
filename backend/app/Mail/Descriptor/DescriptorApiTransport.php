@@ -17,14 +17,12 @@ use BitApps\SMTP\Mail\Transport\AbstractApiTransport;
 use InvalidArgumentException;
 
 /**
- * Data-driven API transport: interprets a ProviderDescriptor to build the request body and
- * endpoint, then reuses the parent strategy path to sign (last) and send the request.
+ * Data-driven API transport: interprets ProviderDescriptor to build request and sign/send via parent.
  */
 final class DescriptorApiTransport extends AbstractApiTransport
 {
     /**
-     * RFC 1123 hostname (labels of a-z/0-9/hyphen, 1..253 chars total). A path {domain} is a
-     * user setting spliced into the request URL, so it must match this before interpolation.
+     * RFC 1123 hostname pattern; user setting domains validated before URL interpolation.
      */
     private const HOSTNAME_PATTERN = '/^(?=.{1,253}$)([a-z0-9](-?[a-z0-9])*)(\.[a-z0-9](-?[a-z0-9])*)+$/iD';
 
@@ -108,9 +106,7 @@ final class DescriptorApiTransport extends AbstractApiTransport
     }
 
     /**
-     * A 2xx status alone isn't enough for providers that opt in: some (e.g. Mailjet) report a
-     * per-message failure in the body under a 2xx, so success also requires no error at any of the
-     * descriptor's errorDetectPaths — which default to [] (status-only success) for every other one.
+     * Success requires 2xx status and no error at descriptor errorDetectPaths (default []).
      *
      * @param array<string,mixed>|string $body
      */
@@ -168,7 +164,6 @@ final class DescriptorApiTransport extends AbstractApiTransport
         $formatted = $this->addressFormatter->format($raw, (string) $spec['shape']);
 
         if ($single && \is_array($formatted)) {
-            // null when the formatter dropped a blank-only address; caller then omits the key.
             return $formatted[0] ?? null;
         }
 
@@ -208,7 +203,6 @@ final class DescriptorApiTransport extends AbstractApiTransport
 
         $map = $payload['body'];
 
-        // Prefix match: content type arrives as "text/html; charset=UTF-8", not a bare "text/html".
         $key = stripos($message->getContentType(), 'text/html') === 0 ? ($map['html'] ?? null) : ($map['text'] ?? null);
 
         if ($key !== null) {
@@ -232,8 +226,7 @@ final class DescriptorApiTransport extends AbstractApiTransport
     }
 
     /**
-     * Emit a message-carried map (metadata, headers) under the provider's declared body key — only
-     * when the descriptor declares that key and the message actually carries values.
+     * Emit message-carried map under provider key when declared and message carries values.
      *
      * @param array<string,mixed> $values
      */
@@ -273,9 +266,7 @@ final class DescriptorApiTransport extends AbstractApiTransport
     }
 
     /**
-     * Descriptors can require an API-specific success envelope in addition to the HTTP status.
-     * This remains generic: providers declare strict dot-path values and required non-blank string
-     * paths, while providers with no declaration retain status-only acceptance.
+     * Check semantic success via descriptor dot-paths and required non-empty string values.
      *
      * @param array<string,mixed>|string $body
      */
@@ -338,7 +329,6 @@ final class DescriptorApiTransport extends AbstractApiTransport
             $region = (string) $endpoint['defaultRegion'];
         }
 
-        // Closed map: an unknown region is a hard error, never spliced into the host (SSRF guard).
         if (!\array_key_exists($region, $hostByRegion)) {
             throw new InvalidArgumentException(esc_html('Unknown region for endpoint host: ' . json_encode($region)));
         }

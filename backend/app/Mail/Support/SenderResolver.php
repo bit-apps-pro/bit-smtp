@@ -8,9 +8,7 @@ use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Message\MailMessage;
 
 /**
- * Resolves the effective from / reply-to address for a message under the shared
- * message-wins, connection-fallback policy. Returns a single "Name <addr>" (or bare
- * address) element so buildBody can treat it uniformly with the to/cc/bcc lists.
+ * Resolve from/reply-to address under message-wins, connection-fallback policy.
  */
 final class SenderResolver
 {

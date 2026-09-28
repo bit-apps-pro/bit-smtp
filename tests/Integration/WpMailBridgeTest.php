@@ -30,6 +30,9 @@ final class WpMailBridgeTest extends IntegrationTestCase
         $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
     }
 
+    /**
+     * Debug output is cleared per send; first recipient must not leak into second send's transcript.
+     */
     public function testResetForSendClearsDebugOutputBetweenConsecutiveSends(): void
     {
         $bridge = Plugin::instance()->smtpProvider();
@@ -43,7 +46,6 @@ final class WpMailBridgeTest extends IntegrationTestCase
         wp_mail('second-recipient@example.org', 'Second', 'Body');
         $secondDebug = implode('', $bridge->getDebugOutput());
 
-        // resetForSend must clear the first send's transcript; the first recipient must NOT leak in.
         $this->assertStringNotContainsStringIgnoringCase('first-recipient@example.org', $secondDebug);
         $this->assertStringContainsStringIgnoringCase('second-recipient@example.org', $secondDebug);
     }
@@ -65,6 +67,9 @@ final class WpMailBridgeTest extends IntegrationTestCase
         $this->assertSame(['bcc@example.org'], $log->bcc);
     }
 
+    /**
+     * Store SMTP config and refresh the cached service to apply new options.
+     */
     private function configureMailpitTransport(): void
     {
         $this->storeOptions([
@@ -77,7 +82,6 @@ final class WpMailBridgeTest extends IntegrationTestCase
             'from_name'          => 'From',
         ]);
 
-        // The config service caches on first load; refresh it so this test's options take effect.
         Plugin::instance()->mailConfigService()->reload();
     }
 }

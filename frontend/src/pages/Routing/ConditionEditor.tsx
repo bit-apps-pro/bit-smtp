@@ -9,7 +9,6 @@ import {
 import { AutoComplete, Button, Flex, Input, Select } from 'antd'
 
 const FIELD_OPTIONS: { value: RoutingField; label: string }[] = [
-  // Labelled "To recipient" (not "Recipient"): the matcher only sees the To address, never Cc/Bcc.
   { value: 'recipient', label: __('To recipient') },
   { value: 'from', label: __('From') },
   { value: 'subject', label: __('Subject') },
@@ -25,9 +24,7 @@ const OPERATOR_OPTIONS: { value: RoutingOperator; label: string }[] = [
 
 const DEFAULT_OPERATOR: RoutingOperator = 'equals'
 
-// `domain` compares the host part of an email address, so it is only meaningful for the
-// email-bearing fields; subject and source_plugin carry no address to extract a domain from, and a
-// domain condition on them silently never matches (RoutingCondition::matchesDomain) — killing the rule.
+/** Maps fields to their valid operators; domain only matches email-bearing fields (to/from), never subject/plugin. */
 const OPERATORS_BY_FIELD: Record<RoutingField, RoutingOperator[]> = {
   recipient: ['equals', 'contains', 'domain', 'matches'],
   from: ['equals', 'contains', 'domain', 'matches'],
@@ -48,6 +45,7 @@ function matchesSource(input: string, option?: { value?: string; label?: unknown
   )
 }
 
+/** One match condition row: field, operator, and value inputs, plus remove. */
 export default function ConditionEditor({
   condition,
   sources,
@@ -59,9 +57,7 @@ export default function ConditionEditor({
   onChange: (condition: EditableRoutingCondition) => void
   onRemove: () => void
 }) {
-  // Switching into or out of source_plugin resets the value so a stale slug or free-text value
-  // cannot leak across the two input modes; an operator the new field disallows (e.g. `domain` on
-  // subject) is reset to a valid default so the UI cannot build a rule that never matches.
+  /** Resets value on a source_plugin mode switch (stale slug/free-text can't leak) and operator when the new field disallows it. */
   const changeField = (field: RoutingField) => {
     const modeChanged = (field === 'source_plugin') !== (condition.field === 'source_plugin')
     const operator = OPERATORS_BY_FIELD[field].includes(condition.operator)

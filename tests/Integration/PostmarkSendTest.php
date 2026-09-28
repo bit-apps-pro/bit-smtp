@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Plugin;
 
 /**
- * Drives wp_mail() through the Postmark API transport (mocking the outbound HTTP call) and proves
- * the api_key credential reaches the request as plaintext whether it was stored encrypted-at-rest
- * or as legacy (pre-encryption) plaintext.
+ * Verifies Postmark API transport handles both encrypted and legacy plaintext credentials.
  *
  * @internal
  *
@@ -43,6 +41,9 @@ final class PostmarkSendTest extends IntegrationTestCase
         $this->assertPostmarkRequestCarriedTheApiKey($sent, $captured, $apiKey, 'Encrypted Postmark Send');
     }
 
+    /**
+     * Send works with API key stored as pre-encryption plaintext (bypasses service API to simulate).
+     */
     public function testSendsSuccessfullyWhenTheApiKeyIsStoredAsLegacyPlaintext(): void
     {
         $apiKey   = 'legacy-plaintext-server-token';
@@ -52,7 +53,6 @@ final class PostmarkSendTest extends IntegrationTestCase
         add_filter('pre_http_request', $filter, 10, 3);
 
         try {
-            // Bypasses MailConfigService::store(), mimicking an option row written before encryption existed.
             $this->storeOptions($this->v2($apiKey));
             Plugin::instance()->mailConfigService()->reload();
 

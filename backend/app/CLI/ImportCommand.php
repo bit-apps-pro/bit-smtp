@@ -7,10 +7,7 @@ use BitApps\SMTP\Mail\Import\ImportService;
 \defined('ABSPATH') || exit();
 
 /**
- * `wp bit-smtp import [<plugin-key>] [--dry-run]`: with no key, list the SMTP plugins detected on this
- * site; with a key, map that plugin's settings into a new Bit SMTP connection (or, with --dry-run,
- * print the mapping without persisting). Persistence reuses ImportService's shared save path so
- * imported passwords are encrypted at rest exactly like a manually added connection.
+ * Import SMTP plugin settings into a Bit SMTP connection (list detected or import given key).
  */
 final class ImportCommand
 {
@@ -47,7 +44,6 @@ final class ImportCommand
         }
 
         if (isset($assocArgs['dry-run'])) {
-            // Never emit secret values: mask credentials before printing the mapping.
             $reporter->line((string) wp_json_encode($this->redactSecrets($connection), JSON_PRETTY_PRINT));
 
             return;

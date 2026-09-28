@@ -22,11 +22,13 @@ import RoutingRuleRow from './RoutingRuleRow'
 const { Title, Text } = Typography
 
 let nextRuleId = 0
+/** Client-side-only id for a newly added rule or condition. */
 function createRuleId(): string {
   nextRuleId += 1
   return `rule-${nextRuleId}`
 }
 
+/** Blank rule seeded with one default condition. */
 function emptyRule(): EditableRoutingRule {
   return {
     id: createRuleId(),
@@ -35,11 +37,12 @@ function emptyRule(): EditableRoutingRule {
   }
 }
 
-// features.routing is untyped JSON from the backend; trust the R1/R3 stored shape.
+/** features.routing is untyped JSON from the backend; trust the R1/R3 stored shape. */
 function readRoutingRules(features: Record<string, unknown>): RoutingRule[] {
   return Array.isArray(features.routing) ? (features.routing as RoutingRule[]) : []
 }
 
+/** Converts stored routing rules into the editable, client-id-keyed form the page works with. */
 function toEditableRules(settings: MailSettings): EditableRoutingRule[] {
   return readRoutingRules(settings.features).map(rule => ({
     ...rule,
@@ -48,6 +51,7 @@ function toEditableRules(settings: MailSettings): EditableRoutingRule[] {
   }))
 }
 
+/** Strips the client-only ids back out for the save payload. */
 function toStoredRules(rules: EditableRoutingRule[]): RoutingRule[] {
   return rules.map(({ connectionId, conditions }) => ({
     connectionId,
@@ -97,6 +101,7 @@ function SortableRuleRow({
   )
 }
 
+/** Routing rules page: ordered, drag-reorderable match rules with an explicit Save. */
 export default function RoutingRulesPage() {
   const { token } = theme.useToken()
   const { data: settings, isPending } = useMailSettings()
@@ -151,6 +156,7 @@ export default function RoutingRulesPage() {
     setRules(arrayMove(rules, oldIndex, newIndex))
   }
 
+  /** Persists the current rule order/edits as features.routing. */
   const handleSave = () => {
     updateSettings.mutate(
       { features: { ...settings.features, routing: toStoredRules(rules) } },

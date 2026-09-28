@@ -12,16 +12,14 @@ use BitApps\SMTP\Views\Layout;
 class HttpServiceProvider extends ServiceProvider
 {
     /**
-     * No bindings. Route/layout registration has side effects and is deferred to boot() so it keeps
-     * firing at init:11, exactly as Plugin::registerProviders() does today.
+     * No bindings; route/layout registration deferred to boot() for init:11 firing (as Plugin::registerProviders()).
      */
     public function register(): void
     {
     }
 
     /**
-     * Wire the admin layout and all HTTP routing, identical to the legacy
-     * Plugin::registerProviders() body.
+     * Wire admin layout and all HTTP routing (identical to legacy Plugin::registerProviders() body).
      */
     public function boot(): void
     {

@@ -44,6 +44,7 @@ export default function PrivacyData() {
   const exportPreferences = useExportPreferences()
   const importPreferences = useImportPreferences()
 
+  /** Downloads the current preferences as JSON and toasts the outcome. */
   const handleExport = () => {
     exportPreferences.mutate(undefined, {
       onSuccess: preferences => {
@@ -56,6 +57,7 @@ export default function PrivacyData() {
 
   const handleImportClick = () => fileInputRef.current?.click()
 
+  /** Reads the selected file as preferences JSON and imports it, toasting success/failure. */
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.target
     const file = input.files?.[0]

@@ -19,9 +19,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * OAuth2 consent flow. `authorize` (admin-only) mints the provider consent URL carrying a signed
- * state; `callback` is a public, state-gated browser redirect that exchanges the code for tokens
- * and stores them on the connection. Tokens are never rendered to the browser.
+ * OAuth2 consent flow (admin-authed authorize, public state-gated callback); tokens never rendered.
  */
 class OAuthController
 {
@@ -51,8 +49,7 @@ class OAuthController
     }
 
     /**
-     * Build the provider consent URL for a connection. Runs under `cap:admin`; the explicit
-     * capability check is defence in depth.
+     * Build provider consent URL for connection (admin-gated; explicit capability check is defence-in-depth).
      *
      * @return Response
      */
@@ -99,9 +96,7 @@ class OAuthController
     }
 
     /**
-     * Clear a connection's stored OAuth tokens without deleting it. Runs under `cap:admin` (nonce
-     * enforced by the route group); the explicit capability check is defence in depth. Keeps the
-     * client_id/secret so the user can re-consent, and never returns any credential.
+     * Clear OAuth tokens without deleting connection; keeps client_id/secret for re-consent.
      *
      * @return Response
      */
@@ -124,8 +119,7 @@ class OAuthController
     }
 
     /**
-     * Public browser redirect target. Secured solely by the signed `state`: it is verified before
-     * any token exchange, and the response is HTML (never JSON, never the tokens).
+     * Public browser redirect, secured by signed state; response is HTML (never tokens).
      */
     public function callback(Request $request): void
     {
@@ -152,8 +146,7 @@ class OAuthController
     }
 
     /**
-     * Terminal HTML output. Overridable so tests can capture the page without terminating the
-     * process. The exit is required: this is a browser redirect, not a JSON API response.
+     * Emit HTML and exit (overridable for test capture); required for browser redirect.
      */
     protected function emit(string $html): void
     {
@@ -174,8 +167,6 @@ class OAuthController
             throw new RuntimeException('Connection not found for callback.');
         }
 
-        // Reject a state whose provider does not match the connection: never write tokens for one
-        // provider onto a connection configured for another.
         if ($provider !== $connection->getProvider()) {
             throw new RuntimeException('Provider does not match this connection.');
         }
@@ -211,7 +202,6 @@ class OAuthController
     {
         $updated = $connection->toArray();
 
-        // Providers only return a refresh_token on first consent; never blank an existing one.
         if (!empty($body['refresh_token'])) {
             $updated['credentials']['refresh_token'] = ['source' => 'database', 'value' => (string) $body['refresh_token']];
         }

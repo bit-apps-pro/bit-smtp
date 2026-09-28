@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Import;
 
 /**
- * Reads another SMTP plugin's stored WordPress settings and maps them onto a Bit SMTP connection so
- * a migrating user does not have to reconfigure by hand. One implementation per source plugin.
+ * Map another SMTP plugin's settings onto a Bit SMTP connection for migrating users.
  */
 interface PluginImporterInterface
 {

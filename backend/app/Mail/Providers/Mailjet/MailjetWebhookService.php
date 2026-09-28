@@ -12,8 +12,7 @@ final class MailjetWebhookService extends AbstractWebhookProvisioner
     private const ENDPOINT = 'https://api.mailjet.com/v3/REST/eventcallbackurl';
 
     /**
-     * Mailjet registers one callback URL per event type, so we provision the delivery-relevant set
-     * (least privilege) rather than every event Mailjet emits.
+     * Only delivery-relevant event types for Mailjet webhooks (least privilege).
      */
     private const EVENT_TYPES = ['sent', 'bounce', 'blocked', 'spam'];
 
@@ -66,6 +65,9 @@ final class MailjetWebhookService extends AbstractWebhookProvisioner
         return ['created' => true, 'id' => $this->requireCreatedId($createdId, 'Mailjet')];
     }
 
+    /**
+     * Delete only webhook entries pointing to this connection's URL (one per event type).
+     */
     public function deregister(Connection $connection): void
     {
         $this->assertProvider($connection, 'mailjet');
@@ -78,15 +80,13 @@ final class MailjetWebhookService extends AbstractWebhookProvisioner
             return;
         }
 
-        // Mailjet keeps one entry per event type; delete only the entries whose Url is ours, by their id.
         foreach ($this->registeredEventTypes($existing->getBody(), $url) as $id) {
             $this->client->delete(self::ENDPOINT . '/' . rawurlencode($id));
         }
     }
 
     /**
-     * Map EventType => ID for the entries already pointing at our URL — the ones we can safely skip.
-     * A different URL on the same EventType is left untouched (we only ever add ours).
+     * Map EventType => ID for entries already pointing at this URL (safe to skip).
      *
      * @param array<mixed>|string $body
      *

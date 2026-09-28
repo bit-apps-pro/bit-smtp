@@ -16,9 +16,7 @@ use BitApps\SMTP\Mail\Webhook\WebhookRequest;
 use Throwable;
 
 /**
- * Authenticates an inbound provider webhook by connection secret, records the correlated delivery
- * events, and marks the connection verified. Returns an HTTP status — never echoes, never exits — so
- * it is testable in isolation from the transport.
+ * Verify webhook, record delivery events, mark connection verified; return HTTP status (testable).
  */
 final class WebhookController
 {
@@ -58,23 +56,16 @@ final class WebhookController
             return 404;
         }
 
-        // 404 (not 401) on a bad secret so a probe cannot distinguish a real connection from a fake
-        // one; an empty stored secret must never authenticate, hash_equals keeps it constant-time.
         $stored = $connection->getWebhookSecret();
         if ($stored === '' || !hash_equals($stored, $secret)) {
             return 404;
         }
 
-        // Providers with no signed webhook resolve to null and skip the check; a signed provider
-        // whose signature fails to validate is rejected as unauthenticated.
         $verifier = $this->verifierFactory->forProvider($connection->getProvider());
         if ($verifier !== null && !$verifier->verify($request, $connection)) {
             return 401;
         }
 
-        // SES delivery events arrive over Amazon SNS (already signature-verified above). Branch on the
-        // verified body Type — gated to the SES provider so a foreign `x-amz-sns-message-type` header
-        // can never divert another provider's event into the SNS control flow.
         if ($connection->getProvider() === self::SNS_PROVIDER) {
             $snsResult = $this->handleSnsControl(SnsMessage::fromArray($request->decoded()), $connection, $connId);
             if ($snsResult !== null) {
@@ -87,9 +78,6 @@ final class WebhookController
             return 404;
         }
 
-        // The adapter contract says parseEvents never throws, but a malformed authenticated payload
-        // can still raise a TypeError (an Error, not an Exception). Swallow it so we record nothing
-        // and still return 200 rather than surfacing a 500 to the provider.
         try {
             $events = $adapter->parseEvents($request);
         } catch (Throwable $e) {
@@ -114,16 +102,11 @@ final class WebhookController
             $this->config->markWebhookVerified($connId, $latest);
         }
 
-        // Always 200 on a well-formed, authenticated post — even with zero correlated events — so the
-        // provider treats it as accepted and does not retry.
         return 200;
     }
 
     /**
-     * Handle the SNS control plane for a signature-verified SES message: acknowledge a
-     * SubscriptionConfirmation (and pin its AWS account) or reject a notification whose topic belongs
-     * to a different account than the one we confirmed. Returns an HTTP status to short-circuit on, or
-     * null to let a legitimate notification fall through to the normal parse-and-record path.
+     * Handle SNS control for SES (confirm subscription, validate account); null to continue parsing.
      */
     private function handleSnsControl(SnsMessage $sns, Connection $connection, string $connId): ?int
     {
@@ -132,8 +115,6 @@ final class WebhookController
                 return 500;
             }
 
-            // Pin the confirming topic's AWS account (best-effort persist); every SES notification topic
-            // for that account shares this id, so later notifications from any other account are rejected.
             $this->config->updateConnectionSettings($connId, ['webhook_sns_account_id' => $sns->topicAccountId()]);
 
             return 200;

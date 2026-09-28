@@ -54,7 +54,6 @@ export default function StatTiles({ overview }: { overview: Overview }) {
   const { isDark } = useTheme()
   const colors = volumeSeriesColors(isDark)
   const hasTrend = overview.series.length >= 2
-  // `delivery.denominator` is the webhook-confirmed count - 0 means no confirmations yet, not a 0% rate.
   const hasDeliveryConfirmations = overview.delivery.denominator > 0
 
   const tiles: Array<Tile> = [
@@ -99,16 +98,11 @@ export default function StatTiles({ overview }: { overview: Overview }) {
     '--tile-border': token.colorBorderSecondary,
     '--tile-bg': token.colorBgContainer,
     '--tile-gap': `${token.padding}px`,
-    // Horizontal padding matches ChartCard's default antd Card body padding so tiles and chart
-    // cards share the same left/right rhythm; vertical padding stays tighter than a full chart card.
     '--tile-padding': `${token.padding}px ${token.paddingLG}px`
   }
 
   return (
     <div className={cls.grid} style={vars}>
-      {/* Plain div, not antd <Flex>: Flex's `.css-x.ant-flex{padding:0}` is a two-class selector that
-          outranks the single-class `.tile` and zeroes its padding. The `.tile` class supplies the
-          flex-column layout itself. */}
       {tiles.map(tile => (
         <div key={tile.key} className={cls.tile}>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>

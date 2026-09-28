@@ -3,7 +3,7 @@ import { Tag } from 'antd'
 
 type DeliveryPresentation = { color: string; label: string }
 
-// Verified connection, no provider event yet.
+/** Presentation for verified connection with no provider event yet. */
 const PENDING: DeliveryPresentation = { color: 'gold', label: __('Pending') }
 
 const PRESENTATION: Record<string, DeliveryPresentation> = {
@@ -15,10 +15,7 @@ const PRESENTATION: Record<string, DeliveryPresentation> = {
   accepted: { color: 'default', label: __('Accepted') }
 }
 
-// Delivery-status values actually written to the column, in display order — these drive the Logs
-// filter options. "Pending" is deliberately excluded: it's a UI label for a NULL delivery_status
-// (a verified send with no provider event yet), never a stored value, so filtering `= 'pending'`
-// would match nothing. It stays in deliveryStatusLabel() only so the Tag can render a NULL row.
+/** Sortable delivery statuses; "Pending" (NULL status) is excluded from this list since it's never persisted. */
 const DELIVERY_STATUS_ORDER = [
   'delivered',
   'deferred',
@@ -40,6 +37,7 @@ export const DELIVERY_STATUS_OPTIONS = DELIVERY_STATUS_ORDER.map(value => ({
   label: deliveryStatusLabel(value)
 }))
 
+/** Renders a colored delivery-status tag, falling back to the pending presentation when no status is set. */
 export default function DeliveryStatusTag({ status }: { status?: string | null }) {
   const presentation = status ? PRESENTATION[status] : PENDING
   if (!presentation) return null

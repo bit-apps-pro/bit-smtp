@@ -59,8 +59,6 @@ final class RequiredFieldsValidatorTest extends BaseUnitTestCase
     {
         $v = new RequiredFieldsValidator($this->fields());
 
-        // The validator reads $credentials['api_key'] directly as a scalar; a normalized
-        // {source,value} shape would fail trim() and wrongly report the field as missing.
         $errors = $v->validate(['region' => 'us'], ['api_key' => 'k']);
 
         $this->assertArrayNotHasKey('api_key', $errors);

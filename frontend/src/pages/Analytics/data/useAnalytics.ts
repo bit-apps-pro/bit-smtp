@@ -3,11 +3,7 @@ import request from '@common/helpers/request'
 import { type AnalyticsRangeParams, type Anomalies, type Overview } from '@pages/Analytics/types'
 import { type UseQueryResult, keepPreviousData, useQuery } from '@tanstack/react-query'
 
-/**
- * Momus N1 contract: the response envelope is HTTP 200 even when logging is off - the body carries
- * `status:'error'` + this top-level `code`. The UI branches on `code`, never `status`, so this
- * expected, non-failure state renders an empty state instead of an error toast.
- */
+/** Response envelope is HTTP 200 even when logging is off; UI branches on this WP_Error `code`, never `status` (Momus N1 contract). */
 export const LOGGING_DISABLED_CODE = 'bit_smtp_logging_disabled'
 
 export class AnalyticsApiError extends Error {
@@ -39,8 +35,6 @@ async function fetchAnalytics<T>(
   params: AnalyticsRangeParams
 ): Promise<AnalyticsResult<T>> {
   const response = await request<T>({ action, method: 'GET', queryParam: toQueryParam(params) })
-  // `request.ts` types `code` as the generic 'SUCCESS' | 'ERROR' pair, but WP_Error-backed endpoints
-  // (like this one) actually echo the WP_Error code verbatim - widen locally rather than the shared type.
   const code = response.code as string
   if (code === LOGGING_DISABLED_CODE) {
     return { loggingDisabled: true }

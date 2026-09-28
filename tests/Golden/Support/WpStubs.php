@@ -9,7 +9,7 @@ use Brain\Monkey\Functions;
 final class WpStubs
 {
     /**
-     * Deterministic doubles so golden output is stable across runs/machines.
+     * Deterministic doubles (incl. the cron API every container boot touches) so golden output is stable.
      */
     public static function install(): void
     {
@@ -23,8 +23,6 @@ final class WpStubs
         Functions\when('sanitize_text_field')->returnArg(1);
         Functions\when('sanitize_email')->returnArg(1);
 
-        // Cron API: CoreServiceProvider::boot() wires the retention job through Scheduler::boot()
-        // on every Application boot, so any test that boots the container touches these.
         Functions\when('wp_next_scheduled')->justReturn(false);
         Functions\when('wp_schedule_event')->justReturn(true);
     }

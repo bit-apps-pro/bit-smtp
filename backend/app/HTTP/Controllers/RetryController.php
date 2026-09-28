@@ -21,8 +21,7 @@ final class RetryController
     }
 
     /**
-     * Queue snapshot for the admin panel: whether retry is enabled, total depth, and the pending rows
-     * as metadata only (never the encrypted message payload).
+     * Queue snapshot for admin panel (metadata only, never encrypted payload).
      */
     public function status(Request $request): Response
     {

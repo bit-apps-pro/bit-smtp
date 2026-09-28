@@ -7,8 +7,7 @@ use WP_CLI;
 \defined('ABSPATH') || exit();
 
 /**
- * Production CliReporter writing through the real WP_CLI static API. Only ever instantiated from an
- * active WP-CLI request (CliServiceProvider guards on the WP_CLI constant before wiring commands).
+ * Production CliReporter writing through WP_CLI static API (only in active WP-CLI requests).
  */
 final class WpCliReporter implements CliReporter
 {
@@ -45,8 +44,7 @@ final class WpCliReporter implements CliReporter
     }
 
     /**
-     * Render items through WP-CLI's formatter when present, degrading to a JSON dump otherwise so a
-     * non-standard WP-CLI build still produces usable output rather than nothing.
+     * Render items via WP-CLI formatter or JSON dump if formatter is unavailable.
      *
      * @param array<int,array<string,mixed>> $items
      * @param array<int,string>              $fields

@@ -47,9 +47,7 @@ final class WpMailSmtpImporterTest extends BaseUnitTestCase
         $this->assertSame('ssl', $connection['settings']['encryption']);
         $this->assertTrue($connection['settings']['auth']);
         $this->assertSame('mailer', $connection['settings']['username']);
-        // With WP Mail SMTP's own class absent (as here / when the source plugin is inactive) the stored
-        // pass may be ciphertext we can't safely reverse, so the password is left empty rather than
-        // persisted broken — the rest of the connection still imports. Its source stays 'database'.
+
         $this->assertSame('', $connection['credentials']['password']['value']);
         $this->assertSame('database', $connection['credentials']['password']['source']);
     }

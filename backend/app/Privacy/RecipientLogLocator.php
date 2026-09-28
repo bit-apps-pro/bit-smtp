@@ -8,25 +8,17 @@ use BitApps\SMTP\Model\Log;
 \defined('ABSPATH') || exit();
 
 /**
- * Resolves the log rows a GDPR request's email actually appears on, shared by the engagement
- * exporter and eraser so both scope to the exact same recipient set. `to_addr` is a JSON array of
- * recipients (optionally "Name <email>"); the bounded LIKE prunes candidates through the column
- * index, then each candidate is re-verified in PHP so a substring can never leak another
- * recipient's data.
+ * Resolve log rows for a GDPR request's email (shared by exporter/eraser, re-verified in PHP to block substring leaks).
  */
 final class RecipientLogLocator
 {
     /**
-     * Candidate logs scanned per exporter/eraser page. Bounds memory and the follow-up WHERE IN so a
-     * heavily-mailed address stays paginated per WordPress's privacy contract.
+     * Candidate logs per page (bounds memory, keeps heavily-mailed addresses paginated per WP privacy contract).
      */
     public const PAGE_SIZE = 100;
 
     /**
-     * Log ids whose recipients include $email for the 1-based $page, plus whether this was the last
-     * page. Candidates are ordered by `id` so OFFSET paging is deterministic across the successive
-     * exporter/eraser calls (MySQL gives no stable order without an explicit key), never skipping a
-     * boundary row.
+     * Return log ids whose recipients include $email for the page and done flag (OFFSET paging, deterministic order).
      *
      * @return array{ids: array<int,int>, done: bool}
      */
@@ -40,8 +32,6 @@ final class RecipientLogLocator
         $page = max(1, $page);
         $skip = ($page - 1) * self::PAGE_SIZE;
 
-        // esc_like proxies to $wpdb via Connection's dynamic dispatch so LIKE wildcards in the email
-        // (e.g. an underscore) are matched literally rather than as single-char wildcards.
         $pattern    = '%' . (string) Connection::__callStatic('esc_like', [$email]) . '%';
         $candidates = Log::query()
             ->where('to_addr', 'LIKE', $pattern)
@@ -62,8 +52,7 @@ final class RecipientLogLocator
     }
 
     /**
-     * True when any of a log's recipients resolves to $email (case-insensitive, exact address), so a
-     * LIKE substring hit on an unrelated address is rejected before its data is ever touched.
+     * Return true when any recipient matches $email (case-insensitive, exact address, rejects LIKE substrings).
      *
      * @param mixed $recipients
      */

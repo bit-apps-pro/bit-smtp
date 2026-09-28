@@ -26,8 +26,6 @@ vi.mock('react-router-dom', async importOriginal => ({
   useNavigate: () => navigateMock
 }))
 
-// dnd-kit needs real pointer events to drag in jsdom, so DndContext is swapped for a
-// pass-through that captures onDragEnd, letting tests fire it like a real drop.
 const { capturedOnDragEnd } = vi.hoisted(() => ({
   capturedOnDragEnd: { current: undefined as ((event: DndKitCore.DragEndEvent) => void) | undefined }
 }))

@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Import;
 
 /**
- * Shared assembly for importers that target Bit SMTP's `other_smtp` connection: encryption
- * normalization and the canonical connection-array builder. Subclasses only extract fields from
- * their own option shape.
+ * Shared assembly for importers targeting Bit SMTP's `other_smtp` connection.
  */
 abstract class AbstractSmtpImporter implements PluginImporterInterface
 {
@@ -48,9 +46,7 @@ abstract class AbstractSmtpImporter implements PluginImporterInterface
     }
 
     /**
-     * Assemble the canonical `other_smtp` connection array from already-extracted fields. The password
-     * rides `credentials.password` (source `database`) so MailConfigService encrypts it at rest exactly
-     * like a manually added connection; it is never placed in `settings`.
+     * Assemble canonical `other_smtp` connection array; password encrypted at rest via MailConfigService.
      *
      * @param array{name:string,fromEmail:string,fromName:string,replyToEmail?:string,host:string,port:int,encryption:mixed,auth:bool,username:string,password:string} $fields
      *

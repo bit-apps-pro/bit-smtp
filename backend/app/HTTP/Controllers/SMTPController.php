@@ -79,7 +79,6 @@ class SMTPController
     public function resend(Request $request)
     {
         if (!Capabilities::check('manage_options')) {
-            // double checking to prevent misuse
             return Response::error([])->message('unauthorized access');
         }
 
@@ -101,16 +100,12 @@ class SMTPController
         $skipped = 0;
         foreach ($logs as $log) {
             $message = (string) Arr::get($log->details, 'message', '');
-            // A row whose body was dropped/redacted by the log_store_body preference has no content
-            // to resend; skip it rather than silently mail a "[redacted]" or empty message.
             if (!LogBodyRedactor::isBodyRetained($message)) {
                 ++$skipped;
 
                 continue;
             }
 
-            // Preserve the original row and log this send as a fresh child linked to it, so the resend
-            // is visible as history rather than overwriting the log it was launched from.
             $smtpProvider->setResendParentId((int) $log->id)->setDebug(true);
             $headers     = Arr::get($log->details, 'headers', '');
             $attachments = Arr::get($log->details, 'attachments', []);
@@ -135,9 +130,7 @@ class SMTPController
     }
 
     /**
-     * Replay a single logged message with operator-edited recipients/subject over the chosen connection.
-     * The original body/attachments are reused; the send bypasses routing and is logged as a fresh child
-     * row of the original.
+     * Resend logged message with edited recipients/subject; reuse body/attachments, log as child row.
      */
     public function resendEdit(ResendEditRequest $request): Response
     {
@@ -153,7 +146,6 @@ class SMTPController
         }
 
         $body = (string) Arr::get($log->details, 'message', '');
-        // A row whose body was dropped/redacted by the log_store_body preference has nothing to resend.
         if (!LogBodyRedactor::isBodyRetained($body)) {
             return Response::error(__('Cannot resend: the message body was not retained (log body storage is set to redacted or metadata only).', 'bit-smtp'));
         }
@@ -184,9 +176,13 @@ class SMTPController
         return Response::message(__('Failed to resend mail', 'bit-smtp'))->error($bridge->getDebugOutput());
     }
 
+    public function setContentType()
+    {
+        return 'text/html';
+    }
+
     /**
-     * Build the wp_mail headers array for an edited resend: content type plus any edited Cc/Bcc. All
-     * addresses are already validated by ResendEditRequest::recipients(), so they are safe in headers.
+     * Build wp_mail headers for edited resend (content type + Cc/Bcc); addresses pre-validated.
      *
      * @param string[] $cc
      * @param string[] $bcc
@@ -204,10 +200,5 @@ class SMTPController
         }
 
         return $headers;
-    }
-
-    public function setContentType()
-    {
-        return 'text/html';
     }
 }

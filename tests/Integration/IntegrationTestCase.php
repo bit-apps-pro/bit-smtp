@@ -11,9 +11,7 @@ use PHPUnit\Framework\TestCase;
 use wpdb;
 
 /**
- * Base for integration tests. Real WordPress (wp-phpunit) is loaded by the bootstrap; the
- * ephemeral docker `db` and `mailpit` services back the run. Extends plain TestCase because
- * wp-phpunit's WP_UnitTestCase is not PHPUnit 12 compatible; DB state is reset per test here.
+ * Base for integration tests with real WordPress, backed by docker db/mailpit services.
  */
 abstract class IntegrationTestCase extends TestCase
 {
@@ -23,21 +21,21 @@ abstract class IntegrationTestCase extends TestCase
 
     protected const SMTP_PORT = 1025;
 
+    /**
+     * Resets DB state and preferences blob per test for clean isolation.
+     */
     protected function setUp(): void
     {
         parent::setUp();
         Config::deleteOption('options');
         Config::deleteOption('failure_notification_active');
-        // Preferences are seeded once at install time and otherwise untouched by this reset, so a
-        // test that relies on the legacy-option fallback (no blob written yet) needs a clean slate.
+        Config::deleteOption('failure_resolved_incidents');
         delete_option(PluginSettings::OPTION_NAME);
         $this->clearMailpit();
     }
 
     /**
-     * Empties $tables with foreign-key enforcement suspended for the duration. The schema is InnoDB
-     * with enforced constraints, and MySQL refuses TRUNCATE outright on a table a foreign key
-     * references, so the parent log table cannot be cleared without this.
+     * Empties tables with FK checks suspended to handle cascade references.
      */
     protected function truncateTables(string ...$tables): void
     {
@@ -51,8 +49,7 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
-     * Drops $tables with foreign-key enforcement suspended, for migration tests that rebuild a table
-     * a child table still references.
+     * Drops tables with FK checks suspended for migration tests.
      */
     protected function dropTables(string ...$tables): void
     {
@@ -79,12 +76,10 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
-     * Swap wp-phpunit's MockPHPMailer (which captures mail without sending) for a real PHPMailer,
-     * so wp_mail() performs a genuine SMTP send to mailpit through our phpmailer_init config.
+     * Swap MockPHPMailer for real PHPMailer; require PHPMailer classes so phpmailer_init can reference them.
      */
     protected function useRealPhpMailer(): void
     {
-        // WP loads PHPMailer/SMTP lazily; require them so phpmailer_init can reference SMTP constants.
         require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
         require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
         require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
@@ -129,9 +124,7 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
-     * Precedes each cascade parent in $tables with its child tables, mirroring the schema's ON DELETE
-     * CASCADE. Enforcement is suspended while truncating, so clearing a parent on its own would
-     * strand child rows pointing at ids that no longer exist and bleed them into later tests.
+     * Precedes cascade parents with their child tables to prevent orphaned rows.
      *
      * @param array<int,string> $tables
      *
@@ -158,8 +151,7 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
-     * Whether $table is present, so an inferred cascade child is skipped rather than erroring out in a
-     * migration test that has deliberately dropped it. Caller-named tables are never filtered.
+     * Checks if table exists; skips inferred cascade children in migration tests.
      */
     private function tableExists(string $table): bool
     {
@@ -169,9 +161,7 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
-     * Runs $callback against $wpdb with FOREIGN_KEY_CHECKS off, restoring it even when the callback
-     * throws. Scoped this narrowly on purpose: enforcement stays on inside the tests themselves, so
-     * the ON DELETE CASCADE behavior they assert is still real.
+     * Runs callback with FK checks off, restoring them even on exception; tests still assert real CASCADE.
      *
      * @param callable(wpdb):void $callback
      */

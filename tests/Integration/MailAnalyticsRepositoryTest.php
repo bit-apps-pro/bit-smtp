@@ -32,12 +32,11 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
     {
         $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_primary', 'delivered', 'Order <number>', 2);
         $this->seed('2026-03-03 05:00:00', 0, null, 'conn_primary', null, null, null);
-        $database = new RecordingDatabase($GLOBALS['wpdb']);
         $service  = new MailAnalyticsService(
-            new MailAnalyticsRepository($database, (new Log())->getTable())
+            new MailAnalyticsRepository()
         );
 
-        $result = $service->overview($this->query());
+        [$result, $queries] = $this->recordQueries(fn () => $service->overview($this->query()));
 
         self::assertSame(2, $result['total']);
         self::assertSame(2, $result['recipients']);
@@ -53,26 +52,24 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
             'interpretation'      => 'Precise time and range analytics exclude retained logs without an explicit UTC timestamp.',
         ], $result['timestamp_coverage']);
         self::assertSame([['hour' => 0, 'label' => '00:00', 'total' => 2]], $result['busiest_hours']);
-        self::assertCount(5, $database->queries);
-        self::assertNotEmpty($database->templates);
-        foreach ($database->queries as $sql) {
+        self::assertCount(5, $queries);
+        foreach ($queries as $sql) {
             self::assertDoesNotMatchRegularExpression('/SELECT\\s+\\*/i', $sql);
             self::assertStringNotContainsString('CONVERT_TZ', $sql);
             self::assertStringNotContainsString('JSON_VALID', $sql);
             self::assertStringNotContainsString('JSON_LENGTH', $sql);
         }
-        self::assertStringContainsString('%s', $database->templates[0]);
-        self::assertStringContainsString('MIN(created_at_utc) AS earliest', $database->queries[4]);
+        self::assertStringContainsString("created_at_utc >= '2026-03-01 05:00:00'", $queries[0]);
+        self::assertStringContainsString('MIN(created_at_utc) AS earliest', $queries[4]);
     }
 
     public function testEmptyRetainedLogsReturnStableZeroTimingAndNullableRecordBounds(): void
     {
-        $database = new RecordingDatabase($GLOBALS['wpdb']);
         $service  = new MailAnalyticsService(
-            new MailAnalyticsRepository($database, (new Log())->getTable())
+            new MailAnalyticsRepository()
         );
 
-        $result = $service->overview($this->query());
+        [$result, $queries] = $this->recordQueries(fn () => $service->overview($this->query()));
 
         self::assertSame(0, $result['total']);
         self::assertSame(0, $result['recipients']);
@@ -81,7 +78,7 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         self::assertSame([], $result['busiest_hours']);
         self::assertSame([], $result['busiest_weekdays']);
         self::assertSame([0, 0, 0], array_column($result['series'], 'total'));
-        self::assertCount(5, $database->queries);
+        self::assertCount(5, $queries);
     }
 
     public function testLegacyRowsWithoutAnExplicitUtcTimestampAreReportedButExcludedFromPreciseAnalytics(): void
@@ -96,7 +93,7 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
             'updated_at' => '2026-03-02 05:00:00',
         ]);
 
-        $result = (new MailAnalyticsService(new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable())))->overview($this->query());
+        $result = (new MailAnalyticsService(new MailAnalyticsRepository()))->overview($this->query());
 
         self::assertSame(1, $result['total']);
         self::assertSame('2026-03-01T05:00:00+00:00', $result['retained_records']['earliest']);
@@ -116,7 +113,7 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         self::assertTrue($logger->setEnabled(false));
         self::assertTrue($logger->setEnabled(true));
 
-        $service    = new MailAnalyticsService(new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable()));
+        $service    = new MailAnalyticsService(new MailAnalyticsRepository());
         $incomplete = (new AnalyticsQueryFactory($now, $utc, 30))->fromInput([
             'start' => $now->sub(new DateInterval('PT1H'))->format(DATE_ATOM),
             'end'   => $now->format(DATE_ATOM),
@@ -141,9 +138,8 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
     {
         $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1);
         $this->seed('2026-03-02 05:00:00', 1, 'woocommerce', 'conn_primary', null, null, 1);
-        $database = new RecordingDatabase($GLOBALS['wpdb']);
         $service  = new MailAnalyticsService(
-            new MailAnalyticsRepository($database, (new Log())->getTable())
+            new MailAnalyticsRepository()
         );
         $query = (new AnalyticsQueryFactory(
             new DateTimeImmutable('2026-03-04T05:00:00+00:00'),
@@ -157,11 +153,11 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         ]);
         self::assertInstanceOf(AnalyticsQuery::class, $query);
 
-        $result = $service->plugin($query);
+        [$result, $queries] = $this->recordQueries(fn () => $service->plugin($query));
 
         self::assertSame([['pattern' => 'Order <number>', 'total' => 1]], $result['subject_patterns']);
         self::assertSame(1, $result['subject_pattern_unknown_count']);
-        foreach ($database->queries as $sql) {
+        foreach ($queries as $sql) {
             self::assertDoesNotMatchRegularExpression('/SELECT\\s+subject(?:\\s|,)/i', $sql);
         }
     }
@@ -173,31 +169,28 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         $this->seed('2026-03-02 06:00:00', 1, 'woocommerce', 'conn_primary', 'pending', 'Order <number>', 1);
         $this->seed('2026-03-03 05:00:00', 0, null, 'conn_primary', 'bounced', null, null);
         $this->seed('2026-03-03 06:00:00', 1, 'woocommerce', 'conn_primary', 'unknown', 'Order <number>', 1);
-        $database = new RecordingDatabase($GLOBALS['wpdb']);
         $service  = new MailAnalyticsService(
-            new MailAnalyticsRepository($database, (new Log())->getTable())
+            new MailAnalyticsRepository()
         );
 
-        $result = $service->deliverability($this->query());
+        [$result, $queries] = $this->recordQueries(fn () => $service->deliverability($this->query()));
 
         self::assertSame(5, $result['acceptance']['denominator']);
         self::assertSame(2, $result['delivery']['denominator']);
         self::assertSame(1, $result['delivery']['unknown']);
         self::assertSame(1, $result['delivery']['accepted']);
         self::assertSame(1, $result['delivery']['pending']);
-        self::assertLessThanOrEqual(3, \count($database->queries));
+        self::assertLessThanOrEqual(3, \count($queries));
     }
 
     public function testAcceptedSmtpAndWebhookDisabledApiHandoffsStayOutOfTheVerifiedDenominator(): void
     {
-        // SMTP and an API connection with callbacks disabled both prove only transport hand-off.
-        // A delivered webhook result is the sole terminal outcome in this retained set.
         $this->seed('2026-03-01 05:00:00', 1, 'woocommerce', 'conn_smtp', 'accepted', 'Order <number>', 1);
         $this->seed('2026-03-02 05:00:00', 1, 'woocommerce', 'conn_api_no_webhook', 'accepted', 'Order <number>', 1);
         $this->seed('2026-03-03 05:00:00', 1, 'woocommerce', 'conn_postmark_webhook', 'delivered', 'Order <number>', 1);
 
         $result = (new MailAnalyticsService(
-            new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable())
+            new MailAnalyticsRepository()
         ))->deliverability($this->query());
 
         self::assertSame(2, $result['delivery']['accepted']);
@@ -209,9 +202,8 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
     {
         $this->seed('2026-11-01 05:00:00', 1, 'woocommerce', 'conn_primary', null, 'Receipt <number>', 1);
         $this->seed('2026-11-01 06:00:00', 1, 'woocommerce', 'conn_primary', null, 'Receipt <number>', 1);
-        $database = new RecordingDatabase($GLOBALS['wpdb']);
         $service  = new MailAnalyticsService(
-            new MailAnalyticsRepository($database, (new Log())->getTable())
+            new MailAnalyticsRepository()
         );
 
         $query = (new AnalyticsQueryFactory(
@@ -225,26 +217,27 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         ]);
         self::assertInstanceOf(AnalyticsQuery::class, $query);
 
-        $result = $service->overview($query);
+        [$result, $queries] = $this->recordQueries(fn () => $service->overview($query));
 
         self::assertSame('2026-11-01T01:00:00-04:00', $result['series'][1]['bucket']);
         self::assertSame('2026-11-01T01:00:00-05:00', $result['series'][2]['bucket']);
         self::assertSame(1, $result['series'][1]['total']);
         self::assertSame(1, $result['series'][2]['total']);
-        self::assertStringNotContainsString('CONVERT_TZ', $database->queries[1]);
+        self::assertStringNotContainsString('CONVERT_TZ', $queries[1]);
     }
 
+    /**
+     * Seeds site-local created_at values that would be excluded if analytics filtered on the display field instead of UTC.
+     */
     public function testAnalyticsUseUtcTimestampsForRangesBoundsAndLocalBusyTimesAcrossNonUtcSites(): void
     {
-        // created_at remains a site-local display field. Deliberately use values that would be
-        // excluded if analytics compared its UTC filters against that display field.
         $this->seed('2026-03-01 00:30:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 05:30:00');
         $this->seed('2026-03-01 01:15:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 06:15:00');
         $this->seed('2026-03-01 01:45:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 06:45:00');
         $this->seed('2026-03-01 23:30:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 04:30:00');
         $this->seed('2026-03-01 18:10:00', 1, 'woocommerce', 'conn_primary', null, 'Order <number>', 1, '2026-03-01 12:10:00');
 
-        $service = new MailAnalyticsService(new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable()));
+        $service = new MailAnalyticsService(new MailAnalyticsRepository());
         $newYork = (new AnalyticsQueryFactory(
             new DateTimeImmutable('2026-03-02T00:00:00+00:00'),
             new DateTimeZone('America/New_York'),
@@ -276,6 +269,29 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         $dhakaResult = $service->overview($dhaka);
         self::assertSame(1, $dhakaResult['total']);
         self::assertSame(['hour' => 18, 'label' => '18:00', 'total' => 1], $dhakaResult['busiest_hours'][0]);
+    }
+
+    /**
+     * Runs $run while capturing every SQL statement wpdb executes, returning [result, queries].
+     *
+     * @return array{0:mixed,1:array<int,string>}
+     */
+    private function recordQueries(callable $run): array
+    {
+        $queries  = [];
+        $recorder = static function (string $sql) use (&$queries): string {
+            $queries[] = $sql;
+
+            return $sql;
+        };
+
+        add_filter('query', $recorder);
+
+        try {
+            return [$run(), $queries];
+        } finally {
+            remove_filter('query', $recorder);
+        }
     }
 
     private function query(): AnalyticsQuery
@@ -319,49 +335,5 @@ final class MailAnalyticsRepositoryTest extends IntegrationTestCase
         );
 
         self::assertSame(1, $inserted);
-    }
-}
-
-/**
- * @internal
- */
-final class RecordingDatabase
-{
-    /**
-     * @var array<int,string>
-     */
-    public array $queries = [];
-
-    /**
-     * @var array<int,string>
-     */
-    public array $templates = [];
-
-    public string $last_error = '';
-
-    private object $database;
-
-    public function __construct(object $database)
-    {
-        $this->database = $database;
-    }
-
-    public function prepare(string $query, ...$args): string
-    {
-        $this->templates[] = $query;
-
-        return $this->database->prepare($query, ...$args);
-    }
-
-    /**
-     * @return array<int,array<string,mixed>>
-     */
-    public function get_results(string $query, string $output): array
-    {
-        $this->queries[]  = $query;
-        $result           = $this->database->get_results($query, $output);
-        $this->last_error = (string) $this->database->last_error;
-
-        return \is_array($result) ? $result : [];
     }
 }

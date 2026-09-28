@@ -7,8 +7,7 @@ use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Mail\Webhook\WebhookRequest;
 
 /**
- * Base for providers that POST either a single event object or a batch array of them, each keyed by a
- * top-level `event` field (SendGrid, Mailjet). Subclasses only map one decoded item to a DeliveryEvent.
+ * Base for providers posting single event or batch array with top-level event field; subclass maps single item.
  */
 abstract class AbstractBatchedEventWebhookAdapter implements WebhookAdapterInterface
 {

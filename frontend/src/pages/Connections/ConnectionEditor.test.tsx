@@ -17,6 +17,7 @@ vi.mock('@components/Toaster/Toaster', () => ({
   default: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 }))
 
+/** Renders with a fresh, retry-disabled QueryClientProvider for tests that use TanStack Query hooks. */
 function renderWithQueryClient(ui: React.ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   function wrapper({ children }: { children: ReactNode }) {
@@ -633,8 +634,6 @@ describe('ConnectionEditor', () => {
   })
 
   it('re-saves the current form values before authorizing an already-saved connection (#7)', async () => {
-    // Without the fix Connect skipped the save for an existing id and authorized against the stored
-    // client_id/secret; it must now persist the just-typed values first, then authorize.
     const save = vi.fn().mockResolvedValue({
       status: 'success',
       code: 'SUCCESS',
@@ -665,9 +664,6 @@ describe('ConnectionEditor', () => {
   })
 
   it('aborts authorize and notifies when the pre-authorize save fails for an existing connection', async () => {
-    // A non-success save body must NOT authorize: the request helper resolves (not rejects) on a
-    // {status:'error'} body, so without gating on success the button would authorize against the
-    // stale stored client_id/secret using the still-real connection id.
     const save = vi.fn().mockResolvedValue({
       status: 'error',
       code: 'ERROR',

@@ -10,9 +10,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Covers the send-test command logic in isolation: recipient validation, the debug-enabled wp_mail
- * dispatch, and success/failure reporting -- all with a mocked WpMailBridge and a fake reporter, no
- * real WP_CLI.
+ * Covers send-test command logic: recipient validation, debug wp_mail dispatch, success/failure reporting with mocks.
  *
  * @internal
  *

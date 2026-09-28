@@ -67,8 +67,6 @@ final class SmtpTransportTest extends IntegrationTestCase
 
         $delivered = $this->latestMailpitMessage();
         $this->assertNotNull($delivered);
-        // getLastMessageID() returns the exact "<...@...>" string PHPMailer wrote to the wire, so the
-        // captured id must equal the delivered Message-Id header verbatim (angle brackets included).
         $this->assertSame($this->mailpitMessageIdHeader($delivered['ID']), $result->getMessageId());
     }
 
@@ -93,7 +91,6 @@ final class SmtpTransportTest extends IntegrationTestCase
 
         $headers = $this->mailpitHeaders($delivered['ID']);
         $this->assertSame('kept', $headers['X-Custom'][0] ?? null);
-        // PHPMailer adds MIME-Version once; a passed-through duplicate must not appear.
         $this->assertLessThanOrEqual(1, \count($headers['Mime-Version'] ?? $headers['MIME-Version'] ?? []));
     }
 
@@ -120,6 +117,9 @@ final class SmtpTransportTest extends IntegrationTestCase
         $this->assertNotEmpty($result->getError());
     }
 
+    /**
+     * Without an explicit timeout, configure() must fall back to 30s rather than PHPMailer's 300s default.
+     */
     public function testConfigureMapsConnectionOntoPhpmailer(): void
     {
         $connection = Connection::fromArray([
@@ -155,8 +155,6 @@ final class SmtpTransportTest extends IntegrationTestCase
         $this->assertSame('sender@example.org', $mailer->Sender);
         $replyToAddresses = array_column($mailer->getReplyToAddresses(), 0);
         $this->assertContains('reply@example.org', $replyToAddresses);
-        // $this->transport (setUp) was built without an explicit timeout, so configure() must fall
-        // back to the 30s default rather than leaving PHPMailer's own 300s default in place.
         $this->assertSame(30, $mailer->Timeout);
     }
 
@@ -171,6 +169,9 @@ final class SmtpTransportTest extends IntegrationTestCase
         $this->assertSame(15, $mailer->Timeout);
     }
 
+    /**
+     * CR+LF is stripped without a separator, so the injected name collapses into one harmless header.
+     */
     public function testSendStripsHeaderNameCrlf(): void
     {
         $connection = $this->mailpitConnection();
@@ -189,7 +190,6 @@ final class SmtpTransportTest extends IntegrationTestCase
 
         $headers = $this->mailpitHeaders($delivered['ID']);
 
-        // Assert that the injected header name does not appear (case-insensitive check).
         $headerKeyLower  = strtolower('X-Injected');
         $injectedExists  = false;
         foreach (array_keys($headers) as $key) {
@@ -201,8 +201,6 @@ final class SmtpTransportTest extends IntegrationTestCase
         }
         $this->assertFalse($injectedExists, 'Header name CRLF injection should be stripped; X-Injected must not appear');
 
-        // The CR+LF is stripped without a separator, so "X-Safe\r\nX-Injected" collapses to
-        // "X-SafeX-Injected" as a single harmless custom header — assert it is present.
         $collapsedExists = false;
         foreach (array_keys($headers) as $key) {
             if (strtolower($key) === strtolower('X-SafeX-Injected')) {

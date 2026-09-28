@@ -12,8 +12,6 @@ const PRESENTATION: Record<ConnectionHealthStatus, StatusPresentation> = {
   unknown: { color: 'default', label: __('Unknown') }
 }
 
-// Warn once an OAuth access token is inside this window of expiry (or already past it).
-// Keep in sync with HealthNotifier::OAUTH_WARNING_WINDOW_SECONDS on the backend.
 const OAUTH_EXPIRY_WARNING_SECONDS = 72 * 60 * 60
 
 /** A note when an OAuth access token is expired or expiring soon; null while it is safely valid. */

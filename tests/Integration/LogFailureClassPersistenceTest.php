@@ -7,8 +7,7 @@ use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Model\Log;
 
 /**
- * Drives LogService::save()/update()/bulkInsert() against the real test DB: each write path must
- * persist a passed failure_class onto the log row's own column, not merely into the details JSON.
+ * Verifies failure_class persisted on log column for all write paths, not just in details JSON.
  *
  * @internal
  *

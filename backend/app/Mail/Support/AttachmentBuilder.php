@@ -52,7 +52,6 @@ final class AttachmentBuilder
      */
     public function build(array $attachments, string $shape): array
     {
-        // Fail-fast: an unknown shape is a caller error regardless of whether the list is empty.
         $this->assertKnownShape($shape);
 
         $rows = [];

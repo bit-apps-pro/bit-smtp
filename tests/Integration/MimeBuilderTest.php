@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
 
 /**
- * Drives MimeBuilder against the real WP-bundled PHPMailer (unavailable in the unit tier, where it
- * is skipped) to cover the API-path MIME output: the built message carries subject/from/to, and a
- * CR/LF injected into a header value is stripped so it cannot forge a new header line.
+ * Tests MimeBuilder MIME output with real PHPMailer; verifies header-injection defense.
  *
  * @internal
  *
@@ -17,6 +15,9 @@ use BitApps\SMTP\Mail\Message\MimeBuilder;
  */
 final class MimeBuilderTest extends IntegrationTestCase
 {
+    /**
+     * Build MIME with subject/from/to; header injection (CRLF) is stripped to prevent forged headers.
+     */
     public function testBuildsMimeWithSubjectFromToAndStripsHeaderInjection(): void
     {
         $this->useRealPhpMailer();
@@ -37,8 +38,6 @@ final class MimeBuilderTest extends IntegrationTestCase
         $this->assertStringContainsString('Subject: Hello there', $mime);
         $this->assertStringContainsString('sender@example.com', $mime);
         $this->assertStringContainsString('recipient@example.com', $mime);
-        // The CRLF is stripped, so the injected "Bcc:" stays inline on the X-Custom value and
-        // never begins its own header line.
         $this->assertStringNotContainsString("\nBcc: attacker@evil.test", $mime);
         $this->assertStringContainsString('X-Custom: safe-valueBcc: attacker@evil.test', $mime);
     }

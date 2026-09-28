@@ -1,5 +1,6 @@
 import { type Interpolation, type Theme } from '@emotion/react'
 
+/** Global emotion styles for scrollbars, popovers, and shared UI states across the app root. */
 const globalCssInJs = ({ token }: Theme) =>
   ({
     '#bit-apps-root *': {
@@ -27,10 +28,7 @@ const globalCssInJs = ({ token }: Theme) =>
       borderRadius: '10px',
       backgroundColor: `${token.colorBgContainer} !important`
     },
-    ':is(.ant-popover, .ant-modal, #bit-apps-root) *:hover::-webkit-scrollbar-track': {
-      // backgroundColor: `${token.c} !important`
-      // backgroundColor: `red !important`
-    },
+    ':is(.ant-popover, .ant-modal, #bit-apps-root) *:hover::-webkit-scrollbar-track': {},
 
     '.ant-select-dropdown, .ant-tooltip': {
       zIndex: '999999 !important'

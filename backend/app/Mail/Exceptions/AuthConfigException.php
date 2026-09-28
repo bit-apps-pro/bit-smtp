@@ -12,8 +12,7 @@ class AuthConfigException extends RuntimeException
     }
 
     /**
-     * The region value is JSON-encoded so control characters (e.g. an injected newline)
-     * surface as visible escapes instead of corrupting whatever the message is logged into.
+     * JSON-encode region to surface control chars as escapes instead of corrupting logs.
      */
     public static function invalidRegion(string $region): self
     {

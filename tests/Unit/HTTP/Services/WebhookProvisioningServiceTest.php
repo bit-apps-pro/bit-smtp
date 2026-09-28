@@ -80,9 +80,6 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
     {
         $this->factory->shouldNotReceive('forProvider');
 
-        // Mockery's array argument matching is a plain `==` compare and does not recurse into
-        // matcher objects nested inside a literal array, so the updated_at timestamp is asserted
-        // via Mockery::on() instead of Mockery::type() nested in the array (as with cycles a/b).
         $this->config->shouldReceive('persistConnectionProvisioning')
             ->once()
             ->with('conn_1', [], Mockery::on(static function (array $settings): bool {
@@ -92,8 +89,6 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
             }))
             ->andReturn(true);
 
-        // 'zeptomail' is webhook-capable (has an inbound adapter) but exposes no registration API,
-        // so it has no provisioner and must be left for manual-paste setup.
         $result = $this->service()->provisionOnSave($this->connection([], 'zeptomail'));
 
         $this->assertSame(['status' => 'skipped'], $result);
@@ -112,14 +107,10 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
 
     public function testProvisionOnSaveRecordsUnavailableWhenSiteIsNotPublicHttps(): void
     {
-        // The best-effort path logs the failure via error_log; declare it so the strict-output suite
-        // doesn't flag the write as risky.
         $this->expectOutputRegex('/webhook auto-provision failed: A public HTTPS site URL is required/');
 
         Functions\when('home_url')->alias(static fn (string $path = ''): string => 'http://example.test' . $path);
 
-        // Provisioning must bail before ever reaching the provider API when the site has no public
-        // HTTPS URL to compose a webhook URL from.
         $this->factory->shouldNotReceive('forProvider');
 
         $this->config->shouldReceive('persistConnectionProvisioning')
@@ -138,8 +129,6 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
 
     public function testProvisionOnSaveScrubsSecretsFromFailureReason(): void
     {
-        // The reason is surfaced in the admin UI, so a bearer token or long key leaked into a raw
-        // provider error body must be scrubbed, not just the per-connection URL/secret.
         $this->expectOutputRegex('#failed: 401 Unauthorized Bearer \[redacted\] key=\[redacted\]#');
 
         $this->registry->shouldReceive('get')->with('sendgrid')->andReturn($this->bearerProvider());
@@ -171,8 +160,6 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
 
     public function testProvisionOnSaveReturnsWarningWithoutThrowingWhenProvisioningFails(): void
     {
-        // The best-effort path logs the failure via error_log; declare it so the strict-output suite
-        // doesn't flag the write as risky, and assert the per-connection URL was redacted before logging.
         $this->expectOutputRegex('/webhook auto-provision failed: boom at \[redacted webhook URL\]/');
 
         $this->registry->shouldReceive('get')->with('sendgrid')->andReturn($this->bearerProvider());
@@ -260,7 +247,6 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
 
     public function testDeregisterForSkipsProvidersWithoutAProvisioner(): void
     {
-        // zeptomail is webhook-capable but has no registration API, so nothing to deregister.
         $this->factory->shouldNotReceive('forProvider');
 
         $this->service()->deregisterFor($this->connection([], 'zeptomail'));
@@ -268,7 +254,6 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
 
     public function testDeregisterForSwallowsProvisionerErrors(): void
     {
-        // A provider/API failure during deregister must never propagate — it can't block the delete.
         $this->expectOutputRegex('/webhook deregister failed: boom/');
 
         $this->registry->shouldReceive('get')->with('sendgrid')->andReturn($this->bearerProvider());

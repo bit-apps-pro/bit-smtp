@@ -1,17 +1,6 @@
 <?php
 
-/**
- * Standalone gate smoke test — run under a specific PHP version, no PHPUnit.
- * Exit 0 = pass. Asserts requiring the entry file never fatals and, below the
- * floor, registers an admin notice instead of loading the (8.1) plugin.
- *
- * `is_readable()` is a PHP builtin and cannot be redeclared, so above the floor
- * we can't stub it to fake a missing vendor/autoload.php. Instead, the real
- * (unmodified) entry files are copied into a vendor-less sandbox: the real,
- * unstubbed is_readable() then naturally reports vendor/autoload.php missing,
- * so bootstrap.php takes its own graceful "not installed" branch instead of
- * cascading into the real Plugin::load() (which needs a full WP environment).
- */
+/** Gate smoke test: verifies entry file never fatals and respects PHP floor via vendor-less sandbox. */
 \define('ABSPATH', __DIR__ . '/');
 
 function add_action($hook, $cb)
@@ -39,7 +28,7 @@ function plugin_dir_path($f)
     return rtrim(\dirname($f), '/') . '/';
 }
 
-$pluginRoot = \dirname(__DIR__, 2); // tests/gate -> plugin root
+$pluginRoot = \dirname(__DIR__, 2);
 $sandbox    = sys_get_temp_dir() . '/bit-smtp-gate-smoke';
 
 @mkdir($sandbox . '/backend', 0777, true);

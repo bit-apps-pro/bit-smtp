@@ -134,7 +134,6 @@ class ApiErrorFormatterTest extends BaseUnitTestCase
 
     public function testHasErrorIsTrueWhenAnyPathResolvesToANonEmptyScalar(): void
     {
-        // Mailjet-style: the first path misses, the second (flat) path hits.
         $body = ['message' => 'flat error'];
 
         $this->assertTrue($this->formatter->hasError($body, ['errors.0.message', 'message']));

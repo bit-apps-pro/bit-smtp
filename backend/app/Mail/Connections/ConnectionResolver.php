@@ -23,9 +23,7 @@ final class ConnectionResolver
     }
 
     /**
-     * Priority order used by the dispatch loop: an optional routed connection first, then the
-     * configured default, the listed fallbacks, and finally any remaining enabled connections —
-     * de-duplicated. Passing no $preferredId yields the exact pre-routing order.
+     * Priority order for dispatch: routed connection, default, fallbacks, remaining enabled (deduplicated).
      *
      * @return Connection[]
      */

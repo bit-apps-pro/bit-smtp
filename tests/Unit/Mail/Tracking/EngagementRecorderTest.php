@@ -11,10 +11,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Verifies the recorder's contract against a mocked LogService: a verified token folds a fire onto
- * its log, a click carries its signed URL as the target, an automated fire sets the flag, and a
- * bad/tampered token or an unknown log writes nothing. The log is resolved with a SINGLE
- * findByTrackingId() fetch — both its id and its send time come from that one model.
+ * Verifies recorder contract: verified token folds fire onto log, click carries signed URL, automated fire sets flag.
  *
  * @internal
  *
@@ -28,7 +25,7 @@ final class EngagementRecorderTest extends BaseUnitTestCase
     {
         parent::setUp();
         Functions\when('wp_salt')->justReturn('unit-test-tracking-salt');
-        // Log's magic accessors reach the query builder, which reads the wpdb prefix.
+
         $GLOBALS['wpdb'] = (object) ['prefix' => 'wp_'];
     }
 

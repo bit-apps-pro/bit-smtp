@@ -65,7 +65,6 @@ class Layout
         $version = Config::VERSION;
         $slug    = Config::SLUG;
 
-        // loading google fonts
         wp_enqueue_style($slug . 'PRECONNECT', 'https://fonts.googleapis.com');
         wp_enqueue_style($slug . 'CROSSORIGIN', 'https://fonts.gstatic.com');
         wp_enqueue_style('font', self::FONT_URL, [], $version);

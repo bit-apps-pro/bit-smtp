@@ -10,9 +10,7 @@ use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
- * End-to-end: a retryable send failure with retry_enabled on lands a row in mail_retry_queue, and a
- * RetryWorker::process() run re-dispatches it through the same connection id, delivering once that
- * connection becomes reachable and removing the row.
+ * Tests end-to-end retry flow: failed send queues row, RetryWorker re-dispatches via same connection.
  *
  * @internal
  *
@@ -29,6 +27,9 @@ final class RetryQueueEndToEndTest extends IntegrationTestCase
         $this->truncateTables($this->queueTable);
     }
 
+    /**
+     * Backdates the queued attempt past the ~5-minute retry delay, then repoints the connection at mailpit so the retry succeeds.
+     */
     public function testRetryableFailureEnqueuesAndTheWorkerDeliversOnceTheConnectionBecomesReachable(): void
     {
         PluginSettings::make()->set('retry_enabled', true)->set('retry_max_attempts', 3)->save();
@@ -46,12 +47,8 @@ final class RetryQueueEndToEndTest extends IntegrationTestCase
         $this->assertSame(FailureCategory::TRANSIENT, $rows[0]->failure_class);
         $this->assertSame(0, (int) $rows[0]->attempts);
         $this->assertNull($rows[0]->log_id);
-        // The real enqueue path schedules the first attempt ~5 minutes out (RetryWorker::computeDelay),
-        // not immediately; backdate it here so this test can exercise a due claim without sleeping.
         $this->backdateQueueRowToBeDue((int) $rows[0]->id);
 
-        // Same connection id, now pointed at a reachable mailpit host: the worker must re-dispatch
-        // dispatchRetry() by connection id, so this repoint is what makes the retry succeed.
         $this->storeV2([
             $this->connection('conn_primary', self::SMTP_HOST, self::SMTP_PORT),
         ], 'conn_primary', []);
@@ -73,8 +70,7 @@ final class RetryQueueEndToEndTest extends IntegrationTestCase
     }
 
     /**
-     * Force a just-enqueued row's next_attempt_at into the past so claimDue() picks it up without
-     * this test having to sleep out the real ~5-minute first-attempt backoff.
+     * Backdates queue row so claimDue() picks it up without waiting backoff period.
      */
     private function backdateQueueRowToBeDue(int $id): void
     {

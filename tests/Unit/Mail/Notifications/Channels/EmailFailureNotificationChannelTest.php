@@ -3,11 +3,11 @@
 namespace BitApps\SMTP\Tests\Unit\Mail\Notifications\Channels;
 
 use BitApps\SMTP\Mail\Notifications\Channels\EmailFailureNotificationChannel;
+use BitApps\SMTP\Mail\Notifications\FailureIncident;
 use BitApps\SMTP\Mail\Notifications\FailureNotification;
 use BitApps\SMTP\Mail\Notifications\NotificationDispatchGuard;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
-use WP_Error;
 
 /**
  * @internal
@@ -31,7 +31,7 @@ final class EmailFailureNotificationChannelTest extends BaseUnitTestCase
             ->once()
             ->with(
                 ['ops@example.com'],
-                '[Bit SMTP] Email sending failed on Example Site',
+                '[Bit SMTP] Example Site: Sending is failing',
                 $notification->emailBody(),
                 ['Content-Type: text/plain; charset=UTF-8']
             )
@@ -43,7 +43,7 @@ final class EmailFailureNotificationChannelTest extends BaseUnitTestCase
 
         $channel = new EmailFailureNotificationChannel();
 
-        $this->assertTrue($channel->send($notification, ['recipients' => ['ops@example.com']]));
+        $this->assertTrue($channel->send($notification, ['recipients' => ['ops@example.com']])->ok());
         $this->assertTrue($guardActive);
         $this->assertFalse(NotificationDispatchGuard::isActive());
     }
@@ -54,11 +54,24 @@ final class EmailFailureNotificationChannelTest extends BaseUnitTestCase
 
         $channel = new EmailFailureNotificationChannel();
 
-        $this->assertFalse($channel->send($this->notification(), []));
+        $this->assertFalse($channel->send($this->notification(), [])->ok());
+    }
+
+    public function testAFailedWpMailReportsThatPhpMailCouldNotSend(): void
+    {
+        Functions\when('wp_mail')->justReturn(false);
+
+        $result = (new EmailFailureNotificationChannel())->send($this->notification(), ['recipients' => ['ops@example.com']]);
+
+        $this->assertFalse($result->ok());
+        $this->assertSame('PHP mail() could not send the message.', $result->reason());
     }
 
     private function notification(): FailureNotification
     {
-        return FailureNotification::fromError(new WP_Error('wp_mail_failed', 'Failed'));
+        return FailureNotification::fromIncident(
+            FailureNotification::EVENT_OPENED,
+            FailureIncident::fromArray(['id' => 'incident-1', 'started_at' => 1700000000])
+        );
     }
 }

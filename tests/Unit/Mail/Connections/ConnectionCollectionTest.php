@@ -5,7 +5,13 @@ namespace BitApps\SMTP\Tests\Unit\Mail\Connections;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionCollection;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
+use InvalidArgumentException;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class ConnectionCollectionTest extends BaseUnitTestCase
 {
     private ConnectionCollection $collection;
@@ -15,29 +21,29 @@ class ConnectionCollectionTest extends BaseUnitTestCase
         parent::setUp();
 
         $enabledConn = Connection::fromArray([
-            'id' => 'conn-enabled',
-            'provider' => 'other_smtp',
-            'kind' => 'smtp',
-            'name' => 'Enabled Connection',
-            'enabled' => true,
-            'fromEmail' => 'from@example.com',
-            'fromName' => 'From Name',
+            'id'           => 'conn-enabled',
+            'provider'     => 'other_smtp',
+            'kind'         => 'smtp',
+            'name'         => 'Enabled Connection',
+            'enabled'      => true,
+            'fromEmail'    => 'from@example.com',
+            'fromName'     => 'From Name',
             'replyToEmail' => 'reply@example.com',
-            'settings' => ['host' => 'smtp.example.com'],
-            'credentials' => [],
+            'settings'     => ['host' => 'smtp.example.com'],
+            'credentials'  => [],
         ]);
 
         $disabledConn = Connection::fromArray([
-            'id' => 'conn-disabled',
-            'provider' => 'other_smtp',
-            'kind' => 'smtp',
-            'name' => 'Disabled Connection',
-            'enabled' => false,
-            'fromEmail' => 'from@example.com',
-            'fromName' => 'From Name',
+            'id'           => 'conn-disabled',
+            'provider'     => 'other_smtp',
+            'kind'         => 'smtp',
+            'name'         => 'Disabled Connection',
+            'enabled'      => false,
+            'fromEmail'    => 'from@example.com',
+            'fromName'     => 'From Name',
             'replyToEmail' => 'reply@example.com',
-            'settings' => ['host' => 'smtp.example.com'],
-            'credentials' => [],
+            'settings'     => ['host' => 'smtp.example.com'],
+            'credentials'  => [],
         ]);
 
         $this->collection = new ConnectionCollection([$enabledConn, $disabledConn]);
@@ -100,7 +106,7 @@ class ConnectionCollectionTest extends BaseUnitTestCase
 
     public function testConstructorThrowsOnNonConnectionElement(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         new ConnectionCollection(['garbage']);
     }

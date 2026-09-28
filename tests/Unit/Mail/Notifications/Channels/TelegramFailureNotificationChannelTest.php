@@ -52,7 +52,7 @@ final class TelegramFailureNotificationChannelTest extends BaseUnitTestCase
         $this->assertTrue($channel->send(FailureNotification::forTest(), [
             'bot_token' => self::TOKEN,
             'chat_id'   => '-1001234567890',
-        ]));
+        ])->ok());
     }
 
     public function testRejectsInvalidTokenAndUnsignedChatIdWithoutARequest(): void
@@ -60,8 +60,8 @@ final class TelegramFailureNotificationChannelTest extends BaseUnitTestCase
         Functions\expect('wp_safe_remote_post')->never();
         $channel = new TelegramFailureNotificationChannel();
 
-        $this->assertFalse($channel->send(FailureNotification::forTest(), ['bot_token' => 'bad token', 'chat_id' => '-1001234567890']));
-        $this->assertFalse($channel->send(FailureNotification::forTest(), ['bot_token' => self::TOKEN, 'chat_id' => 'chat-name']));
+        $this->assertFalse($channel->send(FailureNotification::forTest(), ['bot_token' => 'bad token', 'chat_id' => '-1001234567890'])->ok());
+        $this->assertFalse($channel->send(FailureNotification::forTest(), ['bot_token' => self::TOKEN, 'chat_id' => 'chat-name'])->ok());
     }
 
     public function testReturnsFalseForRemoteNon2xxAndProviderErrorsWithoutLeakingToken(): void
@@ -76,7 +76,7 @@ final class TelegramFailureNotificationChannelTest extends BaseUnitTestCase
             $this->assertFalse($channel->send(FailureNotification::forTest(), [
                 'bot_token' => self::TOKEN,
                 'chat_id'   => '123456789',
-            ]));
+            ])->ok());
         } catch (Throwable $exception) {
             $this->assertStringNotContainsString(self::TOKEN, $exception->getMessage());
 
@@ -95,7 +95,7 @@ final class TelegramFailureNotificationChannelTest extends BaseUnitTestCase
         $this->assertFalse($channel->send(FailureNotification::forTest(), [
             'bot_token' => self::TOKEN,
             'chat_id'   => '123456789',
-        ]));
+        ])->ok());
     }
 
     public function testReturnsFalseForANon2xxOrOkFalseProviderResponse(): void
@@ -103,14 +103,52 @@ final class TelegramFailureNotificationChannelTest extends BaseUnitTestCase
         Functions\when('wp_safe_remote_post')->justReturn(['response' => ['code' => 429], 'body' => '{"ok":false}']);
         Functions\when('is_wp_error')->justReturn(false);
         Functions\when('wp_remote_retrieve_response_code')->justReturn(429);
+        Functions\when('wp_remote_retrieve_body')->justReturn('{"ok":false}');
 
         $channel  = new TelegramFailureNotificationChannel();
         $settings = ['bot_token' => self::TOKEN, 'chat_id' => '123456789'];
-        $this->assertFalse($channel->send(FailureNotification::forTest(), $settings));
+        $result   = $channel->send(FailureNotification::forTest(), $settings);
+        $this->assertFalse($result->ok());
+        $this->assertSame('Telegram rejected the request (HTTP 429).', $result->reason());
 
-        Functions\when('wp_safe_remote_post')->justReturn(['response' => ['code' => 200], 'body' => '{"ok":false,"description":"denied"}']);
         Functions\when('wp_remote_retrieve_response_code')->justReturn(200);
         Functions\when('wp_remote_retrieve_body')->justReturn('{"ok":false,"description":"denied"}');
-        $this->assertFalse($channel->send(FailureNotification::forTest(), $settings));
+        $this->assertFalse($channel->send(FailureNotification::forTest(), $settings)->ok());
+    }
+
+    public function testNamesTelegramsDescriptionWithTheBotTokenRedacted(): void
+    {
+        Functions\when('wp_safe_remote_post')->justReturn([]);
+        Functions\when('is_wp_error')->justReturn(false);
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(401);
+        Functions\when('wp_remote_retrieve_body')->justReturn((string) json_encode([
+            'ok'          => false,
+            'error_code'  => 401,
+            'description' => 'Unauthorized: bot ' . self::TOKEN . ' <b>rejected</b> ' . str_repeat('word ', 60),
+        ]));
+
+        $reason = (string) (new TelegramFailureNotificationChannel())
+            ->send(FailureNotification::forTest(), ['bot_token' => self::TOKEN, 'chat_id' => '123456789'])
+            ->reason();
+
+        $this->assertStringStartsWith('Telegram rejected the request: Unauthorized: bot [redacted] rejected word', $reason);
+        $this->assertStringNotContainsString(self::TOKEN, $reason);
+        $this->assertStringNotContainsString('<b>', $reason);
+        $this->assertLessThanOrEqual(160, mb_strlen($reason));
+    }
+
+    public function testATransportErrorIsReportedWithTheRequestUrlAndTokenStripped(): void
+    {
+        Functions\when('wp_safe_remote_post')->justReturn(new WP_Error(
+            'http_request_failed',
+            'cURL error 28: Operation timed out for https://api.telegram.org/bot' . self::TOKEN . '/sendMessage (token ' . self::TOKEN . ')'
+        ));
+        Functions\when('is_wp_error')->justReturn(true);
+
+        $reason = (string) (new TelegramFailureNotificationChannel())
+            ->send(FailureNotification::forTest(), ['bot_token' => self::TOKEN, 'chat_id' => '123456789'])
+            ->reason();
+
+        $this->assertSame('Could not connect: cURL error 28: Operation timed out for [URL] (token [redacted])', $reason);
     }
 }

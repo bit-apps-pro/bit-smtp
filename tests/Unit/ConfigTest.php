@@ -6,11 +6,18 @@ use BitApps\SMTP\Config;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 final class ConfigTest extends BaseUnitTestCase
 {
     private string $baseDir;
 
-    /** Prepare an isolated development-port file. */
+    /**
+     * Prepare an isolated development-port file.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,7 +29,9 @@ final class ConfigTest extends BaseUnitTestCase
         Functions\when('plugin_dir_path')->justReturn($this->baseDir . '/');
     }
 
-    /** Remove temporary state and proxy headers. */
+    /**
+     * Remove temporary state and proxy headers.
+     */
     protected function tearDown(): void
     {
         unset($_SERVER['HTTP_X_BIT_SMTP_DEV_PROXY']);
@@ -32,13 +41,17 @@ final class ConfigTest extends BaseUnitTestCase
         parent::tearDown();
     }
 
-    /** Use the prefixed local Vite URL for ordinary development requests. */
+    /**
+     * Use the prefixed local Vite URL for ordinary development requests.
+     */
     public function testDevUrlUsesLocalViteBase(): void
     {
         self::assertSame('http://localhost:3010/__vite', Config::devUrl());
     }
 
-    /** Use the current WordPress origin when requests pass through the dev proxy. */
+    /**
+     * Use the current WordPress origin when requests pass through the dev proxy.
+     */
     public function testDevUrlUsesCurrentOriginBehindDevProxy(): void
     {
         $_SERVER['HTTP_X_BIT_SMTP_DEV_PROXY'] = '1';

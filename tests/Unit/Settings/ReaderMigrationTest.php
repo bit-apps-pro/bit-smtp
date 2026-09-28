@@ -18,10 +18,7 @@ use Mockery;
 use WP_Error;
 
 /**
- * Proves Task 14b: logging/retention readers source the seeded bit_smtp_preferences blob when it
- * exists (via PluginSettings::getWithLegacyFallback), fall back to the pre-migration legacy options
- * before BitSmtpSettingsSeed (manage_options-gated) has run, and that the Logs-page write paths
- * (setEnabled/updateRetention) write through to the blob the readers consult.
+ * Proves Task 14b: logging/retention readers source seeded blob, fallback to legacy options, write paths sync with blob.
  *
  * @internal
  *
@@ -33,8 +30,7 @@ final class ReaderMigrationTest extends BaseUnitTestCase
     {
         $options = [
             PluginSettings::OPTION_NAME => ['logging_enabled' => false, 'log_retention_days' => 7],
-            // A stale legacy value proves the preferences blob wins once seeded, not just a matching default.
-            'bit_smtp_logging_enabled' => 1,
+            'bit_smtp_logging_enabled'  => 1,
         ];
         $this->stubOptionsApi($options);
 
@@ -53,8 +49,7 @@ final class ReaderMigrationTest extends BaseUnitTestCase
     {
         $options = [
             PluginSettings::OPTION_NAME => ['log_retention_days' => 7],
-            // A stale legacy value proves the preferences blob wins once seeded.
-            'bit_smtp_log_retention' => 45,
+            'bit_smtp_log_retention'    => 45,
         ];
         $this->stubOptionsApi($options);
 
@@ -73,8 +68,7 @@ final class ReaderMigrationTest extends BaseUnitTestCase
     {
         $options = [
             PluginSettings::OPTION_NAME => ['log_retention_days' => 7],
-            // A stale legacy value proves the preferences blob wins once seeded.
-            'bit_smtp_log_retention' => 45,
+            'bit_smtp_log_retention'    => 45,
         ];
         $this->stubOptionsApi($options);
 
@@ -99,8 +93,7 @@ final class ReaderMigrationTest extends BaseUnitTestCase
     {
         $options = [
             PluginSettings::OPTION_NAME => ['logging_enabled' => false],
-            // A stale legacy value proves the preferences blob wins once seeded.
-            'bit_smtp_logging_enabled' => 1,
+            'bit_smtp_logging_enabled'  => 1,
         ];
         $this->stubOptionsApi($options);
         $repo = Mockery::mock(MailAnalyticsRepository::class);
@@ -127,8 +120,6 @@ final class ReaderMigrationTest extends BaseUnitTestCase
 
     public function testSetEnabledWritesThroughToThePreferencesBlobTheReaderConsults(): void
     {
-        // Seeded install: the blob exists, so the reader ignores the legacy option. A toggle that
-        // only wrote the legacy option would be a silent no-op (the regression this proves fixed).
         $options = [
             PluginSettings::OPTION_NAME        => ['logging_enabled' => true],
             'bit_smtp_logging_enabled'         => 1,
@@ -140,13 +131,11 @@ final class ReaderMigrationTest extends BaseUnitTestCase
         self::assertTrue($service->setEnabled(false));
         self::assertFalse($service->isEnabled());
         self::assertFalse($options[PluginSettings::OPTION_NAME]['logging_enabled']);
-        // Legacy option stays coherent for any external legacy reader.
         self::assertSame(0, $options['bit_smtp_logging_enabled']);
     }
 
     public function testUpdateRetentionWritesThroughToThePreferencesBlobTheReaderConsults(): void
     {
-        // Seeded install: the blob exists, so the retention reader ignores the legacy option.
         $options = [
             PluginSettings::OPTION_NAME => ['log_retention_days' => 30],
             'bit_smtp_log_retention'    => 30,
@@ -156,13 +145,11 @@ final class ReaderMigrationTest extends BaseUnitTestCase
         self::assertTrue((new LogService())->updateRetention(7));
         self::assertSame(7, (int) PluginSettings::getWithLegacyFallback('log_retention_days', 'log_retention', 30));
         self::assertSame(7, $options[PluginSettings::OPTION_NAME]['log_retention_days']);
-        // Legacy option stays coherent for any external legacy reader.
         self::assertSame(7, $options['bit_smtp_log_retention']);
     }
 
     /**
-     * A factory whose constructor is never given an explicit retention, forcing it to resolve the
-     * configured value the same way production code does (`new AnalyticsQueryFactory()`).
+     * Factory without explicit retention; resolves configured value same way production code does.
      */
     private function factoryWithConfiguredRetention(): AnalyticsQueryFactory
     {
@@ -183,8 +170,7 @@ final class ReaderMigrationTest extends BaseUnitTestCase
     }
 
     /**
-     * Stub get_option/update_option/delete_option against an in-memory map keyed by option name so
-     * write-through assertions can observe both stores after a call.
+     * Stubs get_option/update_option/delete_option against in-memory map for write-through assertions.
      *
      * @param array<string,mixed> $options
      */

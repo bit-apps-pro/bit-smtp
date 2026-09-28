@@ -11,10 +11,7 @@ use BitApps\SMTP\Privacy\EngagementDataExporter;
 \defined('ABSPATH') || exit();
 
 /**
- * Wires the plugin into WordPress's privacy tools: a personal-data exporter and eraser for
- * open/click engagement events (keyed by recipient email) plus suggested privacy-policy copy. The
- * filters carry no load-time side effect, so registration is safe at boot(); policy content must be
- * added on admin_init per wp_add_privacy_policy_content()'s contract.
+ * Wire plugin into WordPress privacy tools (engagement data exporter/eraser, policy copy; no load-time side effects).
  */
 final class PrivacyServiceProvider extends ServiceProvider
 {

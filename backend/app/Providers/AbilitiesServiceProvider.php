@@ -11,14 +11,7 @@ use BitApps\SMTP\Mail\Abilities\AbilitiesProvider;
 class AbilitiesServiceProvider extends ServiceProvider
 {
     /**
-     * WordPress before 6.9 does not provide the Abilities API. Do not even attach its hooks there,
-     * so email sending and the rest of the plugin keep their existing behavior.
-     *
-     * AbilitiesProvider resolves its own MailAnalyticsService lazily, from the container, only when
-     * an ability actually executes (see AbilitiesProvider::analyticsService()) -- never eagerly here.
-     * register() runs during Plugin::__construct(), before Plugin::load() has called
-     * DB::setPluginPrefix(); building MailAnalyticsRepository (and its Log model) this early would
-     * bake in a table name missing the plugin prefix for the rest of the request.
+     * Register Abilities API only on WP 6.9+ (guards hooks, AbilitiesProvider resolves MailAnalyticsService lazily).
      */
     public function register(): void
     {

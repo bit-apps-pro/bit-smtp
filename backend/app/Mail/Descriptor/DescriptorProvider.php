@@ -18,9 +18,7 @@ use BitApps\SMTP\Mail\Validation\RequiredFieldsValidator;
 use InvalidArgumentException;
 
 /**
- * Adapts a ProviderDescriptor to ProviderInterface: metadata is delegated to the descriptor and
- * transport() assembles a DescriptorApiTransport wired with the resolved auth strategy + encoder.
- * The ctor signature is shared by every descriptor-backed provider.
+ * Adapt ProviderDescriptor to ProviderInterface; metadata delegated, transport wired with auth+encoder.
  */
 class DescriptorProvider implements ProviderInterface
 {
@@ -91,8 +89,7 @@ class DescriptorProvider implements ProviderInterface
     }
 
     /**
-     * How this provider carries a delivery-webhook correlation token on send:
-     * ['channel' => 'metadata'|'header', 'key' => string], or [] when unsupported.
+     * Webhook correlation token carrier: 'metadata'|'header' channel, or [] if unsupported.
      */
     public function tracking(): array
     {

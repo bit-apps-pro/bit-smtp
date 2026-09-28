@@ -42,9 +42,7 @@ class ProviderRegistry
     }
 
     /**
-     * Whether the provider authenticates via OAuth2 consent, per its declared authConfig (the single
-     * source of truth). Degrades to false for an unknown slug or any resolution error, so callers can
-     * branch on OAuth without guarding the lookup themselves.
+     * Check if provider uses OAuth2 auth (per declared authConfig); degrade to false on error.
      */
     public function requiresOAuth2(string $key): bool
     {

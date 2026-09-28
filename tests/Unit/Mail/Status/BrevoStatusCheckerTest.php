@@ -11,8 +11,7 @@ use Mockery;
 use RuntimeException;
 
 /**
- * Drives BrevoStatusChecker::check() over a mocked ApiClient, proving it maps Brevo's
- * event feed to a DeliveryStatus and never throws into the caller.
+ * Drives BrevoStatusChecker::check() over mocked ApiClient, maps Brevo event feed to DeliveryStatus.
  *
  * @internal
  *

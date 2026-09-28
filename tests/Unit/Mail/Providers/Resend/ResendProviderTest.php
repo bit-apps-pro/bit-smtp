@@ -15,8 +15,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Drives ResendProvider::transport()->send() over a mocked ApiClient, proving the shipped
- * descriptor engine renders Resend's contract correctly (spec §5/§11).
+ * Drives ResendProvider::transport()->send() over mocked ApiClient, verifies descriptor engine renders contract correctly.
  *
  * @internal
  *
@@ -110,7 +109,7 @@ class ResendProviderTest extends BaseUnitTestCase
         $result = $this->provider()->transport()->send($this->message(), $this->connection());
 
         $this->assertTrue($result->isOk());
-        // rfc822 without 'single': one recipient collapses to a bare string, not a one-element list.
+
         $this->assertSame('to@example.com', $captured['to']);
     }
 
@@ -218,7 +217,6 @@ class ResendProviderTest extends BaseUnitTestCase
 
     public function testStatusOutsideTheDeclaredSuccessListMapsToFailure(): void
     {
-        // success => [200] in the descriptor; a 2xx like 202 is still a failure by that contract.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(202, []));
 

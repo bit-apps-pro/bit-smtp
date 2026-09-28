@@ -1,46 +1,92 @@
-import { useEffect, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useState } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
-import { type MailSettings } from '@pages/Connections/types'
-import { CONTENT_MAX_WIDTH } from '@pages/Settings/components/SettingsPanel'
-import StatusStrip from '@pages/Settings/components/StatusStrip'
 import TabLabel, { StatusDot } from '@pages/Settings/components/TabLabel'
+import useAlertsSaveFlow, { type SaveOutcome } from '@pages/Settings/data/useAlertsSaveFlow'
 import usePreferences, { useSavePreferences } from '@pages/Settings/data/usePreferences'
 import GeneralLogging from '@pages/Settings/sections/GeneralLogging'
 import Health from '@pages/Settings/sections/Health'
 import NotificationsChannels, {
   type NotificationFormValues,
-  toAlertsFormValues,
-  toStoredAlerts
+  toAlertsFormValues
 } from '@pages/Settings/sections/NotificationsChannels'
 import PrivacyData from '@pages/Settings/sections/PrivacyData'
 import Reliability from '@pages/Settings/sections/Reliability'
 import { type Preferences, type PreferencesFormValues } from '@pages/Settings/types'
 import valuesEqual from '@pages/Settings/utils/valuesEqual'
-import { Button, Flex, Form, Spin, Tabs, Typography, theme } from 'antd'
-import { Activity, Bell, Gauge, Lock, ScrollText } from 'lucide-react'
+import { Alert, Button, Flex, Form, Grid, Spin, Tabs, Typography, theme } from 'antd'
+import { Activity, Bell, Gauge, Lock, type LucideIcon, ScrollText } from 'lucide-react'
+import cls from './SettingsPage.module.css'
 
 const { Title, Text } = Typography
 
-/** A single store's save outcome, normalized from either mutation's echoed response. */
-interface SaveOutcome {
-  status: 'success' | 'error'
-  message?: string
+/** Run one store's save (or skip it when `save` is null), turning a thrown request into an error outcome. */
+async function runSave(save: (() => Promise<SaveOutcome>) | null): Promise<SaveOutcome | null> {
+  if (!save) {
+    return null
+  }
+  try {
+    return await save()
+  } catch {
+    return { status: 'error' }
+  }
 }
 
+type SettingsLayoutVars = CSSProperties & Record<`--settings-${string}`, string>
+
+interface SectionDefinition {
+  key: string
+  icon: LucideIcon
+  label: string
+  enabled?: boolean
+  content: ReactNode
+}
+
+/** Build one side-menu entry: its menu label plus the pane content under a section heading. */
+function toTabItem({ key, icon, label, enabled, content }: SectionDefinition) {
+  return {
+    key,
+    label: <TabLabel icon={icon} label={label} enabled={enabled} />,
+    children: (
+      <section aria-label={label}>
+        <Title level={5} style={{ margin: 0 }}>
+          {label}
+        </Title>
+        {content}
+      </section>
+    )
+  }
+}
+
+/** Global settings screen: one Save action spanning the preferences and mail-settings alerts stores. */
 export default function SettingsPage() {
   const { token } = theme.useToken()
   const [prefsForm] = Form.useForm<PreferencesFormValues>()
   const [alertsForm] = Form.useForm<NotificationFormValues>()
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('general')
+  const isWide = Grid.useBreakpoint().md ?? true
 
   const { data: preferences, isPending: preferencesPending } = usePreferences()
-  const { data: settings, isPending: settingsPending } = useMailSettings()
+  const { data: settings, isPending: settingsPending, refetch: refetchSettings } = useMailSettings()
   const savePreferences = useSavePreferences()
   const updateSettings = useUpdateSettings()
+  const {
+    alertsConflict,
+    isReloadingAlerts,
+    reloadAlerts,
+    buildAlertsPayload,
+    adoptSavedAlerts,
+    reportSaveFailure,
+    reportInvalidFields
+  } = useAlertsSaveFlow({
+    alertsForm,
+    settings,
+    refetchSettings,
+    onAlertsIssue: () => setActiveTab('notifications')
+  })
 
   useEffect(() => {
     if (preferences) {
@@ -48,26 +94,11 @@ export default function SettingsPage() {
     }
   }, [prefsForm, preferences])
 
-  useEffect(() => {
-    if (settings) {
-      alertsForm.setFieldsValue(toAlertsFormValues(settings))
-    }
-  }, [alertsForm, settings])
-
-  // Raw watches (undefined until the owning tab pane first mounts, since antd Tabs mounts panes
-  // lazily) drive both the tab dots and the status strip. Both collapse the same way, below (after
-  // the loaded-preferences null check): fall back to the saved value so a saved-ON feature reads
-  // correctly before its tab is ever visited, instead of misreporting as off.
   const rawLoggingEnabled = Form.useWatch('logging_enabled', prefsForm)
   const rawRetryEnabled = Form.useWatch('retry_enabled', prefsForm)
   const rawHealthEnabled = Form.useWatch('health_check_enabled', prefsForm)
   const rawAlertsEnabled = Form.useWatch('enabled', alertsForm)
-  const watchedRetention = Form.useWatch('log_retention_days', prefsForm)
-  const watchedTimeout = Form.useWatch('send_timeout_seconds', prefsForm)
 
-  // `preserve: true` reads all store values, not just fields whose Form.Item has mounted — tab
-  // panes other than the active one are rendered lazily (antd Tabs default), so most fields aren't
-  // registered until their tab is first visited.
   const watchedPrefs = Form.useWatch([], { form: prefsForm, preserve: true })
   const watchedAlerts = Form.useWatch([], { form: alertsForm, preserve: true })
 
@@ -83,110 +114,105 @@ export default function SettingsPage() {
     return null
   }
 
-  // Single per-store snapshot of the loaded values, reused for both the dirty check (compared
-  // against the live watch) and, below, the status-strip fallback / Form initialValues.
   const prefsInitialValues = preferences
   const alertsInitialValues = toAlertsFormValues(settings)
   const prefsDirty = Boolean(watchedPrefs && !valuesEqual(watchedPrefs, prefsInitialValues))
   const alertsDirty = Boolean(watchedAlerts && !valuesEqual(watchedAlerts, alertsInitialValues))
   const isDirty = prefsDirty || alertsDirty
 
-  // Shared by the status strip and the tab dots: prefer the live edited value, fall back to the
-  // loaded/saved value (so a never-visited tab still reads correctly).
-  const retentionDays = watchedRetention ?? preferences.log_retention_days
-  const timeoutSeconds = watchedTimeout ?? preferences.send_timeout_seconds
   const loggingEnabled = rawLoggingEnabled ?? preferences.logging_enabled
   const retryEnabled = rawRetryEnabled ?? preferences.retry_enabled
   const healthEnabled = rawHealthEnabled ?? preferences.health_check_enabled
   const notificationsEnabled = rawAlertsEnabled ?? alertsInitialValues.enabled
 
-  /** Build a save payload for the mail-settings store from the alerts channels form. */
-  const buildAlertsPayload = (): Partial<MailSettings> => ({
-    features: { ...settings.features, alerts: toStoredAlerts(alertsForm.getFieldsValue()) }
-  })
-
-  /** Validate whichever store(s) changed, then save only those, as a single combined action. */
+  /** Validate and save only the store(s) that changed; a successful alerts save reseeds to avoid a stale revision. */
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      const validations = await Promise.allSettled([
+      const [prefsValidation, alertsValidation] = await Promise.allSettled([
         prefsDirty ? prefsForm.validateFields() : Promise.resolve(),
         alertsDirty ? alertsForm.validateFields() : Promise.resolve()
       ])
-      if (validations.some(result => result.status === 'rejected')) {
-        // antd already rendered inline errors on the offending fields, but those are invisible if
-        // the field lives on a tab other than the active one — surface a toast either way, and jump
-        // to Notifications when that's deterministically the offending tab (alerts fields only live
-        // there; prefs fields span General/Reliability/Health, so no single tab to route to).
-        if (validations[1].status === 'rejected') {
-          setActiveTab('notifications')
-        }
-        notify.error(__('Please fix the highlighted fields before saving.'))
+      if (prefsValidation.status === 'rejected' || alertsValidation.status === 'rejected') {
+        reportInvalidFields(alertsValidation.status === 'rejected')
         return
       }
 
-      const saves: Promise<SaveOutcome>[] = []
-      if (prefsDirty) {
-        const payload: Preferences = { ...preferences, ...prefsForm.getFieldsValue() }
-        saves.push(savePreferences.mutateAsync(payload))
-      }
-      if (alertsDirty) {
-        saves.push(updateSettings.mutateAsync(buildAlertsPayload()))
-      }
-      if (saves.length === 0) {
-        return
-      }
+      const prefsPayload = (): Preferences => ({ ...preferences, ...prefsForm.getFieldsValue() })
+      const [prefsOutcome, alertsOutcome] = await Promise.all([
+        runSave(prefsDirty ? () => savePreferences.mutateAsync(prefsPayload()) : null),
+        runSave(alertsDirty ? () => updateSettings.mutateAsync(buildAlertsPayload(settings)) : null)
+      ])
+      const alertsReloaded = alertsOutcome?.status === 'success' ? await adoptSavedAlerts() : true
 
-      const results = await Promise.all(saves)
-      const failed = results.find(result => result.status === 'error')
+      const failed = [prefsOutcome, alertsOutcome].find(outcome => outcome?.status === 'error')
       if (failed) {
-        notify.error(failed.message || __('Failed to save settings'))
+        reportSaveFailure(failed)
         return
       }
-      notify.success(__('Settings saved'))
-    } catch {
-      notify.error(__('Failed to save settings'))
+      if (alertsReloaded) {
+        notify.success(__('Settings saved'))
+      }
     } finally {
       setIsSaving(false)
     }
   }
 
-  const items = [
+  const sections: SectionDefinition[] = [
     {
       key: 'general',
-      label: <TabLabel icon={ScrollText} label={__('General & Logging')} dotActive={loggingEnabled} />,
-      children: <GeneralLogging form={prefsForm} />
+      icon: ScrollText,
+      label: __('General & Logging'),
+      enabled: loggingEnabled,
+      content: <GeneralLogging form={prefsForm} />
     },
     {
       key: 'reliability',
-      label: <TabLabel icon={Gauge} label={__('Reliability')} dotActive={retryEnabled} />,
-      children: <Reliability form={prefsForm} />
+      icon: Gauge,
+      label: __('Reliability'),
+      enabled: retryEnabled,
+      content: <Reliability form={prefsForm} />
     },
     {
       key: 'health',
-      label: <TabLabel icon={Activity} label={__('Health')} dotActive={healthEnabled} />,
-      children: <Health form={prefsForm} />
+      icon: Activity,
+      label: __('Health'),
+      enabled: healthEnabled,
+      content: <Health form={prefsForm} />
     },
     {
       key: 'notifications',
-      label: <TabLabel icon={Bell} label={__('Notifications')} dotActive={notificationsEnabled} />,
-      children: <NotificationsChannels alertsForm={alertsForm} settings={settings} />
+      icon: Bell,
+      label: __('Notifications'),
+      enabled: notificationsEnabled,
+      content: <NotificationsChannels alertsForm={alertsForm} settings={settings} />
     },
     {
       key: 'privacy',
-      label: <TabLabel icon={Lock} label={__('Privacy & Data')} />,
-      children: <PrivacyData />
+      icon: Lock,
+      label: __('Privacy & Data'),
+      content: <PrivacyData />
     }
   ]
 
+  const layoutVars: SettingsLayoutVars = {
+    '--settings-radius': `${token.borderRadius}px`,
+    '--settings-radius-lg': `${token.borderRadiusLG}px`,
+    '--settings-item-color': token.colorTextSecondary,
+    '--settings-item-hover-bg': token.colorFillTertiary,
+    '--settings-item-active-bg': token.colorPrimaryBg,
+    '--settings-card-bg': token.colorBgContainer,
+    '--settings-card-border': token.colorBorderSecondary
+  }
+
   return (
     <Form form={prefsForm} component={false} layout="vertical" initialValues={prefsInitialValues}>
-      <Flex vertical style={{ padding: token.paddingLG, paddingBottom: 0 }}>
+      <Flex vertical style={{ padding: token.paddingLG }}>
         <Flex
           justify="space-between"
           align="flex-start"
           gap="middle"
-          style={{ marginBottom: token.margin }}
+          style={{ marginBottom: token.marginLG }}
         >
           <Flex vertical gap={4}>
             <Title level={4} style={{ margin: 0 }}>
@@ -196,57 +222,42 @@ export default function SettingsPage() {
               {__('Global preferences for logging, delivery, health, notifications, and privacy.')}
             </Text>
           </Flex>
-        </Flex>
-
-        <div style={{ marginBottom: token.marginLG }}>
-          <StatusStrip
-            loggingEnabled={loggingEnabled}
-            retentionDays={retentionDays}
-            timeoutSeconds={timeoutSeconds}
-            notificationsEnabled={notificationsEnabled}
-            healthEnabled={healthEnabled}
-          />
-        </div>
-
-        <Tabs type="line" items={items} activeKey={activeTab} onChange={setActiveTab} />
-      </Flex>
-
-      <div
-        style={{
-          position: 'sticky',
-          bottom: 0,
-          backgroundColor: token.colorBgContainer,
-          borderTop: `1px solid ${token.colorBorderSecondary}`,
-          boxShadow: token.boxShadowSecondary,
-          padding: `${token.paddingSM}px ${token.paddingLG}px`,
-          marginTop: token.margin,
-          zIndex: 10
-        }}
-      >
-        <Flex
-          justify="space-between"
-          align="center"
-          gap="middle"
-          style={{ maxWidth: CONTENT_MAX_WIDTH, marginInline: 'auto' }}
-        >
-          <Flex align="center" gap={8}>
-            {/* Amber (not success) dot: unsaved changes are an attention state, not a healthy one. */}
-            {isDirty && <StatusDot active activeColor={token.colorWarning} />}
-            <Text type={isDirty ? undefined : 'secondary'}>
-              {isDirty ? __('You have unsaved changes') : __('All changes saved')}
-            </Text>
+          <Flex align="center" gap="middle">
+            {isDirty && (
+              <Flex align="center" gap={8}>
+                <StatusDot active activeColor={token.colorWarning} />
+                <Text>{__('You have unsaved changes')}</Text>
+              </Flex>
+            )}
+            <Button type="primary" loading={isSaving} disabled={!isDirty} onClick={handleSave}>
+              {__('Save changes')}
+            </Button>
           </Flex>
-          <Button
-            type="primary"
-            size="large"
-            loading={isSaving}
-            disabled={!isDirty}
-            onClick={handleSave}
-          >
-            {__('Save changes')}
-          </Button>
         </Flex>
-      </div>
+
+        {alertsConflict && (
+          <Alert
+            type="error"
+            showIcon
+            message={alertsConflict}
+            action={
+              <Button size="small" loading={isReloadingAlerts} onClick={reloadAlerts}>
+                {__('Reload')}
+              </Button>
+            }
+            style={{ marginBottom: token.marginMD }}
+          />
+        )}
+
+        <Tabs
+          className={isWide ? cls.layout : `${cls.layout} ${cls.compact}`}
+          style={layoutVars}
+          tabPosition={isWide ? 'left' : 'top'}
+          items={sections.map(toTabItem)}
+          activeKey={activeTab}
+          onChange={setActiveTab}
+        />
+      </Flex>
     </Form>
   )
 }

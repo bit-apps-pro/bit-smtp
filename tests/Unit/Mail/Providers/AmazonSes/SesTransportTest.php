@@ -60,8 +60,6 @@ class SesTransportTest extends BaseUnitTestCase
 
     public function testSendReturnsFailureAndNeverCallsApiClientForRegionWithTrailingNewline(): void
     {
-        // A bare `$` anchor matches before a trailing newline; the AwsSigV4Strategy must still
-        // reject "us-east-1\n" so it can never reach the signer or the outbound request host.
         $this->assertMalformedRegionIsRejectedBeforeAnyNetworkCall("us-east-1\n");
     }
 
@@ -265,9 +263,7 @@ class SesTransportTest extends BaseUnitTestCase
     }
 
     /**
-     * The region SSRF guard now lives in AwsSigV4Strategy: it validates the region before signing,
-     * so a malformed region still aborts the send before the API client is ever touched. The MIME
-     * body is built first (harmless, no I/O) and the failure carries the strategy's region message.
+     * Region SSRF guard in AwsSigV4Strategy validates before signing; malformed region aborts before API client.
      */
     private function assertMalformedRegionIsRejectedBeforeAnyNetworkCall(string $region): void
     {
@@ -286,7 +282,6 @@ class SesTransportTest extends BaseUnitTestCase
      */
     private function messageIdFrom(int $status, $body): ?string
     {
-        // No setAccessible(): protected-method invocation needs no unlocking since PHP 8.1.
         return (new ReflectionMethod($this->transport, 'messageIdFrom'))->invoke($this->transport, $status, $body);
     }
 

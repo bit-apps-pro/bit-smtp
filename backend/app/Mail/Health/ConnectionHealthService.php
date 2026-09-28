@@ -7,8 +7,7 @@ use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 
 /**
- * Applies the Fork-3 health rules to a connection's send outcomes and exposes the live health map.
- * Observe-only: it records signal for badges/alerts and never influences dispatch/failover.
+ * Apply Fork-3 health rules to send outcomes; observe-only (never influences dispatch/failover).
  */
 class ConnectionHealthService
 {
@@ -23,28 +22,19 @@ class ConnectionHealthService
     }
 
     /**
-     * Fold one send outcome into the connection's health record and return the status transition it
-     * caused (or null when nothing changed, including for message-scoped and write-throttled outcomes).
+     * Fold send outcome into health record; skip message-scoped classes; return transition or null.
      */
     public function recordOutcome(Connection $connection, string $failureClass): ?HealthTransition
     {
-        // A bad address or content rejection is the message's fault, not the connection's, so a
-        // passive send outcome for those classes says nothing about connection health. (Probes have
-        // no message/recipient, so recordProbe deliberately does NOT skip these.)
         if ($this->isMessageScoped($failureClass)) {
             return null;
         }
 
-        // No error string on the passive path: a provider send error can echo a recipient address
-        // ("550 <addr> unknown"), and the security bar forbids storing recipients. Only the probe's
-        // sanitized connect/auth error (recipient-free) is surfaced as last_error.
         return $this->record($connection, $failureClass, null, null);
     }
 
     /**
-     * Fold an active probe's result into the connection's health record. Reuses the send-outcome trip
-     * rules but always stamps last_probe_at and never write-throttles, and surfaces the probe's
-     * sanitized error as last_error.
+     * Fold active probe result into health record; always stamp last_probe_at, bypass throttle.
      */
     public function recordProbe(Connection $connection, ProbeResult $result): ?HealthTransition
     {
@@ -75,8 +65,7 @@ class ConnectionHealthService
     }
 
     /**
-     * Current stored health for a connection, or a fresh `unknown` record mirroring its OAuth expiry
-     * when nothing has been observed yet (so an alerter always has a record to read/annotate).
+     * Return stored health or fresh 'unknown' record (so alerter always has a record).
      */
     public function healthFor(Connection $connection): ConnectionHealth
     {
@@ -85,27 +74,28 @@ class ConnectionHealthService
     }
 
     /**
-     * Persist an alert's dedup marker and timestamp onto the connection's health record (creating it if
-     * the connection was never observed), in one read-modify-write.
+     * Persist alert dedup marker and timestamp onto health record in one read-modify-write.
      */
-    public function markAlerted(Connection $connection, string $alertState, string $alertedAt): void
+    public function markAlerted(Connection $connection, string $alertState, string $alertedAt, bool $isOutageTransition = false): void
     {
-        $id           = $connection->getId();
-        $records      = $this->store->all();
-        $record       = $records[$id] ?? ConnectionHealth::unknown()->with(['oauth_expires_at' => $connection->oauthExpiresAt()]);
-        $records[$id] = $record->with([
+        $id        = $connection->getId();
+        $records   = $this->store->all();
+        $record    = $records[$id] ?? ConnectionHealth::unknown()->with(['oauth_expires_at' => $connection->oauthExpiresAt()]);
+        $overrides = [
             'last_alerted_state' => $alertState,
             'last_alerted_at'    => $alertedAt,
             'updated_at'         => $alertedAt,
-        ]);
+        ];
+        if ($isOutageTransition) {
+            $overrides['last_outage_alert'] = $alertState;
+        }
+        $records[$id] = $record->with($overrides);
 
         $this->store->putMany($this->pruneToLive($records));
     }
 
     /**
-     * Apply the Fork-3 health rules for one outcome in a single read-modify-write. A non-null $probeAt
-     * marks an active probe: it stamps last_probe_at, bypasses the success write-throttle, and carries
-     * the sanitized $error. Prune to live connections happens in memory, so this is one read + one write.
+     * Apply Fork-3 health rules in one read-modify-write; non-null $probeAt marks active probe.
      */
     private function record(Connection $connection, string $failureClass, ?string $probeAt, ?string $error): ?HealthTransition
     {
@@ -116,8 +106,6 @@ class ConnectionHealthService
         $oauth   = $connection->oauthExpiresAt();
 
         if ($failureClass === FailureCategory::OK) {
-            // Steady-state healthy success: no state change and a fresh last_ok_at, so skip the write —
-            // but an active probe always persists, to keep its last_probe_at proof current.
             if ($probeAt === null && $this->isAlreadyHealthy($before) && $this->okWriteThrottled($before, $now)) {
                 return null;
             }
@@ -129,14 +117,10 @@ class ConnectionHealthService
                 'last_error_class'     => null,
                 'last_probe_at'        => $probeAt ?? $before->getLastProbeAt(),
                 'oauth_expires_at'     => $oauth,
-                // Clear the edge-dedup marker on recovery so a LATER outage alerts again (keep
-                // last_alerted_at for the cooldown throttle). Otherwise the marker stays stuck at
-                // 'connection_unhealthy' and every outage after the first is silently suppressed.
                 'last_alerted_state'   => null,
                 'updated_at'           => $now,
             ]);
         } elseif ($failureClass === FailureCategory::AUTH) {
-            // A bad credential won't self-heal, so trip on the first failure regardless of the count.
             $after = $this->tripped($before, $failureClass, $oauth, $now, $probeAt, $error);
         } else {
             $consecutive = $before->getConsecutiveFailures() + 1;
@@ -154,8 +138,7 @@ class ConnectionHealthService
     }
 
     /**
-     * Trip a connection to unhealthy (circuit derives to open). Preserves the last known error when the
-     * current event carries none (a passive send failure has no recipient-safe error).
+     * Trip connection to unhealthy (circuit derives to open); preserve last error if event carries none.
      */
     private function tripped(ConnectionHealth $before, string $failureClass, ?int $oauth, string $now, ?string $probeAt, ?string $error): ConnectionHealth
     {
@@ -211,8 +194,7 @@ class ConnectionHealthService
     }
 
     /**
-     * Drop any record whose connection no longer exists, bounding the option to live connections; done
-     * in memory as part of the single write so eviction costs no extra option I/O.
+     * Drop records for deleted connections; done in memory to avoid extra option I/O.
      *
      * @param array<string,ConnectionHealth> $records
      *

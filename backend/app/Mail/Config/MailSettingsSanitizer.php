@@ -30,19 +30,15 @@ final class MailSettingsSanitizer
 
     private const ROUTING_OPERATORS = ['equals', 'contains', 'domain', 'matches'];
 
-    // The `domain` operator compares the part after '@', so it only applies to address fields.
     private const ROUTING_DOMAIN_FIELDS = ['recipient', 'from'];
 
     /**
-     * The only outcomes WebhookProvisioningService::recordOutcome ever writes; anything else
-     * (e.g. a crafted connection-save payload trying to fake "provider confirmed") is dropped.
+     * Valid webhook provisioning statuses; all others are dropped.
      */
     private const WEBHOOK_PROVISIONING_STATUSES = ['registered', 'failed', 'unsupported', 'unavailable'];
 
     /**
-     * @param null|callable(string):string[] $secretKeyResolver Maps a provider key to its secret
-     *                                                          field keys; defaults to the live
-     *                                                          provider registry when omitted
+     * @param null|callable(string):string[] $secretKeyResolver Maps provider key to secret field keys; defaults to live registry.
      * @param array<string,mixed>            $v2
      *
      * @return array<string,mixed>
@@ -126,8 +122,9 @@ final class MailSettingsSanitizer
     }
 
     /**
-     * @param mixed $entry Normally {source,value}; a raw scalar (malformed client payload) is
-     *                     coerced into that shape rather than fataling the request
+     * Coerce credential entry to {source,value} shape; scalar malformed entries are normalized.
+     *
+     * @param mixed $entry
      *
      * @return array{source:string,value:string}
      */
@@ -147,14 +144,10 @@ final class MailSettingsSanitizer
     }
 
     /**
-     * Coerce the well-known SMTP keys, keep the numeric token expiry integer-typed, then pass
-     * through any other provider-specific scalar setting (SES access_key/region, OAuth client_id,
-     * future non-secret fields) as a trimmed string. Array/object values are dropped: settings
-     * only ever hold scalars. Credentials are sanitized separately and stay whitelisted.
+     * Sanitize connection settings: coerce SMTP keys, keep token expiry as int, pass through provider-specific scalars.
      *
-     * @param string[]            $secretKeys provider secret field keys, stripped before the pass-through so a
-     *                                        client cannot smuggle a secret into `settings` to bypass encryption
      * @param array<string,mixed> $settings
+     * @param string[]            $secretKeys provider keys stripped to prevent secret smuggling
      *
      * @return array<string,mixed>
      */
@@ -179,35 +172,22 @@ final class MailSettingsSanitizer
                 : false,
         ];
 
-        // A UNIX timestamp the OAuth refresh compares against time(); keep it integer-typed rather
-        // than letting the generic pass-through below stringify it.
         if (isset($settings['token_expires_at'])) {
             $sanitized['token_expires_at'] = \intval($settings['token_expires_at']);
         }
 
-        // Same integer treatment as token_expires_at, for the same reason: the generic pass-through
-        // below would stringify it.
         if (isset($settings['webhook_provisioning_updated_at'])) {
             $sanitized['webhook_provisioning_updated_at'] = \intval($settings['webhook_provisioning_updated_at']);
         }
 
-        // Keep the delivery-webhook toggle a real bool; the generic pass-through would stringify
-        // false to "" and defeat the enabled check.
         if (isset($settings['webhook_enabled'])) {
             $sanitized['webhook_enabled'] = (bool) filter_var($settings['webhook_enabled'], FILTER_VALIDATE_BOOLEAN);
         }
 
-        // Server-managed verification flag — same bool treatment. webhook_secret and
-        // webhook_last_event_at are strings and ride the generic scalar pass-through below.
         if (isset($settings['webhook_verified'])) {
             $sanitized['webhook_verified'] = (bool) filter_var($settings['webhook_verified'], FILTER_VALIDATE_BOOLEAN);
         }
 
-        // Whitelist the auto-provision outcome to the known enum: this is a trust signal the UI
-        // renders as "provider confirmed the webhook", so an out-of-enum value (e.g. a crafted
-        // connection-save payload) is dropped rather than stored. webhook_provisioning_reason rides
-        // the generic scalar pass-through below. The key is unset up front so a rejected value can't
-        // be smuggled back in by that same generic pass-through.
         if (isset($settings['webhook_provisioning_status'])) {
             $status = \is_scalar($settings['webhook_provisioning_status'])
                 ? trim((string) $settings['webhook_provisioning_status'])
@@ -244,7 +224,7 @@ final class MailSettingsSanitizer
             if ($key === 'routing') {
                 $out[$key] = self::sanitizeRoutingRules($value);
             } elseif ($key === 'alerts') {
-                $out[$key] = $value === [] ? [] : self::sanitizeAlerts($value);
+                $out[$key] = self::sanitizeAlerts($value);
             } else {
                 $out[$key] = $value;
             }
@@ -254,159 +234,24 @@ final class MailSettingsSanitizer
     }
 
     /**
+     * Normalize alerts to the channel-list shape and validate each instance's settings by type.
+     *
      * @param array<string,mixed> $alerts
      *
-     * @return array{enabled:bool,email:array{enabled:bool,recipients:string[]},webhook:array{enabled:bool,url:string,signing_secret:string},slack:array{enabled:bool,webhook_url:string},telegram:array{enabled:bool,bot_token:string,chat_id:string},discord:array{enabled:bool,webhook_url:string}}
+     * @return array{enabled:bool,reminder_minutes:int,channels:list<array{id:string,type:string,name:string,enabled:bool,settings:array<string,mixed>}>}
      */
     private static function sanitizeAlerts(array $alerts): array
     {
-        $email    = isset($alerts['email'])    && \is_array($alerts['email']) ? $alerts['email'] : [];
-        $webhook  = isset($alerts['webhook'])  && \is_array($alerts['webhook']) ? $alerts['webhook'] : [];
-        $slack    = isset($alerts['slack'])    && \is_array($alerts['slack']) ? $alerts['slack'] : [];
-        $telegram = isset($alerts['telegram']) && \is_array($alerts['telegram']) ? $alerts['telegram'] : [];
-        $discord  = isset($alerts['discord'])  && \is_array($alerts['discord']) ? $alerts['discord'] : [];
-
-        $recipients = [];
-        foreach ((array) ($email['recipients'] ?? []) as $recipient) {
-            if (!\is_scalar($recipient)) {
-                continue;
-            }
-
-            $recipient = trim((string) $recipient);
-            if (filter_var($recipient, FILTER_VALIDATE_EMAIL) !== false) {
-                $recipients[] = $recipient;
-            }
+        $normalized = AlertSettingsNormalizer::normalize($alerts);
+        foreach ($normalized['channels'] as $i => $channel) {
+            $normalized['channels'][$i]['settings'] = AlertChannelSettings::sanitize($channel['type'], $channel['settings']);
         }
 
-        $url    = isset($webhook['url']) && \is_scalar($webhook['url']) ? trim((string) $webhook['url']) : '';
-        $scheme = strtolower((string) wp_parse_url($url, PHP_URL_SCHEME));
-        if ($url !== '' && (
-            \strlen($url) > 2048
-            || filter_var($url, FILTER_VALIDATE_URL) === false
-            || !\in_array($scheme, ['http', 'https'], true)
-        )) {
-            $url = '';
-        }
-
-        $signingSecret = isset($webhook['signing_secret']) && \is_scalar($webhook['signing_secret'])
-            ? trim((string) $webhook['signing_secret'])
-            : '';
-        if ($signingSecret !== '' && preg_match('/^whsec_[A-Za-z0-9_-]{32,128}$/', $signingSecret) !== 1) {
-            $signingSecret = '';
-        }
-
-        $slackWebhookUrl = self::scalarString($slack, 'webhook_url');
-        if (!self::isSlackIncomingWebhookUrl($slackWebhookUrl)) {
-            $slackWebhookUrl = '';
-        }
-
-        $telegramBotToken = self::scalarString($telegram, 'bot_token');
-        if ($telegramBotToken !== '' && preg_match('/^\d{6,20}:[A-Za-z0-9_-]{20,}$/', $telegramBotToken) !== 1) {
-            $telegramBotToken = '';
-        }
-
-        $telegramChatId = self::scalarString($telegram, 'chat_id');
-        if ($telegramChatId !== '' && preg_match('/^-?\d{1,20}$/', $telegramChatId) !== 1) {
-            $telegramChatId = '';
-        }
-
-        $discordWebhookUrl = self::scalarString($discord, 'webhook_url');
-        if (!self::isDiscordWebhookUrl($discordWebhookUrl)) {
-            $discordWebhookUrl = '';
-        }
-
-        return [
-            'enabled' => isset($alerts['enabled'])
-                ? (bool) filter_var($alerts['enabled'], FILTER_VALIDATE_BOOLEAN)
-                : false,
-            'email' => [
-                'enabled' => isset($email['enabled'])
-                    ? (bool) filter_var($email['enabled'], FILTER_VALIDATE_BOOLEAN)
-                    : false,
-                'recipients' => \array_slice(array_values(array_unique($recipients)), 0, 20),
-            ],
-            'webhook' => [
-                'enabled' => isset($webhook['enabled'])
-                    ? (bool) filter_var($webhook['enabled'], FILTER_VALIDATE_BOOLEAN)
-                    : false,
-                'url'            => $url,
-                'signing_secret' => $signingSecret,
-            ],
-            'slack' => [
-                'enabled' => isset($slack['enabled'])
-                    ? (bool) filter_var($slack['enabled'], FILTER_VALIDATE_BOOLEAN)
-                    : false,
-                'webhook_url' => $slackWebhookUrl,
-            ],
-            'telegram' => [
-                'enabled' => isset($telegram['enabled'])
-                    ? (bool) filter_var($telegram['enabled'], FILTER_VALIDATE_BOOLEAN)
-                    : false,
-                'bot_token' => $telegramBotToken,
-                'chat_id'   => $telegramChatId,
-            ],
-            'discord' => [
-                'enabled' => isset($discord['enabled'])
-                    ? (bool) filter_var($discord['enabled'], FILTER_VALIDATE_BOOLEAN)
-                    : false,
-                'webhook_url' => $discordWebhookUrl,
-            ],
-        ];
+        return $normalized;
     }
 
     /**
-     * @param array<string,mixed> $settings
-     */
-    private static function scalarString(array $settings, string $key): string
-    {
-        return isset($settings[$key]) && \is_scalar($settings[$key]) ? trim((string) $settings[$key]) : '';
-    }
-
-    private static function isSlackIncomingWebhookUrl(string $url): bool
-    {
-        $parts = wp_parse_url($url);
-        if (!\is_array($parts)) {
-            return false;
-        }
-
-        return ($parts['scheme'] ?? '') === 'https'
-            && ($parts['host'] ?? '')   === 'hooks.slack.com'
-            && !isset($parts['port'])
-            && !isset($parts['user'])
-            && !isset($parts['pass'])
-            && !isset($parts['query'])
-            && !isset($parts['fragment'])
-            && isset($parts['path'])
-            && str_starts_with($parts['path'], '/services/')
-            && \strlen($parts['path']) > \strlen('/services/');
-    }
-
-    /**
-     * Accept only an exact Discord webhook URL: https, a discord(app).com host, an `/api/webhooks/`
-     * path carrying the id/token, and no port, credentials, query, or fragment.
-     */
-    private static function isDiscordWebhookUrl(string $url): bool
-    {
-        $parts = wp_parse_url($url);
-        if (!\is_array($parts)) {
-            return false;
-        }
-
-        return ($parts['scheme'] ?? '') === 'https'
-            && \in_array($parts['host'] ?? '', ['discord.com', 'discordapp.com'], true)
-            && !isset($parts['port'])
-            && !isset($parts['user'])
-            && !isset($parts['pass'])
-            && !isset($parts['query'])
-            && !isset($parts['fragment'])
-            && isset($parts['path'])
-            && str_starts_with($parts['path'], '/api/webhooks/')
-            && \strlen($parts['path']) > \strlen('/api/webhooks/');
-    }
-
-    /**
-     * Whitelist the smart-routing rules: each surviving rule needs a connection id and at least one
-     * condition whose field and operator are known enums. Malformed rules and conditions are dropped.
+     * Whitelist routing rules: each requires a connection id and at least one valid condition.
      *
      * @param array<int,mixed> $rules
      *
@@ -441,11 +286,12 @@ final class MailSettingsSanitizer
     }
 
     /**
+     * Accepts both camelCase `connectionId` and snake_case `connection_id` for compatibility.
+     *
      * @param array<string,mixed> $rule
      */
     private static function routingConnectionId(array $rule): string
     {
-        // RoutingRule::fromArray reads camelCase `connectionId`; accept the snake_case alias too.
         $id = $rule['connectionId'] ?? $rule['connection_id'] ?? '';
 
         return \is_scalar($id) ? trim((string) $id) : '';
@@ -472,9 +318,6 @@ final class MailSettingsSanitizer
                 continue;
             }
 
-            // Self-heal a dead condition: the `domain` operator only matches recipient/from (see
-            // RoutingCondition::matchesDomain); on any other field it can never fire and would
-            // silently kill the whole rule. Drop it here rather than persist an unfireable rule.
             if ($operator === 'domain' && !\in_array($field, self::ROUTING_DOMAIN_FIELDS, true)) {
                 continue;
             }
@@ -502,9 +345,7 @@ final class MailSettingsSanitizer
     }
 
     /**
-     * Default resolver: looks up the live provider registry. Plugin::instance() is only populated
-     * once WordPress has booted, so this degrades to no keys (nothing stripped) outside that context
-     * rather than fataling — callers that need the guard enforced pass a resolver explicitly.
+     * Default resolver: looks up live provider registry; returns empty outside bootstrap context.
      *
      * @return string[]
      */
@@ -518,8 +359,6 @@ final class MailSettingsSanitizer
         try {
             $fields = $plugin->providerRegistry()->get($provider)->fields();
         } catch (Throwable $e) {
-            // Fail open (a not-yet-registered provider is benign) but stay loud: a known provider
-            // whose lookup throws would otherwise let a plaintext secret pass through settings untraced.
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without fataling the save
             error_log('BIT SMTP: secret-key resolution failed: ' . $e->getMessage());
 

@@ -58,7 +58,6 @@ class SenderResolverTest extends BaseUnitTestCase
     {
         $message = $this->message(['from' => 'msg@example.com', 'fromName' => 'Message Sender']);
 
-        // Connection name must not leak onto the message's own address.
         $this->assertSame(
             ['Message Sender <msg@example.com>'],
             $this->resolver->from($message, $this->connection())

@@ -1,10 +1,6 @@
 <?php
 
-/**
- * WP test-suite config for the integration tier.
- * DB points at the ephemeral docker `db` service (docker-compose.test.yml), NOT any real site DB.
- * ABSPATH reuses the surrounding WordPress core (read-only core files; all data lives in the test DB).
- */
+/** Integration-tier WP test config: ephemeral docker DB, shared WP core, isolated test data. */
 $corePath = \dirname(__DIR__, 4);
 if (!is_file($corePath . '/wp-settings.php')) {
     $corePath = \dirname(__DIR__, 6);

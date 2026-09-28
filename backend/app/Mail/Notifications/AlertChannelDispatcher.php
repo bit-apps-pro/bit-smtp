@@ -3,13 +3,12 @@
 namespace BitApps\SMTP\Mail\Notifications;
 
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\Mail\Config\AlertSettingsNormalizer;
 use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 use Throwable;
 
 /**
- * Delivers an alert to every enabled notification channel, reading the shared `features['alerts']`
- * settings and isolating each channel's failures. The one place that knows how to fan an alert out to
- * email/webhook/slack/telegram/discord, shared by the send-failure notifier and the health notifier.
+ * Deliver alerts to enabled channels; the single fan-out point for failure and health notifiers.
  */
 class AlertChannelDispatcher
 {
@@ -24,27 +23,20 @@ class AlertChannelDispatcher
     }
 
     /**
-     * Send the notification through each enabled channel; returns true if at least one delivered.
-     * A channel's throw (or provider output) is swallowed so it neither aborts the fan-out nor leaks.
+     * Send notification through each enabled instance; return true if at least one succeeded.
      */
     public function dispatch(NotificationMessage $notification): bool
     {
-        $alerts = $this->alerts();
-        if (!$this->anyChannelEnabled($alerts)) {
-            return false;
-        }
-
         $delivered = false;
-        foreach ($this->channels->all() as $key => $channel) {
-            $settings = isset($alerts[$key]) && \is_array($alerts[$key]) ? $alerts[$key] : [];
-            if (empty($settings['enabled'])) {
+        foreach ($this->enabledInstances($this->alerts()) as $instance) {
+            $channel = $this->channels->get($instance['type']);
+            if ($channel === null) {
                 continue;
             }
 
             try {
-                $delivered = $channel->send($notification, $settings) || $delivered;
+                $delivered = $channel->send($notification, $instance['settings'])->ok() || $delivered;
             } catch (Throwable) {
-                // Notification failures are intentionally isolated and never expose provider output.
             }
         }
 
@@ -52,40 +44,41 @@ class AlertChannelDispatcher
     }
 
     /**
-     * True when alerts are enabled and at least one channel is switched on, so a caller can skip work
-     * (or, for the failure notifier, avoid consuming its streak lock) when there is nowhere to send.
+     * Check if alerts enabled and at least one instance is active; pass already-normalized alerts to avoid re-normalizing.
+     *
+     * @param null|array{enabled:bool,reminder_minutes:int,channels:list<array{id:string,type:string,name:string,enabled:bool,settings:array<string,mixed>}>} $alerts
      */
-    public function hasEnabledChannel(): bool
+    public function hasEnabledChannel(?array $alerts = null): bool
     {
-        return $this->anyChannelEnabled($this->alerts());
+        return $this->enabledInstances($alerts ?? $this->alerts()) !== [];
     }
 
     /**
-     * @return array<string,mixed>
+     * The normalized alerts settings, loaded fresh from config.
+     *
+     * @return array{enabled:bool,reminder_minutes:int,channels:list<array{id:string,type:string,name:string,enabled:bool,settings:array<string,mixed>}>}
      */
-    private function alerts(): array
+    public function alerts(): array
     {
-        $features = $this->config->load()->getFeatures();
-        $alerts   = $features['alerts'] ?? [];
-
-        return \is_array($alerts) ? $alerts : [];
+        return AlertSettingsNormalizer::normalize($this->config->load()->getFeatures()['alerts'] ?? []);
     }
 
     /**
-     * @param array<string,mixed> $alerts
+     * The switched-on instances of a registered type, or none while the alerts master switch is off.
+     *
+     * @param array{enabled:bool,reminder_minutes:int,channels:list<array{id:string,type:string,name:string,enabled:bool,settings:array<string,mixed>}>} $alerts
+     *
+     * @return list<array{id:string,type:string,name:string,enabled:bool,settings:array<string,mixed>}>
      */
-    private function anyChannelEnabled(array $alerts): bool
+    private function enabledInstances(array $alerts): array
     {
-        if (empty($alerts['enabled'])) {
-            return false;
+        if (!$alerts['enabled']) {
+            return [];
         }
 
-        foreach (array_keys($this->channels->all()) as $key) {
-            if (!empty($alerts[$key]['enabled'])) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_values(array_filter(
+            $alerts['channels'],
+            fn (array $instance): bool => $instance['enabled'] && $this->channels->get($instance['type']) !== null
+        ));
     }
 }

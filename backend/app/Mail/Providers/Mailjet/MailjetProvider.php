@@ -20,6 +20,9 @@ final class MailjetProvider extends DescriptorProvider
         parent::__construct(self::descriptor(), $client, $resolver);
     }
 
+    /**
+     * Mailjet descriptor; CustomID = tracking ID, errorDetectPaths match real failures only (HTTP 200 carries per-message errors).
+     */
     private static function descriptor(): ProviderDescriptor
     {
         return ProviderDescriptor::fromArray([
@@ -45,14 +48,11 @@ final class MailjetProvider extends DescriptorProvider
                 'subject'     => 'Subject',
                 'body'        => ['html' => 'HTMLPart', 'text' => 'TextPart'],
                 'attachments' => ['key' => 'Attachments', 'shape' => 'mailjet'],
-                // CustomID is Mailjet's per-message correlation field and is returned in Event API calls.
                 'metadata'    => ['key' => 'CustomID', 'value' => TrackingIdStamper::METADATA_KEY],
                 'headers'     => 'Headers',
             ],
-            'success'    => [200],
-            'errorPaths' => ['Messages.0.Errors.0.ErrorMessage', 'Errors.0.ErrorMessage', 'ErrorMessage'],
-            // Mailjet reports per-message failures under HTTP 200; its success body carries no
-            // Errors/ErrorMessage, so these paths only match a real failure.
+            'success'          => [200],
+            'errorPaths'       => ['Messages.0.Errors.0.ErrorMessage', 'Errors.0.ErrorMessage', 'ErrorMessage'],
             'errorDetectPaths' => ['Messages.0.Errors.0.ErrorMessage', 'Errors.0.ErrorMessage', 'ErrorMessage'],
             'tracking'         => ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY],
         ]);

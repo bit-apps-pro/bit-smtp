@@ -11,10 +11,7 @@ use BitApps\SMTP\Mail\Support\AttachmentBuilder;
 use BitApps\SMTP\Mail\Support\SenderResolver;
 
 /**
- * Builds SparkPost's transmissions body (spec §5/§11 payloadBuilder escape hatch): SparkPost has
- * no native cc/bcc, so every recipient (to+cc+bcc) is flattened into `recipients[]` and the visible
- * To/Cc headers are rendered separately in `content.headers` — bcc addresses are deliberately never
- * written to any header, which is what keeps a blind-carbon-copy blind.
+ * Build SparkPost transmission payload with flattened recipients and separate headers for BCC privacy.
  */
 final class SparkPostPayloadBuilder
 {
@@ -87,7 +84,6 @@ final class SparkPostPayloadBuilder
             $content['reply_to'] = $replyTo[0];
         }
 
-        // Cc is a visible header; bcc must never appear in any content.headers value.
         if (!empty($cc)) {
             $content['headers'] = ['CC' => $this->joinRfc822($cc)];
         }

@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Tests\Unit\Container;
 
+use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Container\Application;
 use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
+use BitApps\SMTP\Mail\Notifications\AlertScheduler;
+use BitApps\SMTP\Mail\Notifications\FailureAlertHandler;
+use BitApps\SMTP\Mail\Notifications\HealthAlertHandler;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Plugin;
@@ -19,13 +23,7 @@ use ReflectionClass;
 use ReflectionProperty;
 
 /**
- * Covers the wp-kit Application/ServiceProvider wiring adopted in Plugin.php: the legacy accessors
- * still resolve the right (and, for singletons, the same) instances, and boot() force-resolves
- * WpMailBridge so wp_mail is never silently left unhooked (regression guard for C1).
- *
- * Only Core/Mail/Notification providers are booted here -- Http/Installer/Abilities register real WP
- * admin/activation hooks (register_activation_hook, rest_api_init routing, etc.) that are out of
- * scope for this container-wiring test and are exercised by their own suites.
+ * Covers wp-kit Application/ServiceProvider wiring: legacy accessors resolve correctly, boot() force-resolves WpMailBridge.
  *
  * @internal
  *
@@ -38,15 +36,11 @@ final class ServiceWiringTest extends BaseUnitTestCase
         parent::setUp();
         WpStubs::install();
 
-        // LogService reads/writes settings through Config::getOption()/get_option(); a blanket false
-        // keeps every gate (logging_enabled, continuity backfill) on its no-op short-circuit path.
         Functions\when('get_option')->justReturn(false);
     }
 
     protected function tearDown(): void
     {
-        // Plugin::$_instance is a process-wide static; reset it so this test can't leak a rigged
-        // Plugin instance into any test that runs later in the same PHPUnit process.
         $this->setStaticInstance(null);
         parent::tearDown();
     }
@@ -69,9 +63,7 @@ final class ServiceWiringTest extends BaseUnitTestCase
     }
 
     /**
-     * Task 18: MailServiceProvider reads the `send_timeout_seconds` pref via PluginSettings and
-     * threads it into SmtpTransport's constructor; get_option is stubbed false here (blanket
-     * setUp() stub), so PluginSettings falls back to the schema default (30).
+     * Task 18: MailServiceProvider threads send_timeout_seconds pref into SmtpTransport; defaults to schema default (30).
      */
     public function testOtherSmtpTransportReceivesTheDefaultSendTimeoutSecondsFromPluginSettings(): void
     {
@@ -91,8 +83,7 @@ final class ServiceWiringTest extends BaseUnitTestCase
     }
 
     /**
-     * C1 regression: without boot() force-resolving WpMailBridge, its constructor (which registers
-     * pre_wp_mail) never runs, and mail silently stops routing through the plugin.
+     * C1 regression: boot() must force-resolve WpMailBridge so pre_wp_mail filter registers.
      */
     public function testBootRegistersThePreWpMailFilterWithoutAnyExplicitSmtpProviderCall(): void
     {
@@ -105,9 +96,33 @@ final class ServiceWiringTest extends BaseUnitTestCase
         self::assertNotFalse(has_filter('pre_wp_mail'), 'boot() must force-resolve WpMailBridge');
     }
 
+    public function testBootHooksTheBackgroundFailureAlertHandler(): void
+    {
+        $plugin = $this->pluginWithApp($this->newApplication());
+
+        self::assertFalse(has_action(Config::FAILURE_ALERT_HOOK), 'precondition: nothing has booted yet');
+
+        $plugin->app()->boot();
+
+        self::assertNotFalse(has_action(Config::FAILURE_ALERT_HOOK));
+        self::assertInstanceOf(FailureAlertHandler::class, $plugin->app()->make(FailureAlertHandler::class));
+    }
+
+    public function testBootHooksTheBackgroundHealthAlertHandler(): void
+    {
+        $plugin = $this->pluginWithApp($this->newApplication());
+
+        self::assertFalse(has_action(Config::HEALTH_ALERT_HOOK), 'precondition: nothing has booted yet');
+
+        $plugin->app()->boot();
+
+        self::assertNotFalse(has_action(Config::HEALTH_ALERT_HOOK));
+        self::assertInstanceOf(HealthAlertHandler::class, $plugin->app()->make(HealthAlertHandler::class));
+        self::assertSame($plugin->app()->make(AlertScheduler::class), $plugin->app()->make(AlertScheduler::class));
+    }
+
     /**
-     * Builds a Plugin wired to a booted Application, standing in for Plugin::load() without its
-     * WP-admin/activation side effects.
+     * Builds Plugin wired to booted Application, mimics Plugin::load() without admin/activation side effects.
      */
     private function bootedPlugin(): Plugin
     {
@@ -119,7 +134,7 @@ final class ServiceWiringTest extends BaseUnitTestCase
     }
 
     /**
-     * The same 3 providers Plugin::__construct() registers that carry pure service bindings.
+     * Creates Application with the 3 core providers Plugin::__construct() registers.
      */
     private function newApplication(): Application
     {
@@ -132,14 +147,12 @@ final class ServiceWiringTest extends BaseUnitTestCase
     }
 
     /**
-     * Constructs a Plugin without running its side-effecting constructor, wires the given Application
-     * onto it via reflection, and publishes it as the singleton Plugin::instance() returns.
+     * Constructs Plugin without constructor, wires Application via reflection, sets as Plugin::instance() singleton.
      */
     private function pluginWithApp(Application $app): Plugin
     {
         $plugin = (new ReflectionClass(Plugin::class))->newInstanceWithoutConstructor();
 
-        // Reflection is fully accessible by default since PHP 8.1; setAccessible() is unneeded.
         (new ReflectionProperty(Plugin::class, 'app'))->setValue($plugin, $app);
 
         $this->setStaticInstance($plugin);

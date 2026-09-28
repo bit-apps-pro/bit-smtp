@@ -25,7 +25,6 @@ class WpConfigCredentialSourceTest extends BaseUnitTestCase
     {
         $source = new WpConfigCredentialSource($this->reader([]));
 
-        // Hyphens, dots and spaces all collapse to underscores; letters uppercase.
         $this->assertSame('BIT_SMTP_CONN_AB_CD_API_KEY', $source->constantName('conn-ab.cd', 'api key'));
     }
 
@@ -47,7 +46,6 @@ class WpConfigCredentialSourceTest extends BaseUnitTestCase
 
     public function testResolveTreatsDefinedButEmptyConstantAsUnset(): void
     {
-        // A defined-but-empty constant must fall through to the DB, never lock out the credential.
         $source = new WpConfigCredentialSource($this->reader([
             'BIT_SMTP_CONN_1_PASSWORD' => '',
         ]));

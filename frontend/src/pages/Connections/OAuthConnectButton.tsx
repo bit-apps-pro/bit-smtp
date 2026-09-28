@@ -18,12 +18,14 @@ interface OAuthCallbackMessage {
   provider?: string
 }
 
+/** Type guard for a same-origin OAuth popup postMessage payload. */
 function isOAuthCallbackMessage(data: unknown): data is OAuthCallbackMessage {
   return (
     typeof data === 'object' && data !== null && (data as { type?: unknown }).type === OAUTH_MESSAGE_TYPE
   )
 }
 
+/** Connect/Reconnect button that opens an OAuth consent popup and listens for its postMessage callback. */
 export default function OAuthConnectButton({
   connectionId,
   provider,
@@ -41,6 +43,7 @@ export default function OAuthConnectButton({
   const queryClient = useQueryClient()
 
   useEffect(() => {
+    /** Applies a same-origin OAuth callback message: invalidates cached mail settings and toasts the outcome. */
     function handleMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin || !isOAuthCallbackMessage(event.data)) {
         return
@@ -63,10 +66,7 @@ export default function OAuthConnectButton({
     return () => window.removeEventListener('message', handleMessage)
   }, [connectionId, queryClient])
 
-  // Always persist the current form values before authorizing, so consent runs against the freshly
-  // typed OAuth client_id/secret rather than the stored ones (an edit would otherwise authorize with
-  // stale credentials). Persisting also mints the id for a brand-new connection. loading blocks a
-  // double submit.
+  /** Persists the form (so consent reads fresh, not stale, OAuth credentials; also mints a new connection's id), then opens the consent popup. */
   const handleClick = async () => {
     setIsSaving(true)
     let id: string
@@ -83,8 +83,7 @@ export default function OAuthConnectButton({
     }
   }
 
-  // Revoke the stored grant without deleting the connection; the mutation refetches mail settings,
-  // flipping `connected` back to false.
+  /** Revokes the stored OAuth grant without deleting the connection; the refetch flips `connected` back to false. */
   const handleDisconnect = async () => {
     try {
       await disconnect(connectionId)

@@ -6,8 +6,7 @@ use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
 
 /**
- * Verifies LogService::all()'s server-side filter whitelist: each supported filter narrows both the
- * returned rows and the filtered `count` used for pagination.
+ * Verifies server-side filter whitelist narrows rows and pagination count.
  *
  * @internal
  *
@@ -131,7 +130,6 @@ final class LogsFilterTest extends IntegrationTestCase
 
     public function testSendStatusFilterNarrowsToSuccessOrFailure(): void
     {
-        // The 5 seeded rows are all successes; add one failed send to prove the status split.
         global $wpdb;
         $wpdb->insert(
             (new Log())->getTable(),
@@ -156,16 +154,15 @@ final class LogsFilterTest extends IntegrationTestCase
         $sent = $this->service->all(0, 20, ['status' => 'sent']);
         self::assertSame(5, $sent['count']);
 
-        // An unrecognized status string is ignored rather than applied.
         $bogus = $this->service->all(0, 20, ['status' => 'whatever']);
         self::assertSame(6, $bogus['count']);
     }
 
+    /**
+     * Legacy rows carry only the connection label analytics groups by, so the "View in logs" filter must still match them.
+     */
     public function testConnectionIdFilterAlsoMatchesLegacyConnectionLabelRows(): void
     {
-        // Legacy row: no stable connection_id, only the mutable `connection` label — the same rows the
-        // analytics COALESCE(connection_id, connection) grouping ranks by label. The connection_id
-        // filter must still resolve them, or the "View in logs" deep-link lands on an empty list.
         global $wpdb;
         $wpdb->insert(
             (new Log())->getTable(),

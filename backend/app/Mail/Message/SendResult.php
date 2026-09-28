@@ -32,8 +32,7 @@ class SendResult
     }
 
     /**
-     * The provider never handed off the message (network error, 4xx/5xx, etc.): the dispatch
-     * fallback is expected to try the next connection.
+     * Result when provider never handed off message; dispatch fallback tries next connection.
      */
     public static function failure(string $error, ?string $code = null, array $debug = []): self
     {
@@ -41,9 +40,7 @@ class SendResult
     }
 
     /**
-     * The provider accepted/handed off the message (e.g. HTTP 2xx) but reported a per-message
-     * error in the body: NOT eligible for fallback (a re-send would duplicate-deliver to the
-     * recipients already accepted), yet reported as a failed send.
+     * Result when provider accepted message but reported error; not eligible for fallback.
      */
     public static function acceptedWithError(string $error, ?string $code = null, array $debug = []): self
     {
@@ -81,8 +78,7 @@ class SendResult
     }
 
     /**
-     * Immutable copy carrying the provider's message-id (captured post-send for delivery-webhook
-     * correlation); preserves every other dimension.
+     * Return immutable copy with provider's message-id for delivery-webhook correlation.
      */
     public function withMessageId(?string $messageId): self
     {

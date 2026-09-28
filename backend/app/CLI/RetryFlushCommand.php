@@ -7,8 +7,7 @@ use BitApps\SMTP\Mail\Dispatch\RetryQueue;
 \defined('ABSPATH') || exit();
 
 /**
- * `wp bit-smtp retry flush`: discard every queued retry (destructive, abandons those deferred sends)
- * and report the count removed. Mirrors the REST flush action; admin-invoked, so no extra guard.
+ * Discard all queued retries (destructive; mirrors REST flush action).
  */
 final class RetryFlushCommand
 {
@@ -20,8 +19,7 @@ final class RetryFlushCommand
     }
 
     /**
-     * Clear the retry queue and report the number of rows removed, or a terminal error on DB failure
-     * (distinguished from a legitimate zero-row clear).
+     * Clear retry queue and report rows removed (error on DB failure, distinct from zero-row clear).
      *
      * @param array<int,string>    $args
      * @param array<string,string> $assocArgs

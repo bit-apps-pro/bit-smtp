@@ -5,8 +5,7 @@ namespace BitApps\SMTP\Mail\Health;
 use BitApps\SMTP\Mail\Connections\Connection;
 
 /**
- * A before/after status pair emitted when a connection's derived health status changed, carrying the
- * connection it belongs to so a downstream alerter can react without recomputing or re-resolving it.
+ * Before/after status pair on derived health change; carries connection for alerter reaction.
  */
 final class HealthTransition
 {

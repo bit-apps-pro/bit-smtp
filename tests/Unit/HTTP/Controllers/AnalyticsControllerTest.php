@@ -16,11 +16,7 @@ use Mockery;
 use WP_Error;
 
 /**
- * MailAnalyticsService is `final`, so Mockery cannot subclass it for a strictly-typed constructor
- * argument (see AnalyticsCacheTest for the same constraint on the service itself). These tests
- * instead build a real MailAnalyticsService over a mocked MailAnalyticsRepository and an in-memory
- * cache, which keeps every scenario off the real database while still exercising the controller's
- * actual request/response wiring.
+ * Tests AnalyticsController: builds real MailAnalyticsService over mocked repository and in-memory cache.
  *
  * @internal
  *
@@ -32,7 +28,7 @@ final class AnalyticsControllerTest extends BaseUnitTestCase
     {
         parent::setUp();
         Functions\when('__')->returnArg(1);
-        // The base Request constructor always reads $_GET through wp_unslash(), even when empty.
+
         Functions\when('wp_unslash')->returnArg(1);
     }
 
@@ -62,8 +58,6 @@ final class AnalyticsControllerTest extends BaseUnitTestCase
     {
         $this->stubLoggingEnabled(false);
 
-        // loggingDisabledError() short-circuits before any repository call; an unconfigured Mockery
-        // double throws on any method call, so this also proves the repository is never touched.
         $repository = Mockery::mock(MailAnalyticsRepository::class);
         $controller = new AnalyticsController($this->service($repository));
 
@@ -81,8 +75,6 @@ final class AnalyticsControllerTest extends BaseUnitTestCase
         $request          = new Request();
         $request['start'] = 'not-a-date';
 
-        // The query factory rejects the input before the service (and therefore the repository) is
-        // ever reached.
         $repository = Mockery::mock(MailAnalyticsRepository::class);
         $controller = new AnalyticsController($this->service($repository));
 
@@ -172,8 +164,6 @@ final class AnalyticsControllerTest extends BaseUnitTestCase
     {
         $this->stubLoggingEnabled(true);
 
-        // A repository failure (e.g. the aggregate query itself erroring) is the "anything else"
-        // case the controller docblock maps to 500, as opposed to the logging-disabled short circuit.
         $repository = Mockery::mock(MailAnalyticsRepository::class);
         $repository->shouldReceive('summary')->andReturn(
             new WP_Error('bit_smtp_analytics_database_error', 'The retained-log aggregate query failed.')
@@ -192,8 +182,7 @@ final class AnalyticsControllerTest extends BaseUnitTestCase
     }
 
     /**
-     * Stub get_option so PluginSettings::getWithLegacyFallback('logging_enabled', ...) resolves to
-     * the given value, matching how MailAnalyticsService::loggingEnabled() reads it.
+     * Stubs get_option to match MailAnalyticsService::loggingEnabled() resolution via PluginSettings.
      */
     private function stubLoggingEnabled(bool $enabled): void
     {

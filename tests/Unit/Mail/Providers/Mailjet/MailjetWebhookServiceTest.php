@@ -81,8 +81,6 @@ final class MailjetWebhookServiceTest extends BaseUnitTestCase
 
         $result = (new MailjetWebhookService($this->client, $this->auth))->ensure($this->connection());
 
-        // Any callback already pointing at our URL is an equally valid reuse marker; the loop reports the
-        // last one it sees (spam).
         $this->assertSame(['created' => false, 'id' => '444'], $result);
     }
 
@@ -187,8 +185,7 @@ final class MailjetWebhookServiceTest extends BaseUnitTestCase
     }
 
     /**
-     * Stand-in for BasicAuthStrategy: writes the connection's key pair as a Basic header, proving the
-     * provisioner forwards whatever the auth strategy produced onto the client.
+     * Stand-in for BasicAuthStrategy: proves provisioner forwards auth strategy output to client.
      */
     private function basicAuth(): AuthStrategyInterface
     {

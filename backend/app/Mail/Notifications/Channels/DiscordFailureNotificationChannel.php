@@ -2,6 +2,8 @@
 
 namespace BitApps\SMTP\Mail\Notifications\Channels;
 
+use BitApps\SMTP\Mail\Config\AlertChannelSettings;
+use BitApps\SMTP\Mail\Notifications\ChannelDeliveryResult;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
 use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 use Throwable;
@@ -9,13 +11,14 @@ use Throwable;
 final class DiscordFailureNotificationChannel implements FailureNotificationChannelInterface
 {
     /**
-     * Discord rejects a message whose `content` exceeds 2000 characters; the alert text is clamped to
-     * this ceiling before it is sent.
+     * Discord message content ceiling; clamp alert text before sending.
      */
     private const MAX_CONTENT_LENGTH = 2000;
 
+    private const MAX_ERROR_LENGTH = 120;
+
     /**
-     * The channel key, doubling as its `features['alerts']` settings key.
+     * The channel key, matched against each alert channel instance's `type`.
      */
     public function key(): string
     {
@@ -23,20 +26,20 @@ final class DiscordFailureNotificationChannel implements FailureNotificationChan
     }
 
     /**
-     * POST the alert as a Discord webhook message; true only on a 2xx from a validated webhook URL.
+     * POST the alert as a Discord webhook message; delivered only on a 2xx from a validated webhook URL.
      *
      * @param array<string,mixed> $settings
      */
-    public function send(NotificationMessage $notification, array $settings): bool
+    public function send(NotificationMessage $notification, array $settings): ChannelDeliveryResult
     {
-        $url = self::setting($settings, 'webhook_url');
-        if (!self::isWebhookUrl($url)) {
-            return false;
+        $url = AlertChannelSettings::scalarString($settings, 'webhook_url');
+        if (!AlertChannelSettings::isDiscordWebhookUrl($url)) {
+            return ChannelDeliveryResult::failed(__('The Discord webhook URL is not valid.', 'bit-smtp'));
         }
 
         $body = wp_json_encode(['content' => self::truncate($notification->chatText())]);
         if (!\is_string($body)) {
-            return false;
+            return ChannelFailureReason::unencodable();
         }
 
         try {
@@ -47,25 +50,36 @@ final class DiscordFailureNotificationChannel implements FailureNotificationChan
                 'redirection' => 0,
             ]);
         } catch (Throwable) {
-            return false;
+            return ChannelFailureReason::requestFailed();
         }
         if (is_wp_error($response)) {
-            return false;
+            return ChannelFailureReason::transport($response, [$url]);
         }
 
-        $status = wp_remote_retrieve_response_code($response);
+        $status = (int) wp_remote_retrieve_response_code($response);
 
-        return $status >= 200 && $status < 300;
+        return $status >= 200 && $status < 300 ? ChannelDeliveryResult::delivered() : self::rejected($status, $response, $url);
     }
 
     /**
-     * Read a scalar setting as a trimmed string, defaulting to '' for missing or non-scalar values.
+     * Build rejection result from Discord's JSON response message (redacted).
      *
-     * @param array<string,mixed> $settings
+     * @param array<string,mixed> $response
      */
-    private static function setting(array $settings, string $key): string
+    private static function rejected(int $status, array $response, string $url): ChannelDeliveryResult
     {
-        return isset($settings[$key]) && \is_scalar($settings[$key]) ? trim((string) $settings[$key]) : '';
+        $payload = json_decode((string) wp_remote_retrieve_body($response), true);
+        $message = \is_array($payload) && \is_string($payload['message'] ?? null)
+            ? ChannelFailureReason::redact($payload['message'], self::MAX_ERROR_LENGTH, [$url])
+            : '';
+
+        if ($message === '') {
+            // translators: %d: HTTP status code
+            return ChannelDeliveryResult::failed(\sprintf(__('Discord rejected the request (HTTP %d).', 'bit-smtp'), $status));
+        }
+
+        // translators: 1: HTTP status code, 2: Discord's error message
+        return ChannelDeliveryResult::failed(\sprintf(__('Discord rejected the request (HTTP %1$d: %2$s).', 'bit-smtp'), $status, $message));
     }
 
     /**
@@ -74,28 +88,5 @@ final class DiscordFailureNotificationChannel implements FailureNotificationChan
     private static function truncate(string $text): string
     {
         return mb_substr($text, 0, self::MAX_CONTENT_LENGTH);
-    }
-
-    /**
-     * True only for an exact Discord webhook URL: https, a discord(app).com host, an `/api/webhooks/`
-     * path carrying the id/token, and no port, credentials, query, or fragment.
-     */
-    private static function isWebhookUrl(string $url): bool
-    {
-        $parts = wp_parse_url($url);
-        if (!\is_array($parts)) {
-            return false;
-        }
-
-        return ($parts['scheme'] ?? '') === 'https'
-            && \in_array($parts['host'] ?? '', ['discord.com', 'discordapp.com'], true)
-            && !isset($parts['port'])
-            && !isset($parts['user'])
-            && !isset($parts['pass'])
-            && !isset($parts['query'])
-            && !isset($parts['fragment'])
-            && isset($parts['path'])
-            && str_starts_with($parts['path'], '/api/webhooks/')
-            && \strlen($parts['path']) > \strlen('/api/webhooks/');
     }
 }

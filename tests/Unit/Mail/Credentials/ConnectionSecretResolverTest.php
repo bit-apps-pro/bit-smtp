@@ -22,8 +22,6 @@ class ConnectionSecretResolverTest extends BaseUnitTestCase
     {
         $connection = $this->connection(['password' => ['source' => 'database', 'value' => 'db-secret']]);
 
-        // never(): the stored path is the only place CredentialCipher::decrypt lives, so proving it is
-        // untouched proves the override is returned verbatim, never run through the cipher.
         $stored = Mockery::mock(CredentialResolverInterface::class);
         $stored->shouldReceive('resolve')->never();
 
@@ -56,7 +54,6 @@ class ConnectionSecretResolverTest extends BaseUnitTestCase
         $stored = Mockery::mock(CredentialResolverInterface::class);
         $stored->shouldReceive('resolve')->once()->andReturn('db-secret');
 
-        // Defined-but-empty constant must not lock out the DB credential.
         $resolver = new ConnectionSecretResolver($stored, $this->wpConfig([
             'BIT_SMTP_CONN_1_PASSWORD' => '',
         ]));

@@ -18,8 +18,6 @@ export interface ProviderVisual {
 }
 
 interface ProviderEntry {
-  // Real brand marks (Simple Icons / official assets), brand-tinted. `null` when no verified
-  // logo exists for the provider, so the UI renders a letter tile instead of a fabricated mark.
   logo: string | null
   accent: string
   blurb: string
@@ -52,7 +50,6 @@ const providers: Record<string, ProviderEntry> = {
     blurb: 'Amazon SES API'
   },
   postmark: {
-    // No verified brand SVG/PNG available — letter tile (never a fabricated logo).
     logo: null,
     accent: '#E8912B',
     blurb: 'Postmark API'
@@ -78,7 +75,6 @@ const providers: Record<string, ProviderEntry> = {
     blurb: 'Mailjet API'
   },
   zeptomail: {
-    // Zoho parent-brand mark (ZeptoMail is a Zoho product; no standalone brand icon exists).
     logo: zeptomailLogo,
     accent: '#E42527',
     blurb: 'Zoho ZeptoMail API'
@@ -100,6 +96,7 @@ const providers: Record<string, ProviderEntry> = {
   }
 }
 
+/** Resolves a provider key to its display visual (logo/initial/accent/blurb), falling back to a generic indigo tile for unknown providers. */
 export function getProviderVisual(key: string, label?: string): ProviderVisual {
   const entry = providers[key]
   const displayLabel = label ?? key

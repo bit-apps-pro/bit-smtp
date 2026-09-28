@@ -1,0 +1,67 @@
+/* Left-positioned antd Tabs restyled as a settings side menu, with the active pane as a card. */
+.layout :global(.ant-tabs-nav) {
+  width: 232px;
+  margin: 0;
+}
+
+.layout :global(.ant-tabs-nav)::before,
+.layout :global(.ant-tabs-ink-bar) {
+  display: none;
+}
+
+.layout :global(.ant-tabs-nav-list) {
+  gap: 2px;
+}
+
+.layout :global(.ant-tabs-tab) {
+  margin: 0 !important;
+  padding: 9px 12px !important;
+  border-radius: var(--settings-radius);
+  color: var(--settings-item-color);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.layout :global(.ant-tabs-tab):hover {
+  background: var(--settings-item-hover-bg);
+}
+
+.layout :global(.ant-tabs-tab.ant-tabs-tab-active) {
+  background: var(--settings-item-active-bg);
+}
+
+.layout :global(.ant-tabs-tab-btn) {
+  width: 100%;
+  text-align: start;
+}
+
+.layout :global(.ant-tabs-tab-active .ant-tabs-tab-btn) {
+  font-weight: 600;
+}
+
+.layout :global(.ant-tabs-content-holder) {
+  min-width: 0;
+  margin-left: 24px !important;
+  padding: 24px 28px;
+  border: 1px solid var(--settings-card-border);
+  border-left: 1px solid var(--settings-card-border) !important;
+  border-radius: var(--settings-radius-lg);
+  background: var(--settings-card-bg);
+}
+
+.layout :global(.ant-tabs-tabpane) {
+  padding-left: 0 !important;
+}
+
+.compact :global(.ant-tabs-nav) {
+  width: auto;
+  margin-bottom: 16px;
+}
+
+.compact :global(.ant-tabs-nav-list) {
+  gap: 4px;
+}
+
+.compact :global(.ant-tabs-content-holder) {
+  margin-left: 0 !important;
+  padding: 20px 16px;
+}

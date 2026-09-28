@@ -49,8 +49,6 @@ export default function ConnectionCard({
   const toggleLabel = isEnabled ? __('Disable this connection') : __('Enable this connection')
   const nameId = `connection-card-name-${connection.id}`
 
-  // The default connection gets a primary accent rail + tint; a disabled (non-default) card is
-  // dimmed to signal it is paused and out of the failover chain.
   let cardStyle: CSSProperties | undefined
   if (isDefault) {
     cardStyle = {

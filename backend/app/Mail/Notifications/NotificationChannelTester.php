@@ -3,8 +3,14 @@
 namespace BitApps\SMTP\Mail\Notifications;
 
 use BitApps\SMTP\HTTP\Services\MailConfigService;
+use BitApps\SMTP\Mail\Config\AlertChannelSettings;
+use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
+use BitApps\SMTP\Mail\Exceptions\InvalidAlertChannelException;
 use Throwable;
 
+/**
+ * Send test alert through channel instance; resolve masked secrets from storage.
+ */
 final class NotificationChannelTester
 {
     public function __construct(
@@ -14,24 +20,30 @@ final class NotificationChannelTester
     }
 
     /**
-     * Deliver a test alert through the given channel; every registered channel is testable, so an
-     * unknown key (no registered channel) is the only rejection.
+     * Deliver test alert through instance; return result with admin-safe reason.
+     *
+     * @param array<string,mixed> $settings
+     *
+     * @throws InvalidAlertChannelException when the type is unknown or a required field is missing
      */
-    public function send(string $key): bool
+    public function send(string $type, array $settings, string $id = ''): ChannelDeliveryResult
     {
-        $channel = $this->channels->get($key);
+        $channel = AlertChannelSettings::isType($type) ? $this->channels->get($type) : null;
         if ($channel === null) {
-            return false;
+            throw InvalidAlertChannelException::unknownType();
         }
 
-        $features = $this->config->load()->getFeatures();
-        $alerts   = isset($features['alerts']) && \is_array($features['alerts']) ? $features['alerts'] : [];
-        $settings = isset($alerts[$key])       && \is_array($alerts[$key]) ? $alerts[$key] : [];
+        $resolved  = MaskedSecretResolver::resolveAlertChannel($id, $type, $settings, $this->config->load());
+        $sanitized = AlertChannelSettings::sanitize($type, $resolved);
+        $missing   = AlertChannelSettings::missingRequirement($type, $sanitized);
+        if ($missing !== null) {
+            throw InvalidAlertChannelException::incomplete($missing);
+        }
 
         try {
-            return $channel->send(FailureNotification::forTest(), $settings);
+            return $channel->send(FailureNotification::forTest(), $sanitized);
         } catch (Throwable) {
-            return false;
+            return ChannelDeliveryResult::failed(__('Notification test failed.', 'bit-smtp'));
         }
     }
 }

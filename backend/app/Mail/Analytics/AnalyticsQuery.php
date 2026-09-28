@@ -9,8 +9,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 
 /**
- * Immutable, validated analytics filter. Timestamps are always held in UTC while the display
- * timezone is retained for bucket creation and response metadata.
+ * Immutable, validated analytics filter holding timestamps in UTC and display timezone separately.
  */
 final class AnalyticsQuery
 {

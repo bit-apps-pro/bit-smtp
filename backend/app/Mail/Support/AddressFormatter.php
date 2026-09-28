@@ -59,7 +59,6 @@ final class AddressFormatter
     {
         $parsed = array_map([$this, 'parseOne'], $addresses);
 
-        // Blank entries carry no address to render; drop them rather than emit empty recipients.
         return array_values(array_filter($parsed, static function (array $address): bool {
             return $address['address'] !== '';
         }));

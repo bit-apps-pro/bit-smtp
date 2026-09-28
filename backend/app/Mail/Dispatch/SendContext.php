@@ -5,10 +5,7 @@ namespace BitApps\SMTP\Mail\Dispatch;
 use BitApps\SMTP\Mail\Routing\RoutingDecision;
 
 /**
- * Mutable per-send state shared between the wp_mail hooks and the calling controller.
- *
- * Deliberately NOT a value object: the hook callbacks write outcome fields (isFailed,
- * debugOutput) that the caller reads back off the same instance after wp_mail() returns.
+ * Mutable per-send state shared between wp_mail hooks and caller; hook callbacks write outcome fields back.
  */
 class SendContext
 {
@@ -32,19 +29,14 @@ class SendContext
     private ?RoutingDecision $routingDecision = null;
 
     /**
-     * Raw wp_mail headers (string or array) captured at pre_wp_mail time for a send about to defer to
-     * native wp_mail. Needed because core strips From/Cc/Bcc out of the headers it later reports to the
-     * wp_mail_succeeded/failed listeners, so the native log path must recover them from this raw value.
+     * Raw wp_mail headers captured pre-dispatch; needed to recover From/Cc/Bcc core strips before wp_mail_succeeded/failed.
      *
      * @var string|array<int,string>
      */
     private $nativeMailHeaders = '';
 
     /**
-     * Clear per-send output accumulators and routing metadata at the start of each send.
-     *
-     * Caller-set inputs (debug flag, isRetrying, retryLogId, isBatch) are intentionally
-     * preserved so batch/resend loops keep their configuration across sends.
+     * Clear per-send output accumulators and routing metadata; preserve caller-set inputs for batch/resend loops.
      */
     public function resetForSend(): void
     {
@@ -115,8 +107,7 @@ class SendContext
     }
 
     /**
-     * The id of the log a manual resend was launched from; the resulting send is INSERTed as a child
-     * row carrying this parent id (null on every non-resend send). Consumed and cleared by the logger.
+     * Parent log id for a resend; inserted as child row id (null on non-resend sends).
      */
     public function setResendParentId(?int $resendParentId): self
     {
@@ -155,8 +146,7 @@ class SendContext
     }
 
     /**
-     * Stash the current send's raw wp_mail headers so the native-path log listeners can recover the
-     * From/Cc/Bcc core strips out before firing wp_mail_succeeded/failed.
+     * Stash raw headers so native-path listeners recover From/Cc/Bcc core strips before wp_mail_succeeded/failed.
      *
      * @param string|array<int,string> $headers
      */

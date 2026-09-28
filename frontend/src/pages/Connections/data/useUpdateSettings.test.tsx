@@ -82,6 +82,24 @@ describe('useUpdateSettings', () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: MAIL_SETTINGS_QUERY_KEY })
   })
 
+  it('refetches the settings after an alerts_conflict (409) envelope, so the next save carries a fresh revision', async () => {
+    ;(request as Mock).mockResolvedValue({
+      status: 'error',
+      code: 'alerts_conflict',
+      message: 'Notification settings were changed in another tab. Reload to see the latest.',
+      data: []
+    })
+
+    const { wrapper, invalidateQueries } = createWrapper(true)
+    const { result } = renderHook(() => useUpdateSettings(), { wrapper })
+
+    result.current.mutate({ default_connection_id: 'conn_b' })
+
+    await waitFor(() =>
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: MAIL_SETTINGS_QUERY_KEY })
+    )
+  })
+
   it('rejects without posting when the settings cache is empty', async () => {
     const { wrapper } = createWrapper(false)
     const { result } = renderHook(() => useUpdateSettings(), { wrapper })

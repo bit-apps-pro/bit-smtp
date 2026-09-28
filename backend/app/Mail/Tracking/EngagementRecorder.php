@@ -8,10 +8,7 @@ use Throwable;
 \defined('ABSPATH') || exit();
 
 /**
- * Turns a verified tracking hit into a folded engagement row. Verifies the signed token, resolves the
- * log it belongs to, classifies the fire as human vs automated, and folds it via LogService. A bad
- * token or an unknown/purged log is a silent no-op — nothing is written, so token validity can never
- * be probed. Never throws to its caller: the public endpoint must always be able to respond.
+ * Record tracking hit as engagement: verify token, classify as human/automated, silent no-op on invalid token.
  */
 final class EngagementRecorder
 {
@@ -20,8 +17,7 @@ final class EngagementRecorder
     public const TYPE_CLICK = 'click';
 
     /**
-     * Age (in seconds) reported when a log's send time is unknown/unparseable: large enough that the
-     * prefetch heuristic never fires, so an indeterminate age is counted as human, not automated.
+     * Age constant for unknown log send time; large enough to classify as human, not automated.
      */
     private const UNKNOWN_AGE = PHP_INT_MAX;
 
@@ -33,9 +29,7 @@ final class EngagementRecorder
     }
 
     /**
-     * Record one open/click fire for $signedToken. No-op on a forged/tampered/absent signature or a
-     * token that resolves to no persisted log. $request supplies the raw client signals ('user_agent',
-     * 'ip') used only to classify the fire.
+     * Record open/click fire for signed token; no-op on invalid token or missing log.
      *
      * @param array<string,mixed> $request
      */
@@ -47,15 +41,11 @@ final class EngagementRecorder
                 $this->fold($payload, $type, $request);
             }
         } catch (Throwable $e) {
-            // Fail open: an unauthenticated tracking hit must never surface an error, and a failed
-            // record must not block the benign pixel/redirect response.
         }
     }
 
     /**
-     * Record a fire whose token the caller has ALREADY verified, so the signature is not checked twice
-     * — the click path verifies once and threads the same payload into recording and redirect
-     * resolution. Same no-op-on-unknown-log and never-throw contract as record().
+     * Record fire with pre-verified token to avoid double verification; same no-op and error-handling contract as record().
      *
      * @param array<string,mixed> $payload the verified TokenSigner payload
      * @param array<string,mixed> $request
@@ -65,13 +55,11 @@ final class EngagementRecorder
         try {
             $this->fold($payload, $type, $request);
         } catch (Throwable $e) {
-            // Fail open: see record() — a failed record must never break the tracking response.
         }
     }
 
     /**
-     * Resolve the log a verified payload points at and fold one engagement fire onto it. A tracking id
-     * matching no persisted log is a silent no-op, so token validity can never be probed.
+     * Resolve log from verified payload and fold engagement fire onto it; silent no-op on missing log.
      *
      * @param array<string,mixed> $payload
      * @param array<string,mixed> $request
@@ -96,8 +84,7 @@ final class EngagementRecorder
     }
 
     /**
-     * Seconds between a log's send time (UTC) and now. Returns UNKNOWN_AGE when the timestamp is
-     * missing/unparseable, so the prefetch heuristic is skipped rather than misfired.
+     * Calculate seconds since log was sent; returns UNKNOWN_AGE for missing/unparseable timestamps.
      */
     private function secondsSinceSend(?string $sentAt): int
     {

@@ -3,87 +3,71 @@
 namespace BitApps\SMTP\Mail\Notifications;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Settings\OptionSwap;
 
+/**
+ * Atomic storage via option row with compare-and-swap; first writer wins.
+ */
 class FailureNotificationGate
 {
-    private const OPTION = 'failure_notification_active';
+    public const OPTION = 'failure_notification_active';
 
-    public function acquire(): bool
+    /**
+     * Guard the option row named by the given unprefixed key.
+     */
+    public function __construct(private string $optionKey = self::OPTION)
     {
-        global $wpdb;
-
-        $optionName           = self::optionName();
-        $incidentId           = wp_generate_uuid4();
-        $wasSuppressingErrors = $wpdb->suppress_errors(true);
-
-        try {
-            // A duplicate-key error is the ordinary losing result of this unique-key election.
-            // Keep it as a plain INSERT (rather than add_option()'s upsert) while avoiding an
-            // expected notification race from being emitted as a database error.
-            $inserted = $wpdb->insert(
-                $wpdb->options,
-                [
-                    'option_name'  => $optionName,
-                    'option_value' => $incidentId,
-                    'autoload'     => 'no',
-                ],
-                ['%s', '%s', '%s']
-            );
-        } finally {
-            $wpdb->suppress_errors($wasSuppressingErrors);
-        }
-
-        // Direct database writes bypass WordPress's option-cache maintenance. Clear both the
-        // individual value and the negative-cache map after every INSERT attempt: the cache is
-        // best-effort only, while the unique option_name row is the coordination authority.
-        $this->invalidateOptionCaches($optionName);
-
-        return $inserted === 1;
     }
 
-    public function reset(): void
+    /**
+     * Create the row with the given state; true only for the one request whose insert won the election.
+     */
+    public function acquire(string $state): bool
     {
-        global $wpdb;
-
-        $optionName = self::optionName();
-        $incidentId = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
-                $optionName
-            )
-        );
-
-        if (!\is_string($incidentId) || $incidentId === '') {
-            $this->invalidateOptionCaches($optionName);
-
-            return;
-        }
-
-        // Pair the exact identifier read from the database with the DELETE. If another request
-        // resets this streak and inserts a new one, the old reset sees zero rows and cannot erase
-        // the new incident, even when both failures occur in the same second.
-        $wpdb->query(
-            $wpdb->prepare(
-                "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
-                $optionName,
-                $incidentId
-            )
-        );
-
-        // Never write a `notoptions` miss here: a new incident may have appeared immediately
-        // after the conditional DELETE. Invalidation may cause a cache miss, but cannot hide a
-        // database row and keeps the table authoritative under persistent-cache interleavings.
-        $this->invalidateOptionCaches($optionName);
+        return OptionSwap::create($this->optionName(), $state, OptionSwap::NO_AUTOLOAD);
     }
 
-    private static function optionName(): string
+    /**
+     * The row's stored state read straight from the table, or null when there is no (or an empty) row.
+     */
+    public function read(): ?string
     {
-        return Config::VAR_PREFIX . self::OPTION;
+        $state = OptionSwap::read($this->optionName());
+
+        return $state === '' ? null : $state;
     }
 
-    private function invalidateOptionCaches(string $optionName): void
+    /**
+     * Swap the stored state only if it still equals $expected; false when another request won.
+     */
+    public function replace(string $expected, string $next): bool
     {
-        wp_cache_delete($optionName, 'options');
-        wp_cache_delete('notoptions', 'options');
+        return OptionSwap::replace($this->optionName(), $expected, $next);
+    }
+
+    /**
+     * Remove the row, returning the state this call removed, or null if none was removed.
+     */
+    public function reset(): ?string
+    {
+        $state = $this->read();
+
+        return $state !== null && $this->delete($state) ? $state : null;
+    }
+
+    /**
+     * Delete the row only if its value still equals $expected; false when another request changed it.
+     */
+    public function delete(string $expected): bool
+    {
+        return OptionSwap::delete($this->optionName(), $expected);
+    }
+
+    /**
+     * The prefixed option name holding the guarded row.
+     */
+    private function optionName(): string
+    {
+        return Config::withPrefix($this->optionKey);
     }
 }

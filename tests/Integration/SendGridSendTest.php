@@ -8,9 +8,7 @@ use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 
 /**
- * Drives wp_mail() through the SendGrid API transport (mocking the outbound HTTP call) and proves
- * the api_key credential reaches the request as plaintext whether it was stored encrypted-at-rest
- * or as legacy (pre-encryption) plaintext.
+ * Verifies SendGrid API transport handles both encrypted and legacy plaintext credentials.
  *
  * @internal
  *
@@ -44,6 +42,9 @@ final class SendGridSendTest extends IntegrationTestCase
         $this->assertSendGridRequestCarriedTheApiKey($sent, $captured, $apiKey, 'Encrypted SendGrid Send');
     }
 
+    /**
+     * Send works with API key stored as pre-encryption plaintext (bypasses service API to simulate).
+     */
     public function testSendsSuccessfullyWhenTheApiKeyIsStoredAsLegacyPlaintext(): void
     {
         $apiKey   = 'SG.legacy-plaintext-key';
@@ -53,7 +54,6 @@ final class SendGridSendTest extends IntegrationTestCase
         add_filter('pre_http_request', $filter, 10, 3);
 
         try {
-            // Bypasses MailConfigService::store(), mimicking an option row written before encryption existed.
             $this->storeOptions($this->v2($apiKey));
             Plugin::instance()->mailConfigService()->reload();
 
@@ -96,7 +96,6 @@ final class SendGridSendTest extends IntegrationTestCase
         $this->assertInstanceOf(Log::class, $log);
         $this->assertSame($trackingId, $log->tracking_id);
         $this->assertSame('sg-response-id', $log->message_id);
-        // Send-time hand-off floors delivery_status at accepted (#35); a later webhook still upgrades it.
         $this->assertSame('accepted', $log->delivery_status);
     }
 

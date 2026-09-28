@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Webhook\DeliveryRollup;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 
 /**
- * Pins DeliveryRollup::compute() — the pure reducer folding per-recipient delivery events into
- * one parent status + timestamp: recency wins per recipient, worst-terminal wins for the parent,
- * and an absent event timestamp falls back to created_at so recency is never undefined.
+ * Pins DeliveryRollup::compute() reducer: recency wins per recipient, worst-terminal wins for parent.
  *
  * @internal
  *
@@ -87,8 +85,6 @@ class DeliveryRollupTest extends BaseUnitTestCase
 
     public function testMissingOccurredAtFallsBackToCreatedAtForRecency(): void
     {
-        // Same recipient, both terminal. Spam has no provider timestamp, so its recency must fall
-        // back to created_at (09:00) — making delivered (10:00) the deterministic later winner.
         $rows = [
             $this->row('a@example.com', DeliveryStatus::DELIVERED, true, '2024-01-01 10:00:00', '2024-01-01 09:30:00'),
             $this->row('a@example.com', DeliveryStatus::SPAM, true, null, '2024-01-01 09:00:00'),
@@ -104,7 +100,7 @@ class DeliveryRollupTest extends BaseUnitTestCase
         $rows = [
             $this->row('a@example.com', DeliveryStatus::DEFERRED, false, '2024-01-01 08:00:00'),
             $this->row('a@example.com', DeliveryStatus::DELIVERED, true, '2024-01-01 12:30:00'),
-            // occurred_at absent → effective time is created_at (13:00), the true maximum in the set.
+
             $this->row('b@example.com', DeliveryStatus::DELIVERED, true, null, '2024-01-01 13:00:00'),
         ];
 

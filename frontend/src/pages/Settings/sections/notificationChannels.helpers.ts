@@ -19,16 +19,11 @@ export function isValidSigningSecret(value: string): boolean {
   return value === MASK_SENTINEL || SIGNING_SECRET_PATTERN.test(value)
 }
 
-/** Strict webhook-URL gauntlet (https, exact host, no port/creds/query/fragment, non-empty path prefix). */
+/** Strict webhook-URL gauntlet (https, exact host, no port/creds/query/fragment, non-empty path prefix). Checks literal host:path before URL parsing to catch ports URL() normalizes away. */
 function isStrictWebhookUrl(value: string, hosts: string[], pathPrefix: string): boolean {
-  if (value === MASK_SENTINEL) {
-    return true
-  }
   if (value.includes('?') || value.includes('#')) {
     return false
   }
-  // Require the literal host+path prefix so an explicit port (which new URL() normalizes away, even
-  // the default :443) is rejected, matching the backend's `!isset(port)` rule.
   if (!hosts.some(host => value.startsWith(`https://${host}${pathPrefix}`))) {
     return false
   }
@@ -46,6 +41,16 @@ function isStrictWebhookUrl(value: string, hosts: string[], pathPrefix: string):
       url.pathname.startsWith(pathPrefix) &&
       url.pathname.length > pathPrefix.length
     )
+  } catch {
+    return false
+  }
+}
+
+/** True when `value` parses as an absolute http(s) URL. */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'http:' || protocol === 'https:'
   } catch {
     return false
   }
@@ -69,4 +74,24 @@ export function isTelegramBotToken(value: string): boolean {
 /** Validate a Telegram chat ID shape (signed integer, matching the backend's accepted range). */
 export function isValidTelegramChatId(value: string): boolean {
   return TELEGRAM_CHAT_ID_PATTERN.test(value)
+}
+
+/** Generate a client-side channel id in the `ch_...` shape the backend accepts. */
+export function newChannelId(): string {
+  const bytes = new Uint8Array(6)
+  globalThis.crypto.getRandomValues(bytes)
+
+  return `ch_${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}`
+}
+
+/** Default name for a newly added channel, deduped against same-type siblings so two never both read "Slack". */
+export function defaultChannelName(label: string, sameType: { name: string }[]): string {
+  let channelName = label
+  let suffix = 2
+  const existingNames = new Set(sameType.map(c => c.name))
+  while (existingNames.has(channelName)) {
+    channelName = `${label} ${suffix}`
+    suffix += 1
+  }
+  return channelName
 }

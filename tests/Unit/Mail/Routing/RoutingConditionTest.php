@@ -24,8 +24,6 @@ class RoutingConditionTest extends BaseUnitTestCase
         $this->assertSame('jane@example.com', $condition->getValue());
     }
 
-    // --- equals ---
-
     public function testEqualsMatchesAnyRecipientCaseInsensitively(): void
     {
         $condition = RoutingCondition::fromArray(['field' => 'recipient', 'operator' => 'equals', 'value' => 'JANE@EXAMPLE.COM']);
@@ -68,8 +66,6 @@ class RoutingConditionTest extends BaseUnitTestCase
         $this->assertFalse($condition->matches($this->context()));
     }
 
-    // --- contains ---
-
     public function testContainsMatchesAnyRecipientSubstring(): void
     {
         $condition = RoutingCondition::fromArray(['field' => 'recipient', 'operator' => 'contains', 'value' => 'SALES']);
@@ -90,8 +86,6 @@ class RoutingConditionTest extends BaseUnitTestCase
 
         $this->assertTrue($condition->matches($this->context()));
     }
-
-    // --- domain ---
 
     public function testDomainMatchesAnyRecipientDomain(): void
     {
@@ -128,8 +122,6 @@ class RoutingConditionTest extends BaseUnitTestCase
         $this->assertFalse($condition->matches($this->context()));
     }
 
-    // --- matches (regex) ---
-
     public function testMatchesOperatorMatchesValidRegexAgainstAnyRecipient(): void
     {
         $condition = RoutingCondition::fromArray(['field' => 'recipient', 'operator' => 'matches', 'value' => '^john@']);
@@ -164,8 +156,6 @@ class RoutingConditionTest extends BaseUnitTestCase
 
         $this->assertTrue($condition->matches($this->context(['from' => 'billing#example.com'])));
     }
-
-    // --- unknown field/operator safety ---
 
     public function testUnknownOperatorReturnsFalse(): void
     {

@@ -9,10 +9,7 @@ use BitApps\SMTP\Tests\BaseUnitTestCase;
 use RuntimeException;
 
 /**
- * The unit tier has no WordPress runtime, so the WP-bundled PHPMailer that MimeBuilder
- * requires cannot be loaded here (bootstrap-unit.php defines no WPINC). MimeBuilder detects
- * that and throws instead of faking MIME output; these tests skip themselves in that case and
- * rely on integration coverage (real PHPMailer) for the actual MIME assertions.
+ * Tests MimeBuilder; skips in unit tier without PHPMailer; integration tests verify MIME output.
  *
  * @internal
  *

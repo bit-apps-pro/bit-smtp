@@ -14,9 +14,7 @@ use BitApps\SMTP\Mail\Webhook\WebhookUrl;
 use RuntimeException;
 
 /**
- * Shared helpers for provisioners that register a delivery webhook through a provider's API.
- * Concrete provisioners implement ensure() themselves — provider APIs differ too much for one
- * template (single list-then-create call vs. multi-request vs. form-encoded).
+ * Shared helpers for webhook provisioners; each provider implements ensure() due to API differences.
  */
 abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
 {
@@ -35,10 +33,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     abstract public function deregister(Connection $connection): void;
 
     /**
-     * Best-effort deregister for the providers with a single REST webhook object per URL: list, find
-     * the one whose target equals this connection's webhook URL, and DELETE it by that id. Only ever
-     * removes a webhook matching our own URL, so a sibling connection's registration is untouched;
-     * swallows every failure so a delete is never blocked.
+     * Best-effort delete of a webhook via list-find-delete, matching only this connection's URL.
      *
      * @param array<string,string> $listQuery query params for the list request (e.g. a stream filter)
      */
@@ -69,8 +64,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     }
 
     /**
-     * Guard that this provisioner was handed its own provider's connection. Defensive: the factory
-     * only ever pairs them, so this fires only for a direct, mismatched caller.
+     * Ensure the provisioner's provider matches the connection.
      */
     protected function assertProvider(Connection $connection, string $expected): void
     {
@@ -81,7 +75,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     }
 
     /**
-     * The same-origin, https-only public URL the provider will POST events to (throws otherwise).
+     * Return this connection's webhook URL (same-origin, HTTPS).
      */
     protected function webhookUrl(Connection $connection): string
     {
@@ -89,12 +83,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     }
 
     /**
-     * Sign the shared ApiClient using the provider's auth strategy. The request is a header-harvesting
-     * stand-in — only its signed headers reach the client; the real HTTP verb comes from the get()/post()
-     * calls that follow. ApiClient sends headers verbatim and never sets a content type, so it is pinned
-     * to $contentType here (JSON for most, application/x-www-form-urlencoded for Mailgun). For a form
-     * body, do NOT drive it through ApiClient::postForm() — that resets headers and would strip this auth;
-     * POST the pre-encoded body via post() instead.
+     * Configure client auth via ApiClient without resetting headers.
      */
     protected function applyAuth(Connection $connection, string $contentType): void
     {
@@ -105,7 +94,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     }
 
     /**
-     * Throw the redacted API error unless the response is a success.
+     * Throw a redacted API error if the response is not successful.
      */
     protected function assertOk(ApiResponse $response, string $webhookUrl): void
     {
@@ -116,9 +105,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     }
 
     /**
-     * Find the id of an already-registered webhook pointing at $url within a provider's list response,
-     * or null when none matches. The list lives under $listKey; each entry's target URL under $urlKey and
-     * its id under $idKey.
+     * Find the webhook ID matching the URL in a provider's list response, or null.
      *
      * @param mixed $body
      */
@@ -139,8 +126,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     }
 
     /**
-     * Return the id a create call reported, or throw when the provider registered the webhook but gave
-     * back no id (a soft failure that must surface, not silently return an unusable result).
+     * Require that webhook creation returned an ID; throw if missing.
      */
     protected function requireCreatedId(?string $id, string $providerLabel): string
     {
@@ -152,8 +138,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     }
 
     /**
-     * A RuntimeException carrying the HTTP status, with the webhook URL (which embeds the
-     * per-connection secret) redacted so it can never reach a log.
+     * Build a RuntimeException with redacted webhook URL.
      */
     protected function apiError(ApiResponse $response, string $webhookUrl): RuntimeException
     {
@@ -167,9 +152,7 @@ abstract class AbstractWebhookProvisioner implements WebhookProvisionerInterface
     }
 
     /**
-     * Pull a human-readable error string from the varied provider error shapes — SparkPost/SendGrid
-     * `errors[0].message`, plus the flat `message`/`Message`/`ErrorMessage`/`error` the others use — or
-     * '' when none is present, so a failure carries provider detail rather than a bare HTTP status.
+     * Extract a human-readable error from varied provider error response shapes.
      *
      * @param array<mixed>|string $body
      */

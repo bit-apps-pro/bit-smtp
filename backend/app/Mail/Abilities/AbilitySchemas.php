@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Abilities;
 
 /**
- * JSON Schema contracts for the public, aggregate-only mail analytics abilities.
- *
- * Schemas intentionally enumerate every property. This both keeps Core output validation useful
- * and prevents future callback changes from accidentally exposing retained log content.
+ * JSON Schema contracts for public, aggregate-only mail analytics; ensures Core validation and prevents log exposure.
  */
 final class AbilitySchemas
 {

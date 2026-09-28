@@ -7,8 +7,7 @@ use BitApps\SMTP\Mail\Webhook\WebhookRequest;
 interface WebhookAdapterInterface
 {
     /**
-     * Translate a provider's inbound webhook into normalized delivery events. Unknown or
-     * irrelevant record types yield []. Must never throw on malformed input (bad JSON → []).
+     * Translate provider webhook to normalized delivery events; yield [] on unknown types or malformed input.
      *
      * @return \BitApps\SMTP\Mail\Webhook\DeliveryEvent[]
      */

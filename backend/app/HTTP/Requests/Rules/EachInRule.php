@@ -5,8 +5,7 @@ namespace BitApps\SMTP\HTTP\Requests\Rules;
 use BitApps\SMTP\Deps\BitApps\WPValidator\Rule;
 
 /**
- * wp-validator rule that accepts a value only if it is an array whose every element strictly matches
- * one of a fixed set of choices; the array counterpart to InRule for schema-driven enum-set fields.
+ * wp-validator rule accepting arrays where each element strictly matches fixed choices.
  */
 final class EachInRule extends Rule
 {

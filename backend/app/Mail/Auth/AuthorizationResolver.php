@@ -11,7 +11,7 @@ use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use InvalidArgumentException;
 
 /**
- * Maps a provider's declared auth type (see ProviderInterface::authConfig) to the strategy that can sign its requests.
+ * Map provider auth types to request-signing strategies.
  */
 final class AuthorizationResolver
 {
@@ -25,12 +25,13 @@ final class AuthorizationResolver
         $this->signer = $signer;
     }
 
+    /**
+     * Resolve auth strategy for provider; oauth2 is transport-dependent.
+     */
     public function resolve(ProviderInterface $provider, Connection $connection): AuthStrategyInterface
     {
         $authConfig = $provider->authConfig();
 
-        // oauth2 needs the provider's transport (see resolveOAuth2); everything else is
-        // connection-independent and shared with descriptor-driven providers.
         if (($authConfig['type'] ?? null) === 'oauth2') {
             return $this->resolveOAuth2($provider);
         }
@@ -39,8 +40,7 @@ final class AuthorizationResolver
     }
 
     /**
-     * Resolve a connection-independent auth strategy straight from an auth descriptor.
-     * oauth2 is intentionally unsupported here: it depends on the provider's transport.
+     * Resolve connection-independent auth strategy from descriptor; oauth2 unsupported.
      */
     public function resolveFromConfig(array $authConfig): AuthStrategyInterface
     {

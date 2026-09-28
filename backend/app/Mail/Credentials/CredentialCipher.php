@@ -5,9 +5,7 @@ namespace BitApps\SMTP\Mail\Credentials;
 use BitApps\SMTP\Mail\Exceptions\CredentialCipherException;
 
 /**
- * Authenticated (AES-256-GCM) encryption for credentials at rest. Encrypted values are
- * self-identifying via the version prefix so plaintext left over from before this primitive
- * existed, or from a degraded environment, can still be read back untouched.
+ * Authenticated AES-256-GCM encryption for credentials; self-identifying prefix supports legacy plaintext.
  */
 final class CredentialCipher
 {
@@ -20,6 +18,8 @@ final class CredentialCipher
     private const TAG_LENGTH = 16;
 
     /**
+     * Encrypt plaintext; fails loudly on cipher error to prevent undecryptable payloads.
+     *
      * @throws CredentialCipherException if OpenSSL is present but the AES-256-GCM cipher fails
      */
     public static function encrypt(string $plaintext): string
@@ -49,7 +49,6 @@ final class CredentialCipher
             self::TAG_LENGTH
         );
 
-        // Fail loudly: casting a false return to '' would persist a bogus, forever-undecryptable payload.
         if ($ciphertext === false) {
             throw CredentialCipherException::encryptionFailed();
         }
@@ -85,9 +84,7 @@ final class CredentialCipher
     }
 
     /**
-     * Derives a 32-byte AES key from the WP auth salt via HKDF. The `info` string is unique to
-     * this primitive so it cannot collide with other salt-derived secrets (e.g. the OAuth state
-     * HMAC key), even though both start from the same underlying salt.
+     * Derive 32-byte AES key from WP auth salt via HKDF with unique info string.
      */
     private static function key(): string
     {

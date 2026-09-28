@@ -5,38 +5,27 @@ namespace BitApps\SMTP\Mail\Tracking;
 \defined('ABSPATH') || exit();
 
 /**
- * Heuristically classifies an open/click fire as machine-generated (automated) rather than a human
- * engagement, so counts stay honest instead of inflated. Every rule below is a HEURISTIC over
- * unverified external behavior — user-agent strings and IP ownership can change and are trivially
- * spoofable; treat a positive result as "detected automated", never as an authoritative fact. All
- * thresholds/lists are tunable class constants.
+ * Classify engagement as machine-generated vs human using UA/IP heuristics; never authoritative.
  */
 final class BotDetector
 {
     /**
-     * Gmail proxies remote images through googleusercontent.com; its fetcher presents this UA
-     * substring. A proxy fetch is the mail client caching the image, not proof a human opened.
+     * Gmail proxy UA substring; proxy fetch is mail client caching, not human open.
      */
     private const GOOGLE_PROXY_UA = 'googleimageproxy';
 
     /**
-     * Apple owns 17.0.0.0/8. Apple Mail Privacy Protection pre-fetches every remote image through
-     * Apple's proxy network on delivery regardless of a real open, so a fetch from this block is
-     * treated as automated. (Heuristic: Apple's published block; the exact proxy sub-ranges are not
-     * enumerated here.)
+     * Apple proxy IPv4 block (17.0.0.0/8); prefetch via proxy treated as automated.
      */
     private const APPLE_PROXY_IPV4_LEADING_OCTET = 17;
 
     /**
-     * A fire within this many seconds of the send is almost certainly an automated cache-warm or
-     * security scanner rather than a human reading within seconds of receipt. Tunable heuristic.
+     * Prefetch window (seconds); fire within this is automated, not human read.
      */
     private const PREFETCH_WINDOW_SECONDS = 10;
 
     /**
-     * Lowercase UA substrings for security appliances / link scanners that fetch pixels and links to
-     * vet them, not to read them. Heuristic list — broad substrings ("bot") favor flagging over
-     * inflating human counts.
+     * Scanner UA substrings; heuristic list favors flagging over inflating counts.
      *
      * @var array<int,string>
      */
@@ -52,8 +41,7 @@ final class BotDetector
     ];
 
     /**
-     * True when the fire looks machine-generated. Pure: all signals are passed in so the classifier
-     * is unit-testable without any WordPress or request state.
+     * Classify engagement as automated; negative skew not treated as prefetch.
      */
     public static function classify(string $userAgent, ?string $ip, int $secondsSinceSend): bool
     {
@@ -73,7 +61,6 @@ final class BotDetector
             }
         }
 
-        // A negative delta (clock skew) is deliberately not treated as a prefetch.
         return $secondsSinceSend >= 0 && $secondsSinceSend < self::PREFETCH_WINDOW_SECONDS;
     }
 

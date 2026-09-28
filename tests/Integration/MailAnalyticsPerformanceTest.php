@@ -25,8 +25,9 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
 
     private const HOURS_PER_DAY = 24;
 
-    // Multiple records in every hour distinguish a bounded SQL aggregate from a raw-row query
-    // followed by PHP-side aggregation: a 200-day hourly result has 4,800 rows, not 14,400.
+    /**
+     * Several rows per hour separate a bounded SQL aggregate from a raw-row fetch aggregated in PHP.
+     */
     private const ROWS_PER_HOUR = 3;
 
     private const HOURLY_BUCKETS = self::RETENTION_DAYS * self::HOURS_PER_DAY;
@@ -303,7 +304,8 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
      */
     private function queryContract(string $query): array
     {
-        $normalized = preg_replace('/\s+/', ' ', $query) ?? $query;
+        $unqualified = str_replace(['`' . $this->table . '`.', '`'], '', $query);
+        $normalized  = preg_replace('/\s+/', ' ', $unqualified) ?? $unqualified;
 
         if (str_contains($normalized, 'MIN(created_at_utc) AS earliest')) {
             self::assertMatchesRegularExpression('/COUNT\(created_at_utc\)/i', $normalized);
@@ -324,8 +326,6 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
 
             return [
                 'shape'        => 'hourly aggregate',
-                // A full retained-window scan cannot reduce rows through this range predicate;
-                // MariaDB correctly chooses a table scan while SQL still returns one row/hour.
                 'index'        => null,
                 'access'       => 'ALL',
                 'maximum_rows' => self::HOURLY_BUCKETS,
@@ -375,14 +375,15 @@ final class MailAnalyticsPerformanceTest extends IntegrationTestCase
         self::fail("Analytics query has no recognized bounded aggregate contract:\n{$query}");
     }
 
+    /**
+     * Fields may appear only inside aggregate expressions, never as bare columns PHP could aggregate later.
+     */
     private function assertNoRawProjection(string $query): void
     {
         self::assertDoesNotMatchRegularExpression('/SELECT\s+\*/i', $query);
         self::assertMatchesRegularExpression('/\b(?:COUNT|SUM|MIN|MAX)\s*\(/i', $query);
         $projection = preg_replace('/^\s*SELECT\s+(.*?)\s+FROM\s+.*$/is', '$1', $query) ?? '';
 
-        // Fields are permitted inside fixed aggregate expressions above. They must never appear
-        // as a bare result column, which would let PHP hydrate retained rows to aggregate later.
         self::assertDoesNotMatchRegularExpression(
             '/(?:^|,)\s*`?(?:id|status|recipient(?:_count)?|to(?:_addr)?|subject|details|debug(?:_info)?|body|from|cc|bcc|attachments?|token|created_at(?:_utc)?|connection(?:_id)?|source_plugin|routing_type)`?(?:\s+AS\b|\s*,|\s*$)/i',
             $projection,

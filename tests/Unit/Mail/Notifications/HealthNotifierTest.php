@@ -2,21 +2,17 @@
 
 namespace BitApps\SMTP\Tests\Unit\Mail\Notifications;
 
-use BitApps\SMTP\HTTP\Services\MailConfigService;
-use BitApps\SMTP\Mail\Config\MailSettings;
+use BitApps\SMTP\Config;
 use BitApps\SMTP\Mail\Connections\Connection;
-use BitApps\SMTP\Mail\Health\ConnectionHealth;
-use BitApps\SMTP\Mail\Health\ConnectionHealthService;
-use BitApps\SMTP\Mail\Health\ConnectionHealthStore;
 use BitApps\SMTP\Mail\Health\HealthStatus;
-use BitApps\SMTP\Mail\Health\HealthTransition;
 use BitApps\SMTP\Mail\Notifications\AlertChannelDispatcher;
-use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
+use BitApps\SMTP\Mail\Notifications\AlertScheduler;
 use BitApps\SMTP\Mail\Notifications\HealthNotification;
 use BitApps\SMTP\Mail\Notifications\HealthNotifier;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
+use BitApps\SMTP\Tests\Unit\Mail\Notifications\Support\HealthAlertFixtures;
+use BitApps\SMTP\Tests\Unit\Mail\Notifications\Support\InMemoryHealthStore;
 use Brain\Monkey\Functions;
-use Mockery;
 
 /**
  * @internal
@@ -25,101 +21,149 @@ use Mockery;
  */
 final class HealthNotifierTest extends BaseUnitTestCase
 {
+    use HealthAlertFixtures;
+
+    private const NOW = 1700000000;
+
+    /**
+     * @var list<array{timestamp:int,hook:string,args:array<int,mixed>}>
+     */
+    private array $scheduled = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         Functions\when('get_bloginfo')->justReturn('Example Site');
         Functions\when('home_url')->justReturn('https://example.test/');
+        Functions\when('wp_doing_cron')->justReturn(false);
+        Functions\when('wp_schedule_single_event')->alias(function (int $timestamp, string $hook, array $args): bool {
+            $this->scheduled[] = ['timestamp' => $timestamp, 'hook' => $hook, 'args' => $args];
+
+            return true;
+        });
+        Functions\when('_get_cron_array')->alias(fn (): array => array_map(
+            static fn (array $event): array => [$event['hook'] => [md5(serialize($event['args'])) => ['args' => $event['args']]]],
+            $this->scheduled
+        ));
     }
 
-    public function testUnhealthyTransitionFiresWhenSubscribed(): void
+    public function testAnUnhealthyTransitionIsQueuedWithIdentifiersOnlyAndNotDeliveredInline(): void
     {
         $this->preferences([HealthNotification::EVENT_UNHEALTHY]);
-        $store      = $this->store(['conn_1' => $this->unhealthyRecord()]);
-        $dispatcher = $this->dispatcherExpecting(HealthNotification::EVENT_UNHEALTHY, true);
-
-        $this->notifier($dispatcher, $store)->notifyTransitions([$this->transition(HealthStatus::DEGRADED, HealthStatus::UNHEALTHY)]);
-
-        $this->assertSame(HealthNotification::EVENT_UNHEALTHY, $store->records['conn_1']->getLastAlertedState());
-        $this->assertNotNull($store->records['conn_1']->getLastAlertedAt());
-    }
-
-    public function testNothingFiresWhenTheEventIsNotSubscribed(): void
-    {
-        $this->preferences([HealthNotification::EVENT_RECOVERED]);
-        $store      = $this->store(['conn_1' => $this->unhealthyRecord()]);
-        $dispatcher = Mockery::mock(AlertChannelDispatcher::class);
+        $dispatcher = $this->dispatcher();
         $dispatcher->shouldReceive('dispatch')->never();
+        $store = $this->store(['conn_1' => $this->record(['status' => HealthStatus::UNHEALTHY])]);
 
         $this->notifier($dispatcher, $store)->notifyTransitions([$this->transition(HealthStatus::DEGRADED, HealthStatus::UNHEALTHY)]);
 
+        $this->assertSame(
+            [['timestamp' => self::NOW, 'hook' => Config::HEALTH_ALERT_HOOK, 'args' => [HealthNotification::EVENT_UNHEALTHY, 'conn_1', self::NOW]]],
+            $this->scheduled
+        );
         $this->assertNull($store->records['conn_1']->getLastAlertedState());
     }
 
-    public function testAlertOncePerTransitionSuppressesASecondUnhealthyTick(): void
-    {
-        $this->preferences([HealthNotification::EVENT_UNHEALTHY]);
-        $store      = $this->store(['conn_1' => $this->unhealthyRecord()]);
-        $dispatcher = $this->dispatcherExpecting(HealthNotification::EVENT_UNHEALTHY, true);
-
-        $notifier   = $this->notifier($dispatcher, $store);
-        $transition = $this->transition(HealthStatus::DEGRADED, HealthStatus::UNHEALTHY);
-
-        $notifier->notifyTransitions([$transition]);
-        // The marker now records 'connection_unhealthy', so a repeat unhealthy transition must not re-alert.
-        $notifier->notifyTransitions([$transition]);
-    }
-
-    public function testRecoveryFiresOnTheReverseCrossing(): void
+    public function testARecoveryIsQueuedOnTheReverseCrossing(): void
     {
         $this->preferences([HealthNotification::EVENT_RECOVERED]);
-        $store      = $this->store(['conn_1' => $this->record([
-            'status'             => HealthStatus::HEALTHY,
+        $store = $this->store(['conn_1' => $this->record(['status' => HealthStatus::HEALTHY, 'last_alerted_state' => HealthNotification::EVENT_UNHEALTHY])]);
+
+        $this->notifier($this->dispatcher(), $store)->notifyTransitions([$this->transition(HealthStatus::UNHEALTHY, HealthStatus::HEALTHY)]);
+
+        $this->assertSame([HealthNotification::EVENT_RECOVERED, 'conn_1', self::NOW], $this->scheduled[0]['args']);
+    }
+
+    public function testNothingIsQueuedForANonAlertableTransition(): void
+    {
+        $this->preferences([HealthNotification::EVENT_UNHEALTHY, HealthNotification::EVENT_RECOVERED]);
+
+        $this->notifier($this->dispatcher(), $this->store([]))->notifyTransitions([
+            $this->transition(HealthStatus::HEALTHY, HealthStatus::DEGRADED),
+            $this->transition(HealthStatus::DEGRADED, HealthStatus::HEALTHY),
+        ]);
+
+        $this->assertSame([], $this->scheduled);
+    }
+
+    public function testNothingIsQueuedWhenTheEventIsNotSubscribed(): void
+    {
+        $this->preferences([HealthNotification::EVENT_RECOVERED]);
+
+        $this->notifier($this->dispatcher(), $this->store(['conn_1' => $this->record(['status' => HealthStatus::UNHEALTHY])]))
+            ->notifyTransitions([$this->transition(HealthStatus::DEGRADED, HealthStatus::UNHEALTHY)]);
+
+        $this->assertSame([], $this->scheduled);
+    }
+
+    public function testNothingIsQueuedWhenTheStateWasAlreadyAlerted(): void
+    {
+        $this->preferences([HealthNotification::EVENT_UNHEALTHY]);
+        $store = $this->store(['conn_1' => $this->record([
+            'status'             => HealthStatus::UNHEALTHY,
             'last_alerted_state' => HealthNotification::EVENT_UNHEALTHY,
         ])]);
-        $dispatcher = $this->dispatcherExpecting(HealthNotification::EVENT_RECOVERED, true);
 
-        $this->notifier($dispatcher, $store)->notifyTransitions([$this->transition(HealthStatus::UNHEALTHY, HealthStatus::HEALTHY)]);
+        $this->notifier($this->dispatcher(), $store)->notifyTransitions([$this->transition(HealthStatus::DEGRADED, HealthStatus::UNHEALTHY)]);
 
-        $this->assertSame(HealthNotification::EVENT_RECOVERED, $store->records['conn_1']->getLastAlertedState());
+        $this->assertSame([], $this->scheduled);
     }
 
-    public function testCooldownSuppressesARepeatAlertWithinTheWindow(): void
+    public function testNothingIsQueuedWithoutAnEnabledChannel(): void
     {
-        $this->preferences([HealthNotification::EVENT_UNHEALTHY], 60);
-        $store      = $this->store(['conn_1' => $this->record([
-            'status'             => HealthStatus::UNHEALTHY,
-            'last_alerted_state' => HealthNotification::EVENT_RECOVERED,
-            'last_alerted_at'    => gmdate('Y-m-d H:i:s'),
-        ])]);
-        $dispatcher = Mockery::mock(AlertChannelDispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->never();
+        $this->preferences([HealthNotification::EVENT_UNHEALTHY]);
 
-        $this->notifier($dispatcher, $store)->notifyTransitions([$this->transition(HealthStatus::DEGRADED, HealthStatus::UNHEALTHY)]);
+        $this->notifier($this->dispatcher(false), $this->store(['conn_1' => $this->record(['status' => HealthStatus::UNHEALTHY])]))
+            ->notifyTransitions([$this->transition(HealthStatus::DEGRADED, HealthStatus::UNHEALTHY)]);
+
+        $this->assertSame([], $this->scheduled);
     }
 
-    public function testOauthExpiringFiresWhenTheTokenHasNoRefreshToken(): void
+    public function testInsideWpCronTheAlertIsDeliveredDirectly(): void
+    {
+        Functions\when('wp_doing_cron')->justReturn(true);
+        $this->preferences([HealthNotification::EVENT_UNHEALTHY]);
+        $store = $this->store(['conn_1' => $this->record(['status' => HealthStatus::UNHEALTHY])]);
+
+        $this->notifier($this->dispatcherExpecting(HealthNotification::EVENT_UNHEALTHY, true), $store)
+            ->notifyTransitions([$this->transition(HealthStatus::DEGRADED, HealthStatus::UNHEALTHY)]);
+
+        $this->assertSame([], $this->scheduled);
+        $this->assertSame(HealthNotification::EVENT_UNHEALTHY, $store->records['conn_1']->getLastAlertedState());
+    }
+
+    public function testAnExpiringOauthTokenIsQueued(): void
     {
         $this->preferences([HealthNotification::EVENT_OAUTH_EXPIRING]);
-        $connection = $this->connection('conn_oauth', ['token_expires_at' => time() + 3600]);
-        $store      = $this->store([]);
-        $dispatcher = $this->dispatcherExpecting(HealthNotification::EVENT_OAUTH_EXPIRING, true);
+        $connection = $this->connection('conn_oauth', ['token_expires_at' => self::NOW + 3600]);
 
-        $this->notifier($dispatcher, $store, [$connection])->notifyOauthExpiry($connection);
+        $this->notifier($this->dispatcher(), $this->store([]), [$connection])->notifyOauthExpiry($connection);
 
-        $this->assertSame(HealthNotification::EVENT_OAUTH_EXPIRING, $store->records['conn_oauth']->getLastAlertedState());
+        $this->assertSame([HealthNotification::EVENT_OAUTH_EXPIRING, 'conn_oauth', self::NOW], $this->scheduled[0]['args']);
     }
 
-    public function testOauthExpiredFiresWhenAlreadyPastAndNoRefreshToken(): void
+    public function testALevelTriggeredOauthAlertIsNotQueuedAgainWhileOneIsPending(): void
     {
-        $this->preferences([HealthNotification::EVENT_OAUTH_EXPIRED]);
-        $connection = $this->connection('conn_oauth', ['token_expires_at' => time() - 10]);
-        $store      = $this->store([]);
-        $dispatcher = $this->dispatcherExpecting(HealthNotification::EVENT_OAUTH_EXPIRED, true);
+        $this->preferences([HealthNotification::EVENT_OAUTH_EXPIRING]);
+        $connection = $this->connection('conn_oauth', ['token_expires_at' => self::NOW + 3600]);
+        $notifier   = $this->notifier($this->dispatcher(), $this->store([]), [$connection]);
 
-        $this->notifier($dispatcher, $store, [$connection])->notifyOauthExpiry($connection);
+        $notifier->notifyOauthExpiry($connection);
+        $notifier->notifyOauthExpiry($connection);
 
-        $this->assertSame(HealthNotification::EVENT_OAUTH_EXPIRED, $store->records['conn_oauth']->getLastAlertedState());
+        $this->assertCount(1, $this->scheduled);
+    }
+
+    public function testAPendingEventForAnotherConnectionDoesNotBlockQueueing(): void
+    {
+        $this->preferences([HealthNotification::EVENT_OAUTH_EXPIRING]);
+        $first    = $this->connection('conn_a', ['token_expires_at' => self::NOW + 3600]);
+        $second   = $this->connection('conn_b', ['token_expires_at' => self::NOW + 3600]);
+        $notifier = $this->notifier($this->dispatcher(), $this->store([]), [$first, $second]);
+
+        $notifier->notifyOauthExpiry($first);
+        $notifier->notifyOauthExpiry($second);
+
+        $this->assertSame(['conn_a', 'conn_b'], array_map(static fn (array $e): string => $e['args'][1], $this->scheduled));
     }
 
     public function testARefreshTokenSuppressesTheOauthAlert(): void
@@ -127,157 +171,22 @@ final class HealthNotifierTest extends BaseUnitTestCase
         $this->preferences([HealthNotification::EVENT_OAUTH_EXPIRING, HealthNotification::EVENT_OAUTH_EXPIRED]);
         $connection = $this->connection(
             'conn_oauth',
-            ['token_expires_at' => time() - 10],
+            ['token_expires_at' => self::NOW - 10],
             ['refresh_token'    => ['source' => 'database', 'value' => 'a-refresh-token']]
         );
-        $dispatcher = Mockery::mock(AlertChannelDispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->never();
 
-        $this->notifier($dispatcher, $this->store([]), [$connection])->notifyOauthExpiry($connection);
+        $this->notifier($this->dispatcher(), $this->store([]), [$connection])->notifyOauthExpiry($connection);
+
+        $this->assertSame([], $this->scheduled);
     }
 
-    public function testNoMarkerIsPersistedWhenNoChannelDelivers(): void
-    {
-        $this->preferences([HealthNotification::EVENT_UNHEALTHY]);
-        $store      = $this->store(['conn_1' => $this->unhealthyRecord()]);
-        $dispatcher = Mockery::mock(AlertChannelDispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once()->andReturn(false);
-
-        $this->notifier($dispatcher, $store)->notifyTransitions([$this->transition(HealthStatus::DEGRADED, HealthStatus::UNHEALTHY)]);
-
-        // Nothing delivered, so the marker stays unset and the next run will retry.
-        $this->assertNull($store->records['conn_1']->getLastAlertedState());
-    }
-
+    /**
+     * A request-path notifier over a real handler, scheduler, and fixed clock.
+     *
+     * @param null|Connection[] $connections
+     */
     private function notifier(AlertChannelDispatcher $dispatcher, InMemoryHealthStore $store, ?array $connections = null): HealthNotifier
     {
-        $config = Mockery::mock(MailConfigService::class);
-        $config->shouldReceive('load')->andReturn($this->settings($connections ?? [$this->connection('conn_1')]));
-
-        return new HealthNotifier($dispatcher, new ConnectionHealthService($store, $config));
-    }
-
-    private function dispatcherExpecting(string $event, bool $delivered): AlertChannelDispatcher
-    {
-        $dispatcher = Mockery::mock(AlertChannelDispatcher::class);
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(Mockery::on(static fn (NotificationMessage $m): bool => $m->toArray()['event'] === $event))
-            ->andReturn($delivered);
-
-        return $dispatcher;
-    }
-
-    /**
-     * @param array<string,ConnectionHealth> $records
-     */
-    private function store(array $records): InMemoryHealthStore
-    {
-        $store          = new InMemoryHealthStore();
-        $store->records = $records;
-
-        return $store;
-    }
-
-    private function transition(string $before, string $after): HealthTransition
-    {
-        return new HealthTransition($before, $after, $this->connection('conn_1'));
-    }
-
-    private function unhealthyRecord(): ConnectionHealth
-    {
-        return $this->record(['status' => HealthStatus::UNHEALTHY]);
-    }
-
-    /**
-     * @param array<string,mixed> $overrides
-     */
-    private function record(array $overrides): ConnectionHealth
-    {
-        return ConnectionHealth::fromArray($overrides);
-    }
-
-    /**
-     * @param array<string,mixed> $settings
-     * @param array<string,mixed> $credentials
-     */
-    private function connection(string $id, array $settings = [], array $credentials = []): Connection
-    {
-        return Connection::fromArray([
-            'id'          => $id,
-            'provider'    => 'gmail',
-            'kind'        => 'api',
-            'name'        => $id,
-            'settings'    => $settings,
-            'credentials' => $credentials,
-        ]);
-    }
-
-    /**
-     * @param Connection[] $connections
-     */
-    private function settings(array $connections): MailSettings
-    {
-        return MailSettings::fromArray([
-            'schema_version'          => 2,
-            'enabled'                 => true,
-            'default_connection_id'   => '',
-            'fallback_connection_ids' => [],
-            'connections'             => array_map(static fn (Connection $c): array => $c->toArray(), $connections),
-            'features'                => [],
-        ]);
-    }
-
-    /**
-     * @param string[] $events
-     */
-    private function preferences(array $events, int $cooldownMinutes = 0): void
-    {
-        Functions\when('get_option')->justReturn([
-            'notify_events'           => $events,
-            'notify_cooldown_minutes' => $cooldownMinutes,
-        ]);
-    }
-}
-
-/**
- * In-memory ConnectionHealthStore double so the notifier test drives dedup/persistence across ticks
- * without touching WordPress options.
- */
-final class InMemoryHealthStore extends ConnectionHealthStore
-{
-    /**
-     * @var array<string,ConnectionHealth>
-     */
-    public array $records = [];
-
-    public function all(): array
-    {
-        return $this->records;
-    }
-
-    public function get(string $id): ?ConnectionHealth
-    {
-        return $this->records[$id] ?? null;
-    }
-
-    public function put(string $id, ConnectionHealth $health): void
-    {
-        $this->records[$id] = $health;
-    }
-
-    public function putMany(array $records): void
-    {
-        $this->records = $records;
-    }
-
-    public function pruneTo(array $liveIds): void
-    {
-        $this->records = array_intersect_key($this->records, array_flip($liveIds));
-    }
-
-    public function delete(string $id): void
-    {
-        unset($this->records[$id]);
+        return new HealthNotifier($this->handler($dispatcher, $store, $connections), new AlertScheduler(), static fn (): int => self::NOW);
     }
 }

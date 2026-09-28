@@ -1,4 +1,3 @@
-// Mirrors the backend MailSettingsSerializer::MASK_SENTINEL.
 export const MASK_SENTINEL = '********'
 
 export interface FieldOption {
@@ -35,9 +34,7 @@ export interface ProviderMeta {
   label: string
   kind: string
   supports_webhook?: boolean
-  // Provider can create its own webhook via API (drives the "Create webhook" button).
   supports_webhook_provisioning?: boolean
-  // Exact callback URL users must register with an OAuth2 provider.
   oauth_redirect_url?: string
   fields: FieldMeta[]
 }
@@ -66,18 +63,12 @@ export interface Connection {
   replyToEmail: string
   settings: Record<string, unknown>
   credentials: Record<string, ConnectionCredential>
-  // Derived, read-only: the full delivery-webhook URL to paste into the provider dashboard. Present
-  // only for providers with a live webhook receiver; never persisted back.
   webhook_url?: string
-  // Derived, read-only: outcome of the most recent auto-provision attempt for the URL above. `null`
-  // once provisioning was never attempted; absent for providers without webhook support at all.
   webhook_provisioning?: WebhookProvisioning | null
 }
 
 export type ConnectionHealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown'
 
-// Public, secret-free health projection returned by the mail/connections/health endpoint. Mirrors
-// ConnectionHealth::toPublicArray() — never carries the backend's internal alert bookkeeping.
 export interface ConnectionHealth {
   status: ConnectionHealthStatus
   circuit: 'closed' | 'open'
@@ -90,35 +81,46 @@ export interface ConnectionHealth {
 
 export type ConnectionHealthMap = Record<string, ConnectionHealth>
 
+export type AlertChannelType = 'email' | 'webhook' | 'slack' | 'telegram' | 'discord'
+
+/** Per-type channel settings; each type uses only its own keys (e.g. Slack: webhook_url). */
+export interface AlertChannelSettings {
+  recipients?: string[]
+  url?: string
+  signing_secret?: string
+  webhook_url?: string
+  bot_token?: string
+  chat_id?: string
+}
+
+export interface AlertChannel {
+  id: string
+  type: AlertChannelType
+  name: string
+  enabled: boolean
+  settings: AlertChannelSettings
+}
+
 export interface FailureAlertSettings {
   enabled: boolean
-  email: {
-    enabled: boolean
-    recipients: string[]
-  }
-  webhook: {
-    enabled: boolean
-    url: string
-    signing_secret: string
-  }
-  slack: {
-    enabled: boolean
-    webhook_url: string
-  }
-  telegram: {
-    enabled: boolean
-    bot_token: string
-    chat_id: string
-  }
-  discord: {
-    enabled: boolean
-    webhook_url: string
-  }
+  reminder_minutes: number
+  channels: AlertChannel[]
+}
+
+/** Server-computed alert delivery health; read-only, never sent back on save. */
+export interface AlertDeliveryStatus {
+  cron_disabled: boolean
+  overdue: boolean
+}
+
+/** The stored alerts blob as the API returns it: the editable settings plus server-owned metadata. */
+export interface StoredAlertSettings extends FailureAlertSettings {
+  revision?: string
+  delivery?: AlertDeliveryStatus
 }
 
 export interface MailFeatures extends Record<string, unknown> {
-  // Backend sanitizer emits `[]` (PHP's empty-array sentinel) until alerts are configured, then the full shape.
-  alerts?: FailureAlertSettings | never[]
+  alerts?: StoredAlertSettings | never[]
 }
 
 export interface MailSettings {

@@ -25,7 +25,7 @@ final class PreferencesControllerTest extends BaseUnitTestCase
     {
         parent::setUp();
         Functions\when('__')->returnArg(1);
-        // The base Request constructor always reads $_GET through wp_unslash(), even when empty.
+
         Functions\when('wp_unslash')->returnArg(1);
     }
 
@@ -62,8 +62,7 @@ final class PreferencesControllerTest extends BaseUnitTestCase
         $this->assertSame(Response::SUCCESS, Response::getStatus());
         $data = (array) Response::getData();
         $this->assertSame(60, $data['preferences']['log_retention_days']);
-        // log_retention_days is routed through LogService::updateRetention(), which dual-writes the
-        // legacy standalone option alongside the preferences blob.
+
         $this->assertSame(60, $store['bit_smtp_log_retention']);
         $this->assertSame(60, $store[PluginSettings::OPTION_NAME]['log_retention_days']);
     }
@@ -81,16 +80,13 @@ final class PreferencesControllerTest extends BaseUnitTestCase
 
     public function testExportedEnvelopeRoundTripsBackThroughImport(): void
     {
-        // In-memory store so export() reads real data and import() writes to the same place.
         $store = [PluginSettings::OPTION_NAME => ['log_retention_days' => 90]];
         $this->stubOptionsStore($store);
 
-        // export() never touches logging_enabled/log_retention_days's LogService side effects.
         (new PreferencesController())->export();
         $exported = (array) Response::getData();
         $this->assertSame(90, $exported['preferences']['log_retention_days']);
 
-        // Re-import that exact envelope into a fresh store; the exported value must survive.
         $store                  = [];
         $request                = new Request();
         $request['preferences'] = $exported['preferences'];
@@ -149,7 +145,6 @@ final class PreferencesControllerTest extends BaseUnitTestCase
 
     public function testSavePreferencesRequestRulesRejectANonRetryableClass(): void
     {
-        // AUTH is a real FailureCategory but never retryable, so it must not be a valid filter value.
         $request = new SavePreferencesRequest();
         $request->make(['retry_on_classes' => [FailureCategory::TRANSIENT, FailureCategory::AUTH]], $request->rules());
 
@@ -158,9 +153,7 @@ final class PreferencesControllerTest extends BaseUnitTestCase
     }
 
     /**
-     * The "explicit none" path: an empty notify_events array is a deliberate unsubscribe — it must
-     * pass validation and persist as [] (durably overwriting a prior subscription), never be dropped
-     * or defaulted back to the full event set.
+     * "Explicit none" path: empty notify_events array is deliberate unsubscribe, persists as empty, not defaulted.
      */
     public function testSaveAcceptsAndPersistsAnEmptyNotifyEventsSubscription(): void
     {
@@ -206,15 +199,13 @@ final class PreferencesControllerTest extends BaseUnitTestCase
         $data = (array) Response::getData();
         $this->assertArrayNotHasKey('unknown_field', $data['preferences']);
         $this->assertFalse($data['preferences']['logging_enabled']);
-        // logging_enabled changed (default true -> false) -> routed through the canonical
-        // LogService::setEnabled() writer: legacy option dual-written, continuity marker cleared.
+
         $this->assertSame(0, $store['bit_smtp_logging_enabled']);
         $this->assertArrayNotHasKey('bit_smtp_logging_continuity_from', $store);
     }
 
     /**
-     * FIX 1 regression guard: a changed logging_enabled must go through LogService::setEnabled(),
-     * which clears the logging-continuity marker on disable (not just fill()->save() the blob).
+     * FIX 1 regression guard: changed logging_enabled must go through LogService::setEnabled() to clear continuity.
      */
     public function testSaveWithChangedLoggingEnabledDisablesLoggingAndClearsContinuityMarker(): void
     {
@@ -238,8 +229,7 @@ final class PreferencesControllerTest extends BaseUnitTestCase
     }
 
     /**
-     * FIX 1 regression guard: re-enabling logging must (re)initialize the continuity marker, proving
-     * the toggle is routed through LogService::setEnabled() rather than the blob-only fill().
+     * FIX 1 regression guard: re-enabling logging must initialize continuity marker via LogService::setEnabled().
      */
     public function testSaveWithChangedLoggingEnabledEnablesLoggingAndInitializesContinuityMarker(): void
     {
@@ -265,8 +255,7 @@ final class PreferencesControllerTest extends BaseUnitTestCase
     }
 
     /**
-     * FIX 1: sending back the same logging_enabled value must not needlessly call setEnabled() and
-     * reset the continuity marker; other preference keys in the same payload still persist.
+     * FIX 1: unchanged logging_enabled must not call setEnabled() and reset continuity marker.
      */
     public function testSaveWithUnchangedLoggingEnabledDoesNotResetContinuityMarker(): void
     {
@@ -288,7 +277,7 @@ final class PreferencesControllerTest extends BaseUnitTestCase
         $data = (array) Response::getData();
         $this->assertTrue($data['preferences']['logging_enabled']);
         $this->assertSame('redacted', $data['preferences']['log_store_body']);
-        // Unchanged logging_enabled must never re-touch setEnabled()'s continuity side effect.
+
         $this->assertSame('2026-03-01 00:00:00', $store['bit_smtp_logging_continuity_from']);
     }
 
@@ -317,9 +306,7 @@ final class PreferencesControllerTest extends BaseUnitTestCase
     }
 
     /**
-     * Wire get_option/update_option/delete_option against a single in-memory map keyed by the full
-     * (prefixed) option name, mirroring how the preferences blob and LogService's legacy dual-writes
-     * actually land -- lets tests assert on real persisted state instead of mocking LogService.
+     * Wires get_option/update_option/delete_option against in-memory map, mirrors real preferences/LogService persistence.
      *
      * @param array<string,mixed> $store
      */

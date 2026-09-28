@@ -2,30 +2,39 @@
 
 namespace BitApps\SMTP\Mail\Notifications\Channels;
 
+use BitApps\SMTP\Mail\Config\AlertChannelSettings;
+use BitApps\SMTP\Mail\Notifications\ChannelDeliveryResult;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
 use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 use Throwable;
 
 final class SlackFailureNotificationChannel implements FailureNotificationChannelInterface
 {
+    private const ERROR_CODE_PATTERN = '/^[a-z_]{1,40}$/';
+
+    /**
+     * The channel key, matched against each alert channel instance's `type`.
+     */
     public function key(): string
     {
         return 'slack';
     }
 
     /**
+     * POST the alert to a Slack incoming webhook; delivered only on a 2xx from a validated webhook URL.
+     *
      * @param array<string,mixed> $settings
      */
-    public function send(NotificationMessage $notification, array $settings): bool
+    public function send(NotificationMessage $notification, array $settings): ChannelDeliveryResult
     {
-        $url = self::setting($settings, 'webhook_url');
-        if (!self::isIncomingWebhookUrl($url)) {
-            return false;
+        $url = AlertChannelSettings::scalarString($settings, 'webhook_url');
+        if (!AlertChannelSettings::isSlackIncomingWebhookUrl($url)) {
+            return ChannelDeliveryResult::failed(__('The Slack webhook URL is not valid.', 'bit-smtp'));
         }
 
         $body = wp_json_encode(['text' => $notification->chatText()]);
         if (!\is_string($body)) {
-            return false;
+            return ChannelFailureReason::unencodable();
         }
 
         try {
@@ -36,41 +45,32 @@ final class SlackFailureNotificationChannel implements FailureNotificationChanne
                 'redirection' => 0,
             ]);
         } catch (Throwable) {
-            return false;
+            return ChannelFailureReason::requestFailed();
         }
         if (is_wp_error($response)) {
-            return false;
+            return ChannelFailureReason::transport($response, [$url]);
         }
 
-        $status = wp_remote_retrieve_response_code($response);
+        $status = (int) wp_remote_retrieve_response_code($response);
 
-        return $status >= 200 && $status < 300;
+        return $status >= 200 && $status < 300 ? ChannelDeliveryResult::delivered() : self::rejected($status, $response);
     }
 
     /**
-     * @param array<string,mixed> $settings
+     * Slack's rejection, naming its plain-text error code (e.g. no_service) only when the body is one.
+     *
+     * @param array<string,mixed> $response
      */
-    private static function setting(array $settings, string $key): string
+    private static function rejected(int $status, array $response): ChannelDeliveryResult
     {
-        return isset($settings[$key]) && \is_scalar($settings[$key]) ? trim((string) $settings[$key]) : '';
-    }
+        $code = trim((string) wp_remote_retrieve_body($response));
 
-    private static function isIncomingWebhookUrl(string $url): bool
-    {
-        $parts = wp_parse_url($url);
-        if (!\is_array($parts)) {
-            return false;
+        if (preg_match(self::ERROR_CODE_PATTERN, $code) !== 1) {
+            // translators: %d: HTTP status code
+            return ChannelDeliveryResult::failed(\sprintf(__('Slack rejected the request (HTTP %d).', 'bit-smtp'), $status));
         }
 
-        return ($parts['scheme'] ?? '') === 'https'
-            && ($parts['host'] ?? '')   === 'hooks.slack.com'
-            && !isset($parts['port'])
-            && !isset($parts['user'])
-            && !isset($parts['pass'])
-            && !isset($parts['query'])
-            && !isset($parts['fragment'])
-            && isset($parts['path'])
-            && str_starts_with($parts['path'], '/services/')
-            && \strlen($parts['path']) > \strlen('/services/');
+        // translators: 1: HTTP status code, 2: Slack's error code such as no_service
+        return ChannelDeliveryResult::failed(\sprintf(__('Slack rejected the request (HTTP %1$d: %2$s).', 'bit-smtp'), $status, $code));
     }
 }

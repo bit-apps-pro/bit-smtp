@@ -7,8 +7,7 @@ namespace BitApps\SMTP\Mail\Import;
 use InvalidArgumentException;
 
 /**
- * Registry of the SMTP plugins Bit SMTP can import from, keyed by importer slug. Extend by passing a
- * new PluginImporterInterface into the constructor (or withDefaults()).
+ * Registry of SMTP plugins Bit SMTP can import from; keyed by importer slug.
  */
 final class PluginImporterRegistry
 {

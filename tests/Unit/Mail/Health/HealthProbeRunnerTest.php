@@ -27,8 +27,6 @@ final class HealthProbeRunnerTest extends BaseUnitTestCase
 {
     public function testItProbesProbeableConnectionsSkipsApiAndReturnsTransitions(): void
     {
-        // run() must NOT stamp LAST_RUN_OPTION (the cron callback owns the interval marker so a manual
-        // "Check now" never shifts the schedule).
         Functions\expect('update_option')->never();
 
         $settings = $this->settings([
@@ -62,7 +60,6 @@ final class HealthProbeRunnerTest extends BaseUnitTestCase
         self::assertSame(HealthStatus::UNKNOWN, $transitions[0]->before());
         self::assertSame(HealthStatus::DEGRADED, $transitions[0]->after());
 
-        // The API connection has no active probe (passive-only), so it is never recorded here.
         self::assertArrayHasKey('conn_smtp', $store->records);
         self::assertArrayNotHasKey('conn_api', $store->records);
 
@@ -102,8 +99,7 @@ final class HealthProbeRunnerTest extends BaseUnitTestCase
 }
 
 /**
- * Array-backed ConnectionHealthStore double so the runner test asserts recorded state without
- * touching WordPress options.
+ * Array-backed ConnectionHealthStore double for runner testing without WordPress options.
  */
 final class ArrayHealthStore extends ConnectionHealthStore
 {

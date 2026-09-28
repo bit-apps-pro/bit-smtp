@@ -15,8 +15,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Drives PostmarkProvider::transport()->send() over a mocked ApiClient, proving the shipped
- * descriptor engine renders Postmark's contract correctly (spec §5/§11).
+ * Drives PostmarkProvider::transport()->send() over mocked ApiClient, verifies descriptor engine renders contract correctly.
  *
  * @internal
  *
@@ -147,7 +146,6 @@ class PostmarkProviderTest extends BaseUnitTestCase
 
     public function testStatusOutsideTheDeclaredSuccessListMapsToFailure(): void
     {
-        // success => [200] in the descriptor; a 2xx like 201 is still a failure by that contract.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(201, []));
 
@@ -173,8 +171,6 @@ class PostmarkProviderTest extends BaseUnitTestCase
 
     public function testA200SuccessBodyWithABenignMessageKeyIsNotAFalseFailure(): void
     {
-        // Postmark's success 200 carries {"ErrorCode":0,"Message":"OK"}; "Message" is its errorPath
-        // but Postmark never returns 200-with-error, so it must not opt into errorDetectPaths.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
             'ErrorCode' => 0,

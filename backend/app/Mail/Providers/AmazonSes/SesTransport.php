@@ -61,9 +61,7 @@ class SesTransport extends AbstractApiTransport
     }
 
     /**
-     * The SES v2 SendEmail response returns the assigned MessageId, which is the exact id that later
-     * arrives as `mail.messageId` in an SNS bounce/complaint/delivery notification — capture it so
-     * those events can be correlated back to this log.
+     * Extract the SES MessageId from the response for SNS event correlation.
      *
      * @param array<string,mixed>|string $body
      */

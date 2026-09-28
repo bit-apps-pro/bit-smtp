@@ -51,7 +51,6 @@ describe('AnomaliesList', () => {
       <AnomaliesList
         anomalies={anomaliesFixture({
           observations: [
-            // failure_rate_change severity: <=0pp good, <10pp warning, >=10pp critical.
             {
               type: 'failure_rate_change',
               current_failure_rate: 5,
@@ -70,7 +69,6 @@ describe('AnomaliesList', () => {
               prior_failure_rate: 10,
               percentage_point_change: 20
             },
-            // volume_change is always informational (severity: null) - exercises the Info fallback branch.
             { type: 'volume_change', current: 120, prior: 100, percentage_change: 20 }
           ]
         })}

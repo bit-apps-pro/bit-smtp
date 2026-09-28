@@ -51,9 +51,7 @@ final class LogController
     }
 
     /**
-     * Export the current (filter-scoped) log view as an RFC-4180 CSV of safe metadata columns only —
-     * never message body, credentials, or debug detail — for the browser to download. The `truncated`
-     * flag lets the UI warn the user when the result was clamped to LogService::MAX_EXPORT_ROWS.
+     * Export filtered logs as RFC-4180 CSV with safe metadata only; truncated flag warns on clamp.
      */
     public function export(Request $request): Response
     {
@@ -79,11 +77,9 @@ final class LogController
         $data                      = $log->jsonSerialize();
         $data['delivery_verified'] = $this->isDeliveryVerified($log, $this->verifiedConnectionMap());
         $data['delivery_events']   = $this->logger->deliveryEvents($logId);
-        // Per-message opens/clicks (with click targets), oldest-first, for the detail view.
-        $data['engagement'] = $this->logger->engagementFor($logId);
-        // Resend history: the log this one was resent from (if any) and the resends launched from it.
-        $data['resend_of'] = $log->resend_parent_id !== null ? (int) $log->resend_parent_id : null;
-        $data['resends']   = $this->logger->resendChildren($logId);
+        $data['engagement']        = $this->logger->engagementFor($logId);
+        $data['resend_of']         = $log->resend_parent_id !== null ? (int) $log->resend_parent_id : null;
+        $data['resends']           = $this->logger->resendChildren($logId);
 
         return Response::success($data);
     }
@@ -99,17 +95,6 @@ final class LogController
         }
 
         return Response::error([])->message(__('Failed to delete log', 'bit-smtp'));
-    }
-
-    public function updateRetention(Request $request)
-    {
-        $days   = \intval($request->period);
-        $status = $this->logger->updateRetention($days);
-        if ($status) {
-            return Response::success([])->message(__('Log retention period updated successfully', 'bit-smtp'));
-        }
-
-        return Response::error([])->message(__('Failed to update log retention period', 'bit-smtp'));
     }
 
     public function isEnabled(Request $request)
@@ -131,8 +116,7 @@ final class LogController
     }
 
     /**
-     * Whitelists and sanitizes the `logs/all` filter keys the frontend may send; per-value validation
-     * (delivery_status set membership, date format) is LogService's job, not the controller's.
+     * Whitelist and sanitize frontend filter keys; per-value validation is LogService's job.
      *
      * @return array<string,string>
      */
@@ -149,8 +133,7 @@ final class LogController
     }
 
     /**
-     * Serialize each log to its array shape plus a derived `delivery_verified` flag, leaving every
-     * existing field the frontend consumes intact.
+     * Serialize logs with derived delivery_verified flag, leaving frontend-consumed fields intact.
      *
      * @param mixed $logs Log|array<int,Log>|false as returned by the query builder
      *
@@ -180,9 +163,7 @@ final class LogController
     }
 
     /**
-     * Build a [connectionId => webhookVerified] map once per request so a row's delivery status is
-     * only ever surfaced for a connection whose webhook is proven live. Keyed on the stable connection
-     * id — the same value a log row's `connection_id` column stores, not the mutable label.
+     * Build connectionId => webhookVerified map; delivery status shown only for verified webhooks.
      *
      * @return array<string,bool>
      */
@@ -197,16 +178,12 @@ final class LogController
     }
 
     /**
-     * A log carries real delivery status only when its sending connection is webhook-verified AND it
-     * holds a correlation key the receiver can match provider events against.
+     * Send-time status is authoritative; otherwise real delivery status requires webhook-verified connection and correlation key.
      *
      * @param array<string,bool> $verifiedMap
      */
     private function isDeliveryVerified(Log $log, array $verifiedMap): bool
     {
-        // A status stamped at send time (a provider with no async delivery feed) is authoritative on
-        // its own; otherwise a row's status is trustworthy only when its connection is webhook-verified
-        // AND it carries a key the receiver can correlate provider events against.
         if ($log->delivery_status !== null && $log->delivery_status !== '') {
             return true;
         }

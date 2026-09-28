@@ -34,6 +34,10 @@ class Config
 
     public const HEALTH_CHECK_HOOK = 'bit_smtp_health_check';
 
+    public const FAILURE_ALERT_HOOK = 'bit_smtp_send_failure_alert';
+
+    public const HEALTH_ALERT_HOOK = 'bit_smtp_health_alert';
+
     public const REQUIRED_PHP_VERSION = '8.0';
 
     public const REQUIRED_WP_VERSION = '5.0';
@@ -41,6 +45,22 @@ class Config
     public const API_VERSION = '1';
 
     public const APP_BASE = '../../bit_smtp.php';
+
+    /**
+     * Every WP-Cron hook this plugin schedules, for deactivation/uninstall cleanup.
+     *
+     * @return string[]
+     */
+    public static function scheduledHooks(): array
+    {
+        return [
+            self::RETENTION_GC_HOOK,
+            self::RETRY_QUEUE_HOOK,
+            self::HEALTH_CHECK_HOOK,
+            self::FAILURE_ALERT_HOOK,
+            self::HEALTH_ALERT_HOOK,
+        ];
+    }
 
     /**
      * Provides configuration for plugin.
@@ -112,7 +132,7 @@ class Config
      *
      * @param string $option Variable name
      *
-     * @return array
+     * @return string
      */
     public static function withPrefix($option)
     {
@@ -177,13 +197,17 @@ class Config
         return delete_option(self::withPrefix($option));
     }
 
-    /** Check whether the Vite development server is active. */
+    /**
+     * Check whether the Vite development server is active.
+     */
     public static function isDev()
     {
         return is_readable(Config::get('BASEDIR') . '/port');
     }
 
-    /** Return the Vite asset base for local or proxied development. */
+    /**
+     * Return the Vite asset base for local or proxied development.
+     */
     public static function devUrl()
     {
         if (!self::isDev()) {
@@ -219,8 +243,7 @@ class Config
     }
 
     /**
-     * Provides links for plugin pages. Those links will bi displayed in
-     * all plugin pages under the plugin name.
+     * Return plugin page links array for display in plugin pages.
      *
      * @return array
      */
@@ -235,21 +258,7 @@ class Config
     }
 
     /**
-     * Provides menus for wordpress admin sidebar.
-     * should return an array of menus with the following structure:
-     * [
-     *   'type' => menu | submenu,
-     *  'name' => 'Name of menu will shown in sidebar',
-     *  'capability' => 'capability required to access menu',
-     *  'slug' => 'slug of menu after ?page=',.
-     *
-     *  'title' => 'page title will be shown in browser title if type is menu',
-     *  'callback' => 'function to call when menu is clicked',
-     *  'icon' =>   'icon to display in menu if menu type is menu',
-     *  'position' => 'position of menu in sidebar if menu type is menu',
-     *
-     * 'parent' => 'parent slug if submenu'
-     * ]
+     * Return admin sidebar menu structure (type/name/capability/slug/etc. per menu or submenu).
      *
      * @return array
      */
@@ -268,6 +277,36 @@ class Config
                 'icon'       => 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" fill="#9ea3a8" width="64" height="64" viewBox="0 0 43 34"><path d="M.007 3.585v16.836q0 3.586 3.751 3.585L20 24v-5h10v-4.986l.991-1L34 13V3.585Q34 0 30.249 0H3.758Q.007 0 .007 3.585zm3.517 2.572a1.49 1.49 0 01-.508-.935 1.581 1.581 0 01.274-1.208 1.449 1.449 0 011.094-.663 1.756 1.756 0 011.25.312l11.409 7.716 11.331-7.716a1.96 1.96 0 011.289-.312 1.546 1.546 0 011.094.663 1.4 1.4 0 01.273 1.208 1.67 1.67 0 01-.547.935l-13.44 11.068z"/><path d="M22 28h10l-.009 4.624a1.126 1.126 0 001.922.8l8.25-8.236a1.126 1.126 0 000-1.594l-8.25-8.241a1.126 1.126 0 00-1.922.8v4.866L22 21v7z"/></svg>'),
                 'position'   => '20',
             ]
+        ] + self::sideBarSubmenus();
+    }
+
+    /**
+     * Sidebar submenu entries mirroring the app's header navigation, each deep-linking to its hash route.
+     *
+     * @return array<string, array<string, string>>
+     */
+    private static function sideBarSubmenus(): array
+    {
+        $routes = [
+            'Configuration' => [__('Configuration', 'bit-smtp'), '/'],
+            'Analytics'     => [__('Analytics', 'bit-smtp'), '/analytics'],
+            'Routing'       => [__('Routing', 'bit-smtp'), '/routing'],
+            'Test'          => [__('Test', 'bit-smtp'), '/test-mail'],
+            'Logs'          => [__('Logs', 'bit-smtp'), '/logs'],
+            'Settings'      => [__('Settings', 'bit-smtp'), '/settings'],
         ];
+
+        $submenus = [];
+        foreach ($routes as $key => [$name, $route]) {
+            $submenus[$key] = [
+                'type'       => 'submenu',
+                'parent'     => self::SLUG,
+                'name'       => $name,
+                'capability' => 'manage_options',
+                'slug'       => $route === '/' ? self::SLUG : self::SLUG . '#' . $route,
+            ];
+        }
+
+        return $submenus;
     }
 }

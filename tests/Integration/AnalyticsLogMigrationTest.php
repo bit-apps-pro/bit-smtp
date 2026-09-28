@@ -11,8 +11,7 @@ use BitSmtpLogsTableMigration;
 use RuntimeException;
 
 /**
- * Exercises the logs migration against the real WordPress test database for both new installs and
- * sites that already have the pre-analytics log table.
+ * Exercises the logs migration for new installs and sites with pre-analytics log tables.
  *
  * @internal
  *
@@ -31,6 +30,9 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->eventsTable = (new LogDeliveryEvent())->getTable();
     }
 
+    /**
+     * Re-runs the migration too, since activation invokes it more than once.
+     */
     public function testFreshMigrationCreatesNullableAttributionColumnsAndIndexes(): void
     {
         $this->dropTables($this->logsTable);
@@ -45,8 +47,6 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         );
         self::assertSame($this->eventsTable, $eventsTable);
 
-        // Activations invoke this migration more than once. A second run must retain the schema
-        // without duplicate-column or duplicate-index errors.
         $this->migrateLogs();
         $this->assertAnalyticsColumnsAreNullable();
         $this->assertAnalyticsIndexesExist();
@@ -87,6 +87,9 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertAnalyticsIndexesExist();
     }
 
+    /**
+     * Legacy local timestamps have no historical offset, so no UTC value may be guessed from the current timezone.
+     */
     public function testUpgradeLeavesLegacyTimestampsUnqualifiedWithoutGuessingAcrossTimezoneChanges(): void
     {
         $this->dropTables($this->logsTable);
@@ -104,8 +107,6 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             $row = $wpdb->get_row("SELECT created_at, created_at_utc FROM `{$this->logsTable}` WHERE id = 1");
 
             $this->assertSame('2026-11-01 01:30:00', $row->created_at);
-            // A legacy local display timestamp has no historical offset. Never invent a UTC value
-            // from the currently configured timezone, including an ambiguous DST fall-back hour.
             $this->assertNull($row->created_at_utc);
 
             $legacy              = Log::where('id', 1)->first();
@@ -302,14 +303,15 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         }
     }
 
+    /**
+     * A child-side FK makes the obsolete index non-droppable, injecting a real DROP INDEX failure.
+     */
     public function testOneSevenIndexCleanupFailureDoesNotAdvanceDbVersionAndCanBeRetried(): void
     {
         $this->dropTables($this->logsTable);
         $this->createOneSevenLogsTable();
         global $wpdb;
 
-        // The child-side FK makes this otherwise obsolete index non-droppable, which injects a
-        // real ALTER TABLE DROP INDEX failure rather than mocking the migration internals.
         $this->assertNotFalse($wpdb->query(
             "ALTER TABLE `{$this->logsTable}` ADD CONSTRAINT `bit_smtp_source_created_guard` "
             . "FOREIGN KEY (`source_plugin`, `created_at`) REFERENCES `{$this->logsTable}` (`source_plugin`, `created_at`)"
@@ -464,6 +466,9 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertAnalyticsIndexesExist();
     }
 
+    /**
+     * Obsolete composite write indexes must be gone, since analytics no longer filters on those columns.
+     */
     private function assertAnalyticsIndexesExist(): void
     {
         $actual = $this->logIndexes();
@@ -481,8 +486,6 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
             $this->assertSame($columns, array_values($actual[$index]));
         }
 
-        // Analytics no longer filters by legacy display timestamps, raw connection, or status.
-        // Retaining these composite write indexes would add write cost without helping a query.
         foreach ([
             'idx_source_created',
             'idx_connection_created',

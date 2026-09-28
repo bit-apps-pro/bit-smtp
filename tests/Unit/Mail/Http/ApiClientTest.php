@@ -9,9 +9,7 @@ use Brain\Monkey\Functions;
 use WP_Error;
 
 /**
- * HttpClient is `final`, so Mockery cannot subclass it to mock it directly: these tests inject
- * a real HttpClient and stub the WP HTTP functions it calls internally via Brain Monkey. No
- * real HTTP occurs.
+ * Tests ApiClient: injects real HttpClient, stubs WP HTTP functions via Brain Monkey, no real HTTP.
  *
  * @internal
  *
@@ -78,7 +76,7 @@ class ApiClientTest extends BaseUnitTestCase
         $this->stubRemoteRequest(function ($url, $options): bool {
             $this->assertSame('https://oauth2.googleapis.com/token', $url);
             $this->assertSame('POST', $options['method']);
-            // Exactly the form content-type: no JSON, and prior headers must not leak in.
+
             $this->assertSame(['Content-Type' => 'application/x-www-form-urlencoded'], $options['headers']);
             $this->assertSame('grant_type=refresh_token&refresh_token=r-123', $options['body']);
             $this->assertStringNotContainsString('{', $options['body']);
@@ -87,7 +85,6 @@ class ApiClientTest extends BaseUnitTestCase
         });
         $this->stubRetrieve('{"access_token":"tok"}', 200, ['Content-Type' => 'application/json']);
 
-        // A stale header from a prior call on the shared client must not leak into the token request.
         $response = $this->client
             ->setHeaders(['Authorization' => 'Bearer stale'])
             ->postForm('https://oauth2.googleapis.com/token', [
@@ -185,8 +182,7 @@ class ApiClientTest extends BaseUnitTestCase
     public function testRecoversJsonArrayBodyThatHttpClientTreatedAsEmpty(): void
     {
         $this->stubRemoteRequest(null);
-        // "[]" decodes to an empty array, which HttpClient's own opportunistic decode
-        // discards as "empty" and falls back to the raw string — ApiClient must recover it.
+
         $this->stubRetrieve('[]', 200, ['Content-Type' => 'application/json; charset=utf-8']);
 
         $response = $this->client->get('https://api.example.com');
@@ -219,8 +215,6 @@ class ApiClientTest extends BaseUnitTestCase
     private function stubRemoteRequest(?callable $assertion, string $return = 'response-fixture'): void
     {
         if ($assertion === null) {
-            // ApiClient's HttpClient runs with unsafe URLs disabled, so it always dispatches through
-            // wp_safe_remote_request() (the SSRF-hardened path), never plain wp_remote_request().
             Functions\when('wp_safe_remote_request')->justReturn($return);
 
             return;

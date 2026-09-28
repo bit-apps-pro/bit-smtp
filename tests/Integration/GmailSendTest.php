@@ -7,10 +7,7 @@ use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Plugin;
 
 /**
- * Drives wp_mail() through the Gmail OAuth2 API transport (mocking the outbound HTTP call) and
- * proves the access_token credential reaches the request as plaintext whether it was stored
- * encrypted-at-rest or as legacy (pre-encryption) plaintext. The connection carries a far-future
- * token_expires_at so OAuth2TokenProvider serves the cached token without an extra refresh call.
+ * Verifies Gmail API transport handles both encrypted and legacy plaintext credentials.
  *
  * @internal
  *
@@ -46,6 +43,9 @@ final class GmailSendTest extends IntegrationTestCase
         $this->assertGmailRequestCarriedTheAccessToken($sent, $captured, $accessToken, 'Encrypted Gmail Send');
     }
 
+    /**
+     * Send works with access token stored as pre-encryption plaintext (bypasses service API to simulate).
+     */
     public function testSendsSuccessfullyWhenTheAccessTokenIsStoredAsLegacyPlaintext(): void
     {
         $accessToken = 'ya29.legacy-plaintext-token';
@@ -55,7 +55,6 @@ final class GmailSendTest extends IntegrationTestCase
         add_filter('pre_http_request', $filter, 10, 3);
 
         try {
-            // Bypasses MailConfigService::store(), mimicking an option row written before encryption existed.
             $this->storeOptions($this->v2($accessToken));
             Plugin::instance()->mailConfigService()->reload();
 
@@ -82,8 +81,6 @@ final class GmailSendTest extends IntegrationTestCase
         $this->assertTrue($sent, 'wp_mail() should report the Gmail send as successful');
         $this->assertNotEmpty($captured, 'the Gmail transport should have issued an outbound HTTP request');
 
-        // A cached, future-dated token must be used directly: the only outbound call is the send,
-        // never a call to the OAuth token endpoint to refresh.
         $this->assertArrayNotHasKey('token_url', $captured, 'a cached token must not trigger an OAuth refresh call');
         $this->assertSame(self::SEND_ENDPOINT, $captured['url'], 'the only outbound request must be the Gmail send');
 
@@ -129,8 +126,7 @@ final class GmailSendTest extends IntegrationTestCase
     }
 
     /**
-     * Intercepts the Gmail send call, and separately flags any OAuth token-endpoint call so the
-     * test can prove a cached token short-circuits the refresh path.
+     * Intercepts Gmail send and OAuth token calls to verify cached tokens short-circuit refresh.
      *
      * @param array<string,mixed> $captured
      */

@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Routing;
 
 /**
- * Maps runtime-detected wp_mail source-plugin slugs to human labels for the routing picker.
- *
- * Slugs are the plugin directory names MailSourceDetector records; labels come from the plugin
- * headers exposed by get_plugins(). mu:/theme: prefixed slugs and undetected plugins pass through.
+ * Map wp_mail source-plugin slugs to human labels for routing picker.
  */
 final class MailSourceLabeler
 {

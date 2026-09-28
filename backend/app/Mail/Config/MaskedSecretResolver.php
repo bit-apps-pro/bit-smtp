@@ -7,8 +7,7 @@ namespace BitApps\SMTP\Mail\Config;
 final class MaskedSecretResolver
 {
     /**
-     * Replace sentinel values with stored plaintext and preserve stored credential keys omitted
-     * from an existing connection's editable payload, while keeping genuine new values.
+     * Replace sentinels with stored plaintext and preserve omitted credential keys.
      *
      * @param array<string,mixed> $incomingV2
      *
@@ -26,9 +25,6 @@ final class MaskedSecretResolver
             $storedConn = $current->getConnections()->byId($conn['id'] ?? '');
 
             if (!isset($conn['credentials']) || !\is_array($conn['credentials'])) {
-                // No credentials key in the payload: copy stored credentials for existing connections
-                // so an update that omits credentials does not silently wipe the stored password.
-                // Brand-new connections (id not in $current) stay as-is — there is nothing to restore.
                 if ($storedConn !== null) {
                     $conn['credentials'] = $storedConn->getCredentials();
                 }
@@ -46,8 +42,6 @@ final class MaskedSecretResolver
             unset($cred);
 
             if ($storedConn !== null) {
-                // OAuth access/refresh tokens and other server-managed credentials are not editable
-                // fields, so the browser omits them even though it includes other credentials.
                 $conn['credentials'] += $storedConn->getCredentials();
             }
         }
@@ -57,6 +51,23 @@ final class MaskedSecretResolver
     }
 
     /**
+     * Resolve a single alert channel's settings against the stored instance.
+     *
+     * @param array<string,mixed> $settings
+     *
+     * @return array<string,mixed>
+     */
+    public static function resolveAlertChannel(string $id, string $type, array $settings, MailSettings $current): array
+    {
+        return self::resolveChannelSettings(
+            ['id' => $id, 'type' => $type, 'settings' => $settings],
+            self::channelsById($current)
+        );
+    }
+
+    /**
+     * Normalize alerts and restore omitted settings and masked secrets from stored instances.
+     *
      * @param array<string,mixed> $incomingV2
      *
      * @return array<string,mixed>
@@ -67,56 +78,52 @@ final class MaskedSecretResolver
             return $incomingV2;
         }
 
-        $storedAlerts = $current->getFeatures()['alerts'] ?? [];
+        $alerts = AlertSettingsNormalizer::normalize($incomingV2['features']['alerts']);
+        $stored = self::channelsById($current);
 
-        foreach ($storedAlerts as $channel => $storedChannel) {
-            if (!\is_array($storedChannel)) {
-                continue;
-            }
-
-            if (!\array_key_exists($channel, $incomingV2['features']['alerts'])) {
-                $incomingV2['features']['alerts'][$channel] = $storedChannel;
-
-                continue;
-            }
-
-            if (!\is_array($incomingV2['features']['alerts'][$channel])) {
-                continue;
-            }
-
-            // Keep fields a partial editor does not submit (for example Telegram's chat_id), while
-            // allowing an explicitly supplied empty value to clear its stored counterpart.
-            $incomingV2['features']['alerts'][$channel] += $storedChannel;
+        foreach ($alerts['channels'] as $i => $channel) {
+            $alerts['channels'][$i]['settings'] = self::resolveChannelSettings($channel, $stored);
         }
 
-        foreach (MailSettingsSerializer::ALERT_SECRET_KEYS as $channel => $secretKeys) {
-            if (
-                !isset($incomingV2['features']['alerts'][$channel])
-                || !\is_array($incomingV2['features']['alerts'][$channel])
-            ) {
-                continue;
-            }
-
-            $storedChannel = isset($storedAlerts[$channel]) && \is_array($storedAlerts[$channel])
-                ? $storedAlerts[$channel]
-                : [];
-            foreach ($secretKeys as $secretKey) {
-                $storedValue   = $storedChannel[$secretKey]                              ?? '';
-                $incomingValue = $incomingV2['features']['alerts'][$channel][$secretKey] ?? null;
-
-                if ($incomingValue === MailSettingsSerializer::MASK_SENTINEL) {
-                    $incomingV2['features']['alerts'][$channel][$secretKey] = (string) $storedValue;
-                } elseif ($incomingValue === null && $storedValue !== '') {
-                    $incomingV2['features']['alerts'][$channel][$secretKey] = (string) $storedValue;
-                }
-            }
-        }
+        $incomingV2['features']['alerts'] = $alerts;
 
         return $incomingV2;
     }
 
     /**
-     * Recursively replace sentinel `value` keys with their stored counterpart.
+     * Resolve one instance's settings: keep omitted fields and swap masked secrets for stored values.
+     *
+     * @param array{id:string,type:string,settings:array<string,mixed>}               $channel
+     * @param array<string,array{id:string,type:string,settings:array<string,mixed>}> $storedById
+     *
+     * @return array<string,mixed>
+     */
+    private static function resolveChannelSettings(array $channel, array $storedById): array
+    {
+        $match    = $storedById[$channel['id']] ?? null;
+        $stored   = $match !== null && $match['type'] === $channel['type'] ? $match['settings'] : [];
+        $settings = $channel['settings'] + $stored;
+        foreach (MailSettingsSerializer::ALERT_MASKED_KEYS[$channel['type']] ?? [] as $secretKey) {
+            if (($settings[$secretKey] ?? null) === MailSettingsSerializer::MASK_SENTINEL) {
+                $settings[$secretKey] = (string) ($stored[$secretKey] ?? '');
+            }
+        }
+
+        return $settings;
+    }
+
+    /**
+     * Index stored alert channels by id.
+     *
+     * @return array<string,array{id:string,type:string,name:string,enabled:bool,settings:array<string,mixed>}>
+     */
+    private static function channelsById(MailSettings $current): array
+    {
+        return array_column(AlertSettingsNormalizer::normalize($current->getFeatures()['alerts'] ?? [])['channels'], null, 'id');
+    }
+
+    /**
+     * Recursively replace sentinel value keys with stored counterpart.
      *
      * @param mixed $incoming
      * @param mixed $stored
@@ -126,8 +133,6 @@ final class MaskedSecretResolver
     private static function resolveCredential($incoming, $stored)
     {
         if (!\is_array($incoming)) {
-            // Scalar sentinel blanks to '' — only reachable for unsanitized input; the sanitizer
-            // normalises credentials to ['source','value'] before the normal saveSettings path runs.
             return $incoming === MailSettingsSerializer::MASK_SENTINEL ? '' : $incoming;
         }
 

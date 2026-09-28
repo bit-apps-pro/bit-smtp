@@ -41,14 +41,12 @@ use BitApps\SMTP\Mail\Transport\SmtpTransport;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
- * Binds the mail-sending stack: shared HTTP/auth/mime deps, all 14 provider registrations, and the
- * wp_mail bridge that drives them.
+ * Bind mail-sending stack: HTTP/auth/mime deps, 14 providers, and wp_mail bridge.
  */
 class MailServiceProvider extends ServiceProvider
 {
     /**
-     * Register mail singletons; pure wiring, no side effects (WpMailBridge's hook registration is
-     * deferred to boot()).
+     * Register mail singletons (pure wiring, no side effects; WpMailBridge hooks deferred to boot()).
      */
     public function register(): void
     {
@@ -84,9 +82,7 @@ class MailServiceProvider extends ServiceProvider
     }
 
     /**
-     * Force-resolve WpMailBridge so its constructor registers pre_wp_mail / wp_mail_succeeded /
-     * wp_mail_failed. A lazy singleton nothing ever calls make() on would silently never hook into
-     * wp_mail, so this cannot be left to on-demand resolution.
+     * Force-resolve WpMailBridge to register pre_wp_mail/wp_mail_succeeded/wp_mail_failed hooks (not lazy).
      */
     public function boot(): void
     {
@@ -94,16 +90,12 @@ class MailServiceProvider extends ServiceProvider
     }
 
     /**
-     * Builds the same 14 providers, in the same order and with the same shared dependencies, as the
-     * legacy Plugin::registerProviders() wiring.
+     * Build 14 providers in same order and dependencies as legacy Plugin::registerProviders() wiring.
      */
     private static function buildProviderRegistry(Container $app): ProviderRegistry
     {
         $sendTimeoutSeconds = (int) PluginSettings::make()->get('send_timeout_seconds', 30);
 
-        // A clone (not the shared singleton, see ApiClient::withTimeout()) so every API transport
-        // built below fails within the configured window instead of hanging on a dead host; other
-        // ApiClient consumers (e.g. OAuth2TokenProvider) keep resolving the untouched singleton.
         $apiClient     = $app->make(ApiClient::class)->withTimeout($sendTimeoutSeconds);
         $mimeBuilder   = $app->make(MimeBuilder::class);
         $tokenProvider = $app->make(OAuth2TokenProvider::class);

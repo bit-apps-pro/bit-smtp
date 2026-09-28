@@ -6,9 +6,7 @@ use BitApps\SMTP\Mail\Config\MailSettings;
 use BitApps\SMTP\Mail\Connections\Connection;
 
 /**
- * Traces the priority-chain connections a send bypassed (never attempted) and why, so the log detail
- * can explain a matched or default connection being skipped. Pure given the priority chain and the
- * sendable set — the bridge computes the chain via RoutingPlanner and passes it in.
+ * Trace bypassed priority-chain connections and reasons for log detail.
  */
 final class RoutingSkipTracer
 {
@@ -20,8 +18,7 @@ final class RoutingSkipTracer
     }
 
     /**
-     * The priority-chain connections not in $sendable (never attempted), each tagged with why it was
-     * dropped so the log can explain a bypassed match/default. Returns [] when the whole chain sends.
+     * Priority-chain connections not in $sendable, tagged with why dropped (for log detail).
      *
      * @param string[]     $chainIds priority-order connection ids the router would try
      * @param Connection[] $sendable connections that will actually be attempted, in priority order
@@ -51,11 +48,10 @@ final class RoutingSkipTracer
     }
 
     /**
-     * Keep only the skips positioned ahead of the connection that actually sent (or was last tried); a
-     * lower-priority fallback never reached is dropped. When the sender isn't in the chain, keep all.
+     * Keep only skips positioned ahead of the connection that actually sent; drop unreached fallbacks.
      *
      * @param array<int,array{connection: string, connection_id: string, reason: string}> $skips
-     * @param string[]                                                                     $chainIds
+     * @param string[]                                                                    $chainIds
      *
      * @return array<int,array{connection: string, connection_id: string, reason: string}>
      */
@@ -78,17 +74,15 @@ final class RoutingSkipTracer
     }
 
     /**
-     * Classify why a prioritized candidate connection cannot be attempted for this send, as a short,
-     * stable reason code the log/UI can display. $connection is null when the id no longer resolves to
-     * a configured connection.
+     * Classify why connection cannot be attempted; null means id is no longer configured.
      */
     public function skipReason(?Connection $connection): string
     {
         return match (true) {
-            $connection === null => 'deleted',
-            !$connection->isEnabled() => 'disabled',
+            $connection === null                         => 'deleted',
+            !$connection->isEnabled()                    => 'disabled',
             !$this->sendability->isSendable($connection) => 'incomplete',
-            default => '',
+            default                                      => '',
         };
     }
 }

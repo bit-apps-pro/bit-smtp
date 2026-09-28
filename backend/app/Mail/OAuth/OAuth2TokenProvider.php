@@ -10,9 +10,7 @@ use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Http\ApiResponse;
 
 /**
- * Resolves a usable OAuth2 access token for a connection: returns the cached token while it
- * still has headroom, otherwise refreshes it via the provider's token endpoint and persists
- * the refreshed token back onto the connection.
+ * Resolve OAuth2 access token; return cached or refresh and persist.
  */
 class OAuth2TokenProvider
 {
@@ -71,11 +69,13 @@ class OAuth2TokenProvider
         return $accessToken;
     }
 
+    /**
+     * Update connection with refreshed token; preserve existing refresh_token if provider didn't return one.
+     */
     private function withRefreshedToken(Connection $connection, string $accessToken, string $newRefreshToken, int $expiresAt): array
     {
         $updated = $connection->toArray();
 
-        // Providers only return a refresh_token on first consent; never blank an existing one.
         if ($newRefreshToken !== '') {
             $updated['credentials']['refresh_token'] = ['source' => 'database', 'value' => $newRefreshToken];
         }

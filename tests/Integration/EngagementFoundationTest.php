@@ -8,13 +8,10 @@ use BitApps\SMTP\Model\LogEngagementEvent;
 use BitApps\SMTP\Settings\PluginSettings;
 use BitSmtpEngagementTableMigration;
 
-// Global-namespace migration class, included directly (migrations are not PSR-4 autoloaded).
 require_once \dirname(__DIR__, 2) . '/backend/db/Migrations/BitSmtpEngagementTableMigration.php';
 
 /**
- * Exercises the Phase 8 tracking foundation against the real WordPress test DB: the
- * log_engagement_events schema, the ON DUPLICATE KEY fold in LogService::recordEngagement(),
- * tracking-id resolution, migration idempotency, and the purge-gated table drop.
+ * Tests tracking foundation: schema, deduplication, tracking-id resolution, migration, and cleanup.
  *
  * @internal
  *
@@ -58,10 +55,11 @@ final class EngagementFoundationTest extends IntegrationTestCase
         self::assertArrayHasKey('log_id_INDEX', $indexes, 'log_id must be indexed for per-log lookups');
     }
 
+    /**
+     * Migration must be idempotent; re-running must not error on duplicate table or index.
+     */
     public function testMigrationIsIdempotentWhenReRun(): void
     {
-        // Activation invokes the migration list on every request; a second up() must not error on a
-        // duplicate table or index.
         $this->migrate();
         $this->migrate();
 
@@ -139,9 +137,11 @@ final class EngagementFoundationTest extends IntegrationTestCase
         self::assertNull($this->service->findLogIdByTrackingId(''));
     }
 
+    /**
+     * Uninstall with default purge=true setting must drop the engagement table.
+     */
     public function testDownDropsTheTableWhenPurgeIsEnabled(): void
     {
-        // Purge defaults to true (schema default) with no preferences blob written.
         try {
             (new BitSmtpEngagementTableMigration())->down();
 

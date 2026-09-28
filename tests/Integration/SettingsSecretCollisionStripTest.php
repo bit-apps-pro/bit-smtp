@@ -6,10 +6,7 @@ use BitApps\SMTP\Config;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 
 /**
- * Security guard exercised through the LIVE provider registry: a client that smuggles a secret-named
- * key (SendGrid's `api_key`, secret===true in its fields()) under `settings` must have it stripped
- * before persistence, so a secret never lands in the options table as plaintext. Covers the real
- * secretKeysFromRegistry() path (array_filter secret + array_column key) the unit tier can only stub.
+ * Verifies smuggled secret-named keys stripped from settings before persistence via real registry.
  *
  * @internal
  *

@@ -8,16 +8,12 @@ use BitApps\SMTP\Mail\Exceptions\AuthConfigException;
 use BitApps\SMTP\Mail\Support\ApiRequest;
 
 /**
- * Signs the built request with AWS Signature Version 4, covering the exact body bytes and
- * headers the transport already assembled.
+ * Sign requests with AWS Signature Version 4.
  */
 final class AwsSigV4Strategy extends AbstractAuthStrategy
 {
     /**
-     * AWS region shape, allowing GovCloud/ISO's extra segment (e.g. us-east-1, us-gov-east-1);
-     * the region is interpolated into the signed request host, so anything outside this charset
-     * must never reach the signer. The `D` modifier makes `$` match only the true end of string,
-     * rejecting a trailing newline.
+     * AWS region pattern including GovCloud/ISO segments; validates before host interpolation.
      */
     private const REGION_PATTERN = '/^[a-z]{2}(-[a-z]+)+-\d+$/D';
 

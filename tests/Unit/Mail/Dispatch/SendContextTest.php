@@ -74,8 +74,7 @@ class SendContextTest extends BaseUnitTestCase
         $this->assertTrue($this->context->isDebug());
         $this->assertTrue($this->context->isRetrying());
         $this->assertSame(42, $this->context->getRetryLogId());
-        // resetForSend runs before dispatch reads the parent id, so it must survive the reset; the
-        // logger clears it once the resend row is written.
+
         $this->assertSame(7, $this->context->getResendParentId());
         $this->assertTrue($this->context->isBatch());
     }

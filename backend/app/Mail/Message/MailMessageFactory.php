@@ -3,14 +3,12 @@
 namespace BitApps\SMTP\Mail\Message;
 
 /**
- * Maintained fork of wp-includes/pluggable.php wp_mail() header/from/content-type resolution
- * (the part a pre_wp_mail short-circuit skips) — re-verify on WP major bumps.
+ * Maintained fork of wp_mail() header/from/content-type resolution; verify on WP bumps.
  */
 class MailMessageFactory
 {
     /**
-     * Reproduce wp_mail()'s resolution of $atts into a structured MailMessage: explode the
-     * headers, extract From/Content-Type/Cc/Bcc/Reply-To, and apply the same core filters.
+     * Resolve wp_mail() arguments into a structured MailMessage with headers parsed.
      *
      * @param array<string,mixed> $atts wp_mail() arguments: to, subject, message, headers, attachments
      */
@@ -36,7 +34,6 @@ class MailMessageFactory
         $fromName  = $this->resolveFromName($parsed['from_name']);
 
         $contentType = $parsed['content_type'] !== null ? $parsed['content_type'] : 'text/plain';
-        // Core applies this filter here, after defaulting to text/plain.
         $contentType = apply_filters('wp_mail_content_type', $contentType);
 
         return MailMessage::fromArray([
@@ -55,8 +52,7 @@ class MailMessageFactory
     }
 
     /**
-     * Explode a string/array of headers and pull out the addresses and content-type,
-     * mirroring wp_mail()'s header loop.
+     * Parse headers to extract addresses and content-type, mirroring wp_mail().
      *
      * @param string|array<int,string> $headers
      *
@@ -132,8 +128,6 @@ class MailMessageFactory
             }
 
             $fromEmail = trim(str_replace('>', '', substr($content, $bracketPos + 1)));
-
-            // Avoid setting an empty $fromEmail (mirrors core).
         } elseif (trim($content) !== '') {
             $fromEmail = trim($content);
         }
@@ -144,8 +138,6 @@ class MailMessageFactory
         if (strpos($content, ';') !== false) {
             list($type)  = explode(';', $content);
             $contentType = trim($type);
-
-            // Avoid setting an empty $contentType (mirrors core).
         } elseif (trim($content) !== '') {
             $contentType = trim($content);
         }
@@ -166,7 +158,6 @@ class MailMessageFactory
             }
         }
 
-        // Core applies this filter here.
         return apply_filters('wp_mail_from', $fromEmail);
     }
 
@@ -176,7 +167,6 @@ class MailMessageFactory
             $fromName = 'WordPress';
         }
 
-        // Core applies this filter here.
         return apply_filters('wp_mail_from_name', $fromName);
     }
 

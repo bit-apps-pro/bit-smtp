@@ -13,22 +13,17 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 
 /**
- * Real SMTP liveness probe: connect + EHLO + AUTH (no message sent), reusing the send transport's
- * PHPMailer configuration and the dispatch failure classifier so a probe failure is categorized
- * exactly as a live send failure would be.
+ * Real SMTP liveness probe that categorizes failures exactly as live sends would.
  */
 class SmtpConnectionProbe implements ConnectionProbeInterface
 {
     /**
-     * Cap the persisted/surfaced error length; a PHPMailer connect error is a safe host/auth string,
-     * but keep it short and single-line so nothing unbounded is ever stored.
+     * Cap persisted error length to a short single line for safe storage.
      */
     private const MAX_ERROR_LENGTH = 200;
 
     /**
-     * Cap the per-probe socket timeout (seconds). A liveness probe only needs a quick connect+auth, so
-     * it caps the send timeout to bound a "Check now"/cron sweep of several dead hosts well under PHP's
-     * max_execution_time (a full send keeps the longer configured send_timeout_seconds).
+     * Cap probe socket timeout to keep health checks under PHP max_execution_time.
      */
     private const PROBE_TIMEOUT_SECONDS = 10;
 
@@ -43,8 +38,7 @@ class SmtpConnectionProbe implements ConnectionProbeInterface
     }
 
     /**
-     * Connect and authenticate against the SMTP server, always closing the socket, and map the
-     * outcome to a ProbeResult. Debug output stays off so no AUTH payload is ever captured.
+     * Connect, authenticate, and map outcome to ProbeResult; no AUTH debug output.
      */
     public function probe(Connection $connection): ProbeResult
     {
@@ -54,7 +48,6 @@ class SmtpConnectionProbe implements ConnectionProbeInterface
 
         try {
             $this->transport->configure($mailer, $connection);
-            // Shorten the socket timeout for a liveness probe so a sweep of dead hosts can't run long.
             $mailer->Timeout = min($mailer->Timeout, self::PROBE_TIMEOUT_SECONDS);
             $mailer->smtpConnect();
 
@@ -75,8 +68,7 @@ class SmtpConnectionProbe implements ConnectionProbeInterface
     }
 
     /**
-     * Map a probe error into a sanitized, classified ProbeResult, reusing the dispatch classifier so
-     * a probe failure lands in the same FailureCategory a live send would.
+     * Map probe error to ProbeResult using dispatch classifier for consistency.
      */
     private function toFailure(string $message, string $code): ProbeResult
     {
@@ -99,12 +91,10 @@ class SmtpConnectionProbe implements ConnectionProbeInterface
     }
 
     /**
-     * Load WordPress's bundled PHPMailer classes; the health cron path never calls wp_mail(), so
-     * they are not loaded for us the way a normal send would.
+     * Load WordPress bundled PHPMailer; health cron path doesn't call wp_mail().
      */
     private function requirePhpMailer(): void
     {
-        // Guarded so ABSPATH/WPINC read as defined; both always exist in the WP runtime the cron runs in.
         if (!\defined('ABSPATH') || !\defined('WPINC')) {
             return;
         }

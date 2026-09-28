@@ -1,35 +1,52 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { SettingOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
-import useLogRetention from '@pages/Logs/data/useLogRetention'
-import { Button, Flex, Form, Input, Popover, notification } from 'antd'
+import notify from '@components/Toaster/Toaster'
+import usePreferences, { useSavePreferences } from '@pages/Settings/data/usePreferences'
+import { Button, Flex, Form, InputNumber, Popover } from 'antd'
+
+const MIN_RETENTION_DAYS = 1
+const MAX_RETENTION_DAYS = 200
 
 interface LogRetentionSettingsProps {
   onSuccess?: () => void
 }
 
+/** Logs toolbar popover to view and change the saved log retention window (shared with Settings). */
 export default function LogRetentionSettings({ onSuccess }: LogRetentionSettingsProps) {
-  const [retentionDays, setRetentionDays] = useState<number>(30)
-  const { updateLogRetention, isUpdatingRetention } = useLogRetention()
+  const { data: preferences, isLoading } = usePreferences()
+  const { mutateAsync: savePreferences, isPending } = useSavePreferences()
+  const savedDays = preferences?.log_retention_days
+  const [retentionDays, setRetentionDays] = useState<number | null>(savedDays ?? null)
 
+  useEffect(() => {
+    if (savedDays !== undefined) {
+      setRetentionDays(savedDays)
+    }
+  }, [savedDays])
+
+  /** Validate the entered retention window, then save it and report the outcome. */
   const handleRetentionSave = async () => {
-    if (Number.isNaN(retentionDays) || retentionDays < 1) {
-      notification.error({ message: 'Please enter a valid number of days' })
+    if (
+      retentionDays === null ||
+      !Number.isInteger(retentionDays) ||
+      retentionDays < MIN_RETENTION_DAYS ||
+      retentionDays > MAX_RETENTION_DAYS
+    ) {
+      notify.error(__('Enter a number of days between 1 and 200'))
       return
     }
 
     try {
-      const response = await updateLogRetention(retentionDays)
-      if (response.code === 'SUCCESS') {
-        notification.success({
-          message: response.message || __('Log retention period updated successfully')
-        })
+      const response = await savePreferences({ log_retention_days: retentionDays })
+      if (response.status === 'success') {
+        notify.success(__('Log retention period updated successfully'))
         onSuccess?.()
       } else {
-        notification.error({ message: response.message || __('Failed to update log retention period') })
+        notify.error(response.message || __('Failed to update log retention period'))
       }
-    } catch (error) {
-      notification.error({ message: __('Failed to update log retention period') })
+    } catch {
+      notify.error(__('Failed to update log retention period'))
     }
   }
 
@@ -39,18 +56,22 @@ export default function LogRetentionSettings({ onSuccess }: LogRetentionSettings
         label={__('Days')}
         tooltip={__('Number of days to retain logs before automatic deletion.')}
       >
-        <Input
-          type="number"
-          min={1}
+        <InputNumber
           value={retentionDays}
-          onChange={e => setRetentionDays(parseInt(e.target.value, 10))}
-          placeholder="Enter days"
+          onChange={setRetentionDays}
+          disabled={isLoading}
+          placeholder={__('Enter days')}
           style={{ width: 200 }}
         />
       </Form.Item>
 
-      <Button type="primary" onClick={handleRetentionSave} loading={isUpdatingRetention}>
-        Save
+      <Button
+        type="primary"
+        onClick={handleRetentionSave}
+        loading={isPending}
+        disabled={isLoading || retentionDays === savedDays}
+      >
+        {__('Save')}
       </Button>
     </Flex>
   )
@@ -62,7 +83,7 @@ export default function LogRetentionSettings({ onSuccess }: LogRetentionSettings
       trigger="click"
       placement="bottomRight"
     >
-      <Button icon={<SettingOutlined />} />
+      <Button icon={<SettingOutlined />} aria-label={__('Log retention settings')} />
     </Popover>
   )
 }

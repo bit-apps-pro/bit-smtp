@@ -5,9 +5,7 @@ namespace BitApps\SMTP\Mail\OAuth;
 use BitApps\SMTP\Mail\Exceptions\OAuthStateException;
 
 /**
- * Signed, expiring `state` token for the OAuth2 consent flow. Binds a connection id + provider to
- * an HMAC signature (keyed by a server-only WP salt) so the callback can prove the redirect it
- * received was one this site initiated (CSRF defence) and was not tampered with in transit.
+ * Signed, expiring OAuth2 state token; proves CSRF-safe redirect initiation.
  */
 final class OAuthStateCodec
 {

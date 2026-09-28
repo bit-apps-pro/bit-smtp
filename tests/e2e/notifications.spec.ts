@@ -1,73 +1,46 @@
-import { type Page, type Request, expect, test } from '@playwright/test'
-import { gotoSmtp } from './helpers'
+import { type Locator, type Page, type Request, expect, test } from '@playwright/test'
+import { gotoSmtp, uniqueName } from './helpers'
 
 const MASK_SENTINEL = '********'
 const TEST_SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/T00000000/B00000000/e2e-secret'
-const TEST_TELEGRAM_BOT_TOKEN = '123456:abcdefghijklmnopqrstuvwxyz'
-const TEST_TELEGRAM_CHAT_ID = '-1001234567890'
 const NOTIFICATION_TEST_ENDPOINT = '/wp-json/bit-smtp/v1/mail/notifications/test'
-type NotificationChannel = 'slack' | 'telegram'
+const CHANNEL_ID_PATTERN = /^ch_[0-9a-f]{12}$/
+const CHANNEL_NAME_PREFIX = 'E2E Alert'
+const MASTER_SWITCH_LABEL = 'Enable failure notifications'
 
-interface AlertState {
-  enabled: boolean
-  emailEnabled: boolean
-  webhookEnabled: boolean
-  slackEnabled: boolean
-  telegramEnabled: boolean
-  recipients: string[]
-  slackWebhookUrl: string
-  telegramBotToken: string
-  telegramChatId: string
+/** Open the Settings page on its Notifications tab. */
+async function gotoNotifications(page: Page): Promise<void> {
+  await gotoSmtp(page, '/settings')
+  await page.getByRole('tab', { name: /notifications/i }).click()
+  await expect(page.getByRole('switch', { name: MASTER_SWITCH_LABEL })).toBeVisible()
 }
 
-// antd Switch inside a labelled Form.Item — toggle to the desired state.
-async function setSwitch(page: Page, labelText: string, on: boolean): Promise<void> {
-  const sw = page.locator('.ant-form-item').filter({ hasText: labelText }).getByRole('switch').first()
-  await expect(sw).toBeVisible()
-  const checked = (await sw.getAttribute('aria-checked')) === 'true'
-  if (checked !== on) await sw.click()
+/** Toggle the failure-notifications master switch to the desired state. */
+async function setMasterSwitch(page: Page, on: boolean): Promise<void> {
+  const master = page.getByRole('switch', { name: MASTER_SWITCH_LABEL })
+  if ((await master.getAttribute('aria-checked')) !== String(on)) await master.click()
 }
 
-function formItem(page: Page, labelText: string) {
-  return page.locator('.ant-form-item').filter({ hasText: labelText }).first()
+/** Every channel card on the Notifications tab. */
+function channelCards(page: Page): Locator {
+  return page.locator('.ant-card').filter({ has: page.getByLabel('Name', { exact: true }) })
 }
 
-async function isSwitchOn(page: Page, labelText: string): Promise<boolean> {
-  return (await formItem(page, labelText).getByRole('switch').getAttribute('aria-checked')) === 'true'
+/** The channel card whose header shows `name`. */
+function channelCard(page: Page, name: string): Locator {
+  return channelCards(page).filter({ hasText: name })
 }
 
-async function readAlertState(page: Page): Promise<AlertState> {
-  return {
-    enabled: await isSwitchOn(page, 'Failure notifications'),
-    emailEnabled: await isSwitchOn(page, 'Email notification'),
-    webhookEnabled: await isSwitchOn(page, 'Webhook notification'),
-    slackEnabled: await isSwitchOn(page, 'Slack notification'),
-    telegramEnabled: await isSwitchOn(page, 'Telegram notification'),
-    recipients: await formItem(page, 'Recipients')
-      .locator('.ant-select-selection-item-content')
-      .allTextContents(),
-    slackWebhookUrl: await page.getByLabel('Slack webhook URL').inputValue(),
-    telegramBotToken: await page.getByLabel('Telegram bot token').inputValue(),
-    telegramChatId: await page.getByLabel('Telegram chat ID').inputValue()
-  }
+/** Add a channel of `typeLabel` via the picker, rename it to `name`, and return its card. */
+async function addChannel(page: Page, typeLabel: string, name: string): Promise<Locator> {
+  await page.getByRole('button', { name: 'Add channel' }).first().click()
+  await page.getByRole('dialog').getByRole('button', { name: typeLabel, exact: true }).click()
+  await channelCards(page).last().getByLabel('Name', { exact: true }).fill(name)
+
+  return channelCard(page, name)
 }
 
-async function replaceRecipients(page: Page, recipients: string[]): Promise<void> {
-  const item = formItem(page, 'Recipients')
-  const removeButtons = item.locator('.ant-select-selection-item-remove')
-
-  while (await removeButtons.count()) {
-    await removeButtons.first().click()
-  }
-
-  const input = item.locator('.ant-select-selection-search-input')
-  for (const recipient of recipients) {
-    await input.fill(recipient)
-    await page.keyboard.press('Enter')
-  }
-}
-
-// Click Save and wait for the settings-save request to complete (the success toast is transient).
+/** Click Save changes and wait for the mail-settings save request to succeed. */
 async function save(page: Page): Promise<void> {
   const done = page.waitForResponse(
     response =>
@@ -76,116 +49,87 @@ async function save(page: Page): Promise<void> {
       response.ok(),
     { timeout: 15_000 }
   )
-  await page.getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('button', { name: 'Save changes' }).click()
   await done
 }
 
-async function restoreAlertState(page: Page, state: AlertState): Promise<void> {
-  await gotoSmtp(page, '/notifications')
+/** Remove every channel card this suite created, identified by its name prefix. */
+async function removeTestChannels(page: Page): Promise<void> {
+  const leftovers = channelCards(page).filter({ hasText: CHANNEL_NAME_PREFIX })
 
-  // Turn controls on temporarily so values can be restored before their original switches are reapplied.
-  await setSwitch(page, 'Failure notifications', true)
-  await setSwitch(page, 'Email notification', true)
-  await setSwitch(page, 'Slack notification', true)
-  await setSwitch(page, 'Telegram notification', true)
-
-  await replaceRecipients(page, state.recipients)
-
-  // Secrets already present at the start are masked and therefore left untouched. Only the test-only
-  // values introduced for previously blank fields need to be cleared.
-  if (!state.slackWebhookUrl) await page.getByLabel('Slack webhook URL').fill('')
-  if (!state.telegramBotToken) await page.getByLabel('Telegram bot token').fill('')
-  if (!state.telegramChatId) await page.getByLabel('Telegram chat ID').fill('')
-
-  await setSwitch(page, 'Email notification', state.emailEnabled)
-  await setSwitch(page, 'Webhook notification', state.webhookEnabled)
-  await setSwitch(page, 'Slack notification', state.slackEnabled)
-  await setSwitch(page, 'Telegram notification', state.telegramEnabled)
-  await setSwitch(page, 'Failure notifications', state.enabled)
-  await save(page)
+  while ((await leftovers.count()) > 0) {
+    await leftovers
+      .first()
+      .getByRole('button', { name: /remove/i })
+      .click()
+    await page.locator('.ant-popconfirm').getByRole('button', { name: 'Remove' }).click()
+  }
 }
 
-function assertNotificationTestRequest(request: Request, channel: NotificationChannel): void {
-  const payload: unknown = JSON.parse(request.postData() || '{}')
+/** Assert a Send test request carries one channel instance's id, type, and live settings. */
+function assertNotificationTestRequest(
+  request: Request,
+  type: string,
+  settings: Record<string, unknown>
+): void {
+  const payload = JSON.parse(request.postData() || '{}') as { channel?: Record<string, unknown> }
 
   expect(request.method()).toBe('POST')
   expect(new URL(request.url()).pathname).toBe(NOTIFICATION_TEST_ENDPOINT)
-  expect(payload).toEqual({ channel })
+  expect(payload.channel?.id).toMatch(CHANNEL_ID_PATTERN)
+  expect(payload.channel).toMatchObject({ type, settings })
 }
 
-async function testNotificationChannel(page: Page, channel: NotificationChannel): Promise<void> {
-  const request = page.waitForRequest(candidate => {
-    return (
-      candidate.method() === 'POST' && new URL(candidate.url()).pathname === NOTIFICATION_TEST_ENDPOINT
-    )
-  })
-
-  await page
-    .getByRole('button', { name: `Test ${channel[0].toUpperCase()}${channel.slice(1)} notification` })
-    .click()
-  await request
-  await expect(page.getByText('Test notification sent')).toBeVisible()
-}
-
-// Flow 3: configure failure-notification alerts, save, and confirm they persist across reload.
+// Flow 3: add failure-notification channel instances, test one unsaved, save, and confirm persistence.
 test.describe('Failure-notification alerts', () => {
-  const recipient = `alerts-${Date.now()}@example.test`
-  let originalAlerts: AlertState | null = null
+  let originalMasterOn = false
 
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext({ storageState: 'tests/e2e/.auth/state.json' })
     const page = await context.newPage()
-    await gotoSmtp(page, '/notifications')
-    originalAlerts = await readAlertState(page)
+    await gotoNotifications(page)
+    originalMasterOn =
+      (await page.getByRole('switch', { name: MASTER_SWITCH_LABEL }).getAttribute('aria-checked')) ===
+      'true'
     await context.close()
   })
 
   test.afterAll(async ({ browser }) => {
-    if (!originalAlerts) return
-
     const context = await browser.newContext({ storageState: 'tests/e2e/.auth/state.json' })
     const page = await context.newPage()
-    await restoreAlertState(page, originalAlerts)
+    await gotoNotifications(page)
+    await removeTestChannels(page)
+    await setMasterSwitch(page, originalMasterOn)
+    if (await page.getByRole('button', { name: 'Save changes' }).isEnabled()) await save(page)
     await context.close()
   })
 
-  test('enables email alerts with a recipient and persists them', async ({ page }) => {
-    await gotoSmtp(page, '/notifications')
+  test('adds an Email channel with a recipient and persists it', async ({ page }) => {
+    const name = uniqueName(`${CHANNEL_NAME_PREFIX} Email`)
+    const recipient = `alerts-${Date.now()}@example.test`
 
-    await setSwitch(page, 'Failure notifications', true)
-    await setSwitch(page, 'Email notification', true)
-    // Isolate the email channel: keep the webhook channel off so an empty webhook URL
-    // (possible leftover site state) can't block the save.
-    await setSwitch(page, 'Webhook notification', false)
+    await gotoNotifications(page)
+    await setMasterSwitch(page, true)
+    const card = await addChannel(page, 'Email', name)
 
-    // Recipients is an antd tag-select: focus, type an address, commit with Enter.
-    const recipients = formItem(page, 'Recipients').locator('.ant-select-selection-search-input')
+    const recipients = card.locator('.ant-select-selection-search-input')
     await recipients.click()
     await recipients.fill(recipient)
     await page.keyboard.press('Enter')
 
     await save(page)
 
-    // Reload — the persisted settings come back (the authoritative check).
-    await gotoSmtp(page, '/notifications')
-    await expect(formItem(page, 'Failure notifications').getByRole('switch')).toHaveAttribute(
+    await gotoNotifications(page)
+    await expect(page.getByRole('switch', { name: MASTER_SWITCH_LABEL })).toHaveAttribute(
       'aria-checked',
       'true'
     )
-    await expect(page.getByText(recipient).first()).toBeVisible()
+    await expect(channelCard(page, name).getByText(recipient)).toBeVisible()
   })
 
-  test('saves masked Slack and Telegram settings and tests both channels locally', async ({ page }) => {
-    const interceptedChannels: string[] = []
-    let expectedChannel: NotificationChannel | null = null
+  test('tests an unsaved Slack channel with its live values, then saves it masked', async ({ page }) => {
+    const name = uniqueName(`${CHANNEL_NAME_PREFIX} Slack`)
     await page.route(`**${NOTIFICATION_TEST_ENDPOINT}`, async route => {
-      const request = route.request()
-      if (!expectedChannel) {
-        throw new Error(`Unexpected notification test request: ${request.method()} ${request.url()}`)
-      }
-
-      assertNotificationTestRequest(request, expectedChannel)
-      interceptedChannels.push(expectedChannel)
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -198,31 +142,20 @@ test.describe('Failure-notification alerts', () => {
       })
     })
 
-    await gotoSmtp(page, '/notifications')
-    await setSwitch(page, 'Failure notifications', true)
-    await setSwitch(page, 'Slack notification', true)
-    await setSwitch(page, 'Telegram notification', true)
+    await gotoNotifications(page)
+    const card = await addChannel(page, 'Slack', name)
+    await card.getByLabel('Slack webhook URL').fill(TEST_SLACK_WEBHOOK_URL)
 
-    const slackWebhookUrl = page.getByLabel('Slack webhook URL')
-    const telegramBotToken = page.getByLabel('Telegram bot token')
-    const telegramChatId = page.getByLabel('Telegram chat ID')
-    if (!(await slackWebhookUrl.inputValue())) await slackWebhookUrl.fill(TEST_SLACK_WEBHOOK_URL)
-    if (!(await telegramBotToken.inputValue())) await telegramBotToken.fill(TEST_TELEGRAM_BOT_TOKEN)
-    if (!(await telegramChatId.inputValue())) await telegramChatId.fill(TEST_TELEGRAM_CHAT_ID)
+    const testRequest = page.waitForRequest(
+      candidate => new URL(candidate.url()).pathname === NOTIFICATION_TEST_ENDPOINT
+    )
+    await card.getByRole('button', { name: /send test/i }).click()
+    assertNotificationTestRequest(await testRequest, 'slack', { webhook_url: TEST_SLACK_WEBHOOK_URL })
+    await expect(page.getByText('Test notification sent')).toBeVisible()
 
     await save(page)
-    await gotoSmtp(page, '/notifications')
+    await gotoNotifications(page)
 
-    await expect(page.getByLabel('Slack webhook URL')).toHaveValue(MASK_SENTINEL)
-    await expect(page.getByLabel('Telegram bot token')).toHaveValue(MASK_SENTINEL)
-    await expect(page.getByLabel('Telegram chat ID')).toHaveValue(
-      originalAlerts?.telegramChatId || TEST_TELEGRAM_CHAT_ID
-    )
-
-    expectedChannel = 'slack'
-    await testNotificationChannel(page, expectedChannel)
-    expectedChannel = 'telegram'
-    await testNotificationChannel(page, expectedChannel)
-    expect(interceptedChannels).toEqual(['slack', 'telegram'])
+    await expect(channelCard(page, name).getByLabel('Slack webhook URL')).toHaveValue(MASK_SENTINEL)
   })
 })

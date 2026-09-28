@@ -35,7 +35,16 @@
     ],
     "features": {
         "logging": [],
-        "alerts": [],
+        "alerts": {
+            "enabled": false,
+            "reminder_minutes": 60,
+            "channels": [],
+            "revision": "<revision>",
+            "delivery": {
+                "cron_disabled": true,
+                "overdue": false
+            }
+        },
         "routing": [],
         "tracking": [],
         "email_controls": []

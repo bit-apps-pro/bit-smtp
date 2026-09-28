@@ -1,10 +1,9 @@
 import request from '@common/helpers/request'
+import { type AlertChannel } from '@pages/Connections/types'
 import { useMutation } from '@tanstack/react-query'
 
-export type NotificationChannel = 'email' | 'webhook' | 'slack' | 'telegram' | 'discord'
-
 export interface TestNotificationPayload {
-  channel: NotificationChannel
+  channel: Pick<AlertChannel, 'id' | 'type' | 'settings'>
 }
 
 export interface TestNotificationResult {
@@ -12,6 +11,7 @@ export interface TestNotificationResult {
   error?: string
 }
 
+/** Send a test alert through one channel's current (possibly unsaved) configuration. */
 export default function useTestNotification() {
   return useMutation({
     mutationFn: async ({ channel }: TestNotificationPayload): Promise<TestNotificationResult> => {

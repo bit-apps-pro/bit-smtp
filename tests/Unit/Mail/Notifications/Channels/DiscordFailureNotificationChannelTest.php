@@ -55,7 +55,7 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
         $channel = new DiscordFailureNotificationChannel();
 
         $this->assertSame('discord', $channel->key());
-        $this->assertTrue($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]));
+        $this->assertTrue($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL])->ok());
     }
 
     public function testAcceptsTheDiscordappComHostAlias(): void
@@ -65,7 +65,7 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
         Functions\when('is_wp_error')->justReturn(false);
         Functions\when('wp_remote_retrieve_response_code')->justReturn(200);
 
-        $this->assertTrue((new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => $url]));
+        $this->assertTrue((new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => $url])->ok());
     }
 
     public function testRejectsUrlsOutsideTheExactDiscordHostAndPath(): void
@@ -81,7 +81,7 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
             'https://canary.discord.com/api/webhooks/123/token',
             'https://discord.com/api/webhooks/',
         ] as $url) {
-            $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => $url]));
+            $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => $url])->ok());
         }
     }
 
@@ -90,7 +90,7 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
     {
         Functions\expect('wp_safe_remote_post')->never();
 
-        $this->assertFalse((new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => $url]));
+        $this->assertFalse((new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => $url])->ok());
     }
 
     /**
@@ -110,7 +110,7 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
     {
         Functions\expect('wp_safe_remote_post')->never();
 
-        $this->assertFalse((new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), []));
+        $this->assertFalse((new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), [])->ok());
     }
 
     public function testTruncatesContentToDiscordsTwoThousandCharacterCeiling(): void
@@ -129,7 +129,7 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
         Functions\when('is_wp_error')->justReturn(false);
         Functions\when('wp_remote_retrieve_response_code')->justReturn(204);
 
-        $this->assertTrue((new DiscordFailureNotificationChannel())->send($notification, ['webhook_url' => self::WEBHOOK_URL]));
+        $this->assertTrue((new DiscordFailureNotificationChannel())->send($notification, ['webhook_url' => self::WEBHOOK_URL])->ok());
     }
 
     public function testRendersFailureAndHealthNotificationsViaChatText(): void
@@ -147,7 +147,7 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
             Functions\when('is_wp_error')->justReturn(false);
             Functions\when('wp_remote_retrieve_response_code')->justReturn(204);
 
-            $this->assertTrue((new DiscordFailureNotificationChannel())->send($notification, ['webhook_url' => self::WEBHOOK_URL]));
+            $this->assertTrue((new DiscordFailureNotificationChannel())->send($notification, ['webhook_url' => self::WEBHOOK_URL])->ok());
         }
     }
 
@@ -159,7 +159,7 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
         $channel = new DiscordFailureNotificationChannel();
 
         try {
-            $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]));
+            $this->assertFalse($channel->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL])->ok());
         } catch (Throwable $exception) {
             $this->assertStringNotContainsString(self::WEBHOOK_URL, $exception->getMessage());
 
@@ -174,7 +174,7 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
             ->andThrow(new RuntimeException('request failed for ' . self::WEBHOOK_URL));
 
         $this->expectOutputString('');
-        $this->assertFalse((new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]));
+        $this->assertFalse((new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL])->ok());
     }
 
     public function testReturnsFalseForANon2xxResponse(): void
@@ -182,8 +182,24 @@ final class DiscordFailureNotificationChannelTest extends BaseUnitTestCase
         Functions\when('wp_safe_remote_post')->justReturn(['response' => ['code' => 500]]);
         Functions\when('is_wp_error')->justReturn(false);
         Functions\when('wp_remote_retrieve_response_code')->justReturn(500);
+        Functions\when('wp_remote_retrieve_body')->justReturn('');
 
-        $this->assertFalse((new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]));
+        $result = (new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL]);
+
+        $this->assertFalse($result->ok());
+        $this->assertSame('Discord rejected the request (HTTP 500).', $result->reason());
+    }
+
+    public function testNamesDiscordsErrorMessageWithoutTheWebhookUrl(): void
+    {
+        Functions\when('wp_safe_remote_post')->justReturn([]);
+        Functions\when('is_wp_error')->justReturn(false);
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(404);
+        Functions\when('wp_remote_retrieve_body')->justReturn((string) json_encode(['message' => 'Unknown Webhook at ' . self::WEBHOOK_URL, 'code' => 10015]));
+
+        $reason = (string) (new DiscordFailureNotificationChannel())->send(FailureNotification::forTest(), ['webhook_url' => self::WEBHOOK_URL])->reason();
+
+        $this->assertSame('Discord rejected the request (HTTP 404: Unknown Webhook at [redacted]).', $reason);
     }
 
     private function healthNotification(): HealthNotification

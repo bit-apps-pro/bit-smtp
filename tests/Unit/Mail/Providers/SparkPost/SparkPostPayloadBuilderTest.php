@@ -9,10 +9,7 @@ use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 
 /**
- * Direct unit coverage of SparkPostPayloadBuilder::build() (spec §5/§11 payloadBuilder escape
- * hatch): SparkPost's transmissions API has no native cc/bcc, so every recipient is flattened into
- * `recipients[]` sharing one visible `header_to`, while only cc (never bcc) is echoed into
- * `content.headers` — that asymmetry is the entire point of the bespoke builder.
+ * Covers SparkPostPayloadBuilder::build(): flattens recipients, asymmetric cc/bcc handling for SparkPost API.
  *
  * @internal
  *
@@ -99,7 +96,6 @@ class SparkPostPayloadBuilderTest extends BaseUnitTestCase
         $headerValues = implode(' | ', array_map('strval', $body['content']['headers']));
         $this->assertStringNotContainsString('bcc-secret@example.com', $headerValues);
 
-        // The bcc address must still be a recipient (so it's actually delivered) - just invisible in headers.
         $emails = array_column(array_column($body['recipients'], 'address'), 'email');
         $this->assertContains('bcc-secret@example.com', $emails);
     }

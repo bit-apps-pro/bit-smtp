@@ -23,6 +23,7 @@ function reasonLabel(reason: string): string {
   }
 }
 
+/** Renders the delivery-attempts timeline plus any routing-skipped connections for a log entry. */
 export default function DeliveryAttemptsTab({ log }: DeliveryAttemptsTabProps) {
   const attempts = log?.details?.attempts ?? []
   const skipped = log?.details?.routing_skipped ?? []

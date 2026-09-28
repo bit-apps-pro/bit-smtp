@@ -87,8 +87,6 @@ class GmailTransportTest extends BaseUnitTestCase
 
     public function testBuildBodyEncodesMimeMessageAsUrlSafeBase64WithoutPadding(): void
     {
-        // Bytes chosen so standard base64 output contains '+', '/' and '=' padding, proving
-        // the transport swaps to the URL-safe alphabet and strips padding (Gmail's `raw` format).
         $mime        = "Subject: Hi\r\n\r\n" . "\xfb\xff\xfe";
         $expectedRaw = rtrim(strtr(base64_encode($mime), '+/', '-_'), '=');
 

@@ -40,12 +40,13 @@ class DeliveryEvent
         $this->occurredAt = $occurredAt;
     }
 
+    /**
+     * Construct event from payload, casting defensively to prevent TypeErrors.
+     */
     public static function fromArray(array $data): self
     {
         $messageId  = $data['message_id']  ?? null;
         $trackingId = $data['tracking_id'] ?? null;
-        // Cast defensively: a malformed payload may carry a non-string where a string is expected,
-        // and the adapter contract requires parsing never to throw (a TypeError is not an Exception).
         $recipient  = (string) ($data['recipient'] ?? '');
         $status     = (string) ($data['status']    ?? '');
         $terminal   = (bool) ($data['terminal'] ?? false);
@@ -98,20 +99,24 @@ class DeliveryEvent
         ];
     }
 
+    /**
+     * Dedup hash including terminal and detail so identical replays collide but distinct events don't.
+     */
     public function hash(int $logId): string
     {
-        // Include terminal + detail so two genuinely-distinct no-timestamp events don't collide,
-        // while an identical replay still hashes equal and dedups.
         $hashData = $logId . '|' . $this->recipient . '|' . $this->status . '|' . ($this->occurredAt ?? '')
             . '|' . ($this->terminal ? '1' : '0') . '|' . ($this->detail ?? '');
 
         return hash('sha256', $hashData);
     }
 
+    /**
+     * Normalize timestamp (unix or ISO) to UTC Y-m-d H:i:s; handle int/float/string representations.
+     *
+     * @param mixed $raw
+     */
     private static function normalizeOccurredAt($raw): ?string
     {
-        // A bare unix timestamp (int, float, or all-digit string) is not a parseable date string;
-        // render it to UTC directly so adapters can hand us the raw provider value unmodified.
         if (\is_int($raw) || \is_float($raw)) {
             return gmdate('Y-m-d H:i:s', (int) $raw);
         }

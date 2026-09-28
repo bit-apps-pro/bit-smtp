@@ -1,7 +1,8 @@
 import { type CSSProperties } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
+import { type AlertChannelType } from '@pages/Connections/types'
 import { Flex, Modal, Typography, theme } from 'antd'
-import { type ChannelDefinition, type ChannelKey } from './NotificationChannelFields'
+import { type ChannelDefinition } from './NotificationChannelFields'
 import cls from './NotificationChannelPickerModal.module.css'
 
 const { Text } = Typography
@@ -12,10 +13,10 @@ interface NotificationChannelPickerModalProps {
   open: boolean
   channels: ChannelDefinition[]
   onClose: () => void
-  onSelect: (key: ChannelKey) => void
+  onSelect: (type: AlertChannelType) => void
 }
 
-/** "Add channel" picker: a grid of tiles for the notification channel types not yet added — mirrors ProviderSelectorModal. */
+/** "Add channel" picker: a grid of tiles, one per notification channel type — mirrors ProviderSelectorModal. */
 export default function NotificationChannelPickerModal({
   open,
   channels,
@@ -24,8 +25,8 @@ export default function NotificationChannelPickerModal({
 }: NotificationChannelPickerModalProps) {
   const { token } = theme.useToken()
 
-  const handleSelect = (key: ChannelKey) => {
-    onSelect(key)
+  const handleSelect = (type: AlertChannelType) => {
+    onSelect(type)
     onClose()
   }
 
@@ -46,11 +47,11 @@ export default function NotificationChannelPickerModal({
           const Icon = channel.icon
           return (
             <button
-              key={channel.key}
+              key={channel.type}
               type="button"
               className={cls.tile}
               style={tileStyle}
-              onClick={() => handleSelect(channel.key)}
+              onClick={() => handleSelect(channel.type)}
             >
               <Flex vertical align="center" gap="small">
                 <span

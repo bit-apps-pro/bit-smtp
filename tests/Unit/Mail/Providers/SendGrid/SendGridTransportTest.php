@@ -293,8 +293,6 @@ class SendGridTransportTest extends BaseUnitTestCase
             'attachments' => ['missing.txt' => '/nonexistent/path/missing.txt'],
         ]);
 
-        // The strategy path builds/encodes the body before touching the client, so an
-        // unreadable attachment aborts before setHeaders()/post() are ever invoked.
         $this->apiClient->shouldNotReceive('setHeaders');
         $this->apiClient->shouldNotReceive('post');
 
@@ -377,8 +375,7 @@ class SendGridTransportTest extends BaseUnitTestCase
     }
 
     /**
-     * The strategy path posts the pre-encoded JSON body string; decode it back to an array
-     * so these assertions can keep comparing structure rather than raw bytes.
+     * Strategy posts pre-encoded JSON body string; decode back to array for structure assertions.
      */
     private function decodeBody(string $bodyJson): array
     {

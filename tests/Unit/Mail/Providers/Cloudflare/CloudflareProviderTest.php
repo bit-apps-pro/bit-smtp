@@ -18,8 +18,7 @@ use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Exercises the Cloudflare Email Sending contract at the HTTP boundary: the documented bearer
- * header, account-scoped endpoint, structured JSON builder payload, and response envelope.
+ * Exercises Cloudflare Email Sending contract: bearer header, account-scoped endpoint, JSON payload, response envelope.
  *
  * @internal
  *

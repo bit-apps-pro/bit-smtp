@@ -5,8 +5,7 @@ namespace BitApps\SMTP\HTTP\Requests\Rules;
 use BitApps\SMTP\Deps\BitApps\WPValidator\Rule;
 
 /**
- * wp-validator rule that accepts a value only if it strictly matches one of a fixed set of choices;
- * used for schema-driven enum fields, since wp-validator ships no built-in "in" rule.
+ * wp-validator rule accepting values strictly matching fixed choices (enum fields).
  */
 final class InRule extends Rule
 {

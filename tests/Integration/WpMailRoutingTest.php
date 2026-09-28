@@ -9,8 +9,7 @@ use Mockery;
 use ReflectionClass;
 
 /**
- * Exercises smart-routing in the live pre_wp_mail dispatch: a matching rule sends via its chosen
- * connection first, while a non-matching send keeps the ordinary default->fallback order (BC).
+ * Tests smart-routing in dispatch: matching rules use chosen connection; non-matches use default/fallback.
  *
  * @internal
  *
@@ -26,8 +25,6 @@ final class WpMailRoutingTest extends IntegrationTestCase
 
     public function testMatchingRoutingRuleSendsViaChosenConnectionFirst(): void
     {
-        // Default is an unreachable SMTP host; connection B points at mailpit. The rule routes any
-        // recipient on routed.test to B, so B must be tried FIRST and the unreachable default skipped.
         $this->storeV2(
             [
                 $this->connection('conn_default', '127.0.0.1', 2),
@@ -44,8 +41,6 @@ final class WpMailRoutingTest extends IntegrationTestCase
         $this->assertNotEmpty($this->mailpitMessages(), 'the routed connection B should deliver to mailpit');
         $this->assertFalse(Plugin::instance()->smtpProvider()->isFailed());
 
-        // Exactly one attempt means B (the routed connection) was first and succeeded outright; the
-        // unreachable default was never tried (that would have produced a second, failed log row).
         $logs = $this->logs();
         $this->assertCount(1, $logs, 'the routed connection must be attempted first, skipping the default');
         $this->assertSame(Log::SUCCESS, $logs[0]->status);
@@ -55,9 +50,6 @@ final class WpMailRoutingTest extends IntegrationTestCase
 
     public function testNonMatchingRecipientKeepsTheDefaultOrder(): void
     {
-        // Same settings, but a recipient the rule does not match: routing yields nothing, so the
-        // ordinary order runs — the unreachable default is tried first and fails, then the mailpit
-        // connection delivers via the normal fallback tail. Proves no reroute for non-matching mail.
         $this->storeV2(
             [
                 $this->connection('conn_default', '127.0.0.1', 2),

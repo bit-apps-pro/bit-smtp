@@ -34,15 +34,15 @@ final class BitSmtpRetryQueueMigration extends Migration
         );
     }
 
+    /**
+     * Drop retry queue table on uninstall-with-purge; must use withWpPrefix() not bare Schema::drop().
+     */
     public function down()
     {
         if (!UninstallPurge::shouldPurge()) {
             return;
         }
 
-        // withWpPrefix(), not a bare Schema::drop(): the static form leaves the prefix null and
-        // emits an unprefixed `DROP TABLE mail_retry_queue`, which matches nothing and leaves the
-        // real (encrypted-payload) table behind on uninstall-with-purge.
         Schema::withWpPrefix()->drop('mail_retry_queue');
     }
 }

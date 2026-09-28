@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Plugin;
 
 /**
- * Drives wp_mail() through the ZeptoMail API transport (mocking the outbound HTTP call) and
- * proves the api_key credential reaches the request as the "Zoho-enczapikey" Authorization
- * header whether it was stored encrypted-at-rest or as legacy (pre-encryption) plaintext.
+ * Verifies ZeptoMail API transport handles both encrypted and legacy plaintext credentials.
  *
  * @internal
  *
@@ -44,6 +42,9 @@ final class ZeptoSendTest extends IntegrationTestCase
         $this->assertZeptoRequestCarriedTheCredentials($sent, $captured, $apiKey, 'Encrypted ZeptoMail Send');
     }
 
+    /**
+     * Send works with credentials stored as pre-encryption plaintext (bypasses service API to simulate).
+     */
     public function testSendsSuccessfullyWhenTheCredentialsAreStoredAsLegacyPlaintext(): void
     {
         $apiKey   = 'legacy-plaintext-api-key';
@@ -53,7 +54,6 @@ final class ZeptoSendTest extends IntegrationTestCase
         add_filter('pre_http_request', $filter, 10, 3);
 
         try {
-            // Bypasses MailConfigService::store(), mimicking an option row written before encryption existed.
             $this->storeOptions($this->v2($apiKey));
             Plugin::instance()->mailConfigService()->reload();
 

@@ -6,9 +6,7 @@ use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 
 /**
- * When the plugin defers a send to core wp_mail (no usable connection), the native-path log listeners
- * must still capture the From/Cc/Bcc that live inside the raw headers — not persist blanks — matching
- * what the dispatch path records.
+ * Verifies native-path logging captures From/Cc/Bcc from headers when dispatch is unavailable.
  *
  * @internal
  *
@@ -16,15 +14,16 @@ use BitApps\SMTP\Plugin;
  */
 final class NativeMailLoggingTest extends IntegrationTestCase
 {
+    /**
+     * Disables plugin dispatch and installs a capturing MockPHPMailer so core wp_mail runs natively without a network send.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Plugin dispatch disabled, so pre_wp_mail defers to core wp_mail (the native path under test).
         $this->storeOptions(['status' => false]);
         Plugin::instance()->mailConfigService()->reload();
 
-        // A fresh capturing MockPHPMailer so core wp_mail "succeeds" without a real network send.
         reset_phpmailer_instance();
 
         $this->truncateTables((new Log())->getTable());
@@ -51,6 +50,9 @@ final class NativeMailLoggingTest extends IntegrationTestCase
         $this->assertSame(['bcc@example.org'], $log->bcc);
     }
 
+    /**
+     * Guards the blank-sender bug: the effective wp_mail default sender must fill it.
+     */
     public function testNativeDeferredSendWithoutAFromHeaderStillLogsANonEmptySender(): void
     {
         wp_mail('to@example.org', 'Native Default Sender', 'Body');
@@ -58,7 +60,6 @@ final class NativeMailLoggingTest extends IntegrationTestCase
         $log = Log::where('subject', 'Native Default Sender')->first();
         $this->assertInstanceOf(Log::class, $log);
 
-        // The bug this guards: a blank sender. The effective wp_mail default (wordpress@<domain>) fills it.
         $this->assertNotSame('', $log->sender);
         $this->assertStringContainsString('@', (string) $log->sender);
     }

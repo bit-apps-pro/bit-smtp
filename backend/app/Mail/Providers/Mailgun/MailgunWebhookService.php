@@ -9,17 +9,14 @@ use BitApps\SMTP\Mail\Providers\AbstractWebhookProvisioner;
 use RuntimeException;
 
 /**
- * Mailgun registers delivery webhooks per sending domain, form-encoded, one URL per event id (not a
- * single JSON call like other providers). The {domain} is user input spliced into the request path, so
- * it is validated against the same hostname guard the descriptor transport uses before interpolation.
+ * Mailgun webhook service for per-domain form-encoded webhooks with hostname validation.
  */
 final class MailgunWebhookService extends AbstractWebhookProvisioner
 {
     private const PROVIDER = 'mailgun';
 
     /**
-     * RFC 1123 hostname (a-z/0-9/hyphen labels, 1..253 chars). Mirrors DescriptorApiTransport's SSRF
-     * guard: a bad {domain} must be rejected, never interpolated into the request URL.
+     * RFC 1123 hostname pattern with SSRF rejection guard.
      */
     private const HOSTNAME_PATTERN = '/^(?=.{1,253}$)([a-z0-9](-?[a-z0-9])*)(\.[a-z0-9](-?[a-z0-9])*)+$/iD';
 
@@ -28,13 +25,12 @@ final class MailgunWebhookService extends AbstractWebhookProvisioner
     private const DEFAULT_REGION = 'us';
 
     /**
-     * Least privilege: only the delivery-status events the Logs UI renders.
+     * Only the delivery-status events displayed in Logs UI (least privilege).
      */
     private const EVENTS = ['delivered', 'permanent_fail', 'temporary_fail'];
 
     /**
-     * Register our delivery webhook for each tracked event on the connection's Mailgun domain, skipping
-     * any event already pointing at our URL. Idempotent, so re-running only fills in what is missing.
+     * Register webhooks for all tracked events, skipping those already pointing at this URL.
      *
      * @return array{created: bool, id: string}
      */
@@ -68,6 +64,9 @@ final class MailgunWebhookService extends AbstractWebhookProvisioner
         return ['created' => $created, 'id' => $domain];
     }
 
+    /**
+     * Delete webhook only if ours is the sole URL for that event; v3 DELETE removes all URLs for the event.
+     */
     public function deregister(Connection $connection): void
     {
         $this->assertProvider($connection, self::PROVIDER);
@@ -83,8 +82,6 @@ final class MailgunWebhookService extends AbstractWebhookProvisioner
             return;
         }
 
-        // A v3 event DELETE removes EVERY url for that event type, so only fire it when OUR url is the
-        // sole one registered — never nuke a co-tenant's url that shares the event on the same domain.
         $registered = $this->registeredEventUrls($existing->getBody());
         foreach (self::EVENTS as $event) {
             if ($registered[$event] === [$url]) {
@@ -103,11 +100,13 @@ final class MailgunWebhookService extends AbstractWebhookProvisioner
         return $domain;
     }
 
+    /**
+     * Resolve the Mailgun API host for the connection's region; rejects unknown regions to prevent SSRF.
+     */
     private function host(Connection $connection): string
     {
         $region = (string) $connection->setting('region', '') ?: self::DEFAULT_REGION;
 
-        // Closed map: an unknown region is a hard error, never spliced into the host (SSRF guard).
         if (!isset(self::HOST_BY_REGION[$region])) {
             throw new RuntimeException(esc_html__('The configured Mailgun region is not supported for delivery webhooks.', 'bit-smtp'));
         }

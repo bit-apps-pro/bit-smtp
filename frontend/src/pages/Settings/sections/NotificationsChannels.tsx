@@ -2,130 +2,97 @@ import { useState } from 'react'
 import { BellOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
-import { type FailureAlertSettings, type MailSettings } from '@pages/Connections/types'
-import SettingsPanel, { PanelDivider } from '@pages/Settings/components/SettingsPanel'
-import useTestNotification, {
-  type NotificationChannel,
-  type TestNotificationResult
-} from '@pages/Settings/data/useTestNotification'
-import { Button, Flex, Form, type FormInstance, Switch, Typography, theme } from 'antd'
-import NotificationChannelCard from './NotificationChannelCard'
-import { type ChannelKey, NOTIFICATION_CHANNELS } from './NotificationChannelFields'
-import NotificationChannelPickerModal from './NotificationChannelPickerModal'
 import {
-  isDiscordWebhookUrl,
-  isSlackIncomingWebhookUrl,
-  isTelegramBotToken,
-  isValidTelegramChatId
-} from './notificationChannels.helpers'
+  type AlertChannel,
+  type AlertChannelSettings,
+  type AlertChannelType,
+  type AlertDeliveryStatus,
+  type FailureAlertSettings,
+  type MailSettings,
+  type StoredAlertSettings
+} from '@pages/Connections/types'
+import SettingsPanel, { PanelDivider } from '@pages/Settings/components/SettingsPanel'
+import useTestNotification from '@pages/Settings/data/useTestNotification'
+import {
+  Alert,
+  Button,
+  Flex,
+  Form,
+  type FormInstance,
+  Select,
+  Switch,
+  Tooltip,
+  Typography,
+  theme
+} from 'antd'
+import NotificationChannelCard from './NotificationChannelCard'
+import { NOTIFICATION_CHANNELS, channelDefinition, settingsPath } from './NotificationChannelFields'
+import NotificationChannelPickerModal from './NotificationChannelPickerModal'
+import { defaultChannelName, newChannelId } from './notificationChannels.helpers'
 
 const { Title, Text } = Typography
 
-export interface NotificationFormValues {
-  enabled: boolean
-  emailEnabled: boolean
-  recipients: string[]
-  webhookEnabled: boolean
-  webhookUrl: string
-  signingSecret: string
-  slackEnabled: boolean
-  slackWebhookUrl: string
-  telegramEnabled: boolean
-  telegramBotToken: string
-  telegramChatId: string
-  discordEnabled: boolean
-  discordWebhookUrl: string
+/** Per-site channel cap, mirrored from backend (AlertSettingsNormalizer drops extras on save). */
+export const MAX_CHANNELS = 20
+
+/** Backend default for `reminder_minutes`. */
+export const DEFAULT_REMINDER_MINUTES = 60
+
+export type NotificationFormValues = FailureAlertSettings
+
+/** The stored `features.alerts` blob with its server metadata, or undefined before alerts are configured. */
+export function storedAlerts(settings: MailSettings): StoredAlertSettings | undefined {
+  const raw = settings.features.alerts
+
+  return Array.isArray(raw) ? undefined : raw
 }
 
-/** Normalize the mail-settings `features.alerts` blob (which may still be the pre-seed `[]`) into a full shape. */
+/** Read the mail-settings `features.alerts` blob (the pre-seed `[]` included) into the editable shape. */
 function readAlerts(settings: MailSettings): FailureAlertSettings {
-  const raw = settings.features.alerts
-  const alerts = Array.isArray(raw) ? undefined : raw
+  const alerts = storedAlerts(settings)
 
   return {
     enabled: alerts?.enabled ?? false,
-    email: {
-      enabled: alerts?.email?.enabled ?? false,
-      recipients: alerts?.email?.recipients ?? []
-    },
-    webhook: {
-      enabled: alerts?.webhook?.enabled ?? false,
-      url: alerts?.webhook?.url ?? '',
-      signing_secret: alerts?.webhook?.signing_secret ?? ''
-    },
-    slack: {
-      enabled: alerts?.slack?.enabled ?? false,
-      webhook_url: alerts?.slack?.webhook_url ?? ''
-    },
-    telegram: {
-      enabled: alerts?.telegram?.enabled ?? false,
-      bot_token: alerts?.telegram?.bot_token ?? '',
-      chat_id: alerts?.telegram?.chat_id ?? ''
-    },
-    discord: {
-      enabled: alerts?.discord?.enabled ?? false,
-      webhook_url: alerts?.discord?.webhook_url ?? ''
-    }
+    reminder_minutes: alerts?.reminder_minutes ?? DEFAULT_REMINDER_MINUTES,
+    channels: alerts?.channels ?? []
   }
 }
 
-/** Split the mail-settings alerts blob into the flat shape the Notifications channels Form binds to. */
+/** Seed the Notifications Form from the stored alerts settings. */
 export function toAlertsFormValues(settings: MailSettings): NotificationFormValues {
-  const alerts = readAlerts(settings)
-
-  return {
-    enabled: alerts.enabled,
-    emailEnabled: alerts.email.enabled,
-    recipients: alerts.email.recipients,
-    webhookEnabled: alerts.webhook.enabled,
-    webhookUrl: alerts.webhook.url,
-    signingSecret: alerts.webhook.signing_secret,
-    slackEnabled: alerts.slack.enabled,
-    slackWebhookUrl: alerts.slack.webhook_url,
-    telegramEnabled: alerts.telegram.enabled,
-    telegramBotToken: alerts.telegram.bot_token,
-    telegramChatId: alerts.telegram.chat_id,
-    discordEnabled: alerts.discord.enabled,
-    discordWebhookUrl: alerts.discord.webhook_url
-  }
+  return readAlerts(settings)
 }
 
-/** Re-nest the flat Notifications channels Form values back into the stored `features.alerts` shape. */
+/** Trim every string setting (and recipient) so whitespace never reaches the backend validators. */
+function trimSettings({ recipients, ...rest }: AlertChannelSettings): AlertChannelSettings {
+  const trimmed: AlertChannelSettings = Object.fromEntries(
+    Object.entries(rest).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value])
+  )
+
+  return recipients
+    ? { ...trimmed, recipients: recipients.map(recipient => recipient.trim()).filter(Boolean) }
+    : trimmed
+}
+
+/** Normalize the Form values into the stored `features.alerts` shape. */
 export function toStoredAlerts(values: NotificationFormValues): FailureAlertSettings {
   return {
     enabled: values.enabled,
-    email: {
-      enabled: values.emailEnabled,
-      recipients: values.recipients.map(recipient => recipient.trim()).filter(Boolean)
-    },
-    webhook: {
-      enabled: values.webhookEnabled,
-      url: values.webhookUrl.trim(),
-      signing_secret: values.signingSecret.trim()
-    },
-    slack: {
-      enabled: values.slackEnabled,
-      webhook_url: values.slackWebhookUrl.trim()
-    },
-    telegram: {
-      enabled: values.telegramEnabled,
-      bot_token: values.telegramBotToken.trim(),
-      chat_id: values.telegramChatId.trim()
-    },
-    discord: {
-      enabled: values.discordEnabled,
-      webhook_url: values.discordWebhookUrl.trim()
-    }
+    reminder_minutes: values.reminder_minutes,
+    channels: (values.channels ?? []).map(channel => ({
+      ...channel,
+      name: channel.name.trim(),
+      settings: trimSettings(channel.settings)
+    }))
   }
 }
 
 interface EmptyChannelsProps {
-  disabled: boolean
   onAddChannel: () => void
 }
 
 /** Dashed-border empty state shown when no notification channel has been added yet — mirrors EmptyConnections. */
-function EmptyChannels({ disabled, onAddChannel }: EmptyChannelsProps) {
+function EmptyChannels({ onAddChannel }: EmptyChannelsProps) {
   const { token } = theme.useToken()
 
   return (
@@ -161,14 +128,40 @@ function EmptyChannels({ disabled, onAddChannel }: EmptyChannelsProps) {
       <Text type="secondary" style={{ maxWidth: 360 }}>
         {__('Add a channel to get notified the moment delivery starts failing.')}
       </Text>
-      <Button
-        type="primary"
-        disabled={disabled}
-        onClick={onAddChannel}
-        style={{ marginTop: token.marginXS }}
-      >
+      <Button type="primary" onClick={onAddChannel} style={{ marginTop: token.marginXS }}>
         {__('Add channel')}
       </Button>
+    </Flex>
+  )
+}
+
+interface DeliveryWarningsProps {
+  delivery?: AlertDeliveryStatus
+}
+
+/** Warn when the server reports that queued alerts can't go out promptly because WP-Cron isn't running. */
+function DeliveryWarnings({ delivery }: DeliveryWarningsProps) {
+  const { token } = theme.useToken()
+  const warnings = [
+    delivery?.cron_disabled &&
+      __(
+        'WP-Cron is disabled on this site (DISABLE_WP_CRON). Alerts are sent only when a real cron job runs wp-cron.php.'
+      ),
+    delivery?.overdue &&
+      __(
+        "Some alerts are waiting to be sent. WP-Cron hasn't run recently — check that your site's cron is working."
+      )
+  ].filter((warning): warning is string => Boolean(warning))
+
+  if (warnings.length === 0) {
+    return null
+  }
+
+  return (
+    <Flex vertical gap="small" style={{ marginBottom: token.marginSM }}>
+      {warnings.map(warning => (
+        <Alert key={warning} type="warning" showIcon message={warning} />
+      ))}
     </Flex>
   )
 }
@@ -178,120 +171,68 @@ interface NotificationsChannelsProps {
   settings: MailSettings
 }
 
-/**
- * Notifications tab: the failure-alerts master switch and an "added channels" list (mail-settings
- * store, `alertsForm`) mirroring the Connections "add connection" UX — only channels the user has
- * added render a card. Saving is orchestrated by the parent SettingsPage.
- */
+/** Notifications section: failure-alerts master switch plus channel instances; SettingsPage orchestrates the save. */
 export default function NotificationsChannels({ alertsForm, settings }: NotificationsChannelsProps) {
   const { token } = theme.useToken()
   const [isPickerOpen, setIsPickerOpen] = useState(false)
+  const [testingId, setTestingId] = useState<string | null>(null)
   const testNotification = useTestNotification()
+  const alertsEnabled = Form.useWatch('enabled', alertsForm)
 
-  const alertsEnabled = Form.useWatch('enabled', alertsForm) ?? false
-  const emailEnabled = Form.useWatch('emailEnabled', alertsForm) ?? false
-  const emailRecipients = Form.useWatch('recipients', alertsForm) ?? []
-  const webhookEnabled = Form.useWatch('webhookEnabled', alertsForm) ?? false
-  const webhookUrl = Form.useWatch('webhookUrl', alertsForm) ?? ''
-  const signingSecret = Form.useWatch('signingSecret', alertsForm) ?? ''
-  const slackEnabled = Form.useWatch('slackEnabled', alertsForm) ?? false
-  const slackWebhookUrl = Form.useWatch('slackWebhookUrl', alertsForm) ?? ''
-  const telegramEnabled = Form.useWatch('telegramEnabled', alertsForm) ?? false
-  const telegramBotToken = Form.useWatch('telegramBotToken', alertsForm) ?? ''
-  const telegramChatId = Form.useWatch('telegramChatId', alertsForm) ?? ''
-  const discordEnabled = Form.useWatch('discordEnabled', alertsForm) ?? false
-  const discordWebhookUrl = Form.useWatch('discordWebhookUrl', alertsForm) ?? ''
-
-  const addedByField: Record<string, boolean> = {
-    emailEnabled,
-    webhookEnabled,
-    slackEnabled,
-    telegramEnabled,
-    discordEnabled
-  }
-  const addedChannels = NOTIFICATION_CHANNELS.filter(channel => addedByField[channel.enabledField])
-  const availableChannels = NOTIFICATION_CHANNELS.filter(channel => !addedByField[channel.enabledField])
-  const hasChannels = addedChannels.length > 0
-  const canAddMore = availableChannels.length > 0
-
-  // Test gating mirrors the pre-redesign logic: a channel is testable only once its *saved* config is
-  // valid and the live form hasn't drifted from it — independent of the master `enabled` switch.
-  const savedAlerts = readAlerts(settings)
-  const savedRecipients = savedAlerts.email.recipients
-  const trimmedRecipients = emailRecipients.map(recipient => recipient.trim()).filter(Boolean)
-  const emailTargetIsUnsaved =
-    emailEnabled !== savedAlerts.email.enabled ||
-    trimmedRecipients.length !== savedRecipients.length ||
-    trimmedRecipients.some((recipient, index) => recipient !== savedRecipients[index])
-  const webhookTargetIsUnsaved =
-    webhookEnabled !== savedAlerts.webhook.enabled ||
-    webhookUrl.trim() !== savedAlerts.webhook.url ||
-    signingSecret.trim() !== savedAlerts.webhook.signing_secret
-  const slackTargetIsUnsaved =
-    slackEnabled !== savedAlerts.slack.enabled ||
-    slackWebhookUrl.trim() !== savedAlerts.slack.webhook_url
-  const telegramTargetIsUnsaved =
-    telegramEnabled !== savedAlerts.telegram.enabled ||
-    telegramBotToken.trim() !== savedAlerts.telegram.bot_token ||
-    telegramChatId.trim() !== savedAlerts.telegram.chat_id
-  const discordTargetIsUnsaved =
-    discordEnabled !== savedAlerts.discord.enabled ||
-    discordWebhookUrl.trim() !== savedAlerts.discord.webhook_url
-  const canTestByChannel: Partial<Record<ChannelKey, boolean>> = {
-    email: savedAlerts.email.enabled && savedRecipients.length > 0 && !emailTargetIsUnsaved,
-    webhook:
-      savedAlerts.webhook.enabled &&
-      savedAlerts.webhook.url.trim() !== '' &&
-      savedAlerts.webhook.signing_secret.trim() !== '' &&
-      !webhookTargetIsUnsaved,
-    slack:
-      savedAlerts.slack.enabled &&
-      isSlackIncomingWebhookUrl(savedAlerts.slack.webhook_url) &&
-      !slackTargetIsUnsaved,
-    telegram:
-      savedAlerts.telegram.enabled &&
-      isTelegramBotToken(savedAlerts.telegram.bot_token) &&
-      isValidTelegramChatId(savedAlerts.telegram.chat_id) &&
-      !telegramTargetIsUnsaved,
-    discord:
-      savedAlerts.discord.enabled &&
-      isDiscordWebhookUrl(savedAlerts.discord.webhook_url) &&
-      !discordTargetIsUnsaved
-  }
+  const reminderOptions = [
+    { value: 0, label: __('Never') },
+    { value: 15, label: __('Every 15 minutes') },
+    { value: 30, label: __('Every 30 minutes') },
+    { value: 60, label: __('Every hour') },
+    { value: 240, label: __('Every 4 hours') },
+    { value: 1440, label: __('Once a day') }
+  ]
 
   const openPicker = () => setIsPickerOpen(true)
   const closePicker = () => setIsPickerOpen(false)
 
-  /** Mark a channel as added; its card then renders with blank fields ready to configure. */
-  const handleAddChannel = (key: ChannelKey) => {
-    const channel = NOTIFICATION_CHANNELS.find(candidate => candidate.key === key)
-    if (channel) {
-      alertsForm.setFieldValue(channel.enabledField, true)
+  /** Build a blank, enabled instance of `type`, named so it stays distinguishable from its siblings. */
+  const createChannel = (type: AlertChannelType): AlertChannel => {
+    const definition = channelDefinition(type)
+    const existing: AlertChannel[] = alertsForm.getFieldValue('channels') ?? []
+
+    return {
+      id: newChannelId(),
+      type,
+      name: defaultChannelName(
+        definition?.label ?? type,
+        existing.filter(channel => channel.type === type)
+      ),
+      enabled: true,
+      settings: { ...definition?.emptySettings }
     }
   }
 
-  /** Turn a channel off and blank its fields/secrets, so re-adding starts clean and nothing stale is saved. */
-  const handleRemoveChannel = (key: ChannelKey) => {
-    const channel = NOTIFICATION_CHANNELS.find(candidate => candidate.key === key)
-    if (channel) {
-      alertsForm.setFieldsValue(channel.clearValuesOnRemove)
+  /** Validate one card's fields, then send a test alert from its current (unsaved) values. */
+  const handleTest = async (index: number) => {
+    const channel: AlertChannel = alertsForm.getFieldValue(['channels', index])
+    const settingKeys = Object.keys(channelDefinition(channel.type)?.emptySettings ?? {})
+    try {
+      await alertsForm.validateFields(
+        settingKeys.map(key => settingsPath(index, key as keyof AlertChannelSettings))
+      )
+    } catch {
+      return
     }
-  }
 
-  const handleTest = (channel: NotificationChannel) => {
+    setTestingId(channel.id)
     testNotification.mutate(
-      { channel },
+      { channel: { id: channel.id, type: channel.type, settings: trimSettings(channel.settings) } },
       {
-        onSuccess: (result: TestNotificationResult) => {
+        onSuccess: result => {
           if (result.ok) {
             notify.success(__('Test notification sent'))
             return
           }
-          notify.error(__('Notification test failed'))
+          notify.error(result.error || __('Notification test failed'))
         },
-        onError: () => {
-          notify.error(__('Notification test failed'))
-        }
+        onError: () => notify.error(__('Notification test failed')),
+        onSettled: () => setTestingId(null)
       }
     )
   }
@@ -310,70 +251,86 @@ export default function NotificationsChannels({ alertsForm, settings }: Notifica
           valuePropName="checked"
           extra={
             <Text type="secondary">
-              {__('Notify once when sending starts failing. A successful send resets the notification.')}
+              {__(
+                'Get one alert when sending starts failing and another when it recovers, with how many emails failed in between.'
+              )}
             </Text>
           }
         >
           <Switch />
         </Form.Item>
+        {alertsEnabled && <DeliveryWarnings delivery={storedAlerts(settings)?.delivery} />}
+        <PanelDivider />
+        <Form.Item
+          name="reminder_minutes"
+          label={__('Remind me while still failing')}
+          extra={
+            <Text type="secondary">
+              {__('Repeat the alert with a running count until sending recovers.')}
+            </Text>
+          }
+        >
+          <Select options={reminderOptions} style={{ maxWidth: 240 }} />
+        </Form.Item>
         <PanelDivider />
 
-        {/* Always mounted (just visually hidden) so each channel's "added" flag is registered with
-            the Form store from the first render — a field whose Form.Item never mounts never picks
-            up its `initialValues` entry, which would otherwise make every channel look "not added". */}
-        {NOTIFICATION_CHANNELS.map(channel => (
-          <Form.Item key={channel.key} name={channel.enabledField} valuePropName="checked" hidden>
-            <Switch />
-          </Form.Item>
-        ))}
+        <Form.List name="channels">
+          {(fields, { add, remove }) => (
+            <>
+              <Flex justify="space-between" align="center" style={{ marginBottom: token.marginSM }}>
+                <Title level={5} style={{ margin: 0 }}>
+                  {__('Channels')}
+                </Title>
+                {fields.length > 0 && (
+                  <Tooltip
+                    title={
+                      fields.length >= MAX_CHANNELS
+                        ? __('You can add up to 20 channels. Remove one to add another.')
+                        : undefined
+                    }
+                  >
+                    <Button disabled={fields.length >= MAX_CHANNELS} onClick={openPicker}>
+                      {__('Add channel')}
+                    </Button>
+                  </Tooltip>
+                )}
+              </Flex>
 
-        {/* Same reasoning for each not-added channel's own value fields: without a stand-in, a
-            channel that's never been added is missing from getFieldsValue() entirely, and
-            toStoredAlerts() would crash trimming an undefined value at save time. */}
-        {availableChannels.map(channel => (
-          <channel.HiddenFields key={channel.key} />
-        ))}
+              {fields.length > 0 ? (
+                <Flex vertical gap="middle">
+                  {fields.map(field => {
+                    const channel: AlertChannel = alertsForm.getFieldValue(['channels', field.name])
+                    const definition = channelDefinition(channel.type)
+                    if (!definition) {
+                      return null
+                    }
 
-        <Flex justify="space-between" align="center" style={{ marginBottom: token.marginSM }}>
-          <Title level={5} style={{ margin: 0 }}>
-            {__('Channels')}
-          </Title>
-          {hasChannels && canAddMore && (
-            <Button disabled={!alertsEnabled} onClick={openPicker}>
-              {__('Add channel')}
-            </Button>
-          )}
-        </Flex>
+                    return (
+                      <NotificationChannelCard
+                        key={field.key}
+                        index={field.name}
+                        definition={definition}
+                        onRemove={() => remove(field.name)}
+                        onTest={() => handleTest(field.name)}
+                        testLoading={testingId === channel.id}
+                        testDisabled={testingId !== null && testingId !== channel.id}
+                      />
+                    )
+                  })}
+                </Flex>
+              ) : (
+                <EmptyChannels onAddChannel={openPicker} />
+              )}
 
-        {hasChannels ? (
-          <Flex vertical gap="middle">
-            {addedChannels.map(channel => (
-              <NotificationChannelCard
-                key={channel.key}
-                channel={channel}
-                alertsForm={alertsForm}
-                disabled={!alertsEnabled}
-                onRemove={() => handleRemoveChannel(channel.key)}
-                onTest={
-                  channel.testChannel
-                    ? () => handleTest(channel.testChannel as NotificationChannel)
-                    : undefined
-                }
-                testDisabled={!canTestByChannel[channel.key] || testNotification.isPending}
-                testLoading={testNotification.isPending}
+              <NotificationChannelPickerModal
+                open={isPickerOpen}
+                channels={NOTIFICATION_CHANNELS}
+                onClose={closePicker}
+                onSelect={type => add(createChannel(type))}
               />
-            ))}
-          </Flex>
-        ) : (
-          <EmptyChannels disabled={!alertsEnabled} onAddChannel={openPicker} />
-        )}
-
-        <NotificationChannelPickerModal
-          open={isPickerOpen}
-          channels={availableChannels}
-          onClose={closePicker}
-          onSelect={handleAddChannel}
-        />
+            </>
+          )}
+        </Form.List>
       </Form>
     </SettingsPanel>
   )

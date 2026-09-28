@@ -94,12 +94,10 @@ function clickedLinkColumns(): TableColumnsType<ClickedLink> {
 export default function EngagementMetrics({ engagement }: { engagement: Engagement }) {
   const { token } = theme.useToken()
   const { opens, clicks, open_rate: openRate, click_rate: clickRate } = engagement
-  // Guard against a pre-upgrade cached engagement blob (5-min transient TTL) lacking this field.
   const topLinks = engagement.top_clicked_links ?? []
   const hasOpenDenominator = openRate.denominator > 0
   const hasClickDenominator = clickRate.denominator > 0
 
-  // Honest headline: total opens, how many were machine-fired, and the confirmed-human remainder.
   const honestOpens = `${__('Opens')}: ${formatExactNumber(opens.total)} (${formatExactNumber(
     opens.automated
   )} ${__('flagged automated — Apple Mail Privacy / image proxies / prefetch')}). ${__(

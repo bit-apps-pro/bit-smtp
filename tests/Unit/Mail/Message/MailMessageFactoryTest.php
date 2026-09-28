@@ -7,8 +7,7 @@ use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 
 /**
- * Unit-covers the header-string parsing of the wp_mail fork. The three wp_mail filters are
- * stubbed to return their argument unchanged so we assert core's parsing, not filter effects.
+ * Covers header-string parsing of wp_mail fork; filters stubbed to test core parsing, not filter effects.
  *
  * @internal
  *
@@ -105,7 +104,6 @@ class MailMessageFactoryTest extends BaseUnitTestCase
             'headers' => $headers,
         ]);
 
-        // The factory keeps the "Name <addr>" form; the transport splits it at send time.
         $this->assertSame(['Cee Cee <cc@example.com>'], $message->getCc());
         $this->assertSame(['Bee Cee <bcc@example.com>'], $message->getBcc());
         $this->assertSame('Reply Person <reply@example.com>', $message->getReplyTo());

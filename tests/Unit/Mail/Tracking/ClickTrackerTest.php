@@ -22,7 +22,6 @@ final class ClickTrackerTest extends BaseUnitTestCase
 
     public function testDestinationDecodesHtmlEntitiesInTheCapturedUrl(): void
     {
-        // The href was captured from HTML, so `&amp;` must be decoded back to `&` before redirecting.
         $token = TokenSigner::sign(['t' => 'uuid', 'u' => 'https://shop.example/o?a=1&amp;b=2']);
 
         self::assertSame('https://shop.example/o?a=1&b=2', ClickTracker::destination($token));

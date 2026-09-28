@@ -8,12 +8,11 @@ use PHPMailer\PHPMailer\PHPMailer;
 use WP_Error;
 
 /**
- * Records wp_mail outcomes. Buffers logs in a memory-aware pending queue and bulk-flushes them,
- * except on the retry path where the originating log row is updated in place.
+ * Record wp_mail outcomes with buffering and bulk-flush, or in-place update on retry.
  */
 class MailEventLogger
 {
-    private const MEMORY_THRESHOLD = 104857600; // 100MB
+    private const MEMORY_THRESHOLD = 104857600;
 
     private LogService $logger;
 
@@ -27,6 +26,9 @@ class MailEventLogger
         $this->logger = $logger;
     }
 
+    /**
+     * Log a successful mail send; clears the one-shot resend parent so later ordinary sends are not mislabeled as resend children.
+     */
     public function logMailSuccess(array $mailData, SendContext $context, ?string $connection = null, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null): void
     {
         $decision = $context->getRoutingDecision();
@@ -40,8 +42,6 @@ class MailEventLogger
 
         $context->setFailed(false);
         $context->setRetrying(false);
-        // Clear the one-shot resend parent so a later ordinary send in the same request (the bridge's
-        // context is a request-lived singleton) is never mislabeled as this resend's child.
         $context->setResendParentId(null);
     }
 
@@ -68,7 +68,7 @@ class MailEventLogger
     }
 
     /**
-     * Flush any logs still buffered (e.g. from the owning object's destruct).
+     * Flush any buffered logs.
      */
     public function flushPendingLogs(): void
     {
@@ -81,9 +81,7 @@ class MailEventLogger
     }
 
     /**
-     * True only for a PHPMailer connection-level failure. API providers short-circuit pre_wp_mail
-     * before WordPress lazy-loads PHPMailer, so the class guard keeps the constant access from
-     * fataling on their failure path (their code carries an HTTP status, never STOP_CRITICAL).
+     * True only for a PHPMailer connection failure (class guard prevents fatalizing on API provider paths).
      */
     private function isSmtpConnectionFailure(WP_Error $error): bool
     {
@@ -97,6 +95,8 @@ class MailEventLogger
     }
 
     /**
+     * Queues a log entry; only manual resend carries a parent id to avoid mislabeling ordinary and retry-worker sends.
+     *
      * @param array|WP_Error $data
      */
     private function queue(int $status, $data, SendContext $context, ?string $connection, ?string $messageId = null, ?string $trackingId = null, ?string $connectionId = null, ?string $deliveryStatus = null, ?string $failureClass = null): void
@@ -120,8 +120,6 @@ class MailEventLogger
             $log['routing_rule_index'] = $decision->ruleIndex();
         }
 
-        // Only a manual resend carries a parent id; the key is omitted (never null) on the ordinary
-        // and retry-worker INSERT paths so those rows are not mislabeled as resend children.
         $resendParentId = $context->getResendParentId();
         if ($resendParentId !== null) {
             $log['resend_parent_id'] = $resendParentId;

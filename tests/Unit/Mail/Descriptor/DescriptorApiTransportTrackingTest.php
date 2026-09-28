@@ -15,8 +15,7 @@ use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Mockery;
 
 /**
- * Exercises the descriptor transport's tracking-channel and message-id wiring through the real
- * Postmark and Brevo provider descriptors.
+ * Exercises descriptor transport's tracking-channel and message-id wiring via Postmark and Brevo providers.
  *
  * @internal
  *
@@ -32,7 +31,7 @@ class DescriptorApiTransportTrackingTest extends BaseUnitTestCase
     {
         parent::setUp();
         $this->apiClient = Mockery::mock(ApiClient::class);
-        // api_key auth never touches the token provider or signer, but the resolver requires both.
+
         $this->resolver = new AuthorizationResolver(
             Mockery::mock(OAuth2TokenProvider::class),
             new SigV4Signer()

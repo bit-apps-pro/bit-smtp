@@ -11,10 +11,7 @@ use BitApps\SMTP\Model\LogEngagementEvent;
 use BitApps\SMTP\Tests\Integration\IntegrationTestCase;
 
 /**
- * Drives the Open/Click trackers against the real test DB (mirrors WebhookControllerTest): a valid
- * open/click records and folds an engagement row, a click yields its original destination, an
- * invalid/tampered token writes nothing while still yielding a benign result, a prefetch-window fire
- * is flagged automated, and deleting a log cascades its engagement rows away.
+ * Tests Open/Click trackers: valid events record and fold, clicks yield destination, tampering is safe.
  *
  * @internal
  *
@@ -94,8 +91,6 @@ final class TrackingEndpointTest extends IntegrationTestCase
 
     public function testValidlySignedTokenForAnUnknownLogRecordsNothing(): void
     {
-        // A correctly signed token whose tracking uuid matches no persisted log (logging off, purged,
-        // or stale) must be a silent no-op.
         (new OpenTracker())->handle($this->openToken('no-such-tracking-uuid'), $this->humanRequest());
 
         global $wpdb;
@@ -104,7 +99,6 @@ final class TrackingEndpointTest extends IntegrationTestCase
 
     public function testNonHttpClickDestinationIsNotRedirected(): void
     {
-        // Defense-in-depth: even a validly signed non-http(s) 'u' must not produce a redirect target.
         self::assertNull(ClickTracker::destination($this->clickToken(self::TRACKING_ID, 'mailto:evil@example.test')));
         self::assertNull(ClickTracker::destination($this->clickToken(self::TRACKING_ID, 'javascript:alert(1)')));
     }
@@ -143,8 +137,7 @@ final class TrackingEndpointTest extends IntegrationTestCase
     }
 
     /**
-     * Persist a log carrying a tracking token, backdated so a normal open is not misread as a
-     * prefetch. A small $ageSeconds reproduces the prefetch window.
+     * Persists backdated log with tracking token to avoid prefetch misdetection.
      */
     private function seedLog(string $trackingId, int $ageSeconds = 3600): int
     {

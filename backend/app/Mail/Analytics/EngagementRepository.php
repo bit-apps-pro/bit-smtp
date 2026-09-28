@@ -4,86 +4,69 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Analytics;
 
-use BitApps\SMTP\Model\Log;
+use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Model\LogEngagementEvent;
 use WP_Error;
 
 /**
- * Fixed aggregate query over log_engagement_events joined to their in-range logs. Send time (the
- * log's created_at_utc) bounds the range; values travel only through wpdb::prepare. Human figures
- * keep automated fires (Apple MPP / image proxies / prefetch) separate so nothing is inflated.
+ * Fixed aggregate query over engagement events joined to in-range logs; separates automated fires from human engagement.
  */
 class EngagementRepository
 {
-    private object $database;
+    private const DATABASE_ERROR = 'The engagement aggregate query failed.';
 
-    private string $logsTable;
-
-    private string $eventsTable;
-
-    public function __construct(?object $database = null, ?string $logsTable = null, ?string $eventsTable = null)
-    {
-        if ($database === null) {
-            global $wpdb;
-            $database = $wpdb;
-        }
-
-        $this->database    = $database;
-        $this->logsTable   = $logsTable   ?? (new Log())->getTable();
-        $this->eventsTable = $eventsTable ?? (new LogEngagementEvent())->getTable();
-    }
+    private const CLICK = 'click';
 
     /**
-     * Opens and clicks folded across the range: total/automated hits, unique folded rows, and the
-     * distinct logs with at least one human fire (the numerator for the honest engagement rates).
+     * Aggregate opens and clicks with human-vs-automated split across the range.
      *
      * @return array<string,int>|WP_Error
      */
     public function engagement(AnalyticsQuery $query)
     {
-        [$where, $values] = $this->where($query);
-        $sql              = "SELECT
-            COALESCE(SUM(CASE WHEN e.type = 'open' THEN e.hits ELSE 0 END), 0) AS open_hits,
-            COALESCE(SUM(CASE WHEN e.type = 'open' THEN e.automated_hits ELSE 0 END), 0) AS open_automated_hits,
-            COALESCE(SUM(CASE WHEN e.type = 'open' THEN 1 ELSE 0 END), 0) AS open_rows,
-            COUNT(DISTINCT CASE WHEN e.type = 'open' AND e.hits > e.automated_hits THEN e.log_id END) AS open_human_logs,
-            COALESCE(SUM(CASE WHEN e.type = 'click' THEN e.hits ELSE 0 END), 0) AS click_hits,
-            COALESCE(SUM(CASE WHEN e.type = 'click' THEN e.automated_hits ELSE 0 END), 0) AS click_automated_hits,
-            COALESCE(SUM(CASE WHEN e.type = 'click' THEN 1 ELSE 0 END), 0) AS click_rows,
-            COUNT(DISTINCT CASE WHEN e.type = 'click' AND e.hits > e.automated_hits THEN e.log_id END) AS click_human_logs
-            FROM `{$this->eventsTable}` e
-            INNER JOIN `{$this->logsTable}` l ON l.id = e.log_id
-            WHERE {$where}";
+        $columns  = [];
+        $bindings = [];
+        foreach (['open', self::CLICK] as $type) {
+            array_push(
+                $columns,
+                "COALESCE(SUM(CASE WHEN e.type = %s THEN e.hits ELSE 0 END), 0) AS {$type}_hits",
+                "COALESCE(SUM(CASE WHEN e.type = %s THEN e.automated_hits ELSE 0 END), 0) AS {$type}_automated_hits",
+                AnalyticsSql::countWhen('e.type = %s', "{$type}_rows"),
+                "COUNT(DISTINCT CASE WHEN e.type = %s AND e.hits > e.automated_hits THEN e.log_id END) AS {$type}_human_logs"
+            );
+            array_push($bindings, $type, $type, $type, $type);
+        }
 
-        $rows = $this->rows($sql, $values);
+        $rows = AnalyticsSql::rows(
+            fn () => $this->inRange($query)->selectRaw(implode(', ', $columns), $bindings)->get([]),
+            self::DATABASE_ERROR
+        );
         if ($rows instanceof WP_Error) {
             return $rows;
         }
 
-        return $this->integerRow($rows[0] ?? []);
+        return AnalyticsSql::integers($rows[0] ?? []);
     }
 
     /**
-     * The most-clicked link targets across the range: the top $limit by total hits, each carrying its
-     * automated-fire count so the human split stays honest. Non-click events and empty targets are
-     * excluded; values travel only through wpdb::prepare.
+     * Top clicked link targets by total hits with automated-fire split across the range.
      *
      * @return array<int,array{target:string,hits:int,automated_hits:int}>|WP_Error
      */
     public function topClickedLinks(AnalyticsQuery $query, int $limit)
     {
-        [$where, $values] = $this->where($query);
-        $sql              = "SELECT e.target AS target,
-            COALESCE(SUM(e.hits), 0) AS hits,
-            COALESCE(SUM(e.automated_hits), 0) AS automated_hits
-            FROM `{$this->eventsTable}` e
-            INNER JOIN `{$this->logsTable}` l ON l.id = e.log_id
-            WHERE {$where} AND e.type = %s AND e.target <> ''
-            GROUP BY e.target
-            ORDER BY hits DESC, e.target ASC
-            LIMIT %d";
-
-        $rows = $this->rows($sql, array_merge($values, ['click', max(1, $limit)]));
+        $rows = AnalyticsSql::rows(
+            fn () => $this->inRange($query)
+                ->selectRaw('COALESCE(SUM(e.hits), 0) AS hits, COALESCE(SUM(e.automated_hits), 0) AS automated_hits')
+                ->where('e.type', self::CLICK)
+                ->where('e.target', '<>', '')
+                ->groupBy(['e.target'])
+                ->orderByRaw('hits DESC')
+                ->orderBy('e.target')
+                ->take((string) max(1, $limit))
+                ->get(['e.target AS target']),
+            self::DATABASE_ERROR
+        );
         if ($rows instanceof WP_Error) {
             return $rows;
         }
@@ -98,62 +81,13 @@ class EngagementRepository
     }
 
     /**
-     * @return array{0:string,1:array<int,mixed>}
+     * Engagement events (aliased e) joined to their logs (aliased l), narrowed to the range and filters.
      */
-    private function where(AnalyticsQuery $query): array
+    private function inRange(AnalyticsQuery $query): QueryBuilder
     {
-        $clauses = ['l.created_at_utc >= %s', 'l.created_at_utc < %s'];
-        $values  = [$query->startSql(), $query->endSql()];
-
-        if ($query->plugin() !== null) {
-            if ($query->plugin() === 'unknown') {
-                $clauses[] = "(l.source_plugin IS NULL OR l.source_plugin = '')";
-            } else {
-                $clauses[] = 'l.source_plugin = %s';
-                $values[]  = $query->plugin();
-            }
-        }
-
-        if ($query->connectionId() !== null) {
-            $clauses[] = 'l.connection_id = %s';
-            $values[]  = $query->connectionId();
-        }
-
-        return [implode(' AND ', $clauses), $values];
-    }
-
-    /**
-     * @param array<int,mixed> $values
-     *
-     * @return array<int,array<string,mixed>>|WP_Error
-     */
-    private function rows(string $sql, array $values)
-    {
-        $prepared = $values === [] ? $sql : $this->database->prepare($sql, ...$values);
-        $output   = \defined('ARRAY_A') ? ARRAY_A : 'ARRAY_A';
-        $rows     = $this->database->get_results($prepared, $output);
-        $error    = (string) ($this->database->last_error ?? '');
-        // An empty result is a legitimate zero-engagement range; only a reported database error is
-        // authoritative, so surface that rather than masking a failure as an empty aggregate.
-        if ($error !== '') {
-            return new WP_Error('bit_smtp_analytics_database_error', 'The engagement aggregate query failed.');
-        }
-
-        return \is_array($rows) ? $rows : [];
-    }
-
-    /**
-     * @param array<string,mixed> $row
-     *
-     * @return array<string,int>
-     */
-    private function integerRow(array $row): array
-    {
-        $result = [];
-        foreach ($row as $key => $value) {
-            $result[$key] = (int) $value;
-        }
-
-        return $result;
+        return LogEngagementEvent::query()
+            ->from('e')
+            ->join('logs AS l', 'l.id', '=', 'e.log_id')
+            ->whereRaw(...AnalyticsSql::conditions($query, 'l.'));
     }
 }

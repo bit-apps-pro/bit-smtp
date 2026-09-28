@@ -55,7 +55,6 @@ export default function ConnectionTestButton({
     mutate(
       { connection: getConnection(), to },
       {
-        // Bubble the mutation result up so the caller can render it outside the sticky bar (#32).
         onSuccess: result => {
           notifyDeliveryOutcome(result)
           onResult?.(result)

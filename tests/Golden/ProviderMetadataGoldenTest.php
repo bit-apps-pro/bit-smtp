@@ -38,9 +38,7 @@ use BitApps\SMTP\Tests\Golden\Support\WpStubs;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Freezes the REST `mail/providers` field-definition contract: ProviderRegistry::metadata() and
- * every provider's fields(), wired exactly as Plugin::registerProviders() does. A later PR
- * introducing FieldDefinition/ProviderMetadata value objects must reproduce these byte-for-byte.
+ * Freezes the REST `mail/providers` field-definition contract (must reproduce byte-for-byte).
  *
  * @internal
  *
@@ -104,8 +102,9 @@ final class ProviderMetadataGoldenTest extends GoldenTestCase
         yield 'microsoft365' => ['microsoft365'];
     }
 
-    // setUp() reruns per data set, so each provider's golden generates independently under
-    // UPDATE_GOLDEN=1 in a single test run instead of stopping at the first missing snapshot.
+    /**
+     * setUp() reruns per data set, so each provider golden regenerates independently under UPDATE_GOLDEN=1.
+     */
     #[DataProvider('providerKeys')]
     public function testFieldsGolden(string $key): void
     {

@@ -67,14 +67,11 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->apiClient = Mockery::mock(ApiClient::class);
         $this->config    = Mockery::mock(MailConfigService::class);
         $this->registry  = Mockery::mock(ProviderRegistry::class);
-        // Real OAuth2 transports implement both contracts; the double must too, since
-        // ProviderInterface::transport() is typed to return a TransportInterface.
+
         $this->transport = Mockery::mock(TransportInterface::class, OAuth2ProviderInterface::class);
 
         $this->controller = new CapturingOAuthController($this->apiClient, $this->config, $this->registry);
     }
-
-    // --- authorize ---
 
     public function testAuthorizeBuildsConsentUrlWithGoogleParamsAndValidState(): void
     {
@@ -152,8 +149,6 @@ class OAuthControllerTest extends BaseUnitTestCase
 
         $this->assertSame(Response::ERROR, Response::getStatus());
     }
-
-    // --- callback ---
 
     public function testCallbackExchangesCodeAndStoresTokens(): void
     {
@@ -259,8 +254,6 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->assertSame(1, $this->controller->emitCount);
     }
 
-    // --- disconnect ---
-
     public function testDisconnectClearsTokensAndReturnsSuccess(): void
     {
         $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($this->gmailConnection());
@@ -301,8 +294,6 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->assertSame(Response::ERROR, Response::getStatus());
     }
 
-    // --- helpers ---
-
     private function registerGmailTransport(): void
     {
         $provider = Mockery::mock(ProviderInterface::class);
@@ -339,8 +330,7 @@ class OAuthControllerTest extends BaseUnitTestCase
 }
 
 /**
- * Captures the terminal HTML instead of echoing + exiting, so the browser-terminating callback
- * can be asserted under PHPUnit's strict no-output policy.
+ * Captures terminal HTML for testing without browser exit under PHPUnit's strict output policy.
  *
  * @internal
  */

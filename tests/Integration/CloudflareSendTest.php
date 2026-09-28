@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Plugin;
 
 /**
- * Exercises WpMailBridge with the registered Cloudflare API provider. HTTP is intercepted at
- * WordPress's external-client boundary, leaving provider resolution, secret decryption, payload
- * construction, result handling, and fallback routing live.
+ * Exercises WpMailBridge with Cloudflare, testing resolution/decryption/payload/fallback routing.
  *
  * @internal
  *

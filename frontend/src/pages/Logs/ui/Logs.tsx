@@ -106,6 +106,7 @@ function filtersFromSearchParams(searchParams: URLSearchParams): Partial<LogQuer
   return filters
 }
 
+/** Counts attempts with a 'failed' status. */
 const failedCount = (attempts?: Array<{ status: string }>) => {
   if (!attempts) return 0
   return attempts.filter(a => a.status === 'failed').length
@@ -113,9 +114,6 @@ const failedCount = (attempts?: Array<{ status: string }>) => {
 
 const columns: TableColumnsType<LogType> = [
   {
-    // One status cell (merges the old redundant Status + Delivery columns): a failed send shows
-    // "Failed"; a proven-live webhook connection shows its real provider outcome (Delivered/Bounced/
-    // …/Pending); otherwise a neutral "Sent" — handed to the provider with no delivery signal.
     title: __('Status'),
     key: 'status',
     render: (_, record) => {
@@ -135,8 +133,6 @@ const columns: TableColumnsType<LogType> = [
     key: 'connection',
     render: (connection, record) => {
       const attempts = record.details?.attempts
-      // Only annotate when the send actually fell back; a lone failed attempt is already
-      // conveyed by the Status column.
       const failed = attempts && attempts.length > 1 ? failedCount(attempts) : 0
       if (failed > 0) {
         return (
@@ -157,6 +153,7 @@ const columns: TableColumnsType<LogType> = [
   { title: __('Sent At'), dataIndex: 'created_at', key: 'created_at' }
 ]
 
+/** Logs list page: filterable, paginated log table with export, resend, delete, and retention controls. */
 export default function Logs() {
   const { token } = theme.useToken()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -241,6 +238,7 @@ export default function Logs() {
     if (debounceRef.current) window.clearTimeout(debounceRef.current)
   }
 
+  /** Clears one filter chip, plus its debounce state when it's the to_addr filter. */
   const clearFilter = (key: FilterChipKey) => {
     if (key === 'to_addr') {
       cancelToAddrDebounce()
@@ -249,6 +247,7 @@ export default function Logs() {
     setFilterParam(key, undefined)
   }
 
+  /** Resets all filter chips, query state, and the URL to their empty state. */
   const clearAllFilters = () => {
     cancelToAddrDebounce()
     setQuery(prev => {
@@ -273,6 +272,7 @@ export default function Logs() {
     (chip): chip is { key: FilterChipKey; value: string } => Boolean(chip.value)
   )
 
+  /** Deletes the selected log rows and refreshes the table on success. */
   const handleDelete = () => {
     deleteLog(selectedRowKeys as number[]).then(res => {
       if (res.code === 'SUCCESS') {
@@ -285,6 +285,7 @@ export default function Logs() {
     })
   }
 
+  /** Resends the selected log rows as-is. */
   const handleResend = () => {
     resendLogs(selectedRowKeys as number[]).then(res => {
       if (res.code === 'SUCCESS') {
@@ -302,6 +303,7 @@ export default function Logs() {
     if (value) exportFilters[key] = value
   })
 
+  /** Exports the active filters as CSV, warning when the export was truncated. */
   const handleExport = () => {
     exportLogs.mutate(exportFilters, {
       onSuccess: response => {
@@ -322,6 +324,7 @@ export default function Logs() {
     })
   }
 
+  /** Syncs the table's row-selection state. */
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys)
   }
@@ -332,15 +335,18 @@ export default function Logs() {
   }
 
   const hasSelected = selectedRowKeys.length > 0
+  /** Updates the table's page number and page size in query state. */
   const onChange = (page: number, pageSize: number) => {
     setQuery(prev => ({ ...prev, pageNo: page, limit: pageSize }))
   }
 
+  /** Row click handler: navigates to the log's detail page. */
   const onRowClick = (record: LogType) => ({
     onClick: () => navigate(`/logs/${record.id}`),
     style: { cursor: 'pointer' }
   })
 
+  /** Debounces the to_addr search input before applying it as a filter. */
   const handleToAddrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target
     setToAddrInput(value)

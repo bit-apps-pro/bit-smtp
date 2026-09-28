@@ -8,10 +8,10 @@ interface MailBodyTabProps {
   log: LogType
 }
 
+/** Sanitizes the raw mail body HTML and renders it in the themed email previewer. */
 export default function MailBodyTab({ log }: MailBodyTabProps) {
   const { isDark } = useTheme()
   const message = log?.details?.message || ''
-  // Sanitization is independent of theme; memoize so a dark-mode toggle doesn't re-run DOMPurify.
   const mailBodyHtml = useMemo(
     () =>
       dompurify.sanitize(message, {

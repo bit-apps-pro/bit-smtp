@@ -20,15 +20,12 @@ use WP_CLI;
 \defined('ABSPATH') || exit();
 
 /**
- * Registers the `wp bit-smtp ...` command surface. A strict no-op outside an active WP-CLI request:
- * the guard means register() has zero side effects on a normal web request, so nothing here ever
- * touches a page load.
+ * Register WP-CLI commands; strict no-op outside active WP-CLI (zero side effects on web requests).
  */
 class CliServiceProvider extends ServiceProvider
 {
     /**
-     * The container-resolved command classes keyed by their WP-CLI command name. Each is autowired
-     * (its service dependencies are already bound by CoreServiceProvider/MailServiceProvider).
+     * Container-resolved command classes keyed by WP-CLI command name (autowired, dependencies pre-bound).
      *
      * @var array<string,class-string>
      */
@@ -43,8 +40,7 @@ class CliServiceProvider extends ServiceProvider
     ];
 
     /**
-     * Wire the CLI commands only under WP-CLI; a normal request short-circuits before any WP_CLI
-     * reference, so this provider is inert on the web.
+     * Wire CLI commands only under WP-CLI (normal requests short-circuit before WP_CLI reference).
      */
     public function register(): void
     {
@@ -57,9 +53,7 @@ class CliServiceProvider extends ServiceProvider
     }
 
     /**
-     * Bind ImportService with the built-in importer registry. An explicit binding is required because
-     * the registry's constructor takes a plain array the container cannot autowire; ImportCommand then
-     * autowires ImportService normally.
+     * Bind ImportService with built-in importer registry (explicit binding: registry constructor takes array).
      */
     protected function bindImportService(): void
     {
@@ -81,8 +75,7 @@ class CliServiceProvider extends ServiceProvider
     }
 
     /**
-     * Bind every command to WP-CLI as a thin closure that resolves the command from the container and
-     * runs it against a live WpCliReporter, keeping the command classes themselves WP_CLI-free.
+     * Register commands to WP-CLI as closures that resolve from container (keeps command classes WP_CLI-free).
      */
     protected function registerCommands(): void
     {
@@ -92,8 +85,7 @@ class CliServiceProvider extends ServiceProvider
     }
 
     /**
-     * A WP-CLI callable that resolves the given command class and dispatches its run() with the CLI
-     * args, assoc args, and the production reporter.
+     * WP-CLI callable that resolves command class and dispatches its run() with CLI args and reporter.
      *
      * @param class-string $class
      */

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { __ } from '@common/helpers/i18nwrap'
 import space from '@resource/img/space.svg'
 
+/** 404 page: auto-redirects home after a short countdown. */
 export default function Error404() {
   const [sec, setsec] = useState(9)
   const navigate = useNavigate()

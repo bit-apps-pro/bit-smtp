@@ -29,8 +29,6 @@ describe('EmailPreviewer dark-mode body color', () => {
 
     await waitFor(() => expect(iframe.srcdoc).toContain('Hello'))
 
-    // the injected default targets only the bare `body` element — no `!important`,
-    // no id/class selector — so it never outranks the email's own inline/CSS color.
     expect(iframe.srcdoc).not.toContain('!important')
     expect(iframe.srcdoc).toContain('style="color: red"')
   })

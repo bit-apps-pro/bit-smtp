@@ -15,11 +15,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Drives SparkPostProvider::transport()->send() over a mocked ApiClient, proving the shipped
- * descriptor engine renders SparkPost's contract correctly (spec §5/§11): the region-mapped
- * transmissions host, the raw (no "Bearer") Authorization header, and — the whole reason SparkPost
- * needs the payloadBuilder escape hatch — that cc/bcc collapse into `recipients[]` while bcc never
- * leaks into any `content.headers` value.
+ * Drives SparkPostProvider::transport()->send() over mocked ApiClient, verifies descriptor engine renders contract correctly.
  *
  * @internal
  *
@@ -307,7 +303,6 @@ class SparkPostProviderTest extends BaseUnitTestCase
 
     public function testStatusOutsideTheDeclaredSuccessListMapsToFailure(): void
     {
-        // success => [200] in the descriptor; a 202 is still a failure by that contract.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(202, []));
 

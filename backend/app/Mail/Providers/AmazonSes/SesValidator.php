@@ -6,6 +6,14 @@ use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 
 class SesValidator implements ValidatorInterface
 {
+    /**
+     * Validate SES settings; region charset restricted to prevent host injection in signed request.
+     *
+     * @param array<string,mixed> $settings
+     * @param array<string,mixed> $credentials
+     *
+     * @return array<string,string>
+     */
     public function validate(array $settings, array $credentials): array
     {
         $errors = [];
@@ -22,8 +30,6 @@ class SesValidator implements ValidatorInterface
         if ($region === '') {
             $errors['region'] = 'Region is required.';
         } elseif (!preg_match('/^[a-z0-9-]+$/', $region)) {
-            // Region is interpolated into the signed request host (email.{region}.amazonaws.com);
-            // reject anything but AWS's own region-name charset to prevent host injection.
             $errors['region'] = 'Region is invalid.';
         }
 

@@ -84,8 +84,6 @@ function AnomaliesPanel({
       </ChartCard>
     )
   }
-  // 'logging-disabled' can't happen here in practice (overview already gates the whole page on it),
-  // but the union must still be handled exhaustively.
   if (state.status !== 'ready') return null
   return <AnomaliesList anomalies={state.data} />
 }
@@ -109,7 +107,6 @@ function EngagementPanel({
       </ChartCard>
     )
   }
-  // 'logging-disabled' is already handled by overview's page-level gate; the union stays exhaustive.
   if (state.status !== 'ready') return null
   return <EngagementMetrics engagement={state.data} />
 }
@@ -120,7 +117,6 @@ export default function AnalyticsPage() {
   const preferencesQuery = usePreferences()
   const retentionDays = clampRetentionDays(preferencesQuery.data?.log_retention_days)
 
-  // Resolve a connection id (the analytics dimension) to its human name for the Top connections list.
   const { data: mailSettings } = useMailSettings()
   const connectionNameById = useMemo(
     () =>
@@ -133,15 +129,12 @@ export default function AnalyticsPage() {
   const [rangeOverride, setRangeOverride] = useState<[Dayjs, Dayjs] | null>(null)
   const [bucket, setBucket] = useState<BucketChoice>('auto')
 
-  // -1: toParams() snaps to startOf/endOf day, so a retentionDays-back start would land exactly
-  // 1ms inside the backend's retention floor and fail on first load.
   const defaultRange = useMemo<[Dayjs, Dayjs]>(() => {
     const lookbackDays = Math.min(DEFAULT_RETENTION_DAYS, retentionDays) - 1
     return [dayjs().subtract(lookbackDays, 'day'), dayjs()]
   }, [retentionDays])
 
   const range = rangeOverride ?? defaultRange
-  // Shared with the "View in logs" deep links so a chart point's filter matches the visible window.
   const logsDateFrom = range[0].format('YYYY-MM-DD')
   const logsDateTo = range[1].format('YYYY-MM-DD')
 
@@ -159,8 +152,6 @@ export default function AnalyticsPage() {
     return <AnalyticsSkeleton />
   }
 
-  // Two-level rhythm: paddingLG separates major page blocks (header, stat tiles, each chart card),
-  // padding separates same-level grid items within a block (the two-col ranking grid).
   const pageVars: PageVars = {
     '--page-block-gap': `${token.paddingLG}px`,
     '--page-grid-gap': `${token.padding}px`

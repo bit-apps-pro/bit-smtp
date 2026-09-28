@@ -138,8 +138,7 @@ final class SparkPostWebhookServiceTest extends BaseUnitTestCase
     }
 
     /**
-     * Stand-in for the api_key strategy: writes the connection's api_key verbatim as the Authorization
-     * header, proving the provisioner forwards whatever the auth strategy produced onto the client.
+     * Stand-in for api_key strategy: proves provisioner forwards auth strategy output to client.
      */
     private function apiKeyAuth(): AuthStrategyInterface
     {

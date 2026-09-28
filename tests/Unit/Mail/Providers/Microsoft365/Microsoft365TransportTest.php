@@ -122,8 +122,6 @@ class Microsoft365TransportTest extends BaseUnitTestCase
         $mime        = "Subject: Ping\r\n\r\nHello Graph";
         $accessToken = 'cached-access-token';
 
-        // A real token provider proves the send serves the cached, unexpired token directly:
-        // its token-exchange client must never be hit for a refresh.
         $tokenClient = Mockery::mock(ApiClient::class);
         $config      = Mockery::mock(MailConfigService::class);
         $tokenClient->shouldNotReceive('postForm');
@@ -152,8 +150,6 @@ class Microsoft365TransportTest extends BaseUnitTestCase
 
     public function testBuildBodyUsesStandardBase64NotUrlSafe(): void
     {
-        // Bytes chosen so standard base64 emits '+', '/' and '=' padding: proving the transport
-        // keeps the standard alphabet (Graph's text/plain sendMail body), not Gmail's base64url.
         $mime     = "Subject: Hi\r\n\r\n" . "\xfb\xff\xfe";
         $expected = base64_encode($mime);
 

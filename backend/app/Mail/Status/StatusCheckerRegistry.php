@@ -6,9 +6,7 @@ use BitApps\SMTP\Mail\Contracts\MessageStatusCheckerInterface;
 use BitApps\SMTP\Mail\Http\ApiClient;
 
 /**
- * Maps a provider slug to its delivery-status checker and knows how to pull the provider's
- * message id out of a successful send's debug payload. Providers without support yield null,
- * so callers gracefully fall back to plain send-accepted behaviour.
+ * Map provider to delivery-status checker; extract message id from debug.
  */
 final class StatusCheckerRegistry
 {

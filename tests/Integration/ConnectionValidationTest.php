@@ -11,10 +11,7 @@ use BitApps\SMTP\Plugin;
 use Mockery;
 
 /**
- * Proves validation is wired into ConnectionController::save()/test() ahead of persist/send, and
- * that the two stages validate differently: save() checks only user-entered required fields
- * (RequiredFieldsValidator), so OAuth onboarding is not deadlocked, while test() enforces full
- * send-readiness via the provider's own validator (Gmail refresh_token, SES region charset, ...).
+ * Verifies save() validates required fields only (allowing OAuth onboarding) while test() enforces send-readiness.
  *
  * @internal
  *

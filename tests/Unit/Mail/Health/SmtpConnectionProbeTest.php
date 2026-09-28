@@ -12,9 +12,7 @@ use Mockery;
 use ReflectionMethod;
 
 /**
- * Covers the probe's error-to-ProbeResult mapping in isolation (no socket). The live connect/EHLO/
- * AUTH path and its always-close guarantee need the WP-bundled PHPMailer, so they live in
- * tests/Integration/HealthCheckCronTest.
+ * Covers probe's error-to-ProbeResult mapping in isolation; live socket tests in tests/Integration.
  *
  * @internal
  *

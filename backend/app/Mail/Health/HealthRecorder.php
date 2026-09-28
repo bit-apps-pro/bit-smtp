@@ -6,9 +6,7 @@ use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Notifications\HealthNotifier;
 
 /**
- * Thin adapter that feeds a send outcome into the health engine. WpMailBridge holds it as a
- * nullable, construction-gated dependency (mirroring FailureNotifierInterface) so it stays
- * test-fakeable and a disabled feature never exercises it.
+ * Thin adapter feeding send outcome into health engine; test-fakeable, disabled feature = zero work.
  */
 class HealthRecorder
 {
@@ -23,9 +21,7 @@ class HealthRecorder
     }
 
     /**
-     * Record one connection's send outcome (a cheap DB write); returns the status transition when the
-     * health changed. Recording only — alerts are flushed separately so no channel HTTP runs inside
-     * the dispatch/failover loop.
+     * Record send outcome; return transition when health changed (alerts flushed separately).
      */
     public function record(Connection $connection, string $failureClass): ?HealthTransition
     {
@@ -33,8 +29,7 @@ class HealthRecorder
     }
 
     /**
-     * Deliver the transitions collected across a dispatch to the notifier, called AFTER the failover
-     * loop so a slow channel never adds latency between send attempts (mirrors notifyOutcome).
+     * Deliver transitions to notifier after failover loop to prevent channel latency between attempts.
      *
      * @param HealthTransition[] $transitions
      */

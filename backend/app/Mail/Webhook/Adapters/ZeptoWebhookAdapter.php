@@ -18,6 +18,9 @@ final class ZeptoWebhookAdapter implements WebhookAdapterInterface
         'delivered'  => [DeliveryStatus::DELIVERED, true],
     ];
 
+    /**
+     * Parse Zepto events; pre-filter event names to O(n) to avoid quadratic iteration on attacker-sized arrays.
+     */
     public function parseEvents(WebhookRequest $request): array
     {
         $payload  = $this->payload($request);
@@ -26,11 +29,6 @@ final class ZeptoWebhookAdapter implements WebhookAdapterInterface
             return [];
         }
 
-        // Collapse event_name to the distinct recognised statuses BEFORE the message loop. Both
-        // event_name and event_message are attacker-sized arrays from the same webhook body, so
-        // pairing every name with every message would be quadratic (a 1MB body → billions of
-        // iterations → OOM/timeout). Only the three mapped names can emit an event and the DB dedups
-        // duplicates, so this bounds the inner loop to at most three iterations regardless of input.
         $names = [];
         foreach ((array) ($payload['event_name'] ?? []) as $name) {
             $name = strtolower((string) $name);

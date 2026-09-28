@@ -11,8 +11,7 @@ use RuntimeException;
 final class SparkPostWebhookService extends AbstractWebhookProvisioner
 {
     /**
-     * Region → API base, mirroring the transmissions transport's host map. A closed map: an unknown
-     * region is a hard error, never spliced into the request URL (SSRF guard).
+     * Region-to-API-base mapping with SSRF guard (closed map, rejects unknown regions).
      */
     private const HOST_BY_REGION = [
         'us' => 'https://api.sparkpost.com',

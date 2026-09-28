@@ -22,13 +22,9 @@ describe('PrivacyData tracking copy', () => {
   it('renders the honest, expanded privacy copy for open/click tracking', () => {
     renderPanel()
 
-    // Off-by-default + what turning it on does.
     expect(screen.getByText(/Off by default\./)).toBeInTheDocument()
-    // Depends on logging being enabled.
     expect(screen.getByText(/Requires logging to be enabled/)).toBeInTheDocument()
-    // Automated-fetch honesty (Apple MPP / image proxies flagged separately).
     expect(screen.getByText(/Apple Mail Privacy Protection/)).toBeInTheDocument()
-    // GDPR export/erase coverage.
     expect(screen.getByText(/personal-data export and erasure tools/)).toBeInTheDocument()
   })
 })

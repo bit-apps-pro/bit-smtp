@@ -162,9 +162,7 @@ final class ProviderDescriptor
     }
 
     /**
-     * Optional response-body requirements that supplement HTTP success status. `equals` maps dot
-     * paths to strict expected values; `requiredNonEmptyStringPaths` lists dot paths that must
-     * resolve to non-blank strings. Empty by default to preserve status-only success semantics.
+     * Optional response-body requirements supplementing HTTP success; dot-paths for values and non-empty strings.
      *
      * @return array{equals?: array<string,mixed>, requiredNonEmptyStringPaths?: list<string>}
      */
@@ -179,9 +177,7 @@ final class ProviderDescriptor
     }
 
     /**
-     * Opt-in dot-paths that flag a provider error in a 2xx response body (e.g. Mailjet's per-message
-     * failures under HTTP 200). Empty by default, so success stays status-only for every other
-     * provider — distinct from errorPaths, which only extracts a message on the failure path.
+     * Opt-in dot-paths flagging provider error in 2xx bodies; distinct from errorPaths.
      */
     public function errorDetectPaths(): array
     {
@@ -194,8 +190,7 @@ final class ProviderDescriptor
     }
 
     /**
-     * Dot-path in the send response holding the provider's message-id (e.g. Postmark
-     * 'MessageID', SparkPost 'results.id'); '' when the provider exposes none.
+     * Response dot-path to provider message-id (e.g. 'MessageID', 'results.id'); '' if unexposed.
      */
     public function messageIdPath(): string
     {
@@ -203,8 +198,7 @@ final class ProviderDescriptor
     }
 
     /**
-     * How to carry the correlation tracking-id into the send: ['channel' => 'metadata'|'header',
-     * 'key' => string]. Empty when the provider can't round-trip a correlation token.
+     * Correlation token carrier: 'metadata'|'header' channel with key, or [] if unsupported.
      */
     public function tracking(): array
     {

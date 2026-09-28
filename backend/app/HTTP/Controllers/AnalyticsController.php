@@ -10,14 +10,7 @@ use BitApps\SMTP\Plugin;
 use WP_Error;
 
 /**
- * REST endpoints wrapping MailAnalyticsService for the first-party analytics dashboard.
- *
- * Error shape: every failure returns Response::error() with the WP_Error's code/message surfaced
- * via ->code()/->message(), so the frontend can branch on a stable code rather than parsing text.
- * `bit_smtp_logging_disabled` is intentionally shipped as HTTP 200 (not 4xx/5xx): it is an expected,
- * non-failure state (no logs to aggregate yet), and the UI is meant to render an empty "enable
- * logging" state for it rather than a generic error toast. Invalid input/range (from the query
- * factory) is a genuine client error -> 422. Anything else (e.g. a DB aggregate failure) -> 500.
+ * Analytics REST endpoints; logs-disabled returns 200 (expected state), invalid-input 422, others 500.
  */
 class AnalyticsController
 {
@@ -69,13 +62,10 @@ class AnalyticsController
     }
 
     /**
-     * Build the query from the request, dispatch it to the named service method, and translate the
-     * resulting array|WP_Error into a Response.
+     * Build query from request, dispatch to service method, translate result to Response.
      */
     private function respond(Request $request, string $method): Response
     {
-        // A fresh factory per request: it captures the site timezone/current time, which must not be
-        // retained stale across requests (mirrors AbilitiesProvider::queryFactory()).
         $query = (new AnalyticsQueryFactory())->fromInput($request->all());
         if ($query instanceof WP_Error) {
             return $this->errorResponse($query, self::INVALID_INPUT_STATUS);

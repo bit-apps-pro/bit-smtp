@@ -33,8 +33,7 @@ interface ProviderInterface
     public function authConfig(): array;
 
     /**
-     * How this provider carries a delivery-webhook correlation token on send:
-     * ['channel' => 'metadata'|'header', 'key' => string], or [] when it can't round-trip one.
+     * Webhook correlation token carrier: 'metadata'|'header' channel, or [] if unsupported.
      */
     public function tracking(): array;
 }

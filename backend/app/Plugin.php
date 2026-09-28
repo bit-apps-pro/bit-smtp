@@ -58,15 +58,10 @@ final class Plugin
         $this->app->register(new CoreServiceProvider($this->app));
         $this->app->register(new MailServiceProvider($this->app));
         $this->app->register(new NotificationServiceProvider($this->app));
-        // GDPR exporter/eraser + policy content wire via boot() filters; no load-time side effects.
         $this->app->register(new PrivacyServiceProvider($this->app));
         $this->app->register(new HttpServiceProvider($this->app));
-        // Installer/Abilities register() calls are side-effecting (WP hook wiring): they must run
-        // here, at load time, not deferred to boot() -- activation fires before init:11 ever runs.
         $this->app->register(new InstallerServiceProvider($this->app));
         $this->app->register(new AbilitiesServiceProvider($this->app));
-        // CLI commands must be added during WP-CLI's early bootstrap (before init), so its register()
-        // also runs at load time; it is a strict no-op outside an active WP-CLI request.
         $this->app->register(new CliServiceProvider($this->app));
 
         Hooks::addAction('plugins_loaded', [$this, 'loaded']);
@@ -83,8 +78,7 @@ final class Plugin
     }
 
     /**
-     * Kept for backward compatibility with external callers; installer hooks now wire via
-     * InstallerServiceProvider::register() at load time, not through this method.
+     * Backward-compatibility wrapper for external callers (installer hooks now wire via InstallerServiceProvider).
      */
     public function registerInstaller()
     {
@@ -127,8 +121,7 @@ final class Plugin
     }
 
     /**
-     * Boots all registered service providers. Kept as the init:11 hook target (name and timing
-     * unchanged) for backward compatibility.
+     * Boot all registered service providers (init:11 hook target, unchanged for backward compatibility).
      */
     public function registerProviders()
     {
@@ -211,15 +204,10 @@ final class Plugin
             Config::deleteOption('new_product_nav_btn_hide');
         }
 
-        // Gate on the schema version too, not just the plugin version: a schema-only migration (e.g.
-        // encrypting stored credentials) ships without a plugin-version bump, so installs already at
-        // Config::VERSION must still run it when their db_version is behind.
         $behindVersion   = version_compare(Config::getOption('version'), Config::VERSION, '<');
         $behindDbVersion = version_compare(Config::getOption('db_version', '0'), Config::DB_VERSION, '<');
 
         if ($behindVersion || $behindDbVersion) {
-            // BitSmtpPluginOptions::up() writes version and db_version only after preceding migrations
-            // complete. Let any schema failure propagate so the version gate remains retryable.
             MigrationHelper::migrate(InstallerProvider::migration());
         }
     }

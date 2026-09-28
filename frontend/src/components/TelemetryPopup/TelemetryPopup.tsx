@@ -13,15 +13,18 @@ type TelemetryPopupProps = {
   setIsTelemetryModalOpen: (value: boolean) => void
 }
 
+/** Modal walking the user through recent changelog entries and the telemetry opt-in/skip choice. */
 function TelemetryPopup({ isTelemetryModalOpen, setIsTelemetryModalOpen }: TelemetryPopupProps) {
   const [current, setCurrent] = useState(0)
   const [isDataNoticeShow, setIsDataNoticeShow] = useState(false)
 
+  /** Record telemetry opt-in and close the modal. */
   const handleTelemetryAccess = () => {
     request({ action: 'telemetry/handle-permission', data: { isChecked: true } })
     setIsTelemetryModalOpen(false)
   }
 
+  /** Record telemetry opt-out and close the modal. */
   const handleTelemetryModalSkip = () => {
     setIsTelemetryModalOpen(false)
     request({ action: 'telemetry/handle-permission', data: { isChecked: false } })
@@ -79,13 +82,13 @@ function TelemetryPopup({ isTelemetryModalOpen, setIsTelemetryModalOpen }: Telem
     }
   ]
 
+  /** Advance to the next onboarding step. */
   const next = () => {
     setCurrent(current + 1)
   }
   const footerBtnStyle: React.CSSProperties = {
     display: 'flex',
     justifyContent: 'space-between',
-    // flexFlow: current !== 1 ? 'row-reverse' : 'initial',
     marginTop: '30px'
   }
 

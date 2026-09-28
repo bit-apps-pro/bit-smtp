@@ -207,8 +207,7 @@ final class MailgunWebhookServiceTest extends BaseUnitTestCase
     }
 
     /**
-     * Stand-in for the Basic strategy: writes "api:{api_key}" as a Basic header onto the request,
-     * proving the provisioner forwards whatever the auth strategy produced onto the client.
+     * Stand-in for Basic strategy: proves provisioner forwards auth strategy output to client.
      */
     private function basicAuth(): AuthStrategyInterface
     {

@@ -4,119 +4,100 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Analytics;
 
+use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
 use BitApps\SMTP\Model\Log;
 use WP_Error;
 
 /**
- * Fixed aggregate queries over the retained log table. Values travel only through wpdb::prepare;
- * dimensions and expressions are selected exclusively from the maps below.
+ * Fixed aggregate queries over retained logs using only query bindings and mapped expressions.
  */
 class MailAnalyticsRepository
 {
     /**
-     * created_at_utc is the analytics timestamp contract. Deliberately aggregate only by a UTC
-     * hour here: shared hosts frequently do not load MySQL named timezone tables. The bounded
-     * result is converted and merged into requested local buckets by MailAnalyticsService.
+     * Analytics timestamp; UTC hour aggregation to support hosts without MySQL timezone tables.
      */
-    private const UTC_HOUR_SQL = "DATE_FORMAT(created_at_utc, '%%Y-%%m-%%d %%H:00:00')";
+    private const UTC_HOUR_FORMAT = '%Y-%m-%d %H:00:00';
 
-    private const VERIFIED_DELIVERY_STATUSES = "'delivered', 'deferred', 'bounced', 'blocked', 'spam'";
+    private const VERIFIED_DELIVERY_STATUSES = [
+        DeliveryStatus::DELIVERED,
+        DeliveryStatus::DEFERRED,
+        DeliveryStatus::BOUNCED,
+        DeliveryStatus::BLOCKED,
+        DeliveryStatus::SPAM,
+    ];
 
     private const GROUP_SQL = [
-        'source'       => "COALESCE(NULLIF(source_plugin, ''), 'unknown')",
-        'connection'   => "COALESCE(NULLIF(connection_id, ''), NULLIF(connection, ''), 'unknown')",
-        'routing_type' => "COALESCE(NULLIF(routing_type, ''), 'unknown')",
+        'source'       => ['COALESCE(NULLIF(source_plugin, %s), %s)', ['', 'unknown']],
+        'connection'   => ['COALESCE(NULLIF(connection_id, %s), NULLIF(connection, %s), %s)', ['', '', 'unknown']],
+        'routing_type' => ['COALESCE(NULLIF(routing_type, %s), %s)', ['', 'unknown']],
     ];
 
     private const SUBJECT_PATTERN_LIMIT = 10;
 
-    private object $database;
-
-    private string $table;
-
-    public function __construct(?object $database = null, ?string $table = null)
-    {
-        if ($database === null) {
-            global $wpdb;
-            $database = $wpdb;
-        }
-
-        $this->database = $database;
-        $this->table    = $table ?? (new Log())->getTable();
-    }
+    private const DATABASE_ERROR = 'The retained-log aggregate query failed.';
 
     /**
+     * Send and delivery totals for the range, including the unknown-dimension counts.
+     *
      * @return array<string,int>|WP_Error
      */
     public function summary(AnalyticsQuery $query)
     {
-        [$where, $values] = $this->where($query);
-        $sql              = "SELECT
-            COUNT(*) AS total,
-            COALESCE(SUM(recipient_count), 0) AS recipient_count,
-            COALESCE(SUM(CASE WHEN recipient_count IS NULL THEN 1 ELSE 0 END), 0) AS unknown_recipient_count,
-            COALESCE(SUM(CASE WHEN subject_pattern IS NULL OR subject_pattern = '' THEN 1 ELSE 0 END), 0) AS unknown_subject_pattern_count,
-            COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS accepted,
-            COALESCE(SUM(CASE WHEN status <> 1 THEN 1 ELSE 0 END), 0) AS failed,
-            COALESCE(SUM(CASE WHEN source_plugin IS NULL OR source_plugin = '' THEN 1 ELSE 0 END), 0) AS unknown_source_count,
-            COALESCE(SUM(CASE WHEN delivery_status = 'delivered' THEN 1 ELSE 0 END), 0) AS delivered,
-            COALESCE(SUM(CASE WHEN delivery_status = 'deferred' THEN 1 ELSE 0 END), 0) AS deferred,
-            COALESCE(SUM(CASE WHEN delivery_status = 'bounced' THEN 1 ELSE 0 END), 0) AS bounced,
-            COALESCE(SUM(CASE WHEN delivery_status = 'blocked' THEN 1 ELSE 0 END), 0) AS blocked,
-            COALESCE(SUM(CASE WHEN delivery_status = 'spam' THEN 1 ELSE 0 END), 0) AS spam,
-            COALESCE(SUM(CASE WHEN delivery_status IN (" . self::VERIFIED_DELIVERY_STATUSES . ") THEN 1 ELSE 0 END), 0) AS verified_delivery,
-            COALESCE(SUM(CASE WHEN delivery_status = 'accepted' THEN 1 ELSE 0 END), 0) AS accepted_delivery,
-            COALESCE(SUM(CASE WHEN delivery_status = '" . DeliveryStatus::PENDING . "' THEN 1 ELSE 0 END), 0) AS pending_delivery
-            FROM `{$this->table}` WHERE {$where}";
-
-        $rows = $this->rows($sql, $values);
+        $rows = AnalyticsSql::rows(
+            fn () => $this->filtered($query)->selectRaw(...$this->summaryColumns())->get([]),
+            self::DATABASE_ERROR
+        );
         if ($rows instanceof WP_Error) {
             return $rows;
         }
 
-        return $this->integerRow($rows[0] ?? []);
+        return AnalyticsSql::integers($rows[0] ?? []);
     }
 
     /**
+     * Outcome counts per UTC hour across the range, oldest hour first.
+     *
      * @return array<int,array<string,int|string>>|WP_Error
      */
     public function timeSeries(AnalyticsQuery $query)
     {
-        [$where, $values] = $this->where($query);
-        $sql              = 'SELECT ' . self::UTC_HOUR_SQL . " AS utc_hour,
-            COUNT(*) AS total,
-            COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS accepted,
-            COALESCE(SUM(CASE WHEN status <> 1 THEN 1 ELSE 0 END), 0) AS failed,
-            COALESCE(SUM(CASE WHEN delivery_status = 'delivered' THEN 1 ELSE 0 END), 0) AS delivered,
-            COALESCE(SUM(CASE WHEN delivery_status IN (" . self::VERIFIED_DELIVERY_STATUSES . ") THEN 1 ELSE 0 END), 0) AS verified_delivery
-            FROM `{$this->table}` WHERE {$where}
-            GROUP BY utc_hour ORDER BY utc_hour ASC";
+        [$outcomes, $outcomeBindings] = $this->outcomeColumns();
+        [$where, $whereBindings]      = AnalyticsSql::conditions($query);
 
-        $rows = $this->rows($sql, $values);
+        $rows = AnalyticsSql::rows(
+            fn () => Log::query()->rawPrepared(
+                "SELECT DATE_FORMAT(created_at_utc, %s) AS utc_hour, {$outcomes}
+                FROM {{identifier:logs}} WHERE {$where}
+                GROUP BY utc_hour ORDER BY utc_hour ASC",
+                array_merge([self::UTC_HOUR_FORMAT], $outcomeBindings, $whereBindings),
+                ['logs' => $this->table()]
+            ),
+            self::DATABASE_ERROR
+        );
         if ($rows instanceof WP_Error) {
             return $rows;
         }
 
-        return array_map(function (array $row): array {
-            $integer             = $this->integerRow($row);
-            $integer['utc_hour'] = (string) ($row['utc_hour'] ?? '');
-
-            return $integer;
+        return array_map(static function (array $row): array {
+            return AnalyticsSql::integers($row, 'utc_hour') + ['utc_hour' => (string) ($row['utc_hour'] ?? '')];
         }, $rows);
     }
 
     /**
+     * Earliest/latest UTC timestamps across all retained logs, plus how many lack one.
+     *
      * @return array{earliest:?string,latest:?string,qualified_timestamp_count:int,unqualified_timestamp_count:int}|WP_Error
      */
     public function retainedRecordBounds()
     {
-        $rows = $this->rows("SELECT
-            MIN(created_at_utc) AS earliest,
-            MAX(created_at_utc) AS latest,
-            COUNT(created_at_utc) AS qualified_timestamp_count,
-            COALESCE(SUM(CASE WHEN created_at_utc IS NULL THEN 1 ELSE 0 END), 0) AS unqualified_timestamp_count
-            FROM `{$this->table}`", []);
+        $rows = AnalyticsSql::rows(
+            static fn () => Log::query()->selectRaw('MIN(created_at_utc) AS earliest,
+                MAX(created_at_utc) AS latest,
+                COUNT(created_at_utc) AS qualified_timestamp_count, '
+                . AnalyticsSql::countWhen('created_at_utc IS NULL', 'unqualified_timestamp_count'))->get([]),
+            self::DATABASE_ERROR
+        );
         if ($rows instanceof WP_Error) {
             return $rows;
         }
@@ -132,6 +113,8 @@ class MailAnalyticsRepository
     }
 
     /**
+     * Outcome counts per value of $dimension, the $limit (1-100) largest groups first.
+     *
      * @return array<int,array<string,int|string>>|WP_Error
      */
     public function groups(AnalyticsQuery $query, string $dimension, int $limit)
@@ -140,26 +123,26 @@ class MailAnalyticsRepository
             return new WP_Error('bit_smtp_invalid_analytics_dimension', 'The analytics dimension is unsupported.');
         }
 
-        $expression       = self::GROUP_SQL[$dimension];
-        [$where, $values] = $this->where($query);
-        $sql              = "SELECT {$expression} AS dimension,
-            COUNT(*) AS total,
-            COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS accepted,
-            COALESCE(SUM(CASE WHEN status <> 1 THEN 1 ELSE 0 END), 0) AS failed,
-            COALESCE(SUM(CASE WHEN delivery_status = 'delivered' THEN 1 ELSE 0 END), 0) AS delivered,
-            COALESCE(SUM(CASE WHEN delivery_status IN (" . self::VERIFIED_DELIVERY_STATUSES . ") THEN 1 ELSE 0 END), 0) AS verified_delivery
-            FROM `{$this->table}` WHERE {$where}
-            GROUP BY dimension ORDER BY total DESC, dimension ASC LIMIT %d";
-        $rows = $this->rows($sql, array_merge($values, [max(1, min(100, $limit))]));
+        [$expression, $expressionBindings] = self::GROUP_SQL[$dimension];
+        [$outcomes, $outcomeBindings]      = $this->outcomeColumns();
+        [$where, $whereBindings]           = AnalyticsSql::conditions($query);
+
+        $rows = AnalyticsSql::rows(
+            fn () => Log::query()->rawPrepared(
+                "SELECT {$expression} AS dimension, {$outcomes}
+                FROM {{identifier:logs}} WHERE {$where}
+                GROUP BY dimension ORDER BY total DESC, dimension ASC LIMIT %d",
+                array_merge($expressionBindings, $outcomeBindings, $whereBindings, [max(1, min(100, $limit))]),
+                ['logs' => $this->table()]
+            ),
+            self::DATABASE_ERROR
+        );
         if ($rows instanceof WP_Error) {
             return $rows;
         }
 
-        return array_map(function (array $row): array {
-            $integer              = $this->integerRow($row);
-            $integer['dimension'] = (string) ($row['dimension'] ?? 'unknown');
-
-            return $integer;
+        return array_map(static function (array $row): array {
+            return AnalyticsSql::integers($row, 'dimension') + ['dimension' => (string) ($row['dimension'] ?? 'unknown')];
         }, $rows);
     }
 
@@ -170,10 +153,16 @@ class MailAnalyticsRepository
      */
     public function distinctSourcePlugins()
     {
-        $sql = "SELECT DISTINCT source_plugin FROM `{$this->table}`
-            WHERE source_plugin IS NOT NULL AND source_plugin <> '' AND source_plugin <> 'unknown'
-            ORDER BY source_plugin ASC";
-        $rows = $this->rows($sql, []);
+        $rows = AnalyticsSql::rows(
+            static fn () => Log::query()
+                ->distinct()
+                ->whereNotNull('source_plugin')
+                ->where('source_plugin', '<>', '')
+                ->where('source_plugin', '<>', 'unknown')
+                ->orderBy('source_plugin')
+                ->get(['source_plugin']),
+            self::DATABASE_ERROR
+        );
         if ($rows instanceof WP_Error) {
             return $rows;
         }
@@ -184,15 +173,24 @@ class MailAnalyticsRepository
     }
 
     /**
+     * The most frequent persisted (redacted) subject patterns in the range.
+     *
      * @return array<int,array{pattern:string,total:int}>|WP_Error
      */
     public function subjectCounts(AnalyticsQuery $query)
     {
-        [$where, $values] = $this->where($query);
-        $sql              = "SELECT subject_pattern AS pattern, COUNT(*) AS total FROM `{$this->table}`
-            WHERE {$where} AND subject_pattern IS NOT NULL AND subject_pattern <> ''
-            GROUP BY subject_pattern ORDER BY total DESC, subject_pattern ASC LIMIT %d";
-        $rows = $this->rows($sql, array_merge($values, [self::SUBJECT_PATTERN_LIMIT]));
+        $rows = AnalyticsSql::rows(
+            fn () => $this->filtered($query)
+                ->selectRaw('COUNT(*) AS total')
+                ->whereNotNull('subject_pattern')
+                ->where('subject_pattern', '<>', '')
+                ->groupBy(['subject_pattern'])
+                ->orderByRaw('total DESC')
+                ->orderBy('subject_pattern')
+                ->take((string) self::SUBJECT_PATTERN_LIMIT)
+                ->get(['subject_pattern AS pattern']),
+            self::DATABASE_ERROR
+        );
         if ($rows instanceof WP_Error) {
             return $rows;
         }
@@ -206,65 +204,81 @@ class MailAnalyticsRepository
     }
 
     /**
-     * @return array{0:string,1:array<int,mixed>}
+     * A log query narrowed to the analytics range and filters.
      */
-    private function where(AnalyticsQuery $query): array
+    private function filtered(AnalyticsQuery $query): QueryBuilder
     {
-        $clauses = ['created_at_utc >= %s', 'created_at_utc < %s'];
-        $values  = [$query->startSql(), $query->endSql()];
-
-        if ($query->plugin() !== null) {
-            if ($query->plugin() === 'unknown') {
-                $clauses[] = "(source_plugin IS NULL OR source_plugin = '')";
-            } else {
-                $clauses[] = 'source_plugin = %s';
-                $values[]  = $query->plugin();
-            }
-        }
-
-        if ($query->connectionId() !== null) {
-            $clauses[] = 'connection_id = %s';
-            $values[]  = $query->connectionId();
-        }
-
-        return [implode(' AND ', $clauses), $values];
+        return Log::query()->whereRaw(...AnalyticsSql::conditions($query));
     }
 
     /**
-     * @param array<int,mixed> $values
+     * The summary's aggregate select list and its bindings, in output-column order.
      *
-     * @return array<int,array<string,mixed>>|WP_Error
+     * @return array{0:string,1:array<int,string>}
      */
-    private function rows(string $sql, array $values)
+    private function summaryColumns(): array
     {
-        $prepared = $values === [] ? $sql : $this->database->prepare($sql, ...$values);
-        $output   = \defined('ARRAY_A') ? ARRAY_A : 'ARRAY_A';
-        $rows     = $this->database->get_results($prepared, $output);
-        $error    = (string) ($this->database->last_error ?? '');
-        // wpdb may return an empty array (rather than null) for a failed SELECT. The database
-        // error is authoritative: treating that response as an empty aggregate would mask an
-        // internal failure as a successful zero-result analytics response.
-        if ($error !== '') {
-            return new WP_Error('bit_smtp_analytics_database_error', 'The retained-log aggregate query failed.');
+        $columns = [
+            'COUNT(*) AS total',
+            'COALESCE(SUM(recipient_count), 0) AS recipient_count',
+            AnalyticsSql::countWhen('recipient_count IS NULL', 'unknown_recipient_count'),
+            AnalyticsSql::countWhen('subject_pattern IS NULL OR subject_pattern = %s', 'unknown_subject_pattern_count'),
+            AnalyticsSql::countWhen('status = 1', 'accepted'),
+            AnalyticsSql::countWhen('status <> 1', 'failed'),
+            AnalyticsSql::countWhen('source_plugin IS NULL OR source_plugin = %s', 'unknown_source_count'),
+        ];
+        $bindings = ['', ''];
+
+        foreach (self::VERIFIED_DELIVERY_STATUSES as $status) {
+            $columns[]  = AnalyticsSql::countWhen('delivery_status = %s', $status);
+            $bindings[] = $status;
         }
 
-        return \is_array($rows) ? $rows : [];
+        $columns[] = $this->verifiedDeliveryColumn();
+        $columns[] = AnalyticsSql::countWhen('delivery_status = %s', 'accepted_delivery');
+        $columns[] = AnalyticsSql::countWhen('delivery_status = %s', 'pending_delivery');
+
+        return [
+            implode(', ', $columns),
+            array_merge($bindings, self::VERIFIED_DELIVERY_STATUSES, [DeliveryStatus::ACCEPTED, DeliveryStatus::PENDING]),
+        ];
     }
 
     /**
-     * @param array<string,mixed> $row
+     * The per-group outcome select list (total/accepted/failed/delivered/verified) and its bindings.
      *
-     * @return array<string,int>
+     * @return array{0:string,1:array<int,string>}
      */
-    private function integerRow(array $row): array
+    private function outcomeColumns(): array
     {
-        $result = [];
-        foreach ($row as $key => $value) {
-            if ($key !== 'bucket' && $key !== 'utc_hour' && $key !== 'dimension') {
-                $result[$key] = (int) $value;
-            }
-        }
+        return [
+            implode(', ', [
+                'COUNT(*) AS total',
+                AnalyticsSql::countWhen('status = 1', 'accepted'),
+                AnalyticsSql::countWhen('status <> 1', 'failed'),
+                AnalyticsSql::countWhen('delivery_status = %s', 'delivered'),
+                $this->verifiedDeliveryColumn(),
+            ]),
+            array_merge([DeliveryStatus::DELIVERED], self::VERIFIED_DELIVERY_STATUSES),
+        ];
+    }
 
-        return $result;
+    /**
+     * The count of logs carrying a provider-verified delivery outcome, bound to VERIFIED_DELIVERY_STATUSES.
+     */
+    private function verifiedDeliveryColumn(): string
+    {
+        return AnalyticsSql::countWhen(
+            'delivery_status IN (' . AnalyticsSql::placeholders(\count(self::VERIFIED_DELIVERY_STATUSES)) . ')',
+            'verified_delivery'
+        );
+    }
+
+    /**
+     * The physical log table name, for the raw templates that group by a computed expression.
+     */
+    private function table(): string
+    {
+        return (new Log())->getTable();
     }
 }

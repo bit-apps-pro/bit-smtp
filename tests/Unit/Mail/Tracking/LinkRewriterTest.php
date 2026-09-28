@@ -100,7 +100,6 @@ final class LinkRewriterTest extends BaseUnitTestCase
         $html      = '<a data-href="http://decoy.example/x" href="http://real.example/y">link</a>';
         $rewritten = $this->rewriter()->rewrite($html, self::TOKEN);
 
-        // data-href is left intact; only the real href becomes a signed click URL.
         $this->assertStringContainsString('data-href="http://decoy.example/x"', $rewritten);
         $tokens = $this->extractClickTokens($rewritten);
         $this->assertCount(1, $tokens);

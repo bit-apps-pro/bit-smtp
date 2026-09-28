@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Aws\Sns;
 
 /**
- * Confirms an SNS subscription by fetching its SubscribeURL exactly once. The caller must have already
- * verified the message signature; this class independently re-checks that SubscribeURL is an AWS SNS
- * host (SSRF guard) before issuing the outbound GET, so a forged confirmation can never make us fetch
- * an arbitrary URL.
+ * Confirm SNS subscription by fetching SubscribeURL with SSRF validation.
  */
 class SnsSubscriptionConfirmer
 {
@@ -26,8 +23,7 @@ class SnsSubscriptionConfirmer
     }
 
     /**
-     * GET the SubscribeURL. Overridable so tests confirm without a network call; the URL is already
-     * host-allow-listed by confirm().
+     * Fetch the SubscribeURL; overridable for testing.
      */
     protected function fetch(string $url): bool
     {

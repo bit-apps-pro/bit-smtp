@@ -8,9 +8,7 @@ use BitApps\SMTP\Mail\Connections\Connection;
 use RuntimeException;
 
 /**
- * Composes the single, same-origin, https-only URL a provider posts delivery events to. The https
- * guarantee also pins the target to this site, so provisioning can't be aimed at an internal host
- * (SSRF). The path embeds the per-connection secret, so a composed URL must be treated as sensitive.
+ * Compose webhook URL: same-origin, https-only, pins to site preventing SSRF, embeds per-connection secret (sensitive).
  */
 final class WebhookUrl
 {

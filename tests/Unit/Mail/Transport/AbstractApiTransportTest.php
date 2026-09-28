@@ -127,8 +127,7 @@ class AbstractApiTransportTest extends BaseUnitTestCase
 }
 
 /**
- * Minimal concrete transport exercising AbstractApiTransport's orchestration only —
- * endpoint/body/headers/success/error rules are fixed stand-ins, not a real provider.
+ * Minimal concrete transport for AbstractApiTransport testing; fixed stand-in rules, not real provider.
  */
 class FakeApiTransport extends AbstractApiTransport
 {

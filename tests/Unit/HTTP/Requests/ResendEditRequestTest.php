@@ -7,8 +7,7 @@ use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 
 /**
- * Covers the edited-resend request's validation boundary: recipient lists are cleaned to valid,
- * de-duplicated addresses (rejecting header-injection payloads), and a sending connection is required.
+ * Covers edited-resend request validation: cleans recipients to valid deduplicated addresses, requires connection.
  *
  * @internal
  *
@@ -19,11 +18,11 @@ final class ResendEditRequestTest extends BaseUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // The base Request constructor always reads $_GET through wp_unslash(), even when empty.
+
         Functions\when('wp_unslash')->returnArg(1);
         Functions\when('sanitize_text_field')->returnArg(1);
         Functions\when('sanitize_email')->returnArg(1);
-        // A minimal is_email: a single address with no whitespace, one @, and a dotted domain.
+
         Functions\when('is_email')->alias(static function ($email) {
             return \is_string($email) && preg_match('/^[^\s@]+@[^\s@]+\.[^\s@]+$/', $email) === 1 ? $email : false;
         });

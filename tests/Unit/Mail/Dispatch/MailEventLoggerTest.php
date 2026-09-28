@@ -75,9 +75,6 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
     public function testDebugFailureFromApiProviderDoesNotFatalOnUnloadedPhpMailer(): void
     {
-        // Regression: on the pre_wp_mail API-provider path PHPMailer is never loaded, so touching
-        // PHPMailer::STOP_CRITICAL in debug mode fataled ("Class not found"), killing the dispatch
-        // (and the fallback chain) before any log row was written. The error must queue unchanged.
         $this->context->setDebug(true);
         $error = new WP_Error('wp_mail_failed', 'Unauthorized', ['phpmailer_exception_code' => 401]);
 
@@ -125,7 +122,6 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
 
-        // Retry flag is consumed after the send.
         $this->assertFalse($this->context->isRetrying());
     }
 
@@ -185,15 +181,12 @@ class MailEventLoggerTest extends BaseUnitTestCase
 
         $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
 
-        // The one-shot parent id is consumed so a later ordinary send is not tagged as its child.
         $this->assertNull($this->context->getResendParentId());
     }
 
     public function testOrdinaryAndWorkerInsertsOmitTheResendParentId(): void
     {
         $error = new WP_Error('wp_mail_failed', 'boom', ['phpmailer_exception_code' => 0]);
-        // The retry worker re-dispatches with isRetrying set but no retry log id, so it INSERTs a
-        // fresh row exactly like an ordinary send — and must never carry a resend_parent_id.
         $this->context->setRetrying(true);
 
         $this->logger->shouldReceive('bulkInsert')
@@ -250,7 +243,6 @@ class MailEventLoggerTest extends BaseUnitTestCase
         $this->context->setBatch(true);
 
         $originalLimit = \ini_get('memory_limit');
-        // Huge headroom keeps free memory above threshold, so batching buffers without flushing.
         ini_set('memory_limit', '-1');
 
         try {
@@ -259,7 +251,6 @@ class MailEventLoggerTest extends BaseUnitTestCase
             $this->eventLogger->logMailSuccess(['subject' => 'one'], $this->context);
             $this->eventLogger->logMailSuccess(['subject' => 'two'], $this->context);
 
-            // A manual flush persists everything buffered so far in one bulk insert.
             $this->logger->shouldReceive('bulkInsert')
                 ->once()
                 ->with([
@@ -278,7 +269,6 @@ class MailEventLoggerTest extends BaseUnitTestCase
         $this->context->setBatch(true);
 
         $originalLimit = \ini_get('memory_limit');
-        // A limit under the 100MB threshold forces a flush even while batching (self::MEMORY_THRESHOLD > $limit).
         ini_set('memory_limit', '64M');
 
         try {

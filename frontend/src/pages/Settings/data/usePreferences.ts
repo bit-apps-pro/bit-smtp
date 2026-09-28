@@ -5,11 +5,9 @@ import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tansta
 
 export const PREFERENCES_QUERY_KEY = ['preferences']
 
-/** Refresh caches derived from saved preferences: the blob itself and the retry-queue panel (retry_enabled). */
+/** Refresh the preferences blob and retry-queue cache (the queue panel reads saved retry_enabled for its "off" warning). */
 function applySavedPreferences(queryClient: QueryClient, preferences: Preferences): void {
   queryClient.setQueryData(PREFERENCES_QUERY_KEY, preferences)
-  // The retry-queue panel keys its "retry is off" warning off the *saved* retry_enabled, so a save
-  // that toggles it must refresh that query or the warning contradicts what was just saved.
   queryClient.invalidateQueries({ queryKey: RETRY_QUEUE_QUERY_KEY })
 }
 

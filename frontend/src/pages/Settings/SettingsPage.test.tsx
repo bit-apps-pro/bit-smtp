@@ -2,7 +2,12 @@ import notify from '@components/Toaster/Toaster'
 import { renderWithProviders } from '@config/test-utils'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
-import { type MailSettings } from '@pages/Connections/types'
+import {
+  type AlertChannel,
+  type FailureAlertSettings,
+  MASK_SENTINEL,
+  type MailSettings
+} from '@pages/Connections/types'
 import usePreferences, {
   useExportPreferences,
   useImportPreferences,
@@ -45,6 +50,14 @@ const preferences: Preferences = {
   tracking_enabled: false
 }
 
+const emailChannel: AlertChannel = {
+  id: 'ch_000000000001',
+  type: 'email',
+  name: 'Ops email',
+  enabled: true,
+  settings: { recipients: ['ops@example.org'] }
+}
+
 const settings: MailSettings = {
   schema_version: 2,
   enabled: true,
@@ -53,25 +66,79 @@ const settings: MailSettings = {
   connections: [],
   features: {
     logging: { enabled: true },
-    alerts: {
-      enabled: true,
-      email: { enabled: true, recipients: ['ops@example.org'] },
-      webhook: { enabled: false, url: '', signing_secret: '' },
-      slack: { enabled: false, webhook_url: '' },
-      telegram: { enabled: false, bot_token: '', chat_id: '' },
-      discord: { enabled: false, webhook_url: '' }
-    }
+    alerts: { enabled: true, reminder_minutes: 60, channels: [emailChannel] }
   }
 }
 
+/** Wrap `data` in a successful backend response envelope. */
 function apiResponse<T>(data: T) {
   return { status: 'success' as const, code: 'SUCCESS' as const, message: undefined, data }
 }
 
-describe('SettingsPage', () => {
-  const savePreferencesMutateAsync = vi.fn()
-  const updateSettingsMutateAsync = vi.fn()
+const CONFLICT_MESSAGE = 'Notification settings were changed in another tab. Reload to see the latest.'
+const TELEGRAM_BOT_TOKEN = '123456:abcdefghijklmnopqrstuvwxyz'
 
+/** Attach server-owned alerts metadata (revision + a healthy delivery status) to a settings fixture. */
+function withAlertsMeta(base: MailSettings, revision: string): MailSettings {
+  const alerts = base.features.alerts as FailureAlertSettings
+
+  return {
+    ...base,
+    features: {
+      ...base.features,
+      alerts: { ...alerts, revision, delivery: { cron_disabled: false, overdue: false } }
+    }
+  }
+}
+
+let serverSettings: MailSettings
+const savePreferencesMutateAsync = vi.fn()
+const updateSettingsMutateAsync = vi.fn()
+
+/** Serve `data` from the mocked mail-settings query; the default refetch resolves the latest served settings. */
+function mockMailSettings(
+  data: MailSettings,
+  refetch: Mock = vi.fn(async () => ({ data: serverSettings, isSuccess: true }))
+) {
+  serverSettings = data
+  ;(useMailSettings as Mock).mockReturnValue({ data, isPending: false, refetch })
+}
+
+/** Make the alerts save succeed and the server then serve the saved alerts under `revision`. */
+function mockAlertsSaveAs(revision: string) {
+  updateSettingsMutateAsync.mockImplementation(async (payload: Pick<MailSettings, 'features'>) => {
+    mockMailSettings(withAlertsMeta({ ...settings, features: payload.features }, revision))
+
+    return apiResponse(null)
+  })
+}
+
+/** The alerts revision echoed by the `call`-th (0-based) mail-settings save. */
+function echoedRevision(call: number) {
+  return updateSettingsMutateAsync.mock.calls[call][0].features.alerts.revision
+}
+
+/** Add a recipient to the stored email channel on the Notifications tab, then save. */
+async function editRecipientsAndSave() {
+  await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+  await userEvent.type(screen.getByLabelText('Recipients'), 'oncall@example.org{enter}')
+  await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+}
+
+/** Add a blank Slack channel through the Notifications tab's Add channel picker. */
+async function addSlackChannel() {
+  await addChannel('Slack')
+}
+
+/** Add a blank channel of the given type through the Notifications tab's Add channel picker. */
+async function addChannel(typeLabel: string) {
+  await userEvent.click(screen.getByRole('button', { name: 'Add channel' }))
+  await userEvent.click(
+    within(await screen.findByRole('dialog')).getByRole('button', { name: typeLabel })
+  )
+}
+
+describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ;(usePreferences as Mock).mockReturnValue({ data: preferences, isPending: false })
@@ -81,7 +148,7 @@ describe('SettingsPage', () => {
     })
     ;(useExportPreferences as Mock).mockReturnValue({ mutate: vi.fn(), isPending: false })
     ;(useImportPreferences as Mock).mockReturnValue({ mutate: vi.fn(), isPending: false })
-    ;(useMailSettings as Mock).mockReturnValue({ data: settings, isPending: false })
+    mockMailSettings(settings)
     ;(useUpdateSettings as Mock).mockReturnValue({
       mutateAsync: updateSettingsMutateAsync,
       isPending: false
@@ -109,38 +176,19 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('tab', { name: /privacy & data/i })).toBeInTheDocument()
   })
 
-  it('summarizes preferences in the status strip from loaded state', () => {
+  it('marks only saved-off sections with an Off hint in the side menu', () => {
     renderWithProviders(<SettingsPage />)
 
-    const strip = screen.getByRole('group', { name: /settings status/i })
-    expect(within(strip).getByText('Logging')).toBeInTheDocument()
-    expect(within(strip).getByText('Retention')).toBeInTheDocument()
-    expect(within(strip).getByText('Timeout')).toBeInTheDocument()
-    expect(within(strip).getByText('Notifications')).toBeInTheDocument()
-    expect(within(strip).getByText('Health')).toBeInTheDocument()
-    expect(within(strip).getByText('30d')).toBeInTheDocument()
-    expect(within(strip).getByText('30s')).toBeInTheDocument()
-    // Logging + notifications are on in the fixture, health is off — and notifications reads on from
-    // saved settings without visiting its (lazily-mounted) tab, proving the loaded-value fallback.
-    expect(within(strip).getAllByText('On')).toHaveLength(2)
-    expect(within(strip).getByText('Off')).toBeInTheDocument()
-  })
-
-  it('reflects a live edit in the status strip', async () => {
-    renderWithProviders(<SettingsPage />)
-
-    await userEvent.clear(screen.getByLabelText('Log retention (days)'))
-    await userEvent.type(screen.getByLabelText('Log retention (days)'), '60')
-
-    const strip = screen.getByRole('group', { name: /settings status/i })
-    expect(within(strip).getByText('60d')).toBeInTheDocument()
+    const offHint = (tabName: RegExp) =>
+      within(screen.getByRole('tab', { name: tabName })).queryByText('Off')
+    expect(offHint(/general & logging/i)).not.toBeInTheDocument()
+    expect(offHint(/^reliability/i)).toBeInTheDocument()
+    expect(offHint(/^health/i)).toBeInTheDocument()
+    expect(offHint(/notifications/i)).not.toBeInTheDocument()
+    expect(offHint(/privacy & data/i)).not.toBeInTheDocument()
   })
 
   it("reads a never-visited tab's saved on-state instead of defaulting to off", () => {
-    // Regression for the dirty-tracking fix: the Health tab's own field-level fallback (`?? false`)
-    // only governs the tab dot's pre-visit appearance. The status strip must instead fall back to
-    // the loaded value, or a true saved flag would misreport as Off here — the Health tab is never
-    // opened in this test, so health_check_enabled only reaches the strip via that loaded-value path.
     ;(usePreferences as Mock).mockReturnValue({
       data: { ...preferences, health_check_enabled: true },
       isPending: false
@@ -148,44 +196,13 @@ describe('SettingsPage', () => {
 
     renderWithProviders(<SettingsPage />)
 
-    const strip = screen.getByRole('group', { name: /settings status/i })
-    expect(within(strip).getAllByText('On')).toHaveLength(3) // logging, notifications, health
-    expect(within(strip).queryByText('Off')).not.toBeInTheDocument()
-    // Merely loading a true saved flag must not itself mark the form dirty.
+    expect(
+      within(screen.getByRole('tab', { name: /^health/i })).queryByText('Off')
+    ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
   })
 
-  it('marks the Health and Notifications tab dots active from saved state, not just the strip, without visiting either tab', () => {
-    // Regression: the tab dots used to collapse the raw (pre-mount) watch with `?? false` instead of
-    // falling back to the saved value like the strip does, so a saved-on feature whose tab was never
-    // opened rendered a gray dot while the strip correctly showed On — a visible contradiction.
-    ;(usePreferences as Mock).mockReturnValue({
-      data: { ...preferences, health_check_enabled: true },
-      isPending: false
-    })
-
-    renderWithProviders(<SettingsPage />)
-
-    const dotColor = (tabName: RegExp) => {
-      const dots = screen.getByRole('tab', { name: tabName }).querySelectorAll('[aria-hidden="true"]')
-      return (dots[dots.length - 1] as HTMLElement).style.backgroundColor
-    }
-
-    // Logging (saved on) and Reliability (retry_enabled: false, saved off) are known-good references,
-    // since their tab dots already collapsed the raw watch correctly before this fix.
-    const onColor = dotColor(/general & logging/i)
-    const offColor = dotColor(/^reliability/i)
-    expect(onColor).not.toBe(offColor)
-
-    // Health (forced saved-on above) and Notifications (saved on via the settings fixture) must read
-    // as active even though neither tab was ever mounted.
-    expect(dotColor(/^health/i)).toBe(onColor)
-    expect(dotColor(/notifications/i)).toBe(onColor)
-  })
-
-  it('shows the Logging strip chip as Off when logging is saved disabled, instead of the true-biased default', () => {
-    // Regression: the Logging chip's live value used to fall back to `?? true`, so a saved-disabled
-    // logging state flashed On on first paint, before the field was ever touched.
+  it('shows the Off hint for logging when it is saved disabled, instead of a true-biased default', () => {
     ;(usePreferences as Mock).mockReturnValue({
       data: { ...preferences, logging_enabled: false },
       isPending: false
@@ -193,10 +210,9 @@ describe('SettingsPage', () => {
 
     renderWithProviders(<SettingsPage />)
 
-    const strip = screen.getByRole('group', { name: /settings status/i })
-    const loggingChip = within(strip).getByText('Logging').parentElement as HTMLElement
-    expect(within(loggingChip).getByText('Off')).toBeInTheDocument()
-    expect(within(loggingChip).queryByText('On')).not.toBeInTheDocument()
+    expect(
+      within(screen.getByRole('tab', { name: /general & logging/i })).getByText('Off')
+    ).toBeInTheDocument()
   })
 
   it('enables the Save changes button once a field is edited', async () => {
@@ -212,25 +228,34 @@ describe('SettingsPage', () => {
     expect(screen.getByText('You have unsaved changes')).toBeInTheDocument()
   })
 
-  it('shows only the added failure-alert channel on the Notifications tab', async () => {
-    // Fixture has only the Email channel enabled; Webhook/Slack/Telegram are off, so their cards
-    // aren't added yet and their fields shouldn't render (the redesigned "added channels" model).
+  it('shows only the stored failure-alert channel on the Notifications tab', async () => {
     renderWithProviders(<SettingsPage />)
 
     await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
 
+    expect(screen.getByLabelText('Name')).toHaveValue('Ops email')
     expect(screen.getByLabelText('Recipients')).toBeInTheDocument()
-    // The cooldown field now lives on the Health tab (its only consumer), not here.
     expect(screen.queryByLabelText('Alert cooldown (minutes)')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Webhook URL')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Slack webhook URL')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Telegram bot token')).not.toBeInTheDocument()
   })
 
+  it('keeps an unsaved channel card when the mail settings refetch in the background', async () => {
+    renderWithProviders(<SettingsPage />)
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+    await userEvent.click(screen.getByRole('button', { name: /add channel/i }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /slack/i }))
+    expect(screen.getByLabelText('Slack webhook URL')).toBeInTheDocument()
+    ;(useMailSettings as Mock).mockReturnValue({ data: { ...settings }, isPending: false })
+    await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+
+    expect(screen.getByLabelText('Slack webhook URL')).toBeInTheDocument()
+    expect(screen.getByLabelText('Recipients')).toBeInTheDocument()
+  })
+
   it('renders the alert cooldown field on the Health tab, its actual consumer', async () => {
-    // The companion assertion — cooldown absent from the Notifications tab — lives in the
-    // "shows only the added failure-alert channel" test above (antd keeps a pane mounted once
-    // visited, so absence can only be proven before the Health tab is ever opened).
     renderWithProviders(<SettingsPage />)
 
     await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
@@ -264,7 +289,6 @@ describe('SettingsPage', () => {
     /Connection unhealthy|Connection recovered|OAuth token expiring|OAuth token expired/
 
   it('durably saves an empty subscription when every alert event is deselected', async () => {
-    // The save side of the bug: deselect-all must send [], not silently fall back to a subscription.
     ;(usePreferences as Mock).mockReturnValue({
       data: {
         ...preferences,
@@ -277,7 +301,6 @@ describe('SettingsPage', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
 
-    // Deselect both stored events (tags Select has no "clear" affordance; Backspace pops the last tag).
     await userEvent.click(screen.getByLabelText('Alert on these events'))
     await userEvent.keyboard('{Backspace}{Backspace}')
 
@@ -293,8 +316,6 @@ describe('SettingsPage', () => {
   })
 
   it('reloads a stored empty subscription as no selection instead of re-defaulting to all four', async () => {
-    // The reload side of the bug: a stored [] (the server echo of "none") must display as an empty
-    // selection and stay non-dirty, never re-default the control back to every event on load.
     ;(usePreferences as Mock).mockReturnValue({
       data: { ...preferences, health_check_enabled: true, notify_events: [] },
       isPending: false
@@ -305,7 +326,6 @@ describe('SettingsPage', () => {
 
     const events = screen.getByLabelText('Alert on these events').closest('.ant-select') as HTMLElement
     expect(within(events).queryByText(anyEventLabel)).not.toBeInTheDocument()
-    // Loading a deliberately-empty subscription must not itself mark the form dirty.
     expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
   })
 
@@ -339,11 +359,13 @@ describe('SettingsPage', () => {
       expect(updateSettingsMutateAsync).toHaveBeenCalledWith({
         features: {
           logging: { enabled: true },
-          alerts: expect.objectContaining({
-            email: expect.objectContaining({
-              recipients: ['ops@example.org', 'oncall@example.org']
-            })
-          })
+          alerts: {
+            enabled: true,
+            reminder_minutes: 60,
+            channels: [
+              { ...emailChannel, settings: { recipients: ['ops@example.org', 'oncall@example.org'] } }
+            ]
+          }
         }
       })
     })
@@ -370,11 +392,8 @@ describe('SettingsPage', () => {
   it('shows an error toast and jumps to the Notifications tab when saving from another tab with an invalid alerts channel', async () => {
     renderWithProviders(<SettingsPage />)
 
-    // Add an invalid (blank URL) Slack channel on the Notifications tab, matching the reported bug:
-    // an invalid field left on a hidden tab, then Save clicked from a different, valid-looking tab.
     await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
-    await userEvent.click(screen.getByRole('button', { name: 'Add channel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Slack' }))
+    await addSlackChannel()
 
     await userEvent.click(screen.getByRole('tab', { name: /general & logging/i }))
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
@@ -384,6 +403,202 @@ describe('SettingsPage', () => {
     })
     expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('aria-selected', 'true')
     expect(savePreferencesMutateAsync).not.toHaveBeenCalled()
+    expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('echoes the loaded alerts revision on save and never posts the read-only delivery status', async () => {
+    mockMailSettings(withAlertsMeta(settings, 'rev-1'))
+    renderWithProviders(<SettingsPage />)
+
+    await editRecipientsAndSave()
+
+    await waitFor(() => expect(updateSettingsMutateAsync).toHaveBeenCalled())
+    const [{ features }] = updateSettingsMutateAsync.mock.calls[0]
+    expect(features.alerts.revision).toBe('rev-1')
+    expect(features.alerts).not.toHaveProperty('delivery')
+  })
+
+  it('shows the server message when a save is rejected as invalid (422)', async () => {
+    updateSettingsMutateAsync.mockResolvedValue({
+      status: 'error',
+      code: 'invalid_alert_channel',
+      message: 'The "Ops email" channel needs at least one recipient.',
+      data: null
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await editRecipientsAndSave()
+
+    await waitFor(() =>
+      expect(notify.error).toHaveBeenCalledWith('The "Ops email" channel needs at least one recipient.')
+    )
+  })
+
+  it('offers a Reload that discards local alert edits after a conflicting save (409)', async () => {
+    const latest = withAlertsMeta(
+      {
+        ...settings,
+        features: {
+          ...settings.features,
+          alerts: {
+            enabled: true,
+            reminder_minutes: 60,
+            channels: [{ ...emailChannel, name: 'Renamed elsewhere' }]
+          }
+        }
+      },
+      'rev-2'
+    )
+    const refetch = vi.fn(async () => {
+      mockMailSettings(latest)
+      return { data: latest, isSuccess: true }
+    })
+    mockMailSettings(withAlertsMeta(settings, 'rev-1'), refetch)
+    updateSettingsMutateAsync.mockResolvedValue({
+      status: 'error',
+      code: 'alerts_conflict',
+      message: CONFLICT_MESSAGE,
+      data: null
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await editRecipientsAndSave()
+
+    const banner = await screen.findByRole('alert')
+    expect(banner).toHaveTextContent(CONFLICT_MESSAGE)
+    expect(notify.error).not.toHaveBeenCalled()
+
+    await userEvent.click(within(banner).getByRole('button', { name: 'Reload' }))
+
+    await waitFor(() => expect(screen.queryByText(CONFLICT_MESSAGE)).not.toBeInTheDocument())
+    expect(refetch).toHaveBeenCalled()
+    expect(screen.getByLabelText('Name')).toHaveValue('Renamed elsewhere')
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  it('keeps a newly saved secret masked-and-stored, so an untouched focus/blur never wipes it', async () => {
+    updateSettingsMutateAsync.mockImplementation(async (payload: Pick<MailSettings, 'features'>) => {
+      const saved = payload.features.alerts as FailureAlertSettings
+      const stored = saved.channels.map(channel =>
+        channel.type === 'telegram'
+          ? { ...channel, settings: { ...channel.settings, bot_token: MASK_SENTINEL } }
+          : channel
+      )
+      mockMailSettings({
+        ...settings,
+        features: { ...payload.features, alerts: { ...saved, channels: stored } }
+      })
+
+      return apiResponse(null)
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+    await addChannel('Telegram')
+    await userEvent.type(screen.getByLabelText('Telegram bot token'), TELEGRAM_BOT_TOKEN)
+    await userEvent.type(screen.getByLabelText('Telegram chat ID'), '-1001234567890')
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await waitFor(() => expect(notify.success).toHaveBeenCalledWith('Settings saved'))
+    await waitFor(() => expect(screen.getByLabelText('Telegram bot token')).toHaveValue(MASK_SENTINEL))
+
+    await userEvent.click(screen.getByLabelText('Telegram bot token'))
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+
+    expect(screen.getByLabelText('Telegram bot token')).toHaveValue(MASK_SENTINEL)
+  })
+
+  it('reports only the reload failure after a saved alerts change, then adopts the next background refetch', async () => {
+    const failedRefetch = vi.fn(async () => ({ data: undefined, isSuccess: false }))
+    mockMailSettings(withAlertsMeta(settings, 'rev-1'), failedRefetch)
+    let savedFeatures: MailSettings['features'] = settings.features
+    updateSettingsMutateAsync.mockImplementation(async (payload: Pick<MailSettings, 'features'>) => {
+      savedFeatures = payload.features
+
+      return apiResponse(null)
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await editRecipientsAndSave()
+    await waitFor(() => expect(notify.error).toHaveBeenCalledWith('Failed to reload settings'))
+    expect(notify.success).not.toHaveBeenCalled()
+
+    mockMailSettings(withAlertsMeta({ ...settings, features: savedFeatures }, 'rev-2'))
+    await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+    await userEvent.type(screen.getByLabelText('Recipients'), 'pager@example.org{enter}')
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(updateSettingsMutateAsync).toHaveBeenCalledTimes(2))
+    expect(echoedRevision(1)).toBe('rev-2')
+  })
+
+  it('adopts the post-save revision even when the preferences half of a combined save fails', async () => {
+    mockMailSettings(withAlertsMeta(settings, 'rev-1'))
+    mockAlertsSaveAs('rev-2')
+    savePreferencesMutateAsync.mockResolvedValue({
+      status: 'error',
+      code: 'ERROR',
+      message: 'Preferences store unavailable',
+      data: null
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.clear(screen.getByLabelText('Log retention (days)'))
+    await userEvent.type(screen.getByLabelText('Log retention (days)'), '60')
+    await editRecipientsAndSave()
+    await waitFor(() => expect(notify.error).toHaveBeenCalledWith('Preferences store unavailable'))
+
+    await userEvent.type(screen.getByLabelText('Recipients'), 'pager@example.org{enter}')
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(updateSettingsMutateAsync).toHaveBeenCalledTimes(2))
+    expect(echoedRevision(0)).toBe('rev-1')
+    expect(echoedRevision(1)).toBe('rev-2')
+  })
+
+  it('holds Save until the post-save reload lands, so a quick re-save never echoes a stale revision', async () => {
+    let finishReload: () => void = () => {}
+    const refetch = vi.fn(
+      () =>
+        new Promise(resolve => {
+          finishReload = () => resolve({ data: serverSettings, isSuccess: true })
+        })
+    )
+    mockMailSettings(withAlertsMeta(settings, 'rev-1'), refetch)
+    updateSettingsMutateAsync.mockImplementation(async (payload: Pick<MailSettings, 'features'>) => {
+      mockMailSettings(withAlertsMeta({ ...settings, features: payload.features }, 'rev-2'), refetch)
+
+      return apiResponse(null)
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await editRecipientsAndSave()
+    await waitFor(() => expect(refetch).toHaveBeenCalled())
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    expect(updateSettingsMutateAsync).toHaveBeenCalledTimes(1)
+
+    finishReload()
+
+    await waitFor(() => expect(notify.success).toHaveBeenCalledWith('Settings saved'))
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+    await userEvent.type(screen.getByLabelText('Recipients'), 'pager@example.org{enter}')
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await waitFor(() => expect(updateSettingsMutateAsync).toHaveBeenCalledTimes(2))
+    finishReload()
+    expect(echoedRevision(1)).toBe('rev-2')
+  })
+
+  it('blocks save for an invalid channel even when that channel is switched off', async () => {
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+    await addSlackChannel()
+    const [, slackEnabled] = screen.getAllByRole('switch', { name: 'Channel enabled' })
+    await userEvent.click(slackEnabled)
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(await screen.findByText('Enter a valid Slack incoming webhook URL')).toBeInTheDocument()
+    expect(notify.error).toHaveBeenCalledWith('Please fix the highlighted fields before saving.')
     expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
   })
 })

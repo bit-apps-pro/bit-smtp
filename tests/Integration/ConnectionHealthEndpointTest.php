@@ -14,9 +14,7 @@ use BitApps\SMTP\Plugin;
 use Mockery;
 
 /**
- * Drives ConnectionHealthController against the real health engine: index exposes the live map keyed
- * by connection id in its public shape, check runs a probe and returns refreshed state, and neither
- * ever leaks the internal alert bookkeeping (last_alerted_state/at).
+ * Verifies health endpoints expose live state without leaking internal alert bookkeeping.
  *
  * @internal
  *
@@ -92,7 +90,6 @@ final class ConnectionHealthEndpointTest extends IntegrationTestCase
 
     public function testCheckProbesAndReturnsRefreshedHealthWithoutAlertBookkeeping(): void
     {
-        // A reachable mailpit SMTP endpoint probes healthy on the on-demand "Check now".
         $this->storeSmtpConnection('conn_smtp');
 
         (new ConnectionHealthController())->check($this->request());

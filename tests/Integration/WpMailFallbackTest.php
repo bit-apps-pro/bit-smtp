@@ -7,9 +7,7 @@ use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
 
 /**
- * Exercises the pre_wp_mail dispatch loop end-to-end: priority fallback, mixed-transport fallback
- * (SMTP → API), all-fail, the disabled escape hatch, single-connection BC, and third-party
- * phpmailer_init preservation, against mailpit.
+ * Tests dispatch loop: priority fallback, mixed-transport fallback, all-fail, disabled escape hatch.
  *
  * @internal
  *
@@ -49,9 +47,6 @@ final class WpMailFallbackTest extends IntegrationTestCase
 
     public function testFallsBackToApiProviderWhenPrimarySmtpIsUnreachable(): void
     {
-        // Default = SMTP pointed at an unreachable host; fallback = a SendGrid connection. The SMTP
-        // primary must fail and the SendGrid transport must carry the send over a mocked 202 — proving
-        // dispatch resolves each connection's OWN provider transport, not a hardcoded SMTP one.
         $apiKey   = 'SG.test-key-abc123';
         $captured = [];
 
@@ -134,11 +129,11 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertSame(['conn_fallback', 'failed'], [$attempts[1]['connection'], $attempts[1]['status']]);
     }
 
+    /**
+     * Permanent rejections are connection-scoped; the SMTP fallback must still be attempted.
+     */
     public function testPermanentFailureStillReachesTheSmtpFallback(): void
     {
-        // A permanent rejection (SendGrid HTTP 400, no recipient-specific detail) is connection-scoped
-        // — a differently-credentialed/reputationed connection may still deliver — so dispatch must
-        // still try the SMTP fallback rather than stop after the primary.
         $apiKey = 'SG.test-key-permanent';
         $filter = static function ($preempt, $args, $url) {
             if (strpos($url, 'api.sendgrid.com') === false) {
@@ -182,11 +177,11 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertSame(['conn_fallback', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
     }
 
+    /**
+     * Invalid recipients are undeliverable on all connections; fallback must not be attempted.
+     */
     public function testInvalidRecipientFailureStopsTheFallbackChain(): void
     {
-        // Only an invalid/nonexistent recipient is undeliverable on every connection alike
-        // (FailureCategory::STOPS_FAILOVER is INVALID_RECIPIENT only), so this is the one category
-        // that must still stop dispatch after the primary rather than waste the SMTP fallback.
         $apiKey = 'SG.test-key-invalid-recipient';
         $filter = static function ($preempt, $args, $url) {
             if (strpos($url, 'api.sendgrid.com') === false) {
@@ -231,8 +226,6 @@ final class WpMailFallbackTest extends IntegrationTestCase
 
     public function testRetryableFailuresStillTryEveryConnectionAndRecordTheFinalFailureClass(): void
     {
-        // Both connections fail with a genuine (non-accepted), retryable-category error: dispatch
-        // must still try every connection, and the log row must carry the LAST attempt's category.
         $this->storeV2([
             $this->connection('conn_primary', '127.0.0.1', 2),
             $this->connection('conn_fallback', '127.0.0.1', 3),
@@ -266,10 +259,11 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertCount(1, $this->logs(), 'a single-connection dispatch must log exactly one row');
     }
 
+    /**
+     * BC: native wp_mail sends must still be logged when routing is disabled.
+     */
     public function testNativePathSendIsStillLoggedWhenRoutingIsDisabled(): void
     {
-        // BC: with SMTP routing disabled but logging on, the plugin logged native wp_mail sends via
-        // the wp_mail_succeeded/failed actions. That must survive the pre_wp_mail refactor.
         $this->useRealPhpMailer();
         $this->storeV2([
             $this->connection('conn_only', self::SMTP_HOST, self::SMTP_PORT),
@@ -282,8 +276,6 @@ final class WpMailFallbackTest extends IntegrationTestCase
 
     public function testDisabledPluginDefersToNativeWpMail(): void
     {
-        // Connection points at mailpit, but the plugin is disabled: pre_wp_mail must return null and
-        // our transport must not run, so nothing reaches mailpit through our path.
         $this->storeV2([
             $this->connection('conn_only', self::SMTP_HOST, self::SMTP_PORT),
         ], 'conn_only', [], false);
@@ -302,8 +294,6 @@ final class WpMailFallbackTest extends IntegrationTestCase
 
     public function testResendUpdatesItsExistingLogOnceWithTheFinalOutcome(): void
     {
-        // Seed a previously-failed log, then resend it over a primary that fails and a fallback that
-        // succeeds: the originating row must be updated once to SUCCESS, never duplicated per attempt.
         Plugin::instance()->logger()->save(Log::ERROR, [
             'subject' => 'Seeded',
             'to'      => ['to@example.org'],
@@ -329,13 +319,11 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertSame(Log::SUCCESS, $updated->status);
         $this->assertSame(1, $updated->retry_count, 'exactly one update should have run for the resend');
 
-        // The stored trail must reflect THIS resend, not the seeded row's stale outcome.
         $attempts = $updated->details['attempts'] ?? [];
         $this->assertCount(2, $attempts, 'the resend refreshes the trail with its own attempts');
         $this->assertSame(['conn_primary', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
         $this->assertSame(['conn_fallback', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
 
-        // The bridge is a shared singleton; clear the debug flag so it does not leak into later tests.
         Plugin::instance()->smtpProvider()->setDebug(false);
     }
 

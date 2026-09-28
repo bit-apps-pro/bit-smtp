@@ -5,8 +5,7 @@ namespace BitApps\SMTP\Tests\Integration;
 use BitApps\SMTP\Plugin;
 
 /**
- * Verifies the live plugin registers all fourteen mail providers, so `GET mail/providers` (backed by
- * ProviderRegistry::metadata()) drives the frontend provider modal + metadata-driven fields.
+ * Verifies plugin registers all providers and metadata drives frontend provider modal/fields.
  *
  * @internal
  *
@@ -14,6 +13,9 @@ use BitApps\SMTP\Plugin;
  */
 final class ProviderRegistryMetadataTest extends IntegrationTestCase
 {
+    /**
+     * Verifies all providers expose required metadata: kind, fields, webhooks, provisioning.
+     */
     public function testMetadataExposesAllFourteenRegisteredProviders(): void
     {
         $metadata = Plugin::instance()->providerRegistry()->metadata();
@@ -59,7 +61,6 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
             $this->assertArrayNotHasKey('oauth_redirect_url', $byKey[$key], "{$key} must not expose an OAuth callback URL");
         }
 
-        // amazon_ses has a live receiver too — SES bounce/complaint/delivery arrive over SNS.
         foreach (['sendgrid', 'postmark', 'brevo', 'resend', 'mailjet', 'zeptomail', 'mailgun', 'sparkpost', 'amazon_ses'] as $key) {
             $this->assertTrue($byKey[$key]['supports_webhook'], "{$key} must expose its live webhook receiver");
         }
@@ -67,8 +68,6 @@ final class ProviderRegistryMetadataTest extends IntegrationTestCase
             $this->assertFalse($byKey[$key]['supports_webhook'], "{$key} must not advertise an unimplemented webhook");
         }
 
-        // Providers with an API to register their own webhook advertise provisioning; ZeptoMail has no
-        // such API and the non-webhook providers have no receiver, so both stay manual/absent.
         foreach (['sendgrid', 'brevo', 'postmark', 'sparkpost', 'mailgun', 'mailjet', 'resend'] as $key) {
             $this->assertTrue($byKey[$key]['supports_webhook_provisioning'], "{$key} provisions its own webhook via API");
         }

@@ -30,7 +30,7 @@ final class OpenPixelInjectorTest extends BaseUnitTestCase
 
         $this->assertStringContainsString('<img src="' . self::OPEN_BASE, $out);
         $this->assertStringContainsString('width="1" height="1" alt="" style="display:none" />', $out);
-        // The pixel sits directly before </body> so it stays inside the rendered document.
+
         $this->assertStringContainsString('/></body></html>', $out);
     }
 

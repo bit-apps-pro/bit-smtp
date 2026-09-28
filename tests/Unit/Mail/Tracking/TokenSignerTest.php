@@ -34,7 +34,6 @@ final class TokenSignerTest extends BaseUnitTestCase
     {
         $token = TokenSigner::sign(['u' => 'https://example.test/a+b/c?d=1&e=2']);
 
-        // base64url payload + '.' + hex hmac: never the URL-reserved '+', '/', or '=' characters.
         $this->assertMatchesRegularExpression('#^[A-Za-z0-9\-_]+\.[a-f0-9]{64}$#', $token);
         $this->assertStringNotContainsString('+', $token);
         $this->assertStringNotContainsString('/', $token);
@@ -62,7 +61,6 @@ final class TokenSignerTest extends BaseUnitTestCase
     {
         $token = TokenSigner::sign(['t' => 'x']);
 
-        // A token minted under a different WP salt (e.g. another site) must not verify here.
         Functions\when('wp_salt')->justReturn('a-different-server-secret');
 
         $this->assertNull(TokenSigner::verify($token));

@@ -15,10 +15,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Drives ZeptoProvider::transport()->send() over a mocked ApiClient, proving the shipped
- * descriptor engine renders ZeptoMail's contract correctly (spec §5/§11): the region-mapped
- * data-center host (with a 'us' engine default), the "Zoho-enczapikey" api-key header, and
- * the unwrapped {address,name} address shape.
+ * Drives ZeptoProvider::transport()->send() over mocked ApiClient, verifies descriptor engine renders ZeptoMail contract.
  *
  * @internal
  *
@@ -277,7 +274,6 @@ class ZeptoProviderTest extends BaseUnitTestCase
 
     public function testStatusOutsideTheDeclaredSuccessListMapsToFailure(): void
     {
-        // success => [201] in the descriptor; a 200 is still a failure by that contract.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, []));
 

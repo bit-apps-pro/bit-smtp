@@ -47,6 +47,7 @@ function deriveOrderedIds(settings: MailSettings): string[] {
   return ordered
 }
 
+/** Drag-sortable wrapper around ConnectionCard, wired to dnd-kit's sortable context. */
 function SortableConnectionCard({
   connection,
   priority,
@@ -97,6 +98,7 @@ function SortableConnectionCard({
   )
 }
 
+/** Dashed-border empty state shown when no connection has been added yet. */
 function EmptyConnections({ onAddConnection }: { onAddConnection: () => void }) {
   const { token } = theme.useToken()
 
@@ -140,6 +142,7 @@ function EmptyConnections({ onAddConnection }: { onAddConnection: () => void }) 
   )
 }
 
+/** Connections page: ordered, drag-reorderable connection cards with health, default, and enable controls. */
 export default function ConnectionsListPage() {
   const navigate = useNavigate()
   const { data: settings, isPending: isSettingsPending } = useMailSettings()
@@ -178,6 +181,7 @@ export default function ConnectionsListPage() {
     .map(id => connectionsById.get(id))
     .filter((connection): connection is Connection => connection !== undefined)
 
+  /** Reorders connections locally, then persists the new fallback order; no-op when dropped on itself. */
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) {

@@ -48,10 +48,6 @@ final class BitSmtpLogsTableMigration extends Migration
             }
         );
 
-        // Schema::create() above is a CREATE TABLE IF NOT EXISTS, so it never alters an existing
-        // table: sites upgrading from an older DB_VERSION need the columns added explicitly, each
-        // guarded so re-running this migration (every activation, not just the version-gated
-        // upgrade) can't fail on a duplicate column or index.
         $this->addConnectionColumnIfMissing();
         $this->addWebhookCorrelationColumnsIfMissing();
         $this->addDeliveryColumnsIfMissing();
@@ -64,15 +60,15 @@ final class BitSmtpLogsTableMigration extends Migration
         LogService::initializeLoggingContinuity();
     }
 
+    /**
+     * Drop logs and delivery-events tables on uninstall-with-purge; must use withWpPrefix().
+     */
     public function down()
     {
         if (!UninstallPurge::shouldPurge()) {
             return;
         }
 
-        // withWpPrefix(), not a bare Schema::drop(): the static form leaves the prefix null and
-        // emits an unprefixed `DROP TABLE logs`, matching nothing and leaving the real tables (with
-        // recipient/subject content) behind on uninstall-with-purge.
         Schema::withWpPrefix()->drop('log_delivery_events');
         Schema::withWpPrefix()->drop('logs');
     }
@@ -142,8 +138,7 @@ final class BitSmtpLogsTableMigration extends Migration
     }
 
     /**
-     * Add the resend_parent_id column + its lookup index on installs upgrading from a DB_VERSION
-     * that predates manual-resend history (a child row links back to the log it was resent from).
+     * Add resend_parent_id column and index for manual-resend history (links child to resent log).
      */
     private function addResendParentColumnIfMissing()
     {
@@ -154,8 +149,7 @@ final class BitSmtpLogsTableMigration extends Migration
     }
 
     /**
-     * Add the cc/bcc recipient columns on installs upgrading from a DB_VERSION that predates
-     * carbon-copy logging. Stored as JSON arrays, mirroring to_addr.
+     * Add cc/bcc recipient columns for carbon-copy logging (JSON arrays mirroring to_addr).
      */
     private function addCcBccColumnsIfMissing()
     {
@@ -171,17 +165,12 @@ final class BitSmtpLogsTableMigration extends Migration
             'log_delivery_events',
             function (Blueprint $table) {
                 $table->id();
-                // Unsigned to match logs.id exactly — MySQL rejects a foreign key whose columns
-                // differ in signedness — and cascading so a purged log takes its delivery events
-                // with it in the engine rather than in PHP.
                 $table->bigInt('log_id')->unsigned()->index()->foreign('logs', 'id')->onDelete()->cascade();
                 $table->varchar('recipient', 254);
                 $table->varchar('status', 32);
                 $table->tinyint('terminal')->defaultValue(0);
                 $table->text('detail')->nullable();
                 $table->datetime('occurred_at')->nullable();
-                // Dedup key is one NOT-NULL hash, not a composite over nullable columns: MySQL treats
-                // NULLs as distinct in a unique index, which would let provider retries insert duplicates.
                 $table->char('event_hash', 64)->unique();
 
                 $table->timestamps();
@@ -209,7 +198,6 @@ final class BitSmtpLogsTableMigration extends Migration
 
     private function addIndexIfMissing($table, $index, $alter)
     {
-        // SHOW INDEX (not SHOW COLUMNS) — an index isn't a column, and re-ADDing an existing one fatals.
         $exists = Connection::get_var(
             Connection::prepare('SHOW INDEX FROM `' . $table . '` WHERE Key_name = %s', [$index])
         );
@@ -228,9 +216,6 @@ final class BitSmtpLogsTableMigration extends Migration
 
     private function removeUnusedAnalyticsIndexes($table)
     {
-        // Analytics filters only use created_at_utc, source_plugin, and connection_id. Keep
-        // idx_created_at for retention deletion, but remove the former display-time/raw-
-        // connection/status composites so they do not impose write cost after this upgrade.
         foreach ([
             'idx_source_created',
             'idx_connection_created',

@@ -14,6 +14,7 @@ import cls from './Layout.module.css'
 
 type NavVars = CSSProperties & Record<`--nav-${string}`, string>
 
+/** Top app header: logo, primary nav, review link, theme toggle, and the cross-promo ad modal. */
 export default function Header() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const { isDark, toggleTheme } = useTheme()
@@ -40,7 +41,7 @@ export default function Header() {
   const navStyle: NavVars = {
     '--nav-inactive-color': token.colorTextSecondary,
     '--nav-hover-color': token.colorText,
-    '--nav-active-color': token.colorPrimary,
+    '--nav-active-color': token.colorPrimaryText,
     '--nav-underline': `linear-gradient(90deg, ${token.colorPrimary}, ${token.colorInfo})`
   }
 
@@ -104,7 +105,7 @@ export default function Header() {
               target="_blank"
               rel="noreferrer"
               className={cls.reviewLink}
-              style={{ color: token.colorPrimary, fontWeight: token.fontWeightStrong }}
+              style={{ color: token.colorPrimaryText, fontWeight: token.fontWeightStrong }}
             >
               {__('Review us')}
             </a>

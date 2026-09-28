@@ -30,17 +30,22 @@ describe('StatusDot', () => {
 })
 
 describe('TabLabel', () => {
-  it('renders the icon and label without a status dot when dotActive is omitted', () => {
-    const { container } = render(<TabLabel icon={ScrollText} label="General" />)
+  it('renders the icon and label with no Off hint when enabled is omitted', () => {
+    render(<TabLabel icon={ScrollText} label="General" />)
 
     expect(screen.getByText('General')).toBeInTheDocument()
-    // Only the icon is aria-hidden; no StatusDot is rendered.
-    expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1)
+    expect(screen.queryByText('Off')).not.toBeInTheDocument()
   })
 
-  it('renders a status dot when dotActive is provided', () => {
-    const { container } = render(<TabLabel icon={ScrollText} label="General" dotActive />)
+  it('renders no Off hint when the section is enabled', () => {
+    render(<TabLabel icon={ScrollText} label="General" enabled />)
 
-    expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2) // icon + dot
+    expect(screen.queryByText('Off')).not.toBeInTheDocument()
+  })
+
+  it('renders an Off hint when the section is disabled', () => {
+    render(<TabLabel icon={ScrollText} label="General" enabled={false} />)
+
+    expect(screen.getByText('Off')).toBeInTheDocument()
   })
 })

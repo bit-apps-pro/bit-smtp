@@ -7,7 +7,6 @@ interface EmailPreviewerProps {
   style?: React.CSSProperties
 }
 
-// Dark value mirrors theme.dark.ts colorTextBase (#f8fafc) so the preview matches the app's dark surface; light stays pure black per #34.
 const DARK_BODY_TEXT_COLOR = '#f8fafc'
 const LIGHT_BODY_TEXT_COLOR = '#000000'
 
@@ -18,6 +17,7 @@ function buildSrcDoc(html: string, isDark: boolean): string {
   return `<meta name="color-scheme" content="${colorScheme}"><style>body { color: ${bodyColor}; }</style>${html}`
 }
 
+/** Iframe-based email HTML preview that re-renders its srcdoc when the html or theme changes. */
 function EmailPreviewer({ html, isDark, style }: EmailPreviewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
 

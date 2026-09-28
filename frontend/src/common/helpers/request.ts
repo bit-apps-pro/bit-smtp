@@ -40,6 +40,7 @@ export interface Response<T> {
   message: string | undefined
 }
 
+/** Send a nonce-authenticated fetch to the plugin's REST action, tolerating non-JSON/malformed responses. */
 export default async function request<T>({
   action,
   data,
@@ -50,7 +51,6 @@ export default async function request<T>({
   const { API_URL, NONCE } = config
   const uri = new URL(`${API_URL}/${action}`, `${window.location.protocol}//${window.location.host}`)
 
-  // append query params in url
   if (queryParam !== null) {
     for (const key in queryParam) {
       if (key) {
@@ -91,6 +91,7 @@ export default async function request<T>({
     })) as Response<T>
 }
 
+/** Extract the first balanced-braces JSON object embedded in a string, or null if none is found. */
 function extractJSON(str: string) {
   if (typeof str !== 'string') return null
 

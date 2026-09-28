@@ -28,14 +28,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 
 /**
- * Freezes each descriptor-based API provider's DescriptorApiTransport::buildBody() output — the
- * request body shape actually posted to the provider. Wired the same way Plugin::registerProviders()
- * builds these providers (spec §5/§11). A later PR introducing descriptor value objects must
- * reproduce these payloads byte-for-byte.
- *
- * Deliberately skipped (no shared DescriptorApiTransport::buildBody() to freeze — see
- * tests/Unit/Mail/Providers/{SendGrid,Gmail,AmazonSes,Microsoft365}/*TransportTest.php instead):
- * SendGrid, Gmail, Amazon SES, Microsoft365.
+ * Freezes DescriptorApiTransport::buildBody() output for each API provider (must reproduce byte-for-byte).
  *
  * @internal
  *
@@ -72,9 +65,9 @@ final class SendPayloadGoldenTest extends GoldenTestCase
         yield 'sparkpost' => ['sparkpost'];
     }
 
-    // setUp() reruns per data set (see ProviderMetadataGoldenTest), so each provider's golden
-    // generates independently under UPDATE_GOLDEN=1 in one run instead of stopping at the first
-    // missing snapshot.
+    /**
+     * setUp() reruns per data set, so each provider golden regenerates independently under UPDATE_GOLDEN=1.
+     */
     #[DataProvider('providerKeys')]
     public function testBuildBodyGoldenPerApiProvider(string $key): void
     {
@@ -104,9 +97,7 @@ final class SendPayloadGoldenTest extends GoldenTestCase
     }
 
     /**
-     * buildBody() only ever reads a connection's from/reply-to address fields (region/domain
-     * settings are consumed by endpoint(), never by buildBody()) — settings below are included
-     * purely for a realistic per-provider fixture, not because buildBody() requires them.
+     * buildBody() only reads from/reply-to fields; settings below are for realistic fixtures.
      */
     private function connectionFor(string $key): Connection
     {

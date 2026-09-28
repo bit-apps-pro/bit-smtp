@@ -73,6 +73,7 @@ svg {
 
 a:focus {
   outline: none;
+  box-shadow: none;
 }
 
 /* skelaton loader */
@@ -144,13 +145,4 @@ textarea {
 .telemetry-popconfirm .ant-popconfirm-buttons .ant-btn-primary:hover {
   background: none !important;
   color: #534e4e !important;
-}
-
-.bit-social-release-modal img {
-  border-radius: 10px;
-}
-
-.bit-social-release-modal .ant-modal-content {
-  padding: 0 !important;
-  text-align: center;
 }

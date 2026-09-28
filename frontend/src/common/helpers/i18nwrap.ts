@@ -6,8 +6,7 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { __ as i18n_, sprintf as i18nsprintf } from '@wordpress/i18n'
 
-// declare var bitapp: any
-
+/** Translate text, preferring the bitapp translations cache, then wp-i18n, then the raw string. */
 // eslint-disable-next-line @typescript-eslint/naming-convention
 const __ = (text: string, domain = 'bitapp') => {
   if (typeof bitapp !== 'undefined' && bitapp?.translations && bitapp.translations[text]) {
@@ -19,9 +18,8 @@ const __ = (text: string, domain = 'bitapp') => {
   return i18n_(text, domain)
 }
 
+/** sprintf-style interpolation with typeof guard to prevent ReferenceError when wp-i18n is unavailable. */
 const sprintf = (text: string, ...vars: any) => {
-  // Guard `wp` with typeof like __ above: a bare `wp?.i18n` throws ReferenceError when the global is
-  // absent (test env, or a page where wp-i18n isn't enqueued) instead of falling back.
   if (typeof wp === 'undefined' || !wp?.i18n) {
     const matches: any = text.match(/%[s d u c o x X bg G e E f F]/g)
     let str = text

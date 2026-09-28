@@ -3,13 +3,12 @@
 namespace BitApps\SMTP\Mail\Dispatch;
 
 /**
- * Renders an email/name pair into the single display string logs and message headers use for From.
+ * Render email/name pair into display string for From logs and message headers.
  */
 class SenderFormatter
 {
     /**
-     * "Name <email>" when both are present, a bare email when the name is empty, or '' when the
-     * email itself is empty. Pure string formatting: no WordPress dependency.
+     * Format as "Name <email>", bare email, or empty string; pure string formatting.
      */
     public static function format(?string $email, ?string $name): string
     {
@@ -24,9 +23,7 @@ class SenderFormatter
     }
 
     /**
-     * Strips control characters (including CR/LF) from an assembled sender string while keeping its
-     * literal "Name <email>" bracket — unlike sanitize_text_field(), which treats the angle brackets
-     * as an HTML tag and drops the address. Pure: no WordPress dependency.
+     * Strip control characters while preserving "Name <email>" brackets (unlike sanitize_text_field).
      */
     public static function sanitize(string $sender): string
     {

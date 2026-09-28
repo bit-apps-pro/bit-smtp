@@ -42,7 +42,7 @@ final class EasyWpSmtpImporterTest extends BaseUnitTestCase
         $this->assertSame('tls', $connection['settings']['encryption']);
         $this->assertTrue($connection['settings']['auth']);
         $this->assertSame('mailer', $connection['settings']['username']);
-        // Base64-encoded storage is decoded back to plaintext, then encrypted at rest on save.
+
         $this->assertSame('s3cret', $connection['credentials']['password']['value']);
         $this->assertSame('database', $connection['credentials']['password']['source']);
     }
@@ -59,9 +59,6 @@ final class EasyWpSmtpImporterTest extends BaseUnitTestCase
 
     public function testNonBase64PasswordIsDroppedWhenTheDecryptorIsUnavailable(): void
     {
-        // Not a clean base64 round-trip => likely AES ciphertext Easy WP SMTP would reverse with its own
-        // key. Without swpsmtp_get_password() loaded we can't reverse it, so it is dropped rather than
-        // persisted as a broken credential.
         $this->stubOption([
             'smtp_settings' => ['host' => 'smtp.example.org', 'password' => 'not~base64~cipher'],
         ]);
@@ -72,8 +69,6 @@ final class EasyWpSmtpImporterTest extends BaseUnitTestCase
 
     public function testBase64AesCiphertextIsDroppedAsUnreversible(): void
     {
-        // An AES password is stored base64(ciphertext): clean base64, but decodes to binary (not valid
-        // UTF-8). Without swpsmtp_get_password() we can't reverse it, so it's dropped, not persisted broken.
         $ciphertext = "\xff\xfe\xfd\x80\x81\x82\x00\x13";
         $this->stubOption([
             'smtp_settings' => ['host' => 'smtp.example.org', 'password' => base64_encode($ciphertext)],

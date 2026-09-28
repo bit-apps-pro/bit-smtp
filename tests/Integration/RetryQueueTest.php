@@ -9,9 +9,7 @@ use BitApps\SMTP\Mail\Message\MailMessage;
 use BitSmtpRetryQueueMigration;
 
 /**
- * Drives RetryQueue's enqueue/claim/reschedule/delete against the real test DB, including the
- * concurrency property the whole claim design exists to guarantee: two back-to-back claimDue()
- * calls (simulating overlapping cron runs) never return overlapping rows.
+ * Tests RetryQueue operations and concurrency: overlapping claimDue() calls never return overlapping rows.
  *
  * @internal
  *
@@ -67,6 +65,9 @@ final class RetryQueueTest extends IntegrationTestCase
         $this->assertNull($row['log_id']);
     }
 
+    /**
+     * Rescheduled row is released from lock and becomes claimable again once next_attempt_at passes.
+     */
     public function testRescheduleUpdatesTheRowAndReleasesTheClaimSoItBecomesClaimableAgain(): void
     {
         $message = MailMessage::fromArray(['to' => ['a@example.com'], 'subject' => 'S', 'body' => 'B']);
@@ -76,7 +77,6 @@ final class RetryQueueTest extends IntegrationTestCase
         $this->assertCount(1, $claimed);
         $id = $claimed[0]['id'];
 
-        // Still locked immediately after the first claim: a second claim right now must see nothing.
         $this->assertCount(0, $this->queue->claimDue(10));
 
         $this->queue->reschedule($id, 1, FailureCategory::RATE_LIMITED, -60);
@@ -108,6 +108,9 @@ final class RetryQueueTest extends IntegrationTestCase
         $this->assertSame(0, $this->queue->depth());
     }
 
+    /**
+     * Overlapping cron runs (simulated via back-to-back claims) never return the same row.
+     */
     public function testTwoBackToBackClaimsNeverReturnOverlappingRows(): void
     {
         $message = MailMessage::fromArray(['to' => ['a@example.com'], 'subject' => 'S', 'body' => 'B']);
@@ -117,7 +120,6 @@ final class RetryQueueTest extends IntegrationTestCase
 
         $this->assertSame(6, $this->queue->depth());
 
-        // Simulates two overlapping cron runs racing claimDue() against the same due backlog.
         $first  = $this->queue->claimDue(4);
         $second = $this->queue->claimDue(4);
 
@@ -129,6 +131,9 @@ final class RetryQueueTest extends IntegrationTestCase
         $this->assertEmpty(array_intersect($firstIds, $secondIds), 'the two claims must never share a row id');
     }
 
+    /**
+     * Renewal fails when another worker has reclaimed the row (prevents double-send in cron races).
+     */
     public function testRenewClaimFailsOnceAnOverlappingWorkerHasReclaimedTheRow(): void
     {
         $message = MailMessage::fromArray(['to' => ['a@example.com'], 'subject' => 'S', 'body' => 'B']);
@@ -140,7 +145,6 @@ final class RetryQueueTest extends IntegrationTestCase
 
         $this->assertTrue($this->queue->renewClaim($id, $token), 'the original owner renews its own claim');
 
-        // Simulate an overlapping cron run reclaiming the (stale) row under a different token.
         global $wpdb;
         $wpdb->update($this->table, ['claim_token' => 'other-worker'], ['id' => $id]);
 

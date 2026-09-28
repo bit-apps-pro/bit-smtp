@@ -5,8 +5,7 @@ namespace BitApps\SMTP\Mail\Tracking;
 \defined('ABSPATH') || exit();
 
 /**
- * Single source of truth for the public tracking URL path segments, shared by the URL builder
- * (TrackingBodyRewriter) and the route matcher (TrackingRouter) so the two can never silently drift.
+ * Single source of truth for tracking URL path segments; prevents drift between URL builder and router.
  */
 final class TrackingRoutes
 {

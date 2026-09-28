@@ -1,37 +1,25 @@
-/**
- * Dataviz chart palette for the analytics dashboard.
- *
- * Categorical hues are brand-anchored (indigo/violet, the app's colorPrimary/colorInfo tokens)
- * extended to 8 slots, in the fixed order that maximizes the worst-case adjacent CVD separation
- * (see /home/ar2/Documents/llm-specs/bit-smtp/sdd/2026-08-24-settings-polish-analytics/task2b-report.md
- * for the brute-force search + `validate_palette.js` output). Order is never cycled or reassigned
- * per render - each chart hands its series slots 1..N in this sequence.
- *
- * Status hues are the dataviz skill's reserved, fixed scale (never themed, never reused as identity).
- * Chart chrome (ink, gridlines, surface) intentionally rides the app's own antd theme tokens instead
- * of a parallel palette, via `theme.useToken()` in each chart - see AGENTS.md conventions.
- */
+/** Dataviz chart palette: brand-anchored, CVD-separated categorical hues in a fixed never-reassigned order, plus the dataviz skill's reserved status scale. */
 
 export const CATEGORICAL_LIGHT = [
-  '#4f46e5', // 1 indigo (brand primary)
-  '#1baf7a', // 2 aqua
-  '#eda100', // 3 yellow
-  '#e34948', // 4 red
-  '#7c3aed', // 5 violet (brand info)
-  '#008300', // 6 green
-  '#e87ba4', // 7 magenta
-  '#eb6834' // 8 orange
+  '#4f46e5',
+  '#1baf7a',
+  '#eda100',
+  '#e34948',
+  '#7c3aed',
+  '#008300',
+  '#e87ba4',
+  '#eb6834'
 ] as const
 
 export const CATEGORICAL_DARK = [
-  '#4f46e5', // 1 indigo (brand primary)
-  '#199e70', // 2 aqua
-  '#c98500', // 3 yellow
-  '#e66767', // 4 red
-  '#7c3aed', // 5 violet (brand info)
-  '#008300', // 6 green
-  '#d55181', // 7 magenta
-  '#d95926' // 8 orange
+  '#4f46e5',
+  '#199e70',
+  '#c98500',
+  '#e66767',
+  '#7c3aed',
+  '#008300',
+  '#d55181',
+  '#d95926'
 ] as const
 
 /** Reserved status scale - fixed meaning, never themed, always paired with an icon + label. */

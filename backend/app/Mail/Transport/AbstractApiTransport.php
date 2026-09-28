@@ -14,9 +14,7 @@ use BitApps\SMTP\Mail\Support\EncoderInterface;
 use Throwable;
 
 /**
- * Base for HTTP API transports: posts a provider-built body to a provider endpoint and maps
- * the response into a SendResult via provider-specific success/error rules. A subclass may opt
- * into the ApiBase path (useStrategy) to route via a pluggable encoder + auth strategy instead.
+ * Base for HTTP API transports; posts body to endpoint and maps response via provider-specific rules.
  */
 abstract class AbstractApiTransport implements TransportInterface
 {
@@ -49,7 +47,7 @@ abstract class AbstractApiTransport implements TransportInterface
     }
 
     /**
-     * Opt a subclass into the ApiBase path: buildBody() feeds the encoder, the strategy signs last.
+     * Opt into ApiBase path: encoder processes buildBody(), strategy signs last.
      */
     protected function useStrategy(AuthStrategyInterface $strategy, EncoderInterface $encoder): void
     {
@@ -72,9 +70,7 @@ abstract class AbstractApiTransport implements TransportInterface
     abstract protected function successFrom(int $status, $body): bool;
 
     /**
-     * Whether the provider handed off / accepted the message (status-only, e.g. HTTP 2xx) even if
-     * successFrom() went on to find a per-message error in the body. Drives dispatch fallback:
-     * only a genuinely non-accepted response (this false) is eligible to fall back.
+     * Check if provider accepted message (HTTP 2xx) for fallback eligibility, regardless of successFrom() result.
      *
      * @param array|string $body
      */
@@ -104,8 +100,7 @@ abstract class AbstractApiTransport implements TransportInterface
     }
 
     /**
-     * The provider's message-id from a hand-off response, for delivery-webhook correlation.
-     * Default: none (only descriptor-backed transports that declare a messageIdPath return one).
+     * Extract provider's message ID from response for delivery-webhook correlation; default none.
      *
      * @param array|string $body
      */

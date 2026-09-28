@@ -6,9 +6,7 @@ use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Contracts\CredentialResolverInterface;
 
 /**
- * Resolves a connection's credential at send time, giving a wp-config constant precedence over the
- * stored (DB) value. Composes the existing stored-credential resolver so the DB/decrypt path stays
- * untouched whenever no override constant is defined.
+ * Resolve connection credentials at send time; wp-config constants override stored values.
  */
 final class ConnectionSecretResolver
 {
@@ -23,9 +21,7 @@ final class ConnectionSecretResolver
     }
 
     /**
-     * Resolve one credential for a connection. A wp-config constant wins and is returned verbatim
-     * (it is already plaintext and must never pass through CredentialCipher); otherwise the stored
-     * value is resolved through the unchanged DB path.
+     * Resolve one credential; wp-config constant wins over stored value.
      */
     public function resolve(Connection $connection, string $key): ?string
     {

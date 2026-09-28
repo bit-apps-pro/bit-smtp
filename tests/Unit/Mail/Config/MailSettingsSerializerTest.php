@@ -408,50 +408,62 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
         $this->assertArrayNotHasKey('webhook_provisioning', $result['connections'][0]);
     }
 
-    public function testToApiShapeMasksFailureWebhookSecrets(): void
+    public function testToApiShapeMasksTheWebhookSigningSecretButShowsItsUrl(): void
     {
         $data                       = $this->v2Array();
         $data['features']['alerts'] = [
-            'enabled' => true,
-            'webhook' => [
-                'enabled'        => true,
-                'url'            => 'https://hooks.example.com/secret',
-                'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
-            ],
+            'enabled'  => true,
+            'channels' => [[
+                'id'       => 'ch_hook001',
+                'type'     => 'webhook',
+                'enabled'  => true,
+                'settings' => [
+                    'url'            => 'https://hooks.example.com/secret',
+                    'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+                ],
+            ]],
         ];
 
-        $result = MailSettingsSerializer::toApiShape(MailSettings::fromArray($data));
+        $settings = MailSettingsSerializer::toApiShape(MailSettings::fromArray($data))['features']['alerts']['channels'][0]['settings'];
 
-        $this->assertSame(
-            MailSettingsSerializer::MASK_SENTINEL,
-            $result['features']['alerts']['webhook']['url']
-        );
-        $this->assertSame(
-            MailSettingsSerializer::MASK_SENTINEL,
-            $result['features']['alerts']['webhook']['signing_secret']
-        );
+        $this->assertSame('https://hooks.example.com/secret', $settings['url']);
+        $this->assertSame(MailSettingsSerializer::MASK_SENTINEL, $settings['signing_secret']);
     }
 
-    public function testToApiShapeMasksSlackAndTelegramSecretsButNotTelegramChatId(): void
+    public function testToApiShapeShowsChatWebhookUrlsAndMasksOnlyTheTelegramToken(): void
     {
         $data                       = $this->v2Array();
         $data['features']['alerts'] = [
-            'slack'    => [
-                'enabled'     => true,
-                'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
-            ],
-            'telegram' => [
-                'enabled'   => true,
-                'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
-                'chat_id'   => '-1001234567890',
+            'enabled'  => true,
+            'channels' => [
+                ['id' => 'ch_slackaa', 'type' => 'slack', 'settings' => ['webhook_url' => 'https://hooks.slack.com/services/T0/B0/AAAAAAAA']],
+                ['id' => 'ch_slackbb', 'type' => 'slack', 'settings' => ['webhook_url' => 'https://hooks.slack.com/services/T0/B0/BBBBBBBB']],
+                ['id' => 'ch_slackcc', 'type' => 'slack', 'settings' => ['webhook_url' => '']],
+                [
+                    'id'       => 'ch_tele001',
+                    'type'     => 'telegram',
+                    'settings' => ['bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz', 'chat_id' => '-1001234567890'],
+                ],
             ],
         ];
 
-        $result = MailSettingsSerializer::toApiShape(MailSettings::fromArray($data));
+        $channels = MailSettingsSerializer::toApiShape(MailSettings::fromArray($data))['features']['alerts']['channels'];
 
-        $this->assertSame(MailSettingsSerializer::MASK_SENTINEL, $result['features']['alerts']['slack']['webhook_url']);
-        $this->assertSame(MailSettingsSerializer::MASK_SENTINEL, $result['features']['alerts']['telegram']['bot_token']);
-        $this->assertSame('-1001234567890', $result['features']['alerts']['telegram']['chat_id']);
+        $this->assertSame('https://hooks.slack.com/services/T0/B0/AAAAAAAA', $channels[0]['settings']['webhook_url']);
+        $this->assertSame('https://hooks.slack.com/services/T0/B0/BBBBBBBB', $channels[1]['settings']['webhook_url']);
+        $this->assertSame('', $channels[2]['settings']['webhook_url']);
+        $this->assertSame(MailSettingsSerializer::MASK_SENTINEL, $channels[3]['settings']['bot_token']);
+        $this->assertSame('-1001234567890', $channels[3]['settings']['chat_id']);
+    }
+
+    public function testToApiShapeAlwaysReturnsTheChannelListShape(): void
+    {
+        $data                       = $this->v2Array();
+        $data['features']['alerts'] = [];
+
+        $alerts = MailSettingsSerializer::toApiShape(MailSettings::fromArray($data))['features']['alerts'];
+
+        $this->assertSame(['enabled' => false, 'reminder_minutes' => 60, 'channels' => []], $alerts);
     }
 
     private function v2Array(): array

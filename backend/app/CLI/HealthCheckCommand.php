@@ -11,15 +11,12 @@ use BitApps\SMTP\Mail\Health\HealthProbeRunner;
 \defined('ABSPATH') || exit();
 
 /**
- * `wp bit-smtp health check`: actively probe every live connection, then print the refreshed
- * per-connection health as a secret-free table. Reuses HealthProbeRunner::run() and the same public
- * health projection the Connections UI reads.
+ * Probe every connection's health and display results in a secret-free table.
  */
 final class HealthCheckCommand
 {
     /**
-     * Health columns surfaced to the operator, from ConnectionHealth::toPublicArray() plus the
-     * connection label.
+     * Health columns from ConnectionHealth::toPublicArray() plus connection label.
      */
     private const FIELDS = [
         'connection',

@@ -39,7 +39,6 @@ describe('DeliveryStatusTab', () => {
 
     expect(screen.getByText('Engagement (opens & clicks)')).toBeInTheDocument()
     expect(screen.getByText('https://example.com/pricing')).toBeInTheDocument()
-    // Confirmed-human = hits - automated_hits = 3.
     expect(screen.getByText('3')).toBeInTheDocument()
   })
 

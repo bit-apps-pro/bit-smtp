@@ -7,10 +7,7 @@ use BitApps\SMTP\Model\LogEngagementEvent;
 \defined('ABSPATH') || exit();
 
 /**
- * WordPress personal-data eraser for open/click engagement events. Deletes the engagement rows of
- * logs the requested address was a recipient of, paginated and fail-closed (mirrors
- * LogService::delete): a delete failure is reported as retained, never silently swallowed. The log
- * rows themselves are intentionally left intact — only engagement events are in scope here.
+ * WordPress personal-data eraser for engagement events (fail-closed, log rows left intact).
  */
 final class EngagementDataEraser
 {
@@ -25,7 +22,7 @@ final class EngagementDataEraser
     }
 
     /**
-     * Erase one page of engagement data for $email, matching WP's eraser callback signature.
+     * Erase one page of engagement data, fail-closed: DB errors report as retained, never claimed as erased.
      *
      * @return array{items_removed: bool, items_retained: bool, messages: array<int,string>, done: bool}
      */
@@ -37,9 +34,6 @@ final class EngagementDataEraser
         $messages = [];
 
         if ($located['ids'] !== []) {
-            // delete() returns the affected-row count, or false on a DB error. Fail closed: on error
-            // report the data as retained (never claim erased) so the request is not falsely marked
-            // complete for this subject; otherwise report whether any rows were actually removed.
             $deleted = LogEngagementEvent::where('log_id', $located['ids'])->delete();
             if ($deleted === false) {
                 $retained   = true;

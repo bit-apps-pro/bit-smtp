@@ -9,8 +9,7 @@ use Brain\Monkey\Functions;
 use OpenSSLAsymmetricKey;
 
 /**
- * Proves the SNS signature check end-to-end with a real RSA keypair: a genuinely signed message
- * verifies, and every tampering / downgrade / spoofed-cert-URL path is rejected.
+ * Proves SNS signature check end-to-end with real RSA keypair; verifies genuine, rejects tampering/downgrade/spoofed-cert.
  *
  * @internal
  *
@@ -55,7 +54,6 @@ final class SnsSignatureVerifierTest extends BaseUnitTestCase
 
     public function testATamperedMessageIsRejected(): void
     {
-        // Sign the honest payload, then mutate a signed field — the signature no longer matches.
         $fields                     = $this->fields();
         $signature                  = $this->sign($fields, \OPENSSL_ALGO_SHA1);
         $fields['Message']          = 'attacker rewrote this';
@@ -69,7 +67,6 @@ final class SnsSignatureVerifierTest extends BaseUnitTestCase
 
     public function testADowngradedSignatureVersionIsRejected(): void
     {
-        // Signed with SHA1 but declaring version 2 (SHA256): the digest won't match.
         $fields                     = $this->fields();
         $fields['Signature']        = $this->sign($fields, \OPENSSL_ALGO_SHA1);
         $fields['SignatureVersion'] = '2';

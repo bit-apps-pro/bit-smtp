@@ -26,11 +26,7 @@ use InvalidArgumentException;
 use WP_Error;
 
 /**
- * Drives wp_mail through our connection dispatch: on `pre_wp_mail` it sends the message over each
- * resolved connection in priority order — each through its OWN provider transport — falling back to
- * the next on failure, then logs the outcome and re-fires the standard wp_mail_succeeded/failed
- * actions for third-party listeners. Owns the single mutable SendContext the controller reads back
- * after wp_mail() for test-mail/resend.
+ * Route wp_mail through connections in priority order via provider transports; log outcome and fire standard actions.
  */
 class WpMailBridge
 {
@@ -106,8 +102,6 @@ class WpMailBridge
 
         Hooks::addFilter('pre_wp_mail', [$this, 'onPreWpMail'], 10, 2);
 
-        // Sends deferred to native wp_mail still need outcome logging and failure notifications.
-        // Our own dispatch and nested notification email are skipped via $dispatching.
         Hooks::addAction('wp_mail_succeeded', [$this, 'onNativeMailSucceeded']);
         Hooks::addAction('wp_mail_failed', [$this, 'onNativeMailFailed']);
     }
@@ -155,8 +149,7 @@ class WpMailBridge
     }
 
     /**
-     * Mark the next send as a manual resend of $logId, so it is logged as a fresh child row linked to
-     * the original rather than overwriting it in place.
+     * Mark send as manual resend of $logId, logged as child row linked to original.
      */
     public function setResendParentId(?int $logId): self
     {
@@ -166,8 +159,7 @@ class WpMailBridge
     }
 
     /**
-     * Send an edited manual resend over exactly the chosen connection, bypassing routing/failover and
-     * wp_mail, logging the outcome as a child of $resendParentId. $atts uses wp_mail's atts shape.
+     * Send edited manual resend over chosen connection, bypassing routing/failover; log as child of $resendParentId.
      *
      * @param array<string,mixed> $atts
      */
@@ -198,9 +190,7 @@ class WpMailBridge
     }
 
     /**
-     * pre_wp_mail handler: short-circuits wp_mail() with a fallback dispatch over the ordered
-     * connections. Returns null to defer to native wp_mail (a prior listener already handled the
-     * send, the plugin is disabled, or there is no usable connection to send with).
+     * pre_wp_mail handler: short-circuit with fallover dispatch; null defers to native wp_mail if disabled/no connection.
      *
      * @param null|bool           $return short-circuit value from an earlier pre_wp_mail listener
      * @param array<string,mixed> $atts   wp_mail() arguments: to, subject, message, headers, attachments
@@ -209,11 +199,6 @@ class WpMailBridge
      */
     public function onPreWpMail($return, array $atts)
     {
-        // Capture this top-level send's resend parent id and clear it immediately, so a send that
-        // defers below (a prior listener short-circuited pre_wp_mail, the plugin is disabled, or no
-        // connection is usable) can't carry it onto a later wp_mail this request. Skipped while nested
-        // (our own dispatch or a notification email) so an inner send never steals the outer resend's
-        // id. Re-applied only right before we actually dispatch.
         $resendParentId = null;
         if (!$this->dispatching && !NotificationDispatchGuard::isActive()) {
             $resendParentId = $this->context->getResendParentId();
@@ -228,12 +213,8 @@ class WpMailBridge
             return;
         }
 
-        // Clear stale per-send output up front so a deferred (native) send's read-back is not
-        // polluted by a prior dispatch; the native log listeners record that send's outcome.
         $this->context->resetForSend();
 
-        // Stash the raw headers before any defer: core strips From/Cc/Bcc out of the headers it later
-        // reports to the native wp_mail_succeeded/failed listeners, so the log path recovers them here.
         $this->context->setNativeMailHeaders($atts['headers'] ?? '');
 
         $settings = Plugin::instance()->mailConfigService()->load();
@@ -242,9 +223,6 @@ class WpMailBridge
             return;
         }
 
-        // Check eligibility before building the message, so the wp_mail_* value filters aren't
-        // applied here and then again by native wp_mail when we defer with no usable connection.
-        // Routing only reorders the eligible set, so it cannot change emptiness.
         if ($this->routingPlanner->sendableConnections($settings, null) === []) {
             return;
         }
@@ -252,7 +230,6 @@ class WpMailBridge
         try {
             $message = $this->messageFactory->fromWpMailAtts($atts);
         } catch (InvalidArgumentException $e) {
-            // Degenerate input (e.g. no valid recipients): defer to core rather than fatal the request.
             return;
         }
 
@@ -264,7 +241,6 @@ class WpMailBridge
 
         $this->context->setResendParentId($resendParentId);
 
-        // The skip trace is consumed only by the logger, so compute it only when logging is on.
         $routingChain = [];
         $routingSkips = [];
         if ($this->loggingEnabled) {
@@ -276,8 +252,7 @@ class WpMailBridge
     }
 
     /**
-     * Re-dispatch a previously-queued retry through the ordinary failover loop, over the same
-     * connections (by id) it was originally enqueued with.
+     * Re-dispatch previously-queued retry through failover loop over same connections.
      *
      * @param array<string,mixed> $mailData
      * @param string[]            $connectionIds
@@ -300,8 +275,7 @@ class WpMailBridge
     }
 
     /**
-     * wp_mail_succeeded listener for sends we deferred to native wp_mail; our own dispatch is logged
-     * directly and skipped here via $dispatching.
+     * wp_mail_succeeded listener for deferred native sends; our dispatch is skipped via $dispatching.
      *
      * @param array<string,mixed> $mailData
      */
@@ -339,7 +313,7 @@ class WpMailBridge
     }
 
     /**
-     * Attempt each connection in order, stopping at the first success.
+     * Attempt each connection in order, stopping at the first success; injects tracking once before failover (no-op if tracking off), records health per-attempt without delaying failover, falls back only on non-accepted sends to prevent duplicates, and enqueues retryable failures (unless worker-driven re-dispatch).
      *
      * @param Connection[]        $connections
      * @param array<string,mixed> $mailData
@@ -361,10 +335,6 @@ class WpMailBridge
             $winningTrackingId     = null;
             $winningDeliveryStatus = null;
 
-            // Inject the open pixel + rewritten click links ONCE, before the failover loop, so a
-            // single tracked body reaches every provider. A strict no-op (returns the original
-            // object + null) unless tracking is on and the body is HTML — keeping the OFF path
-            // byte-identical. The token doubles as the webhook correlation id below.
             [$outgoing, $messageTrackingId] = $this->maybeInjectTracking($message);
 
             foreach ($connections as $connection) {
@@ -378,33 +348,20 @@ class WpMailBridge
                 $attempts[]           = $this->mailData->attemptEntry($connection, $lastResult);
                 $connectionIdsTried[] = $connection->getId();
 
-                // Observe-only health signal (Fork 1): record the per-attempt outcome (a cheap DB
-                // write) without altering the break conditions, ordering, or return value below.
-                // Alerts are collected and flushed AFTER the loop so a slow channel never delays
-                // failover to the next connection.
                 $healthTransition = $this->recordHealth($connection, $lastResult);
                 if ($healthTransition !== null) {
                     $healthTransitions[] = $healthTransition;
                 }
 
-                // Fall back only when NOT accepted: an accepted-but-partial send (e.g. a 2xx with a
-                // per-message error) was already handed off, so retrying via the next connection
-                // would duplicate-deliver to the recipients the first provider already accepted.
                 if ($lastResult->isAccepted()) {
-                    $succeeded = $lastResult->isOk();
-                    // Retain the provider's accepted-message id even when asynchronous delivery
-                    // tracking is unavailable. Delivery visibility is gated independently by a
-                    // verified webhook or an authoritative status stamped at hand-off.
-                    $winningTrackingId = $trackingId;
-                    $winningMessageId  = $lastResult->getMessageId();
-                    // A fully-ok send stamps its delivery status straight from the hand-off (an
-                    // accepted-but-partial send is a failure row and stays unstamped).
+                    $succeeded             = $lastResult->isOk();
+                    $winningTrackingId     = $trackingId;
+                    $winningMessageId      = $lastResult->getMessageId();
                     $winningDeliveryStatus = $this->resolveAcceptedDeliveryStatus($succeeded, $provider);
 
                     break;
                 }
 
-                // A permanently-undeliverable message/recipient fails on every connection alike; stop wasting the fallback chain.
                 if (FailureCategory::stopsFailover($this->classifier->classify($lastResult))) {
                     break;
                 }
@@ -414,9 +371,6 @@ class WpMailBridge
 
             $failureClass = $lastResult !== null && !$succeeded ? $this->classifier->classify($lastResult) : null;
 
-            // One log row per message: the final outcome on the winning (or last-tried) connection,
-            // carrying the whole attempt trail so the fallback chain (failed -> failed -> sent) is
-            // visible in the log detail rather than split across a row per attempt.
             $winningMessage  = $lastConnection !== null ? $this->applyConnectionFrom($lastConnection, $outgoing) : $outgoing;
             $sender          = SenderFormatter::format($winningMessage->getFrom(), $winningMessage->getFromName());
             $aheadSkips      = $this->routingSkipTracer->skipsAheadOf($lastConnection, $routingSkips, $routingChain);
@@ -429,11 +383,6 @@ class WpMailBridge
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
 
-            // A worker-driven re-dispatch (dispatchRetry) must never re-enqueue: the worker already
-            // owns rescheduling via RetryQueue::reschedule(), so enqueuing again here would create a
-            // duplicate, orphaned queue row retrying forever in parallel with the worker's own row.
-            // Gated on an explicit param, NOT SendContext::isRetrying — logOutcome() above resets that
-            // flag to false before we reach here, so it can never block.
             if (!$succeeded && !$isWorkerRedispatch && $failureClass !== null && FailureCategory::isRetryable($failureClass)) {
                 $this->maybeEnqueueRetry($message, $mailData, $connectionIdsTried, $failureClass);
             }
@@ -445,11 +394,7 @@ class WpMailBridge
     }
 
     /**
-     * Build the outgoing message for this send, injecting open/click tracking only when it is enabled
-     * and the body is HTML. Returns [$outgoing, $messageTrackingId]. A strict no-op — the ORIGINAL
-     * object plus a null token — whenever tracking is off, logging is off (no log row to attribute a
-     * hit to), or the body is not HTML, so the send path stays byte-identical and allocation-free by
-     * default. The token doubles as the log's tracking_id, unifying open/click with webhook correlation.
+     * Build outgoing message with open/click tracking injected if enabled & HTML body; token doubles as log tracking_id.
      *
      * @return array{0: MailMessage, 1: ?string}
      */
@@ -465,9 +410,7 @@ class WpMailBridge
     }
 
     /**
-     * Enqueue a retryable failure onto the retry queue when the reliability preferences allow it.
-     * The queued row carries no log id (a fresh log row is written per retry attempt instead): the
-     * buffered MailEventLogger write doesn't expose the inserted row id back to this call.
+     * Enqueue a retryable failure onto the retry queue when the reliability preferences allow it; honors the admin's retry-class filter (empty = every retryable class). The queued row carries no log id (a fresh log row is written per retry attempt instead).
      *
      * @param array<string,mixed> $mailData
      * @param string[]            $connectionIds
@@ -479,8 +422,6 @@ class WpMailBridge
             return;
         }
 
-        // Honor the admin's retry-class filter (empty = every retryable class). Self-contained so the
-        // enqueue never depends on the caller's isRetryable() pre-check for this gate.
         if (!FailureCategory::isRetryableWithin($failureClass, (array) $settings->get('retry_on_classes', []))) {
             return;
         }
@@ -493,9 +434,7 @@ class WpMailBridge
     }
 
     /**
-     * Send over the connection's OWN provider transport, resolved from the registry by provider key.
-     * A connection whose provider is not registered is treated as a failed attempt — logged, then the
-     * fallback loop continues — rather than fataling the request (BC for unavailable providers).
+     * Send via connection's provider transport; unregistered provider = logged attempt (BC, no fatal).
      */
     private function resolveProvider(Connection $connection): ?ProviderInterface
     {
@@ -507,13 +446,7 @@ class WpMailBridge
     }
 
     /**
-     * Delivery status to stamp on a successful transport hand-off. A hand-off is not recipient
-     * delivery, but every successful one is floored at the non-terminal `accepted` regardless of
-     * webhook expectation: a non-public install may never receive the inbound webhook, so a
-     * permanently-null row is worse than a floor that `DeliveryRollup` overwrites the instant a real
-     * webhook event resolves a stronger or negative outcome. Only `accepted` is ever stamped here — a
-     * provider response alone is never proof of delivery, and the LogService accepted-only gate clamps
-     * any terminal value a provider might report.
+     * Delivery status floored at non-terminal 'accepted' on successful hand-off (webhook later upgrades).
      */
     private function resolveAcceptedDeliveryStatus(bool $succeeded, ?ProviderInterface $provider): ?string
     {
@@ -542,10 +475,7 @@ class WpMailBridge
     }
 
     /**
-     * Force the connection's configured From onto the outgoing message so every transport (API,
-     * MIME, SMTP) sends from the verified sender the connection is configured with, rather than
-     * whatever From the message carried in (e.g. wp_mail()'s wordpress@<site> default) — matching
-     * SmtpTransport's own from-forcing for consistency across all transports.
+     * Force connection's configured From on message to ensure all transports send from verified sender.
      */
     private function applyConnectionFrom(Connection $connection, MailMessage $message): MailMessage
     {
@@ -568,9 +498,7 @@ class WpMailBridge
     }
 
     /**
-     * Debug entries are transport-shaped: SMTP yields plain strings, API transports yield scalars
-     * and nested arrays (status/body). Normalize any non-string to a string so accumulating debug
-     * output never trips a PHP "array to string conversion" on the API send path.
+     * Normalize transport-shaped debug entries (SMTP strings, API scalars/arrays) to prevent PHP warnings.
      *
      * @param mixed $line
      */
@@ -588,6 +516,8 @@ class WpMailBridge
     }
 
     /**
+     * Logs the send outcome; stores the connection label for Logs UI display but correlates delivery webhooks on the stable connection id to prevent mis-attribution from renames or unnamed same-provider connections.
+     *
      * @param array<string,mixed> $mailData
      */
     private function logOutcome(bool $succeeded, ?SendResult $result, array $mailData, ?Connection $connection, ?string $messageId = null, ?string $trackingId = null, ?string $deliveryStatus = null, ?string $failureClass = null): void
@@ -596,8 +526,6 @@ class WpMailBridge
             return;
         }
 
-        // Store the label for the Logs UI, but correlate delivery webhooks on the stable connection id
-        // so a rename (or two unnamed same-provider connections) can't break/mis-attribute status.
         $connectionLabel = $connection !== null ? $connection->label() : null;
         $connectionId    = $connection !== null ? $connection->getId() : null;
 
@@ -629,9 +557,7 @@ class WpMailBridge
     }
 
     /**
-     * Feed one attempt's outcome into the observe-only connection-health engine and return the status
-     * transition it caused (or null). Guards on the construction-cached flag so a disabled feature
-     * adds zero work (and zero option I/O) here.
+     * Feed attempt outcome to health engine; return transition or null (disabled feature = zero work).
      */
     private function recordHealth(Connection $connection, SendResult $result): ?HealthTransition
     {
@@ -643,8 +569,7 @@ class WpMailBridge
     }
 
     /**
-     * Flush the dispatch's collected health transitions to the notifier after the failover loop, so
-     * channel HTTP calls never add latency between send attempts.
+     * Flush collected health transitions after failover loop to prevent latency between send attempts.
      *
      * @param HealthTransition[] $transitions
      */
@@ -656,8 +581,7 @@ class WpMailBridge
     }
 
     /**
-     * Fire the standard WP action once for the final outcome so third-party wp_mail_succeeded /
-     * wp_mail_failed listeners still run on a short-circuited send.
+     * Fire standard WP action for final outcome so third-party listeners run on short-circuited send.
      *
      * @param array<string,mixed> $mailData
      */
@@ -673,8 +597,7 @@ class WpMailBridge
     }
 
     /**
-     * Build the WP_Error core would hand to wp_mail_failed, carrying the mail data and the
-     * PHPMailer exception code the logger inspects for connection-level failures.
+     * Build WP_Error for wp_mail_failed with mail data and PHPMailer exception code for failure inspection.
      *
      * @param array<string,mixed> $mailData
      */
@@ -687,12 +610,7 @@ class WpMailBridge
     }
 
     /**
-     * Enrich a native (deferred-to-core) wp_mail payload with the From/Cc/Bcc that live inside the raw
-     * headers, so the native log row captures the same sender and cc/bcc the dispatch path records
-     * instead of blanks. Core strips From/Cc/Bcc out of the headers it reports to the listeners, so the
-     * raw headers captured at pre_wp_mail time (SendContext) are used to re-parse them; the From falls
-     * back to the effective `wp_mail_from` default when no From header is present. A degenerate payload
-     * (e.g. no valid recipients) logs what core handed us rather than fataling the request.
+     * Enrich native wp_mail payload with From/Cc/Bcc recovered from raw headers; core strips these.
      *
      * @param array<string,mixed> $mailData wp_mail's $mail_data: to, subject, message, headers, attachments
      *
@@ -717,9 +635,7 @@ class WpMailBridge
     }
 
     /**
-     * Rebuild a wp_mail_failed WP_Error with its mail data enriched by enrichNativeMailData(), so a
-     * natively-deferred failure logs the sender/cc/bcc too. Every error code and message is preserved
-     * so MailEventLogger's SMTP-connection-failure inspection (phpmailer_exception_code) still fires.
+     * Rebuild wp_mail_failed error with enriched mail data; preserve codes for SMTP-failure inspection.
      */
     private function enrichNativeError(WP_Error $error): WP_Error
     {

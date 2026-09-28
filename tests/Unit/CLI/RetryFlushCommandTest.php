@@ -9,8 +9,7 @@ use BitApps\SMTP\Tests\Fake\FakeCliReporter;
 use Mockery;
 
 /**
- * Covers the retry-flush command logic: it clears the queue via RetryQueue::clear() and reports the
- * count removed, distinguishing a DB error (false) from a legitimate zero-row clear.
+ * Covers retry-flush command logic: clears queue and reports count removed, distinguishing DB error from zero-row clear.
  *
  * @internal
  *

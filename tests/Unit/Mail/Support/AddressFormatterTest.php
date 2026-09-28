@@ -159,7 +159,6 @@ class AddressFormatterTest extends BaseUnitTestCase
 
     public function testMalformedBracketInputFallsThroughToBareAddress(): void
     {
-        // No closing '>': non-validating formatter keeps the whole string as the address.
         $result = $this->formatter->format(['Name <a@x.com'], 'object');
 
         $this->assertSame([['email' => 'Name <a@x.com']], $result);

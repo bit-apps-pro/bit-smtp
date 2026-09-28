@@ -16,8 +16,7 @@ use BitApps\SMTP\Settings\PluginSettings;
 class SavePreferencesRequest extends Request
 {
     /**
-     * Build one nullable rule set per schema field, keyed by field key, so any key the client sends
-     * that isn't in the schema is dropped from validated() rather than persisted.
+     * Build nullable rule set per schema field; drop unknown keys from validated().
      *
      * @return array<string, array<int,mixed>>
      */
@@ -49,8 +48,6 @@ class SavePreferencesRequest extends Request
 
             case SettingField::TYPE_INT:
                 $rules[] = 'integer';
-                // The schema's own sanitizer clamps this field to 1..200; reject out-of-range
-                // input explicitly here instead of letting it silently clamp.
                 if ($field->key() === 'log_retention_days') {
                     $rules[] = 'between:1,200';
                 }
@@ -64,8 +61,6 @@ class SavePreferencesRequest extends Request
 
             case SettingField::TYPE_ARRAY:
                 $rules[] = 'array';
-                // Restrict array subscriptions to their known key sets: health-alert events and the
-                // retryable failure classes the retry filter may name.
                 if ($field->key() === 'notify_events') {
                     $rules[] = new EachInRule(HealthNotification::eventKeys());
                 } elseif ($field->key() === 'retry_on_classes') {

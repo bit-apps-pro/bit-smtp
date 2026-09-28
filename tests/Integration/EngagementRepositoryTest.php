@@ -16,13 +16,10 @@ use BitSmtpEngagementTableMigration;
 use DateTimeImmutable;
 use DateTimeZone;
 
-// Global-namespace migration class, included directly (migrations are not PSR-4 autoloaded).
 require_once \dirname(__DIR__, 2) . '/backend/db/Migrations/BitSmtpEngagementTableMigration.php';
 
 /**
- * Exercises EngagementRepository + MailAnalyticsService::engagement() against the real test DB:
- * the log-joined aggregate, the human-vs-automated split, the delivered-or-accepted open-rate
- * denominator, and range exclusion.
+ * Tests EngagementRepository aggregations: log joins, human/auto split, open-rate denominator, ranges.
  *
  * @internal
  *
@@ -51,7 +48,7 @@ final class EngagementRepositoryTest extends IntegrationTestCase
         $accepted = $this->seedLog('2026-03-02 06:00:00', 'accepted');
         $this->logs->recordEngagement($accepted, 'open', '', true);
 
-        $raw = (new EngagementRepository($GLOBALS['wpdb']))->engagement($this->query());
+        $raw = (new EngagementRepository())->engagement($this->query());
 
         self::assertSame(4, $raw['open_hits']);
         self::assertSame(2, $raw['open_automated_hits']);
@@ -74,7 +71,6 @@ final class EngagementRepositoryTest extends IntegrationTestCase
         $accepted = $this->seedLog('2026-03-02 06:00:00', 'accepted');
         $this->logs->recordEngagement($accepted, 'open', '', true);
 
-        // A pending in-range log stays out of the delivered-or-accepted denominator.
         $this->seedLog('2026-03-02 07:00:00', 'pending');
 
         $result = $this->service()->engagement($this->query());
@@ -95,7 +91,7 @@ final class EngagementRepositoryTest extends IntegrationTestCase
         $this->logs->recordEngagement($outOfRange, 'open', '', false);
         $this->logs->recordEngagement($outOfRange, 'click', 'https://example.test/old', false);
 
-        $raw = (new EngagementRepository($GLOBALS['wpdb']))->engagement($this->query());
+        $raw = (new EngagementRepository())->engagement($this->query());
 
         self::assertSame(1, $raw['open_hits']);
         self::assertSame(1, $raw['open_rows']);
@@ -104,7 +100,7 @@ final class EngagementRepositoryTest extends IntegrationTestCase
 
     public function testEmptyRangeReturnsStableZeroAggregates(): void
     {
-        $raw = (new EngagementRepository($GLOBALS['wpdb']))->engagement($this->query());
+        $raw = (new EngagementRepository())->engagement($this->query());
 
         self::assertSame([
             'open_hits'            => 0,
@@ -121,14 +117,12 @@ final class EngagementRepositoryTest extends IntegrationTestCase
     public function testTopClickedLinksRankTargetsByHitsWithTheHumanAutomatedSplit(): void
     {
         $log = $this->seedLog('2026-03-02 05:00:00', 'delivered');
-        // Two hits to /a (one automated) and one to /b; folded per target.
         $this->logs->recordEngagement($log, 'click', 'https://example.test/a', false);
         $this->logs->recordEngagement($log, 'click', 'https://example.test/a', true);
         $this->logs->recordEngagement($log, 'click', 'https://example.test/b', false);
-        // Opens must never appear among clicked links.
         $this->logs->recordEngagement($log, 'open', '', false);
 
-        $links = (new EngagementRepository($GLOBALS['wpdb']))->topClickedLinks($this->query(), 10);
+        $links = (new EngagementRepository())->topClickedLinks($this->query(), 10);
 
         self::assertSame([
             ['target' => 'https://example.test/a', 'hits' => 2, 'automated_hits' => 1],
@@ -144,7 +138,7 @@ final class EngagementRepositoryTest extends IntegrationTestCase
         $outOfRange = $this->seedLog('2026-02-01 05:00:00', 'delivered');
         $this->logs->recordEngagement($outOfRange, 'click', 'https://example.test/old', false);
 
-        $links = (new EngagementRepository($GLOBALS['wpdb']))->topClickedLinks($this->query(), 10);
+        $links = (new EngagementRepository())->topClickedLinks($this->query(), 10);
 
         self::assertSame([
             ['target' => 'https://example.test/a', 'hits' => 1, 'automated_hits' => 0],
@@ -182,9 +176,9 @@ final class EngagementRepositoryTest extends IntegrationTestCase
     private function service(): MailAnalyticsService
     {
         return new MailAnalyticsService(
-            new MailAnalyticsRepository($GLOBALS['wpdb'], (new Log())->getTable()),
+            new MailAnalyticsRepository(),
             null,
-            new EngagementRepository($GLOBALS['wpdb'])
+            new EngagementRepository()
         );
     }
 

@@ -7,8 +7,7 @@ use BitApps\SMTP\Mail\Connections\Connection;
 interface OAuth2ProviderInterface
 {
     /**
-     * Microsoft's authorize endpoint is per-tenant; Google's is a fixed constant. Providers
-     * that don't need the connection are free to ignore it.
+     * Authorization endpoint; per-tenant for Microsoft, fixed for Google.
      */
     public function authUrl(Connection $connection): string;
 

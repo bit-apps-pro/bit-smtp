@@ -5,16 +5,12 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Connections;
 
 /**
- * Decides whether a connection is ready to send — the gate for promoting it to the default routing
- * target. An OAuth2 provider must have completed consent (a stored refresh or access token, mirroring
- * the Gmail/Microsoft365 validators and OAuth2TokenProvider); every other provider is sendable as
- * soon as it is saved.
+ * Decide if connection is ready to send: OAuth requires token consent, others are sendable on save.
  */
 final class ConnectionAuthorization
 {
     /**
-     * OAuth credential keys that prove consent completed; either one present is enough to send.
-     * Public so disconnectOAuth clears exactly this set — keeping "cleared ⇒ not sendable" structural.
+     * OAuth credential keys proving consent; either one suffices to send.
      *
      * @var string[]
      */

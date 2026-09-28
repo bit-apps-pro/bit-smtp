@@ -54,10 +54,7 @@ interface TopListProps {
   /** Analytics dashboard's selected range ('YYYY-MM-DD'), carried into each row's "View in logs" link. */
   dateFrom: string
   dateTo: string
-  /**
-   * Maps a raw dimension to a human label for DISPLAY only (e.g. a connection id → its name). The
-   * raw dimension still drives the "View in logs" filter and row key. Defaults to identity.
-   */
+  /** Maps a raw dimension to a human label for display only; the raw dimension still drives filtering/row key. Defaults to identity. */
   resolveLabel?: (dimension: string) => string
 }
 
@@ -92,10 +89,7 @@ function logsFilterForRow(
   return cleanLogsFilter({ [key]: row.dimension, date_from: dateFrom, date_to: dateTo })
 }
 
-/**
- * Nominal ranking bar list (top sources / top connections): one series, one hue for every real bar -
- * magnitude already reads from bar length, so per-bar rainbow coloring would double-encode it.
- */
+/** Nominal ranking bar list: one hue for every bar - magnitude already reads from length, not color. */
 export default function TopList({
   title,
   emptyLabel,
@@ -143,7 +137,6 @@ export default function TopList({
     <ChartCard title={title} tableView={tableView}>
       <Flex vertical gap={8}>
         {rows.map(row => {
-          // Display label (e.g. connection name) — the raw dimension still drives filter + row key.
           const label = resolveLabel(row.dimension)
           const rowClick = clickableRowProps(() =>
             setDetail({
@@ -176,7 +169,6 @@ export default function TopList({
                     width: `${(row.total / max) * 100}%`,
                     height: '100%',
                     background: row.isOther ? OTHER_GRAY : hue,
-                    // Rounded at the tip, square at the baseline (the bar grows from the left edge).
                     borderRadius: '0 4px 4px 0'
                   }}
                 />

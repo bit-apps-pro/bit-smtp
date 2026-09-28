@@ -3,19 +3,7 @@
 namespace BitApps\SMTP\Mail\Credentials;
 
 /**
- * Single source of truth mapping a (connection id, credential key) pair to its wp-config override
- * constant, and reading that constant at resolve time. Lets operators keep a secret out of the DB by
- * defining it in wp-config.php.
- *
- * Naming scheme: BIT_SMTP_<CONNID>_<KEY>, where CONNID and KEY are the connection id and credential
- * key uppercased with every non-alphanumeric character replaced by '_'
- * (e.g. connection "conn_1" password -> BIT_SMTP_CONN_1_PASSWORD, api_key -> BIT_SMTP_CONN_1_API_KEY).
- *
- * Coverage (as of now): the send-auth secrets — the SMTP password (SmtpTransport) and every API
- * credential read through AbstractAuthStrategy (api_key/bearer/basic templates, SES secret_key).
- * NOT yet covered (these read credentials directly, bypassing this source): OAuth refresh/client
- * secrets (OAuth2TokenProvider) and inbound webhook signing secrets. Wiring those through a single
- * credential chokepoint is a follow-up; a defined constant for an uncovered key is silently ignored.
+ * Map (connection id, key) pairs to BIT_SMTP_<CONNID>_<KEY> wp-config constants.
  */
 final class WpConfigCredentialSource
 {
@@ -37,8 +25,7 @@ final class WpConfigCredentialSource
     }
 
     /**
-     * The override value for a connection credential, or null when no usable constant is defined. A
-     * defined-but-empty constant is treated as unset so it can never lock out the DB fallback.
+     * Override value for a credential; empty constants treated as unset to allow DB fallback.
      */
     public function resolve(string $connectionId, string $key): ?string
     {

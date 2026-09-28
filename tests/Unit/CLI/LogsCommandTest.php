@@ -12,8 +12,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Covers the logs command logic: it reuses LogService::exportRows with the status filter and requested
- * limit, projects rows through the shared LogCsvExporter, and renders them in the requested format.
+ * Covers logs command logic: filters and exports rows via LogService, projects through LogCsvExporter, renders in requested format.
  *
  * @internal
  *
@@ -24,9 +23,9 @@ final class LogsCommandTest extends BaseUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // Log's magic accessors reach the query builder, which reads the wpdb prefix.
+
         $GLOBALS['wpdb'] = (object) ['prefix' => 'wp_'];
-        // trackingEnabled() reads the preferences option; off by default keeps the base columns.
+
         Functions\when('get_option')->justReturn(false);
     }
 

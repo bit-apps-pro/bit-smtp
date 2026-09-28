@@ -2,12 +2,15 @@
 import { Outlet } from 'react-router-dom'
 import { Layout as AntLayout, theme } from 'antd'
 import Header from './Header'
+import useWpSubmenuHighlight from './useWpSubmenuHighlight'
 
 const CONTENT_MAX_WIDTH = 1280
 
+/** App shell: header plus a max-width content outlet for the routed page. */
 function Layout() {
   const { useToken } = theme
   const { token } = useToken()
+  useWpSubmenuHighlight()
   return (
     <AntLayout
       style={{
@@ -17,8 +20,6 @@ function Layout() {
         border: `1px solid ${token.colorBorderSecondary}`
       }}
     >
-      {/* Clips only the header's square corners; must stay off the outer layout or it becomes
-          the sticky viewport for descendants like the editor's sticky save bar. */}
       <div
         style={{
           borderRadius: `${token.borderRadiusLG}px ${token.borderRadiusLG}px 0 0`,

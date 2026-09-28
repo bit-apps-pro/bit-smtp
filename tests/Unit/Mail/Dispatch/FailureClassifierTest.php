@@ -129,8 +129,6 @@ final class FailureClassifierTest extends BaseUnitTestCase
     {
         self::assertTrue(FailureCategory::stopsFailover(FailureCategory::INVALID_RECIPIENT));
 
-        // PERMANENT and AUTH are connection-scoped (reputation/policy/credentials), so a different
-        // connection may still deliver — failover must keep trying them.
         self::assertFalse(FailureCategory::stopsFailover(FailureCategory::PERMANENT));
         self::assertFalse(FailureCategory::stopsFailover(FailureCategory::AUTH));
         self::assertFalse(FailureCategory::stopsFailover(FailureCategory::OK));

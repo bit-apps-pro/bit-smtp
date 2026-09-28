@@ -19,6 +19,7 @@ const connection: Connection = {
 
 type CardProps = Partial<Parameters<typeof ConnectionCard>[0]>
 
+/** Renders ConnectionCard with sensible default props, overridable per test. */
 function renderCard(props: CardProps = {}) {
   return render(
     <ConnectionCard
@@ -99,7 +100,6 @@ describe('ConnectionCard', () => {
 
     await userEvent.click(screen.getByRole('switch', { name: 'Disable this connection' }))
 
-    // antd Switch calls onChange(checked, event); the flipped `checked` is the load-bearing arg.
     expect(onToggleEnabled.mock.calls[0][0]).toBe(false)
   })
 

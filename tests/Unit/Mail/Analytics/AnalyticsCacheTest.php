@@ -76,8 +76,7 @@ final class AnalyticsCacheTest extends BaseUnitTestCase
         $query = $this->query(['start' => '2026-03-01T00:00:00-05:00', 'end' => '2026-03-04T00:00:00-05:00', 'bucket' => 'day']);
         $error = new WP_Error('bit_smtp_analytics_database_error', 'The retained-log aggregate query failed.');
         $repo  = Mockery::mock(MailAnalyticsRepository::class);
-        // The aggregate fails (WP_Error) on the first two calls, then recovers on the third. summary()
-        // dominates firstError(), so each of these overview() calls returns/short-circuits on its value.
+
         $repo->shouldReceive('summary')->with($query)->times(3)->andReturn($error, $error, $this->summary());
         $repo->shouldReceive('timeSeries')->with($query)->andReturn([]);
         $repo->shouldReceive('groups')->with($query, 'source', 10)->andReturn([]);
@@ -92,8 +91,7 @@ final class AnalyticsCacheTest extends BaseUnitTestCase
         $cachedHit   = $service->overview($query);
 
         self::assertInstanceOf(WP_Error::class, $firstError);
-        // The error was NOT cached: the second call re-ran the aggregate (still an error), and the
-        // third re-ran it once more (now a success). times(3) proves the fourth call was a cache hit.
+
         self::assertInstanceOf(WP_Error::class, $secondError);
         self::assertIsArray($success);
         self::assertSame($success, $cachedHit);
@@ -134,8 +132,7 @@ final class AnalyticsCacheTest extends BaseUnitTestCase
         $query = $this->query(['start' => '2026-03-01T00:00:00-05:00', 'end' => '2026-03-04T00:00:00-05:00', 'bucket' => 'day']);
         $error = new WP_Error('bit_smtp_analytics_database_error', 'The retained-log aggregate query failed.');
         $repo  = Mockery::mock(MailAnalyticsRepository::class);
-        // summary() dominates firstError(), so each engagement() returns/short-circuits on its value:
-        // error, error, then a success that gets cached. times(3) proves the fourth call is a cache hit.
+
         $repo->shouldReceive('summary')->with($query)->times(3)->andReturn($error, $error, $this->summary());
         $engagement = Mockery::mock(EngagementRepository::class);
         $engagement->shouldReceive('topClickedLinks')->with($query, Mockery::type('int'))->andReturn([]);

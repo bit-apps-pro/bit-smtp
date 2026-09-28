@@ -10,9 +10,7 @@ use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Tests\Fake\FakeCliReporter;
 
 /**
- * Drives the logs/export CLI commands against the real log table: they honor the status filter, emit
- * only the safe metadata columns, and (for export) write a defused CSV to a file -- the same
- * LogService::exportRows + LogCsvExporter path the REST export uses.
+ * Verifies logs/export CLI commands filter correctly and emit safe metadata via defused CSV.
  *
  * @internal
  *
@@ -66,7 +64,6 @@ final class CliLogCommandsTest extends IntegrationTestCase
 
             $header = str_getcsv(strtok($csv, "\n"), ',', '"', '');
             $this->assertSame(LogService::EXPORT_SAFE_COLUMNS, $header);
-            // Formula-injection defusal survives the round-trip through the file.
             $this->assertStringContainsString("'=SUM(A1:A2)", $csv);
         } finally {
             @unlink($file);

@@ -8,10 +8,7 @@ use Throwable;
 \defined('ABSPATH') || exit();
 
 /**
- * Orchestrates open/click tracking injection for one outgoing HTML message: rewrites clickable links
- * then appends the open pixel, returning a COPY of the message with the rewritten body. Any failure
- * during rewriting returns the ORIGINAL message untouched — a broken rewrite must never send a broken
- * email or a body with a dangling tracker.
+ * Orchestrate tracking injection: rewrite links and append pixel; return original on failure to prevent broken email.
  */
 final class TrackingBodyRewriter
 {
@@ -20,8 +17,7 @@ final class TrackingBodyRewriter
     private const OPEN_PATH = TrackingRoutes::BASE . '/' . TrackingRoutes::OPEN . '/';
 
     /**
-     * Return a copy of $message with links rewritten and the open pixel injected for $token, or the
-     * original message unchanged if any step throws.
+     * Return message copy with rewritten links and injected open pixel, or original on any error.
      */
     public function rewrite(MailMessage $message, string $token): MailMessage
     {

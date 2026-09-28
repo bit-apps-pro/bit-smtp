@@ -16,11 +16,7 @@ use BitApps\SMTP\Tests\Integration\IntegrationTestCase;
 use Mockery;
 
 /**
- * Freezes the end-to-end REST response shape for a seeded SendGrid connection: MailConfigService::
- * apiSettings() (the real encrypt/decrypt + mask walk through the DB), ProviderRegistry::metadata()
- * as wired by the live Plugin container, and the ConnectionController::save/test/createWebhook
- * response bodies (outbound network stubbed via pre_http_request — no real API calls). A later PR
- * introducing typed value objects for these boundaries must reproduce these byte-for-byte.
+ * Freezes end-to-end REST response shapes for SendGrid (must reproduce byte-for-byte).
  *
  * @internal
  *
@@ -50,9 +46,17 @@ final class RestBodyGoldenTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    /**
+     * Freezes settings API shape (alerts revision masked as random per install).
+     */
     public function testApiSettingsGolden(): void
     {
-        $this->assertMatchesGolden((new MailConfigService())->apiSettings(), 'rest_api_settings');
+        $settings = (new MailConfigService())->apiSettings();
+
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $settings['features']['alerts']['revision']);
+        $settings['features']['alerts']['revision'] = '<revision>';
+
+        $this->assertMatchesGolden($settings, 'rest_api_settings');
     }
 
     public function testProviderRegistryMetadataGolden(): void
@@ -90,10 +94,11 @@ final class RestBodyGoldenTest extends IntegrationTestCase
         $this->assertMatchesGolden($this->restBody(), 'rest_connection_test_response');
     }
 
+    /**
+     * Forces an https home_url because SendGrid refuses to provision webhooks for non-HTTPS sites.
+     */
     public function testConnectionCreateWebhookResponseGolden(): void
     {
-        // SendGrid refuses to provision a webhook against a non-HTTPS site URL; the test env's
-        // home_url() is plain http, so force https for this call only via WP core's own filter hook.
         $homeUrlFilter = static function (string $url, string $path): string {
             return 'https://example.test' . $path;
         };
@@ -112,8 +117,6 @@ final class RestBodyGoldenTest extends IntegrationTestCase
 
         $this->assertMatchesGolden($this->restBody(), 'rest_connection_webhook_create_response');
     }
-
-    // --- Seeding ---
 
     /**
      * @return array<string,mixed>
@@ -153,8 +156,6 @@ final class RestBodyGoldenTest extends IntegrationTestCase
             'credentials' => ['api_key' => ['source' => 'database', 'value' => self::API_KEY]],
         ], $overrides);
     }
-
-    // --- Network stubs ---
 
     private function interceptSendGridSend(): callable
     {
@@ -205,8 +206,6 @@ final class RestBodyGoldenTest extends IntegrationTestCase
         };
     }
 
-    // --- Response helpers ---
-
     /**
      * @param class-string        $class
      * @param array<string,mixed> $validated
@@ -220,9 +219,7 @@ final class RestBodyGoldenTest extends IntegrationTestCase
     }
 
     /**
-     * Reproduces WPKit RouteRegister::setResponse()'s exact wire shape (status/data always present,
-     * message/code only when truthy) — the literal JSON body wp_send_json() sends for a real REST
-     * call, so the golden matches production rather than just the raw Response accessors.
+     * Reproduces WPKit RouteRegister::setResponse() wire shape (literal JSON from wp_send_json()).
      *
      * @return array<string,mixed>
      */
@@ -241,9 +238,7 @@ final class RestBodyGoldenTest extends IntegrationTestCase
     }
 
     /**
-     * Response (WPKit\Http\Response) is a process-wide static singleton that a real HTTP request
-     * gets fresh but a PHPUnit process does not. Reset it before each golden capture so the frozen
-     * body reflects only this call, not a message/code left over from an earlier, unrelated test.
+     * Resets Response singleton before golden captures to isolate call state.
      */
     private function resetResponseSingleton(): void
     {

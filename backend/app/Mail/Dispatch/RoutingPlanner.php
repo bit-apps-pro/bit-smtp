@@ -13,9 +13,7 @@ use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Routing\RoutingRules;
 
 /**
- * Plans which connections a send is attempted over and in what order, and records/advances the routing
- * decision. The mutable SendContext is always passed in (never cached) so the bridge stays the sole
- * owner of the single per-send decision the controller reads back.
+ * Plan send connection order and record routing decision; mutable SendContext passed (never cached).
  */
 final class RoutingPlanner
 {
@@ -40,8 +38,7 @@ final class RoutingPlanner
     }
 
     /**
-     * Resolve the connection the routing rules select for this send, updating the context's routing
-     * decision as a side effect, and return its id (or null when no rule matched / routing is off).
+     * Resolve routing-selected connection id, updating context's routing decision as side effect.
      */
     public function routedConnectionId(MailMessage $message, MailSettings $settings, SendContext $context): ?string
     {
@@ -85,9 +82,7 @@ final class RoutingPlanner
     }
 
     /**
-     * Seed the context with the send's detected source before dispatch, so a natively-deferred send
-     * still logs where it originated. Skipped only when there is nothing to record: logging is off and
-     * the plugin is disabled or has no routing rules.
+     * Seed context with detected source before dispatch for proper logging of natively-deferred sends.
      */
     public function captureSourceForSend(MailSettings $settings, SendContext $context, bool $loggingEnabled): void
     {
@@ -104,8 +99,7 @@ final class RoutingPlanner
     }
 
     /**
-     * Stamp the context's routing decision as 'native' for a send that fell through to core wp_mail,
-     * seeding a fresh decision from the detected source when none was captured earlier.
+     * Stamp routing decision as 'native' for core wp_mail sends, seeding from detected source if needed.
      */
     public function captureNativeRoutingDecision(SendContext $context): void
     {
@@ -120,8 +114,7 @@ final class RoutingPlanner
     }
 
     /**
-     * Promote the routing decision to 'fallback' once the failover loop moves past the connection the
-     * router originally selected, so the log reflects that a lower-priority connection actually sent.
+     * Promote routing decision to 'fallback' once failover uses a non-selected connection.
      */
     public function advanceRoutingDecision(Connection $connection, SendContext $context): void
     {
@@ -136,8 +129,7 @@ final class RoutingPlanner
     }
 
     /**
-     * The first sendable connection in priority order — the default the router falls back to when no
-     * rule names a connection.
+     * First sendable connection in priority order; router fallback when no rule matches.
      */
     public function defaultConnectionId(MailSettings $settings): ?string
     {
@@ -160,8 +152,7 @@ final class RoutingPlanner
     }
 
     /**
-     * Drop connections that cannot send yet so an incomplete setup falls through to native wp_mail
-     * instead of forcing a broken send.
+     * Drop connections that cannot send; incomplete setups fall through to native wp_mail.
      *
      * @return Connection[]
      */
@@ -174,8 +165,7 @@ final class RoutingPlanner
     }
 
     /**
-     * The de-duplicated, non-empty connection ids the router would try in priority order for this send:
-     * the rule-matched/preferred connection, then the configured default, then each listed fallback.
+     * De-duplicated connection ids router tries in priority order (preferred, default, fallbacks).
      *
      * @return string[]
      */

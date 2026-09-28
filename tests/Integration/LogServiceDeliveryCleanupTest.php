@@ -9,8 +9,7 @@ use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
 
 /**
- * Verifies that privacy-sensitive delivery-event children follow their parent log through both
- * administrator deletion and automatic retention cleanup.
+ * Verifies delivery-event children cascade with parent logs on deletion and retention cleanup.
  *
  * @internal
  *

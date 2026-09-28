@@ -9,9 +9,7 @@ use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
 
 /**
- * Drives LogService::save()/update()/bulkInsert() against the real test DB: each write path must
- * capture the connection-applied From into the log row's `sender` column instead of merely
- * stripping it out of the `details` JSON blob.
+ * Verifies sender column captures connection-applied From for all write paths.
  *
  * @internal
  *

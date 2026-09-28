@@ -10,8 +10,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Container\ServiceProvider;
 class InstallerServiceProvider extends ServiceProvider
 {
     /**
-     * Registers InstallerProvider eagerly (not deferred to boot()): WordPress fires the activation
-     * hook before init, so wiring this in boot() instead would miss it entirely.
+     * Register InstallerProvider eagerly (activation hook fires before init, boot() would miss it).
      */
     public function register(): void
     {

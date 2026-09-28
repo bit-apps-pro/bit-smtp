@@ -11,12 +11,13 @@ use BitApps\SMTP\Mail\Webhook\DeliveryEvent;
 use BitApps\SMTP\Mail\Webhook\WebhookRequest;
 
 /**
- * Maps an Amazon SES bounce/complaint/delivery notification — delivered inside an SNS Notification's
- * `Message` string — to per-recipient DeliveryEvents, correlated by the SES-assigned `mail.messageId`
- * (the id SesTransport captures at send). A confirmation/other SNS type or malformed JSON yields [].
+ * Map SES bounce/complaint/delivery from SNS notification to per-recipient DeliveryEvents via mail.messageId correlation.
  */
 class SesSnsWebhookAdapter implements WebhookAdapterInterface
 {
+    /**
+     * Parse SES event from SNS notification, handling both feedback and config-set publishing.
+     */
     public function parseEvents(WebhookRequest $request): array
     {
         $sns = SnsMessage::fromArray($request->decoded());
@@ -29,7 +30,6 @@ class SesSnsWebhookAdapter implements WebhookAdapterInterface
             return [];
         }
 
-        // Identity feedback uses `notificationType`; configuration-set publishing uses `eventType`.
         $type      = (string) ($ses['notificationType'] ?? $ses['eventType'] ?? '');
         $messageId = $this->messageId($ses);
 
@@ -46,6 +46,8 @@ class SesSnsWebhookAdapter implements WebhookAdapterInterface
     }
 
     /**
+     * Extract bounce events; only permanent bounces are terminal (transient may succeed later).
+     *
      * @param array<string,mixed> $ses
      *
      * @return DeliveryEvent[]
@@ -61,7 +63,6 @@ class SesSnsWebhookAdapter implements WebhookAdapterInterface
             $this->emails($bounce['bouncedRecipients'] ?? []),
             $messageId,
             DeliveryStatus::BOUNCED,
-            // Only a permanent (hard) bounce is a terminal outcome; a transient one may still deliver.
             $type === 'Permanent',
             $detail !== '' ? $detail : null,
             $bounce['timestamp'] ?? null
@@ -108,8 +109,7 @@ class SesSnsWebhookAdapter implements WebhookAdapterInterface
     }
 
     /**
-     * SES bounce/complaint recipients are `[{emailAddress: ...}]`; delivery recipients are plain
-     * strings, handled by the caller. Extracts the email addresses, dropping malformed entries.
+     * Extract email addresses from SES bounce/complaint/delivery recipients, dropping malformed entries.
      *
      * @param mixed $list
      *

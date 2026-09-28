@@ -5,10 +5,7 @@ interface LegendItem {
   color: string
 }
 
-/**
- * Custom legend: a short line-key swatch beside ink-colored text, never text colored by the series
- * (mark-anatomy rule - color lives on the mark, not the label). Mandatory whenever >=2 series render.
- */
+/** Custom legend: line-key swatch beside ink-colored text, never text colored by the series (mark-anatomy rule); mandatory whenever >=2 series render. */
 export default function ChartLegend({
   payload
 }: {

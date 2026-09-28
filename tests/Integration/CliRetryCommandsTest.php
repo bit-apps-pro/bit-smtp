@@ -12,8 +12,7 @@ use BitApps\SMTP\Tests\Fake\FakeCliReporter;
 use BitSmtpRetryQueueMigration;
 
 /**
- * Drives the retry CLI commands against the real retry-queue table: retry:status reports the true
- * depth/pending metadata, and retry:flush actually clears every row and returns the count removed.
+ * Verifies retry CLI commands accurately report queue state and remove rows.
  *
  * @internal
  *
@@ -44,7 +43,6 @@ final class CliRetryCommandsTest extends IntegrationTestCase
         $this->assertSame(['Retry queue depth: 2'], $reporter->lines);
         $this->assertCount(1, $reporter->rendered);
         $this->assertCount(2, $reporter->rendered[0]['items']);
-        // Metadata only: the encrypted payload must never surface in the status output.
         $this->assertArrayNotHasKey('payload', $reporter->rendered[0]['items'][0]);
     }
 

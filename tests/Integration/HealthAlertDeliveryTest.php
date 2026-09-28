@@ -2,7 +2,9 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Config;
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Health\ConnectionHealth;
 use BitApps\SMTP\Mail\Health\ConnectionHealthStore;
 use BitApps\SMTP\Mail\Health\HealthStatus;
 use BitApps\SMTP\Mail\Health\HealthTransition;
@@ -12,9 +14,7 @@ use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
- * Drives a health transition through the real notifier + email channel and asserts the alert lands in
- * mailpit, gated by the notify_events preference. The alert email is a guard-deferred native wp_mail,
- * so a phpmailer_init listener points that native send at mailpit.
+ * Tests health transitions queue WP-Cron events that land alerts in mailpit, gated by notify_events.
  *
  * @internal
  *
@@ -26,27 +26,47 @@ final class HealthAlertDeliveryTest extends IntegrationTestCase
     {
         parent::setUp();
         delete_option(ConnectionHealthStore::OPTION_NAME);
+        wp_unschedule_hook(Config::HEALTH_ALERT_HOOK);
     }
 
     protected function tearDown(): void
     {
         delete_option(ConnectionHealthStore::OPTION_NAME);
+        wp_unschedule_hook(Config::HEALTH_ALERT_HOOK);
         parent::tearDown();
+    }
+
+    public function testAnUnhealthyTransitionIsQueuedWithIdentifiersOnlyNotDeliveredInline(): void
+    {
+        $this->configureAlerts([HealthNotification::EVENT_UNHEALTHY]);
+        $this->recordUnhealthy();
+
+        $this->deliveringToMailpit(function (): void {
+            $this->notifier()->notifyTransitions([$this->unhealthyTransition()]);
+        });
+
+        $this->assertEmpty($this->mailpitMessages(), 'the request path must not deliver the alert inline');
+        $queued = $this->queuedAlerts();
+        $this->assertCount(1, $queued);
+        $this->assertSame([HealthNotification::EVENT_UNHEALTHY, 'conn_smtp'], \array_slice($queued[0], 0, 2));
+        $this->assertIsInt($queued[0][2]);
+        $this->assertStringNotContainsString('ops@example.org', (string) wp_json_encode(_get_cron_array()));
     }
 
     public function testAnUnhealthyTransitionDeliversAnEmailAlert(): void
     {
         $this->configureAlerts([HealthNotification::EVENT_UNHEALTHY]);
+        $this->recordUnhealthy();
 
         $this->deliveringToMailpit(function (): void {
             $this->notifier()->notifyTransitions([$this->unhealthyTransition()]);
+            $this->runQueuedAlerts();
         });
 
         $message = $this->latestMailpitMessage();
         $this->assertNotNull($message, 'the unhealthy transition should deliver an email alert');
         $this->assertStringContainsString('Connection unhealthy', (string) ($message['Subject'] ?? ''));
 
-        // The alert is deduped for next time via the health record's marker.
         $record = (new ConnectionHealthStore())->get('conn_smtp');
         $this->assertNotNull($record);
         $this->assertSame(HealthNotification::EVENT_UNHEALTHY, $record->getLastAlertedState());
@@ -54,14 +74,65 @@ final class HealthAlertDeliveryTest extends IntegrationTestCase
 
     public function testNoAlertIsSentWhenTheEventIsNotSubscribed(): void
     {
-        // Only 'connection_recovered' is subscribed, so an unhealthy transition must stay silent.
         $this->configureAlerts([HealthNotification::EVENT_RECOVERED]);
+
+        $this->recordUnhealthy();
 
         $this->deliveringToMailpit(function (): void {
             $this->notifier()->notifyTransitions([$this->unhealthyTransition()]);
+            $this->runQueuedAlerts();
         });
 
         $this->assertEmpty($this->mailpitMessages(), 'an unsubscribed event must not alert');
+        $this->assertSame([], $this->queuedAlerts(), 'an unsubscribed event must not even be queued');
+    }
+
+    public function testDeactivationClearsQueuedHealthAlerts(): void
+    {
+        $this->configureAlerts([HealthNotification::EVENT_UNHEALTHY]);
+        $this->recordUnhealthy();
+        $this->notifier()->notifyTransitions([$this->unhealthyTransition()]);
+        $this->assertCount(1, $this->queuedAlerts());
+
+        do_action(Config::withPrefix('deactivate'), false);
+
+        $this->assertSame([], $this->queuedAlerts());
+    }
+
+    /**
+     * Put the connection's health record into the unhealthy state the queued alert re-checks.
+     */
+    private function recordUnhealthy(): void
+    {
+        (new ConnectionHealthStore())->put('conn_smtp', ConnectionHealth::fromArray(['status' => HealthStatus::UNHEALTHY]));
+    }
+
+    /**
+     * The args of every queued health-alert event, oldest first.
+     *
+     * @return list<array<int,mixed>>
+     */
+    private function queuedAlerts(): array
+    {
+        $queued = [];
+        foreach (_get_cron_array() as $hooks) {
+            foreach ($hooks[Config::HEALTH_ALERT_HOOK] ?? [] as $event) {
+                $queued[] = $event['args'];
+            }
+        }
+
+        return $queued;
+    }
+
+    /**
+     * Run every queued health-alert event through the booted plugin's hook, then unschedule them.
+     */
+    private function runQueuedAlerts(): void
+    {
+        foreach ($this->queuedAlerts() as $args) {
+            do_action_ref_array(Config::HEALTH_ALERT_HOOK, $args);
+        }
+        wp_unschedule_hook(Config::HEALTH_ALERT_HOOK);
     }
 
     private function notifier(): HealthNotifier
@@ -99,8 +170,10 @@ final class HealthAlertDeliveryTest extends IntegrationTestCase
             'connections'             => [$this->connection()->toArray()],
             'features'                => [
                 'alerts' => [
-                    'enabled' => true,
-                    'email'   => ['enabled' => true, 'recipients' => ['ops@example.org']],
+                    'enabled'  => true,
+                    'channels' => [
+                        ['id' => 'ch_email01', 'type' => 'email', 'enabled' => true, 'settings' => ['recipients' => ['ops@example.org']]],
+                    ],
                 ],
             ],
         ]);

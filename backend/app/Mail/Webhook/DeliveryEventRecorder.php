@@ -8,8 +8,7 @@ use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Mail\Connections\Connection;
 
 /**
- * Correlates an inbound provider delivery event to its log, records it idempotently, and folds the
- * log's events into a fresh parent rollup.
+ * Correlate delivery event to log, record idempotently, and fold events into parent rollup.
  */
 final class DeliveryEventRecorder
 {
@@ -21,14 +20,14 @@ final class DeliveryEventRecorder
     }
 
     /**
+     * Correlate event to log by connection ID, record and roll up; return true if event was correlated.
+     *
      * @return bool true when the event was correlated and recorded, false when it matched no log
      */
     public function record(DeliveryEvent $event, Connection $connection): bool
     {
         $keys = $event->correlationKeys();
-        // Scope on the connection's stable id — the mail-log `connection_id` column — so a renamed or
-        // unnamed same-provider connection can't break or mis-attribute correlation.
-        $log = $this->logService->findForCorrelation(
+        $log  = $this->logService->findForCorrelation(
             $connection->getId(),
             $keys['message_id'],
             $keys['tracking_id']

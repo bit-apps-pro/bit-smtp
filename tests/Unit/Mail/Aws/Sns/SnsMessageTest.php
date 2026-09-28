@@ -20,7 +20,7 @@ class SnsMessageTest extends BaseUnitTestCase
             'TopicArn'  => 'arn:aws:sns:us-east-1:1:t',
             'Message'   => 'hello',
             'Timestamp' => '2026-08-26T00:00:00Z',
-            // Fields deliberately out of order to prove the canonical string is byte-sorted, not input-ordered.
+
         ]);
 
         $this->assertSame(

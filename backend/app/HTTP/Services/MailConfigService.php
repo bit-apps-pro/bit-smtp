@@ -3,6 +3,9 @@
 namespace BitApps\SMTP\HTTP\Services;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Mail\Config\AlertSettingsNormalizer;
+use BitApps\SMTP\Mail\Config\AlertSettingsRevision;
+use BitApps\SMTP\Mail\Config\AlertSettingsValidator;
 use BitApps\SMTP\Mail\Config\MailSettings;
 use BitApps\SMTP\Mail\Config\MailSettingsMigrator;
 use BitApps\SMTP\Mail\Config\MailSettingsSanitizer;
@@ -11,16 +14,17 @@ use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionAuthorization;
 use BitApps\SMTP\Mail\Credentials\CredentialCipher;
+use BitApps\SMTP\Mail\Exceptions\AlertSettingsConflictException;
 use BitApps\SMTP\Mail\Exceptions\CredentialCipherException;
+use BitApps\SMTP\Mail\Exceptions\InvalidAlertChannelException;
 use BitApps\SMTP\Mail\Health\ConnectionHealthStore;
+use BitApps\SMTP\Mail\Notifications\AlertDeliveryStatus;
 use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
 use BitApps\SMTP\Plugin;
 use Throwable;
 
 /**
- * Facade over the v2 mail-settings domain. Reads migrate legacy config in memory only (never
- * rewriting the DB), while writes persist the full v2 array atomically and preserve a one-time
- * backup of any pre-migration legacy config.
+ * Facade over v2 mail-settings (migrate legacy in-memory, writes persist atomically + backup).
  */
 class MailConfigService
 {
@@ -29,11 +33,7 @@ class MailConfigService
     private const LEGACY_BACKUP_OPTION = 'options_v1_backup';
 
     /**
-     * Server-managed webhook setting keys the client may never write: always stripped from an
-     * incoming save and restored from the stored connection (or dropped for a new one). Stripped for
-     * EVERY provider so a forged value can't be staged under a non-webhook provider and later
-     * restored across a provider swap. WebhookProvisioningService::recordOutcome (via
-     * persistConnectionProvisioning, which bypasses this strip) is the only writer.
+     * Server-managed webhook keys (stripped per-save, restored from stored connection).
      */
     private const MANAGED_WEBHOOK_SETTING_KEYS = [
         'webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key', 'webhook_provisioned_url',
@@ -45,11 +45,13 @@ class MailConfigService
      */
     private $settings;
 
+    /**
+     * Current settings (cached, read once from options table).
+     */
     public function load(): MailSettings
     {
         if ($this->settings === null) {
-            $migrated       = MailSettingsMigrator::migrate(Config::getOption(self::OPTION, []));
-            $this->settings = MailSettings::fromArray($this->decryptSecrets($migrated));
+            $this->settings = $this->hydrate(Config::getOption(self::OPTION, []));
         }
 
         return $this->settings;
@@ -64,7 +66,7 @@ class MailConfigService
     }
 
     /**
-     * Persist the full v2 array in a single write, backing up any legacy config exactly once first.
+     * Persist full v2 array (backing up legacy config exactly once).
      */
     public function store(MailSettings $settings): bool
     {
@@ -79,8 +81,7 @@ class MailConfigService
     }
 
     /**
-     * Persist config coming from the legacy flat REST shape, preserving an existing password when
-     * the incoming one is empty.
+     * Persist config from legacy shape (preserve existing password if incoming is empty).
      *
      * @param array<string,mixed> $flat
      */
@@ -104,37 +105,44 @@ class MailConfigService
     }
 
     /**
-     * V2 API read shape: all credential values masked with the sentinel.
+     * V2 API read shape (masked credentials + alerts revision/delivery status).
      *
      * @return array<string,mixed>
      */
     public function apiSettings(): array
     {
-        return MailSettingsSerializer::toApiShape($this->load());
+        $settings = $this->load();
+        $api      = MailSettingsSerializer::toApiShape($settings);
+
+        $api['features']['alerts']['revision'] = AlertSettingsRevision::ofStored($settings);
+        $api['features']['alerts']['delivery'] = AlertDeliveryStatus::snapshot(time());
+
+        return $api;
     }
 
     /**
-     * Persist a full v2 payload from the API, preserving any credential values that arrive as the
-     * mask sentinel by restoring the stored secret in their place.
+     * Persist v2 payload (preserve masked creds, reject a stale alerts revision).
      *
      * @param array<string,mixed> $v2
+     *
+     * @throws AlertSettingsConflictException when the alerts revision is stale
+     * @throws InvalidAlertChannelException   when an alert channel id repeats or an enabled one is incomplete
      */
     public function saveSettings(array $v2): bool
     {
-        $prior                   = $this->load();
+        $prior                   = $this->reload()->load();
         $resolved                = MaskedSecretResolver::apply($v2, $prior);
         $resolved['connections'] = $this->withPreservedWebhookFields($resolved['connections'] ?? [], $prior);
         $sanitized               = MailSettingsSanitizer::sanitize($resolved);
-        $stored                  = $this->store(MailSettings::fromArray($sanitized));
+        AlertSettingsValidator::assertSaveable($v2, $sanitized['features']['alerts'], $prior);
+        $this->store(MailSettings::fromArray($sanitized));
         $this->reload();
 
-        return $stored;
+        return true;
     }
 
     /**
-     * Upsert a single connection. Assigns a new id for new connections, preserves credentials that
-     * arrive masked, and promotes to default when no usable default exists yet and the connection is
-     * sendable (an OAuth2 connection is not, until consent stores its token).
+     * Upsert connection (new id, preserve masked creds, promote to default if needed).
      *
      * @param array<string,mixed> $connection
      */
@@ -144,8 +152,7 @@ class MailConfigService
     }
 
     /**
-     * Upsert a single connection and return the resulting connection id (the minted id for a new
-     * connection, the incoming id for an update), or null when the store failed.
+     * Upsert a connection and return its ID (minted for new, incoming for update) or null if store failed.
      *
      * @param array<string,mixed> $connection
      */
@@ -161,7 +168,6 @@ class MailConfigService
 
         foreach ($connections as $i => $existing) {
             if ($existing['id'] === $incomingId && $incomingId !== '') {
-                // Replace in-place, preserving masked credentials from the stored version.
                 $resolved     = MaskedSecretResolver::apply(
                     ['connections' => [$connection]],
                     $current
@@ -177,9 +183,7 @@ class MailConfigService
 
         if ($isNew) {
             $connection['id'] = 'conn_' . wp_generate_uuid4();
-            // Brand-new connection: sentinel values cannot be preserved — resolve to '' via an
-            // empty MailSettings so MaskedSecretResolver correctly blanks them.
-            $empty    = MailSettings::fromArray([
+            $empty            = MailSettings::fromArray([
                 'schema_version'          => 2,
                 'enabled'                 => false,
                 'default_connection_id'   => '',
@@ -195,10 +199,6 @@ class MailConfigService
             $connections[]   = $savedConnection;
         }
 
-        // Promote to default when no usable default exists yet — but only for a connection that can
-        // actually send. An OAuth2 connection saved before consent has no token and must never become
-        // the routing target; the later save that stores its tokens (or a manual Set default) promotes
-        // it. Non-OAuth connections stay promote-first (sendable the moment they are saved).
         $currentDefaultId = $data['default_connection_id'];
         $noDefaultYet     = \count($connections) === 1 || $currentDefaultId === '';
         $sendable         = ConnectionAuthorization::isSendable(
@@ -219,9 +219,7 @@ class MailConfigService
     }
 
     /**
-     * Write (or overwrite) a single connection credential, persisting through the same encrypt path
-     * as every other secret so the value is stored encrypted and decrypts on load. Used to stash
-     * provider-issued signing material (e.g. an HMAC webhook secret) safely at rest.
+     * Write/overwrite connection credential (encrypted at rest like all secrets).
      */
     public function setConnectionCredential(string $connectionId, string $key, string $value): bool
     {
@@ -253,10 +251,7 @@ class MailConfigService
     }
 
     /**
-     * Persist webhook-provisioning output — provider-issued credentials (each encrypted at rest via the
-     * shared secret path) plus the server-managed settings — onto one connection in a SINGLE atomic
-     * write, so signature material and the auto-provision marker can never diverge from a partial write.
-     * Returns false when the connection is unknown or the store fails.
+     * Persist webhook-provisioning output (credentials + server-managed settings, atomic).
      *
      * @param array<string,string> $credentials plaintext values keyed by credential name, tagged 'provisioned'
      * @param array<string,mixed>  $settings    values merged onto the connection's settings
@@ -295,14 +290,11 @@ class MailConfigService
     }
 
     /**
-     * Remove a connection by id. Repoints the default to the first enabled connection (or first,
-     * or empty) when the removed connection was the default.
+     * Remove connection (repoint default, remove from fallback/routing, cleanup health/webhook).
      */
     public function deleteConnection(string $id): bool
     {
-        $current = $this->load();
-        // Capture the connection before removal so its webhook URL (needed to deregister the provider-
-        // side webhook) is still resolvable.
+        $current     = $this->load();
         $removed     = $current->getConnections()->byId($id);
         $data        = $current->toArray();
         $connections = array_values(array_filter(
@@ -312,12 +304,10 @@ class MailConfigService
             }
         ));
 
-        // Repoint default when the deleted connection held it.
         if ($data['default_connection_id'] === $id) {
             $data['default_connection_id'] = $this->chooseNewDefault($data, $connections);
         }
 
-        // Remove from fallback list.
         $data['fallback_connection_ids'] = array_values(array_filter(
             $data['fallback_connection_ids'] ?? [],
             static function (string $fbId) use ($id): bool {
@@ -325,8 +315,6 @@ class MailConfigService
             }
         ));
 
-        // Drop routing rules targeting the deleted connection. They degrade gracefully at resolve
-        // time, but would otherwise linger as dead rules pointing at an id that no longer exists.
         if (isset($data['features']['routing']) && \is_array($data['features']['routing'])) {
             $data['features']['routing'] = array_values(array_filter(
                 $data['features']['routing'],
@@ -342,8 +330,6 @@ class MailConfigService
         $stored    = $this->store(MailSettings::fromArray($sanitized));
         $this->reload();
 
-        // Evict the health record and deregister the provider-side webhook only once the connection is
-        // actually gone, so every caller (REST, WP-CLI, tests) cleans up instead of leaving orphans.
         if ($stored) {
             $this->forgetConnectionHealth($id);
             if ($removed !== null) {
@@ -355,19 +341,13 @@ class MailConfigService
     }
 
     /**
-     * Clear a connection's stored OAuth tokens (access/refresh + cached expiry), keeping its client
-     * credentials and the connection itself, so a user can revoke a grant without deleting the
-     * connection. A now-tokenless OAuth connection is not sendable, so repoint the default away from
-     * it (mirroring deleteConnection) to prevent a silently unsendable routing target. Returns false
-     * when the connection is unknown, is not an OAuth connection, or the store fails.
+     * Clear OAuth tokens (keep client creds, repoint default, OAuth-only).
      */
     public function disconnectOAuth(string $connectionId): bool
     {
         $current    = $this->load();
         $connection = $current->getConnections()->byId($connectionId);
 
-        // Only OAuth connections carry tokens to clear. Refusing others also stops a no-op token
-        // clear from needlessly repointing the default away from a working non-OAuth connection.
         if ($connection === null || !$this->requiresOAuthConsent($connection->getProvider())) {
             return false;
         }
@@ -378,8 +358,6 @@ class MailConfigService
                 continue;
             }
 
-            // Clear exactly the keys isSendable() scans for, so a disconnect always makes the
-            // connection un-sendable (and thus repointable off the default) by construction.
             foreach (ConnectionAuthorization::OAUTH_TOKEN_KEYS as $tokenKey) {
                 unset($data['connections'][$i]['credentials'][$tokenKey]);
             }
@@ -388,8 +366,6 @@ class MailConfigService
             break;
         }
 
-        // Repoint the default away from the now-unsendable connection (it keeps existing, so exclude
-        // it explicitly from the candidate set).
         if ($data['default_connection_id'] === $connectionId) {
             $siblings = array_values(array_filter(
                 $data['connections'],
@@ -407,7 +383,7 @@ class MailConfigService
     }
 
     /**
-     * Find a single connection by id, or null when not found.
+     * Find connection by id, or null.
      */
     public function connectionById(string $id): ?Connection
     {
@@ -415,9 +391,7 @@ class MailConfigService
     }
 
     /**
-     * Receiver-side: record that a connection's webhook is live. Write-once — returns without
-     * touching the shared, all-connections options blob once already verified, so concurrent
-     * events can't race the read-modify-write nor churn re-encryption on every delivery.
+     * Record webhook live (write-once to avoid read-modify-write race).
      */
     public function markWebhookVerified(string $connId, ?string $eventTime): void
     {
@@ -468,9 +442,17 @@ class MailConfigService
     }
 
     /**
-     * Pick the id of the connection that should become the routing default from a candidate set:
-     * first enabled, else first, else '' when none remain. Shared by deleteConnection and
-     * disconnectOAuth so the default-selection policy lives in exactly one place.
+     * Build settings from stored option (migrate legacy, normalize alerts, decrypt).
+     *
+     * @param mixed $stored
+     */
+    private function hydrate($stored): MailSettings
+    {
+        return MailSettings::fromArray($this->decryptSecrets(self::withNormalizedAlerts(MailSettingsMigrator::migrate(\is_array($stored) ? $stored : []))));
+    }
+
+    /**
+     * Pick new default from candidates (first enabled, else first, else '').
      *
      * @param array<string,mixed>            $data       full settings array, for schema context
      * @param array<int,array<string,mixed>> $candidates connections eligible to become the default
@@ -484,8 +466,7 @@ class MailConfigService
     }
 
     /**
-     * Best-effort removal of a deleted connection's health record. A failure here must never turn a
-     * successful delete into an error, so the eviction is swallowed and merely logged.
+     * Best-effort removal of deleted connection's health record (swallowed on error).
      */
     private function forgetConnectionHealth(string $id): void
     {
@@ -498,9 +479,7 @@ class MailConfigService
     }
 
     /**
-     * Best-effort deregister of a deleted connection's provider-side webhook so the provider stops
-     * POSTing to a URL that now 404s. deregisterFor already swallows provider/API errors; the outer
-     * guard covers a failure to even resolve the service, so a delete is never turned into an error.
+     * Best-effort deregister deleted connection's provider webhook (swallowed on error).
      */
     private function deregisterConnectionWebhook(Connection $connection): void
     {
@@ -513,9 +492,7 @@ class MailConfigService
     }
 
     /**
-     * Whether a provider authenticates via OAuth2 consent, per the provider registry (the single
-     * source of truth via authConfig()). Degrades to false — treat as non-OAuth, promote-first — for
-     * an unknown provider or when the registry cannot be resolved, so promotion never fatals a save.
+     * Check OAuth2 auth (degrade to false on unknown/error; prevent save fatals).
      */
     private function requiresOAuthConsent(string $provider): bool
     {
@@ -531,10 +508,7 @@ class MailConfigService
     }
 
     /**
-     * Mint + preserve the server-managed webhook fields on every save. The incoming payload carries
-     * only user-editable settings, so without this an edit would wipe the secret (breaking the URL)
-     * and reset webhook_verified (hiding the delivery badge). The secret is minted once for an API
-     * connection and thereafter carried forward from the stored connection; SMTP connections get none.
+     * Mint/preserve server-managed webhook fields (strip-restore per save, SSRF guard).
      *
      * @param array<int,array<string,mixed>> $connections
      *
@@ -549,9 +523,6 @@ class MailConfigService
             $priorConn     = $prior->getConnections()->byId($connection['id'] ?? '');
             $priorSettings = $priorConn !== null ? $priorConn->getSettings() : [];
 
-            // Strip-and-restore runs for every provider (not just webhook-capable ones): otherwise a
-            // client could stage a forged value under a non-webhook provider — where the strip was
-            // skipped — and have it restored after swapping the same connection to a webhook provider.
             foreach (self::MANAGED_WEBHOOK_SETTING_KEYS as $managed) {
                 unset($settings[$managed]);
                 if (\array_key_exists($managed, $priorSettings)) {
@@ -559,10 +530,7 @@ class MailConfigService
                 }
             }
 
-            // Only webhook-capable providers carry a webhook secret; SMTP/non-webhook providers get none.
             if (WebhookAdapterFactory::supportsProvider((string) ($connection['provider'] ?? ''))) {
-                // Treat an explicit '' as absent so re-saving a connection can't rotate a live webhook URL:
-                // carry the stored secret forward, minting one only when neither incoming nor stored exists.
                 $secret = $settings['webhook_secret'] ?? '';
                 if ($secret === '') {
                     $secret = $priorSettings['webhook_secret'] ?? '';
@@ -580,8 +548,7 @@ class MailConfigService
     }
 
     /**
-     * Snapshot the pre-migration legacy array before the first v2 write. add_option is a no-op when
-     * the key already exists, giving a natural once-guard.
+     * Snapshot legacy array once before first v2 write (add_option no-op guard).
      */
     private function backupLegacyOnce(): void
     {
@@ -592,8 +559,7 @@ class MailConfigService
     }
 
     /**
-     * Encrypt every secret before it is written to the options table. The in-memory MailSettings
-     * object built from $data stays plaintext; only the persisted copy is ciphertext.
+     * Encrypt every secret before writing (in-memory stays plaintext, persisted is ciphertext).
      *
      * @param array<string,mixed> $data
      *
@@ -607,8 +573,7 @@ class MailConfigService
     }
 
     /**
-     * Decrypt every secret read from the options table, so every other consumer of load() keeps
-     * working against plaintext unchanged.
+     * Decrypt secrets read from options (so consumers of load() work against plaintext).
      *
      * @param array<string,mixed> $data
      *
@@ -620,8 +585,7 @@ class MailConfigService
     }
 
     /**
-     * A rotated wp_salt (or any other CredentialCipherException) makes a stored secret
-     * permanently unrecoverable; degrade that single value to '' rather than fatal the admin screen.
+     * Degrade unrecoverable secret to '' on decrypt failure (prevent fatal).
      */
     private function decryptSecretValue(string $value): string
     {
@@ -636,8 +600,7 @@ class MailConfigService
     }
 
     /**
-     * Walk connection credential values and failure-webhook secrets, applying $transform to every
-     * value. Tolerates missing or malformed sections.
+     * Walk credential/secret values applying $transform (tolerates malformed sections).
      *
      * @param array<string,mixed> $data
      *
@@ -661,17 +624,32 @@ class MailConfigService
             }
         }
 
-        foreach (MailSettingsSerializer::ALERT_SECRET_KEYS as $channel => $secretKeys) {
-            foreach ($secretKeys as $secretKey) {
-                if (
-                    isset($data['features']['alerts'][$channel][$secretKey])
-                    && \is_scalar($data['features']['alerts'][$channel][$secretKey])
-                ) {
-                    $data['features']['alerts'][$channel][$secretKey] = $transform(
-                        (string) $data['features']['alerts'][$channel][$secretKey]
+        $channels = $data['features']['alerts']['channels'] ?? [];
+        foreach (\is_array($channels) ? $channels : [] as $i => $channel) {
+            $type = \is_array($channel) ? ($channel['type'] ?? '') : '';
+            foreach (MailSettingsSerializer::ALERT_ENCRYPTED_KEYS[$type] ?? [] as $secretKey) {
+                if (isset($channel['settings'][$secretKey]) && \is_scalar($channel['settings'][$secretKey])) {
+                    $data['features']['alerts']['channels'][$i]['settings'][$secretKey] = $transform(
+                        (string) $channel['settings'][$secretKey]
                     );
                 }
             }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Normalize alerts blob to channel-list shape before decrypt (consistent shape for load()).
+     *
+     * @param array<string,mixed> $data
+     *
+     * @return array<string,mixed>
+     */
+    private static function withNormalizedAlerts(array $data): array
+    {
+        if (isset($data['features']) && \is_array($data['features'])) {
+            $data['features']['alerts'] = AlertSettingsNormalizer::normalize($data['features']['alerts'] ?? []);
         }
 
         return $data;

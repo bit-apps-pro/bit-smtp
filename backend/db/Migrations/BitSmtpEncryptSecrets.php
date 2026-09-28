@@ -15,10 +15,10 @@ final class BitSmtpEncryptSecrets extends Migration
         $svc->store($svc->load());
     }
 
+    /**
+     * No-op: downgrade would re-introduce at-rest credential exposure.
+     */
     public function down()
     {
-        // No-op: ciphertext is still readable as-is (CredentialCipher tolerates its own prefix on
-        // repeat encrypts), so a downgrade has nothing to reverse and re-plaintexting would only
-        // reintroduce the at-rest exposure this migration fixes.
     }
 }

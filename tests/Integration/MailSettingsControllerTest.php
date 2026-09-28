@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Controllers\ConnectionController;
 use BitApps\SMTP\HTTP\Controllers\MailSettingsController;
@@ -24,7 +25,6 @@ final class MailSettingsControllerTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // Flush the Plugin singleton's cached MailConfigService state so each test starts clean.
         Plugin::instance()->mailConfigService()->reload();
     }
 
@@ -33,8 +33,6 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         Mockery::close();
         parent::tearDown();
     }
-
-    // --- ProviderController ---
 
     public function testProviderIndexReturnsOtherSmtpInMetadata(): void
     {
@@ -65,8 +63,6 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertTrue($fieldsByKey['password']['secret']);
     }
 
-    // --- MailSettingsController ---
-
     public function testSettingsIndexReturnsMaskedPassword(): void
     {
         $service = new MailConfigService();
@@ -94,7 +90,86 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertSame('keep-me', $stored->getCredentials()['password']['value']);
     }
 
-    // --- ConnectionController::save ---
+    public function testSettingsIndexExposesTheAlertsRevisionAndDeliveryStatus(): void
+    {
+        (new MailConfigService())->saveSettings($this->withSlackAlerts($this->v2Settings('conn_1', 'pw')));
+        Plugin::instance()->mailConfigService()->reload();
+
+        (new MailSettingsController())->index();
+        $alerts = $this->responseData()['settings']['features']['alerts'];
+
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $alerts['revision']);
+        $this->assertStringNotContainsString('T00000000', $alerts['revision']);
+        $this->assertSame(['cron_disabled' => \defined('DISABLE_WP_CRON') && DISABLE_WP_CRON, 'overdue' => false], $alerts['delivery']);
+        $this->assertSame('https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX', $alerts['channels'][0]['settings']['webhook_url']);
+    }
+
+    public function testAnUnrelatedSaveEchoingTheApiShapeKeepsTheAlertsRevision(): void
+    {
+        (new MailConfigService())->saveSettings($this->withSlackAlerts($this->v2Settings('conn_1', 'pw')));
+        $api = (new MailConfigService())->apiSettings();
+
+        $api['connections'][0]['name'] = 'Renamed';
+        $this->saveThroughController($api);
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+        $after = (new MailConfigService())->apiSettings();
+        $this->assertSame($api['features']['alerts']['revision'], $after['features']['alerts']['revision']);
+        $this->assertSame('Renamed', $after['connections'][0]['name']);
+    }
+
+    public function testAStaleAlertsRevisionIsRejectedWith409AndNothingIsStored(): void
+    {
+        (new MailConfigService())->saveSettings($this->withSlackAlerts($this->v2Settings('conn_1', 'pw')));
+        $staleTab = (new MailConfigService())->apiSettings();
+
+        $otherTab                                              = $staleTab;
+        $otherTab['features']['alerts']['channels'][0]['name'] = 'Renamed elsewhere';
+        $this->saveThroughController($otherTab);
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+
+        $staleTab['features']['alerts']['channels'][0]['name'] = 'Stale edit';
+        $this->saveThroughController($staleTab);
+
+        $this->assertSame(Response::ERROR, Response::getStatus());
+        $this->assertSame(409, Response::getHttpStatusCode());
+        $this->assertSame('alerts_conflict', Response::getCode());
+        $this->assertSame('Notification settings were changed in another tab. Reload to see the latest.', Response::getMessage());
+        $this->assertSame('Renamed elsewhere', (new MailConfigService())->load()->getFeatures()['alerts']['channels'][0]['name']);
+    }
+
+    public function testTheRevisionAndDeliveryStatusAreNeverPersisted(): void
+    {
+        (new MailConfigService())->saveSettings($this->withSlackAlerts($this->v2Settings('conn_1', 'pw')));
+
+        $this->saveThroughController((new MailConfigService())->apiSettings());
+
+        $stored = Config::getOption('options');
+        $this->assertSame(['enabled', 'reminder_minutes', 'channels'], array_keys($stored['features']['alerts']));
+    }
+
+    public function testAnEnabledIncompleteAlertChannelIsRejectedWith422(): void
+    {
+        $payload                                                                 = $this->withSlackAlerts($this->v2Settings('conn_1', 'pw'));
+        $payload['features']['alerts']['channels'][0]['settings']['webhook_url'] = '';
+
+        $this->saveThroughController($payload);
+
+        $this->assertSame(422, Response::getHttpStatusCode());
+        $this->assertSame('invalid_alert_channel', Response::getCode());
+        $this->assertSame('Slack channel “Ops” needs a webhook URL.', Response::getMessage());
+        $this->assertFalse(Config::getOption('options'));
+    }
+
+    public function testMailSettingsSaveRequestValidatedKeepsTheAlertsRevision(): void
+    {
+        $payload = ['features' => ['alerts' => ['enabled' => true, 'revision' => 'abc123', 'channels' => []]]];
+
+        $request = new MailSettingsSaveRequest();
+        $result  = $request->make($payload, $request->rules())->validated();
+
+        $this->assertSame('abc123', $result['features']['alerts']['revision']);
+    }
 
     public function testConnectionSaveAssignsIdAndSetsDefault(): void
     {
@@ -138,8 +213,6 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertSame([], (new MailConfigService())->load()->getConnections()->all());
     }
 
-    // --- ConnectionController::delete ---
-
     public function testConnectionDeleteRemovesAndRepointsDefault(): void
     {
         $data                  = $this->v2Settings('conn_1', 'pass1');
@@ -167,8 +240,6 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertNull($loaded->getConnections()->byId('conn_1'));
         $this->assertSame('conn_2', $loaded->getDefaultConnectionId());
     }
-
-    // --- ConnectionController::test ---
 
     public function testConnectionTestDeliversToMailpit(): void
     {
@@ -280,16 +351,12 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertNotEmpty($this->mailpitMessages());
     }
 
-    // --- Route registration smoke test ---
-
     public function testAllSixNewRoutesAreRegistered(): void
     {
-        // loadApi() is gated on REST_REQUEST; define it to unlock route registration in this test.
         if (!\defined('REST_REQUEST')) {
             \define('REST_REQUEST', true);
         }
 
-        // Re-fire rest_api_init so HookProvider::loadApi() runs and registers routes.
         do_action('rest_api_init');
 
         $routes = rest_get_server()->get_routes();
@@ -310,8 +377,6 @@ final class MailSettingsControllerTest extends IntegrationTestCase
             $this->assertArrayHasKey($route, $routes, "Route not registered: {$route}");
         }
     }
-
-    // --- Request validation regression guards ---
 
     public function testConnectionSaveRequestValidatedPreservesSenderIdentityFields(): void
     {
@@ -358,8 +423,6 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertSame(['conn_2', 'conn_3'], $result['fallback_connection_ids']);
     }
 
-    // --- Helpers ---
-
     /**
      * @param class-string $class
      */
@@ -387,6 +450,41 @@ final class MailSettingsControllerTest extends IntegrationTestCase
     private function assertResponseError(): void
     {
         $this->assertSame(Response::ERROR, Response::getStatus(), 'Expected error response');
+    }
+
+    /**
+     * Save a payload through the settings controller, as the REST route does.
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function saveThroughController(array $payload): void
+    {
+        Response::reset();
+        Plugin::instance()->mailConfigService()->reload();
+        (new MailSettingsController())->save($this->mockRequest(MailSettingsSaveRequest::class, $payload));
+    }
+
+    /**
+     * The given settings with alerts on and one enabled Slack channel named "Ops".
+     *
+     * @param array<string,mixed> $settings
+     *
+     * @return array<string,mixed>
+     */
+    private function withSlackAlerts(array $settings): array
+    {
+        $settings['features']['alerts'] = [
+            'enabled'  => true,
+            'channels' => [[
+                'id'       => 'ch_slackaa',
+                'type'     => 'slack',
+                'name'     => 'Ops',
+                'enabled'  => true,
+                'settings' => ['webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'],
+            ]],
+        ];
+
+        return $settings;
     }
 
     private function v2Settings(string $connId, string $password): array

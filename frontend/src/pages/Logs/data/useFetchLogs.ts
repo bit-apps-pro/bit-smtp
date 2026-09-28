@@ -74,19 +74,14 @@ export type LogType = {
   sender?: string | null
   message_id?: string | null
   tracking_id?: string | null
-  // Classifier verdict for a failed send (transient/rate_limited/auth/invalid_recipient/permanent).
   failure_class?: string | null
-  // Per-row open/click engagement flags, present only when open/click tracking is enabled.
   opened?: boolean
   clicked?: boolean
-  // Real provider delivery status, only trustworthy when `delivery_verified` is true.
   delivery_status?: DeliveryStatusValue | string | null
   delivery_updated_at?: string | null
   delivery_verified?: boolean
   delivery_events?: Array<DeliveryEvent>
-  // Per-message opens/clicks (with click targets), for the detail view.
   engagement?: Array<EngagementEvent>
-  // Detail-only resend history: the parent id this was resent from, and the resends launched from it.
   resend_of?: number | null
   resends?: Array<ResendSummary>
   created_at: string
@@ -101,6 +96,7 @@ type FetchLogsType = {
   tracking_enabled: boolean
 }
 
+/** Fetches a paginated, filtered logs list from the backend via react-query. */
 export default function useFetchLogs(searchData: LogQueryType) {
   const queryId = `logs-${searchData.pageNo}`
   const { data, isLoading, isFetching, refetch } = useQuery({

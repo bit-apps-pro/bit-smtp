@@ -7,9 +7,7 @@ use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
- * Drives LogService::save()/bulkInsert() against the real DB to prove the `log_store_body` privacy
- * preference is honored on the write path: the message body is stored, redacted, or dropped per mode,
- * while every other detail is untouched.
+ * Verifies `log_store_body` preference honored on write: body stored/redacted/dropped per mode.
  *
  * @internal
  *
@@ -52,7 +50,6 @@ final class LogBodyStorageTest extends IntegrationTestCase
         $log = $this->saveAndFetch('Metadata body row');
 
         $this->assertArrayNotHasKey('message', $log->details);
-        // Non-body detail survives.
         $this->assertSame([['connection' => 'Primary SMTP', 'status' => 'sent', 'error' => null]], $log->details['attempts']);
     }
 

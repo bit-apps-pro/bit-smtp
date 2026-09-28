@@ -11,9 +11,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 
 /**
- * Drives LogService::update() (the resend path) against the real test DB: a resend over a provider
- * clears the previous verified outcome before re-stamping only the new hand-off state, never a
- * terminal result that no verified webhook confirmed.
+ * Verifies resend clears previous outcome and stamps only hand-off state, never unverified terminal.
  *
  * @internal
  *
@@ -49,7 +47,6 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $reloaded = Log::where('id', $logId)->first();
         $this->assertNull($reloaded->delivery_status);
         $this->assertNull($reloaded->delivery_updated_at);
-        // resetDelivery drops the prior send's child events; an unverified hand-off adds none back.
         $this->assertCount(0, LogDeliveryEvent::where('log_id', $logId)->get());
     }
 
@@ -83,7 +80,6 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         );
         $logId = (int) Log::where('connection_id', null)->first()->id;
 
-        // A retry/resend detail payload that carries no 'from' key at all (not merely an empty one).
         $this->service->update(
             $logId,
             Log::SUCCESS,
@@ -193,7 +189,6 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $this->assertIsString($initial);
         $this->assertSame($initial, $firstBoot->initializeLoggingContinuity());
 
-        // Unchanged enabled saves and unrelated partial settings retain the continuity marker.
         $knownContinuous = '2000-01-01 00:00:00';
         Config::updateOption(Config::LOGGING_CONTINUITY_FROM_OPTION, $knownContinuous, true);
         $this->assertTrue($firstBoot->setEnabled(true));
@@ -242,7 +237,6 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
         $log = Log::where('subject', 'Cc Bcc save')->first();
         $this->assertSame(['cc1@example.test', 'cc2@example.test'], $log->cc);
         $this->assertSame(['bcc@example.test'], $log->bcc);
-        // recipient_count stays to-based: cc/bcc never inflate it.
         $this->assertSame(1, $log->recipient_count);
     }
 
@@ -317,8 +311,7 @@ final class LogServiceResendDeliveryTest extends IntegrationTestCase
     }
 
     /**
-     * A prior send that already carried a delivery status plus a per-recipient child row, so a resend
-     * must be seen to both clear the old outcome and re-stamp (or not) the new one.
+     * Creates log with delivery status and child event to test resend clears old outcome.
      *
      * @return int inserted log id
      */

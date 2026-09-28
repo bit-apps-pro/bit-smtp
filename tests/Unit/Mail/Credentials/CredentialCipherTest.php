@@ -72,7 +72,6 @@ class CredentialCipherTest extends BaseUnitTestCase
         $encrypted = CredentialCipher::encrypt('smtp-app-password-123');
         $payload   = base64_decode(substr($encrypted, \strlen('bsenc:v1:')), true);
 
-        // Flip a byte inside the ciphertext region (after the 12-byte IV + 16-byte tag) so the GCM tag no longer verifies.
         $payload[29] = \chr(\ord($payload[29]) ^ 0xFF);
         $tampered    = 'bsenc:v1:' . base64_encode($payload);
 

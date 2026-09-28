@@ -4,35 +4,41 @@ namespace BitApps\SMTP\Tests\Unit\Mail\Message;
 
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
+use InvalidArgumentException;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class MailMessageTest extends BaseUnitTestCase
 {
     public function testFullArrayRoundTrip(): void
     {
         $data = [
-            'to' => ['user@example.com'],
-            'cc' => ['cc@example.com'],
-            'bcc' => ['bcc@example.com'],
-            'subject' => 'Test Subject',
-            'body' => 'Test Body',
+            'to'          => ['user@example.com'],
+            'cc'          => ['cc@example.com'],
+            'bcc'         => ['bcc@example.com'],
+            'subject'     => 'Test Subject',
+            'body'        => 'Test Body',
             'contentType' => 'text/html',
-            'from' => 'sender@example.com',
-            'fromName' => 'Sender Name',
-            'replyTo' => 'reply@example.com',
-            'headers' => ['X-Custom' => 'value'],
+            'from'        => 'sender@example.com',
+            'fromName'    => 'Sender Name',
+            'replyTo'     => 'reply@example.com',
+            'headers'     => ['X-Custom' => 'value'],
             'attachments' => [
                 ['path' => '/tmp/file.txt', 'name' => 'file.txt'],
             ],
-            'templateId' => 'template-123',
-            'templateData' => ['var1' => 'value1'],
-            'tags' => ['tag1', 'tag2'],
-            'metadata' => ['key' => 'value'],
-            'openTracking' => true,
+            'templateId'    => 'template-123',
+            'templateData'  => ['var1' => 'value1'],
+            'tags'          => ['tag1', 'tag2'],
+            'metadata'      => ['key' => 'value'],
+            'openTracking'  => true,
             'clickTracking' => false,
         ];
 
         $message = MailMessage::fromArray($data);
-        $result = $message->toArray();
+        $result  = $message->toArray();
 
         $this->assertSame($data['to'], $result['to']);
         $this->assertSame($data['cc'], $result['cc']);
@@ -56,14 +62,14 @@ class MailMessageTest extends BaseUnitTestCase
     public function testOptionalFieldsDefaultToEmptyOrNull(): void
     {
         $data = [
-            'to' => ['user@example.com'],
-            'subject' => 'Test Subject',
-            'body' => 'Test Body',
+            'to'          => ['user@example.com'],
+            'subject'     => 'Test Subject',
+            'body'        => 'Test Body',
             'contentType' => 'text/plain',
         ];
 
         $message = MailMessage::fromArray($data);
-        $result = $message->toArray();
+        $result  = $message->toArray();
 
         $this->assertSame([], $result['cc']);
         $this->assertSame([], $result['bcc']);
@@ -82,7 +88,7 @@ class MailMessageTest extends BaseUnitTestCase
 
     public function testFromArrayThrowsWhenToIsEmpty(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/to/');
 
         MailMessage::fromArray([
@@ -94,7 +100,7 @@ class MailMessageTest extends BaseUnitTestCase
 
     public function testFromArrayThrowsWhenToIsMissing(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/to/');
 
         MailMessage::fromArray([
@@ -105,7 +111,7 @@ class MailMessageTest extends BaseUnitTestCase
 
     public function testFromArrayThrowsWhenSubjectMissing(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/subject/');
 
         MailMessage::fromArray([
@@ -116,7 +122,7 @@ class MailMessageTest extends BaseUnitTestCase
 
     public function testFromArrayThrowsWhenBodyMissing(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/body/');
 
         MailMessage::fromArray([

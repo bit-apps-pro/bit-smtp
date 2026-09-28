@@ -134,7 +134,6 @@ describe('describeObservation', () => {
   })
 
   it('falls back to an informational, null-severity description for an observation type the union does not list', () => {
-    // Simulates a backend contract drift (a new/unrecognized observation type) reaching the UI.
     const described = describeObservation({ type: 'unknown_future_observation' } as never)
     expect(described.label).toBe('Unrecognized observation')
     expect(described.severity).toBeNull()

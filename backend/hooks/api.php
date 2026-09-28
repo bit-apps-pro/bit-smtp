@@ -36,8 +36,6 @@ Route::group(function () {
     Route::get('logs/is_enabled', [LogController::class, 'isEnabled']);
     Route::post('logs/toggle', [LogController::class, 'toggle']);
 
-    Route::post('logs/update_retention', [LogController::class, 'updateRetention']);
-
     Route::get('mail/settings', [MailSettingsController::class, 'index']);
     Route::post('mail/settings/save', [MailSettingsController::class, 'save']);
     Route::post('mail/notifications/test', [NotificationController::class, 'test']);

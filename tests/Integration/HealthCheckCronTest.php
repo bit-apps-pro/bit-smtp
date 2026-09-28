@@ -18,7 +18,6 @@ use BitApps\SMTP\Settings\PluginSettings;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
 use PHPMailer\PHPMailer\PHPMailer;
 
-// The WP-bundled PHPMailer backs the SpyPhpMailer subclass below; load it before the class is declared.
 require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
 require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
 require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
@@ -44,10 +43,11 @@ final class HealthCheckCronTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    /**
+     * Asserts the action rather than the cron event, since an earlier test may have unscheduled the event.
+     */
     public function testTheHealthCheckHookIsRegistered(): void
     {
-        // Scheduler::boot() (init:11) wires the job callback; the action registration proves the job
-        // was registered even if this test runs after one that unscheduled the cron event.
         $this->assertNotFalse(has_action(Config::HEALTH_CHECK_HOOK));
     }
 
@@ -55,7 +55,6 @@ final class HealthCheckCronTest extends IntegrationTestCase
     {
         $this->storeSmtpConnection('conn_smtp', self::SMTP_HOST, self::SMTP_PORT);
 
-        // health_check_enabled defaults to false (preferences were cleared in setUp).
         do_action(Config::HEALTH_CHECK_HOOK);
 
         $this->assertSame([], (new ConnectionHealthStore())->all());
@@ -67,12 +66,10 @@ final class HealthCheckCronTest extends IntegrationTestCase
         PluginSettings::make()->set('health_check_enabled', true)->set('health_check_interval', 'daily')->save();
         $this->storeSmtpConnection('conn_smtp', self::SMTP_HOST, self::SMTP_PORT);
 
-        // A run only 1 hour ago is still inside the daily window, so the callback must not probe.
         update_option(HealthProbeRunner::LAST_RUN_OPTION, time() - HOUR_IN_SECONDS, false);
         do_action(Config::HEALTH_CHECK_HOOK);
         $this->assertSame([], (new ConnectionHealthStore())->all());
 
-        // Once the marker is stale (window elapsed), the same callback runs the probe.
         delete_option(HealthProbeRunner::LAST_RUN_OPTION);
         do_action(Config::HEALTH_CHECK_HOOK);
         $record = (new ConnectionHealthStore())->get('conn_smtp');
@@ -93,9 +90,11 @@ final class HealthCheckCronTest extends IntegrationTestCase
         $this->assertNotNull($record->getLastProbeAt());
     }
 
+    /**
+     * Port 2 refuses immediately; a transient failure only trips at the threshold, hence three probe runs.
+     */
     public function testAnUnreachableSmtpHostProbesFailingAndTripsToUnhealthy(): void
     {
-        // Port 2 is closed: the connect is refused immediately (no slow timeout).
         $this->storeSmtpConnection('conn_bad', '127.0.0.1', 2);
 
         $probe   = $this->probe();
@@ -103,7 +102,6 @@ final class HealthCheckCronTest extends IntegrationTestCase
         $this->assertFalse($result->isOk());
         $this->assertSame(FailureCategory::TRANSIENT, $result->getFailureClass());
 
-        // A transient failure trips only at the threshold, so three probe runs are needed to open it.
         $runner = $this->runner();
         $runner->run();
         $runner->run();
@@ -186,8 +184,7 @@ final class HealthCheckCronTest extends IntegrationTestCase
 }
 
 /**
- * PHPMailer double whose connect can be forced to fail and that records that smtpClose ran, so the
- * probe's always-close guarantee can be asserted without a real socket.
+ * PHPMailer spy that records connection success/failure and socket closure.
  */
 final class SpyPhpMailer extends PHPMailer
 {

@@ -9,9 +9,7 @@ use BitApps\SMTP\Tests\Golden\Support\GoldenTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Freezes DeliveryRollup::compute() over representative child-event row sets (shape from
- * LogService::deliveryEvents()). A later PR introducing a DeliveryState enum / VO must reproduce
- * these {status, updated_at} outputs byte-for-byte.
+ * Freezes DeliveryRollup::compute() output over representative row sets (must reproduce byte-for-byte).
  *
  * @internal
  *

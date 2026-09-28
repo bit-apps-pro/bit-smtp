@@ -18,10 +18,7 @@ type EditResendForm = {
   bcc: Array<string>
 }
 
-/**
- * Detail-page dialog to resend a logged message with edited recipients/subject over a chosen
- * connection. The body is reused server-side (not editable); the connection is the sender selector.
- */
+/** Detail-page dialog to resend a logged message with edited recipients/subject over a chosen connection. */
 export default function EditResendModal({ log, open, onClose }: EditResendModalProps) {
   const [form] = Form.useForm<EditResendForm>()
   const { data: mailSettings } = useMailSettings()
@@ -39,6 +36,7 @@ export default function EditResendModal({ log, open, onClose }: EditResendModalP
     bcc: log.bcc ?? []
   }
 
+  /** Validates the form, submits the edited resend, and reports the outcome via toast. */
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields()
@@ -50,7 +48,6 @@ export default function EditResendModal({ log, open, onClose }: EditResendModalP
         notification.error({ message: res?.message || __('Failed to resend mail') })
       }
     } catch (e) {
-      // antd marks required-field errors inline; only notify on an actual send failure.
       if (e && typeof e === 'object' && 'errorFields' in e) return
       notification.error({ message: __('Failed to resend mail') })
     }

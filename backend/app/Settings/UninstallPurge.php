@@ -7,16 +7,12 @@ use Throwable;
 \defined('ABSPATH') || exit();
 
 /**
- * Shared `uninstall_purge` preference reader for the plugin's uninstall (down()) migrations:
- * BitSmtpPluginOptions, BitSmtpLogsTableMigration, and BitSmtpSettingsSeed each gate their own
- * teardown on this, since the migrations directory isn't autoloaded and can't share a private
- * method across sibling files.
+ * Shared `uninstall_purge` preference reader for plugin's uninstall migrations (not autoloaded, can't share private method).
  */
 final class UninstallPurge
 {
     /**
-     * Resolve the uninstall-purge preference, defaulting to true (purge) — the schema default and
-     * the security-safe choice — if the preferences blob can't be read.
+     * Resolve uninstall-purge preference (defaults to true: purge, schema default, security-safe).
      */
     public static function shouldPurge(): bool
     {

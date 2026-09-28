@@ -14,8 +14,6 @@ vi.mock('@pages/Connections/data/useMailSettings', () => ({ default: vi.fn() }))
 vi.mock('@pages/Connections/data/useUpdateSettings', () => ({ default: vi.fn() }))
 vi.mock('@pages/Routing/data/useMailSources', () => ({ default: vi.fn() }))
 
-// dnd-kit needs real pointer events to drag in jsdom, so DndContext/SortableContext are
-// swapped for pass-throughs that capture onDragEnd and the live sortable ids for tests to drive.
 const { capturedOnDragEnd, capturedItems } = vi.hoisted(() => ({
   capturedOnDragEnd: { current: undefined as ((event: DndKitCore.DragEndEvent) => void) | undefined },
   capturedItems: { current: [] as string[] }

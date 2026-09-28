@@ -8,9 +8,7 @@ use BitApps\SMTP\HTTP\Services\LogService;
 \defined('ABSPATH') || exit();
 
 /**
- * `wp bit-smtp export`: write the filtered log view as an RFC-4180 CSV (safe metadata columns only,
- * formula-injection defused) to a file or STDOUT. Reuses LogService::exportRows + LogCsvExporter, the
- * same bounded, non-silently-truncated path the REST export uses.
+ * Export filtered logs to RFC-4180 CSV (safe columns, formula-injection protected) via LogCsvExporter.
  */
 final class ExportCommand
 {
@@ -25,9 +23,7 @@ final class ExportCommand
     }
 
     /**
-     * Build the CSV for the optional status filter (bounded and truncation-flagged), then write it to
-     * `--file` or dump it to STDOUT. On STDOUT the only chatter is the STDERR truncation warning, so
-     * `wp bit-smtp export > out.csv` stays a clean CSV.
+     * Export filtered logs to CSV (truncation-flagged) and write to file or STDOUT.
      *
      * @param array<int,string>    $args
      * @param array<string,string> $assocArgs
@@ -48,8 +44,6 @@ final class ExportCommand
         $file = isset($assocArgs['file']) ? trim((string) $assocArgs['file']) : '';
 
         if ($file !== '') {
-            // Handle the failure ourselves with a clean CLI error; the raw PHP write warning would
-            // just be redundant noise on top of it.
             if (@file_put_contents($file, $csv) === false) {
                 $reporter->error(\sprintf('Could not write the export to %s', $file));
 

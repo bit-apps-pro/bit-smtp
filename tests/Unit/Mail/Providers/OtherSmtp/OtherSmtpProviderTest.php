@@ -8,6 +8,11 @@ use BitApps\SMTP\Mail\Providers\OtherSmtp\OtherSmtpProvider;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Mockery;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 class OtherSmtpProviderTest extends BaseUnitTestCase
 {
     private OtherSmtpProvider $provider;

@@ -31,8 +31,7 @@ final class MailAnalyticsService
     private const CONTACT_FORM_PLUGINS = ['contact-form-7', 'wpforms', 'wpforms-lite', 'gravityforms', 'ninja-forms'];
 
     /**
-     * Analytics aggregates are read-mostly; a short TTL bounds staleness without event-based
-     * invalidation and lets a repeated load within the window be served from cache, not re-aggregated.
+     * Short cache TTL to bound staleness without event-based invalidation.
      */
     private const CACHE_TTL = 300;
 
@@ -135,8 +134,7 @@ final class MailAnalyticsService
     }
 
     /**
-     * Open/click engagement totals with an honest human-vs-automated split and open/click rates over
-     * the accepted-or-delivered population. Automated fires never inflate the human figures.
+     * Open/click engagement with human-vs-automated split and rates over accepted-or-delivered population.
      *
      * @return array<string,mixed>|WP_Error
      */
@@ -169,11 +167,8 @@ final class MailAnalyticsService
             return $error;
         }
 
-        $actualRetainedFrom = $this->utcTimestamp($bounds['earliest'] ?? null);
-        $continuityFrom     = $this->utcTimestamp(Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, false));
-        // Retention and continuity define what *could* be compared. The earliest retained event is
-        // observational metadata only: a sparse (or zero-volume) prior period still has complete
-        // coverage when logging was continuous throughout its configured retention window.
+        $actualRetainedFrom     = $this->utcTimestamp($bounds['earliest'] ?? null);
+        $continuityFrom         = $this->utcTimestamp(Config::getOption(Config::LOGGING_CONTINUITY_FROM_OPTION, false));
         $configuredRetainedFrom = $query->retainedFrom();
         $coverageStart          = $this->laterTimestamp(
             $configuredRetainedFrom === null ? null : $configuredRetainedFrom->format(DATE_ATOM),
@@ -234,9 +229,7 @@ final class MailAnalyticsService
     }
 
     /**
-     * Read-through transient cache for an analytics aggregate: bypasses when no cache is configured,
-     * returns a hit as-is, and stores a fresh result only when it is not a WP_Error -- a transient DB
-     * failure must not be frozen for the whole TTL and served long after it recovered.
+     * Read-through transient cache, bypassing on cache miss and avoiding frozen DB errors.
      *
      * @param callable():(array<string,mixed>|WP_Error) $compute
      *
@@ -274,8 +267,6 @@ final class MailAnalyticsService
             return $error;
         }
 
-        // "Delivered-or-accepted": the same population the deliverability metric treats as reachable
-        // (verified delivery statuses plus provider hand-offs), the honest denominator for an open rate.
         $denominator = (int) ($summary['verified_delivery'] ?? 0) + (int) ($summary['accepted_delivery'] ?? 0);
 
         return array_merge($this->metadata($query, $summary), [
@@ -324,8 +315,7 @@ final class MailAnalyticsService
     }
 
     /**
-     * Stable cache key for an analytics query under $prefix: derived only from the range/timezone/
-     * bucket and filters that change the underlying aggregate, never from volatile data.
+     * Stable cache key derived from range, timezone, bucket, and filters only.
      */
     private function cacheKey(string $prefix, AnalyticsQuery $query): string
     {
@@ -412,8 +402,7 @@ final class MailAnalyticsService
     }
 
     /**
-     * Shape one channel's raw aggregates into total/automated/human/unique, holding the human figure
-     * at or above zero even if the automated counter should ever exceed total hits.
+     * Shape one engagement channel into total/automated/human/unique counts.
      *
      * @param array<string,int> $engagement
      *
@@ -428,8 +417,7 @@ final class MailAnalyticsService
     }
 
     /**
-     * The total/automated/human split shared by the opens/clicks tiles and the top-clicked-links rows,
-     * holding the human figure at or above zero even if the automated counter should exceed total hits.
+     * Total/automated/human hit split, keeping human at or above zero.
      *
      * @return array{total:int,automated:int,human:int}
      */
@@ -443,8 +431,7 @@ final class MailAnalyticsService
     }
 
     /**
-     * Shape the top-clicked-link rows for the API: each target with its total/automated/human hit
-     * counts, the human figure never dropping below zero.
+     * Shape top-clicked-link rows with total/automated/human split per target.
      *
      * @param array<int,array{target:string,hits:int,automated_hits:int}> $links
      *
@@ -459,8 +446,7 @@ final class MailAnalyticsService
     }
 
     /**
-     * A human-engagement rate that keeps its distinct-log numerator and denominator visible, so the
-     * ratio is auditable rather than a bare percentage.
+     * Human-engagement rate with auditable numerator and denominator.
      *
      * @return array<string,int|float>
      */
@@ -474,7 +460,7 @@ final class MailAnalyticsService
     }
 
     /**
-     * The injected engagement repository, or a default one bound to the global wpdb on first use.
+     * The injected engagement repository, or a default one built on first use.
      */
     private function engagementRepository(): EngagementRepository
     {
@@ -810,8 +796,7 @@ final class MailAnalyticsService
     }
 
     /**
-     * Whether logging is enabled: the seeded preferences store when present, else the pre-migration
-     * legacy option (honored until BitSmtpSettingsSeed, which is manage_options-gated, has run).
+     * Whether logging is enabled via seeded preferences or legacy option.
      */
     private function loggingEnabled(): bool
     {

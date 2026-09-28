@@ -6,8 +6,7 @@ use BitApps\SMTP\HTTP\Services\LogBodyRedactor;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 
 /**
- * Covers the pure `log_store_body` policy: each mode's effect on the stored body, and the guarantee
- * that subject/recipients/headers are never touched regardless of mode.
+ * Covers log_store_body policy: each mode's effect on stored body; subject/recipients/headers always preserved.
  *
  * @internal
  *

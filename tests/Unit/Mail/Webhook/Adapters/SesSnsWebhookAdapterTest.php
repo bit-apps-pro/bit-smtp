@@ -121,8 +121,7 @@ class SesSnsWebhookAdapterTest extends BaseUnitTestCase
     }
 
     /**
-     * Wrap the given inner SES notification as the JSON string an SNS Notification envelope carries,
-     * then run it through the adapter — mirroring how SES publishes feedback over SNS.
+     * Wraps inner SES notification as JSON string in SNS Notification envelope, runs through adapter.
      *
      * @param array<string,mixed> $inner
      *

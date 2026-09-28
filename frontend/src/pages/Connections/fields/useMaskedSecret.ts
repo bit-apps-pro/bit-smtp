@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { MASK_SENTINEL } from '@pages/Connections/types'
 import { Form } from 'antd'
+import { type NamePath } from 'antd/es/form/interface'
 
 export interface MaskedSecretProps {
   /** False while the value is the mask sentinel, hiding the eye toggle — nothing real sits behind it. */
@@ -9,27 +10,31 @@ export interface MaskedSecretProps {
   onBlur: () => void
 }
 
-/**
- * Masking behavior for a saved-secret password field, shared by the Connections and Notifications
- * secret inputs: hides the reveal toggle while the value is the mask sentinel, clears the sentinel on
- * focus so a fresh secret can be typed, and restores it on an untouched blur so an accidental
- * focus/blur never wipes the stored credential. Apply the returned props to the `Input.Password`
- * bound to `name` within the surrounding antd Form.
- */
-export default function useMaskedSecret(name: string): MaskedSecretProps {
+/** Masking behavior for a saved-secret password field: clears the sentinel on focus, restores it on an untouched blur. */
+export default function useMaskedSecret(name: NamePath): MaskedSecretProps {
   const form = Form.useFormInstance()
-  const [hadStoredSecret] = useState(() => form.getFieldValue(name) === MASK_SENTINEL)
-  const isMasked = Form.useWatch(name, form) === MASK_SENTINEL
+  const value = Form.useWatch(name, form)
+  const isFocused = useRef(false)
+  const hasStoredSecret = useRef(form.getFieldValue(name) === MASK_SENTINEL)
+  const isMasked = value === MASK_SENTINEL
+
+  useEffect(() => {
+    if (!isFocused.current && value !== undefined) {
+      hasStoredSecret.current = value === MASK_SENTINEL
+    }
+  }, [value])
 
   return {
     visibilityToggle: !isMasked,
     onFocus: () => {
+      isFocused.current = true
       if (isMasked) {
         form.setFieldValue(name, '')
       }
     },
     onBlur: () => {
-      if (hadStoredSecret && form.getFieldValue(name) === '') {
+      isFocused.current = false
+      if (hasStoredSecret.current && form.getFieldValue(name) === '') {
         form.setFieldValue(name, MASK_SENTINEL)
       }
     }

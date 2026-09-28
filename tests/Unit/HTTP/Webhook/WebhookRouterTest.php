@@ -6,8 +6,7 @@ use BitApps\SMTP\HTTP\Webhook\WebhookRouter;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Exercises the pure route parser: id/secret extraction, subdirectory home-path stripping, and the
- * segment-count / prefix rejections. No WordPress runtime required.
+ * Exercises route parser: id/secret extraction, subdirectory path stripping, segment-count/prefix rejections.
  *
  * @internal
  *

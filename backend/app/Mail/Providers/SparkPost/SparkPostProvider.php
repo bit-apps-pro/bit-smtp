@@ -11,9 +11,7 @@ use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
 
 /**
- * SparkPost, wired through the descriptor engine (spec §5/§11) except for its body: cc/bcc have no
- * native representation in the transmissions API, so payloadBuilder fully owns request-body
- * construction (see SparkPostPayloadBuilder) instead of the declarative payload map.
+ * SparkPost provider via descriptor engine with custom payload builder for cc/bcc handling.
  */
 final class SparkPostProvider extends DescriptorProvider
 {

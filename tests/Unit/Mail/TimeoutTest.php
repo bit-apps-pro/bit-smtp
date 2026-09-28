@@ -12,11 +12,7 @@ use Mockery;
 use ReflectionProperty;
 
 /**
- * Proves the `send_timeout_seconds` preference reaches both send paths: SmtpTransport's injected
- * PHPMailer timeout, and ApiClient's per-request timeout option. Real PHPMailer is unavailable in
- * this tier (see MimeBuilderTest), so PHPMailer-touching assertions live in the integration suite
- * (tests/Integration/SmtpTransportTest.php); here the transport's stored config and ApiClient's
- * actual request-building are exercised directly.
+ * Proves send_timeout_seconds preference reaches SmtpTransport and ApiClient; integration tests verify PHPMailer.
  *
  * @internal
  *
@@ -73,9 +69,6 @@ final class TimeoutTest extends BaseUnitTestCase
         Functions\expect('wp_safe_remote_request')
             ->once()
             ->andReturnUsing(static function ($url, $options) {
-                // send_timeout_seconds' schema default (30) matches HttpClient's own built-in
-                // default, so an ApiClient the wiring never applied withTimeout() to still behaves
-                // as if the pref default were in effect.
                 self::assertSame(30, $options['timeout']);
 
                 return 'response-fixture';

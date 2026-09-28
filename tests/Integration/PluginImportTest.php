@@ -10,10 +10,7 @@ use BitApps\SMTP\Mail\Import\PluginImporterRegistry;
 use BitApps\SMTP\Tests\Fake\FakeCliReporter;
 
 /**
- * End-to-end import of another SMTP plugin's settings: the mapped connection is persisted through the
- * shared MailConfigService save path, so it round-trips with the fields mapped and the password
- * encrypted at rest exactly like a manually added connection. Also covers the CLI command's
- * list/dry-run behaviour, including that dry-run neither persists nor prints the secret.
+ * Tests end-to-end import of SMTP plugin settings; verifies persistence, encryption, and CLI dry-run.
  *
  * @internal
  *
@@ -39,6 +36,9 @@ final class PluginImportTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    /**
+     * WP Mail SMTP's encrypted smtp.pass can't be reversed without the source plugin, so the password is left empty.
+     */
     public function testImportingWpMailSmtpMapsFieldsButOmitsThePasswordWhenTheSourceDecryptorIsAbsent(): void
     {
         update_option(self::WP_MAIL_SMTP_OPTION, [
@@ -56,7 +56,6 @@ final class PluginImportTest extends IntegrationTestCase
         $connId = $this->service()->import('wp_mail_smtp');
         $this->assertNotNull($connId);
 
-        // A cold service reloads the mapped connection.
         $connection = (new MailConfigService())->load()->getConnections()->byId($connId);
         $this->assertNotNull($connection);
         $this->assertSame('other_smtp', $connection->getProvider());
@@ -67,10 +66,6 @@ final class PluginImportTest extends IntegrationTestCase
         $this->assertSame('ssl', $connection->setting('encryption'));
         $this->assertTrue((bool) $connection->setting('auth'));
         $this->assertSame('mailer', $connection->setting('username'));
-        // WP Mail SMTP >= 3.3 stores `smtp.pass` encrypted; with its Options class absent (source plugin
-        // inactive, as in this test env) we can't reverse it, so the password is left empty rather than
-        // persisted broken — the rest of the connection still imports. (Encrypt-at-rest round-trip is
-        // covered by the Easy WP SMTP test, whose base64 password decodes without the source plugin.)
         $this->assertSame('', $connection->getCredentials()['password']['value']);
     }
 
@@ -102,7 +97,6 @@ final class PluginImportTest extends IntegrationTestCase
         $this->assertNotNull($connection);
         $this->assertSame('tls', $connection->setting('encryption'));
         $this->assertTrue((bool) $connection->setting('auth'));
-        // Base64 storage decoded back to the real secret before encryption at rest.
         $this->assertSame('easy-secret', $connection->getCredentials()['password']['value']);
     }
 
@@ -119,7 +113,6 @@ final class PluginImportTest extends IntegrationTestCase
 
     public function testCommandDryRunNeitherPersistsNorPrintsTheSecret(): void
     {
-        // Easy WP SMTP (base64 password) so a real secret is resolvable without the source plugin loaded.
         update_option(self::EASY_WP_SMTP_OPTION, [
             'smtp_settings' => ['host' => 'smtp.example.org', 'password' => base64_encode('do-not-print')],
         ]);
@@ -127,10 +120,8 @@ final class PluginImportTest extends IntegrationTestCase
         $reporter = new FakeCliReporter();
         (new ImportCommand($this->service()))->run(['easy_wp_smtp'], ['dry-run' => true], $reporter);
 
-        // Nothing persisted by a dry run.
         $this->assertCount(0, (new MailConfigService())->load()->getConnections()->all());
 
-        // The secret is masked, never emitted.
         $output = implode("\n", $reporter->lines);
         $this->assertStringContainsString('********', $output);
         $this->assertStringNotContainsString('do-not-print', $output);

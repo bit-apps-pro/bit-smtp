@@ -501,8 +501,6 @@ final class MailAnalyticsServiceTest extends BaseUnitTestCase
         self::assertSame('2026-03-09T12:00:00+00:00', $withoutPostResumeHistory['comparison_coverage']['continuity_from']);
         self::assertSame([], $withoutPostResumeHistory['observations']);
 
-        // Once both equal comparison windows begin after the recorded resume, qualified retained
-        // timestamps and continuity together cover the comparison.
         $continuityFrom = '2026-03-01 00:00:00';
         $complete       = Mockery::mock(MailAnalyticsRepository::class);
         $complete->shouldReceive('summary')->twice()->andReturn($this->summary());

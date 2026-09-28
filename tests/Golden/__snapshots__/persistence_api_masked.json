@@ -31,7 +31,11 @@
     ],
     "features": {
         "logging": [],
-        "alerts": [],
+        "alerts": {
+            "enabled": false,
+            "reminder_minutes": 60,
+            "channels": []
+        },
         "routing": [],
         "tracking": [],
         "email_controls": []

@@ -54,6 +54,7 @@ type GeneratedStyles = {
   [key in StyleMapValue]?: string
 }
 
+/** Curried Tailwind-style shorthand-props-to-emotion-styles converter, resolving values against theme tokens. */
 const ut =
   (styleObj: StyleObj) =>
   ({ token }: { token: GlobalToken }) => {
@@ -71,6 +72,7 @@ const ut =
     return generatedStyles as Interpolation<Theme>
   }
 
+/** Resolves a shorthand style value to a CSS-ready string (theme token lookup, px suffix, `*` → !important). */
 function parseValue(property: string, value: StyleObjValue, tokens: any): string {
   if (value === undefined || value === null) {
     return 'unknown'

@@ -5,10 +5,7 @@ namespace BitApps\SMTP\Mail\Tracking;
 \defined('ABSPATH') || exit();
 
 /**
- * Thin click-endpoint handler: records a click fire and resolves the destination to redirect to. The
- * destination is the token's own signed 'u' and is returned ONLY after HMAC verification — the
- * signature is the allowlist, so the redirect provably points at a URL this site itself emitted and
- * can never be turned into an open redirect.
+ * Click endpoint handler: record click and return verified signed destination URL to prevent open redirects.
  */
 final class ClickTracker
 {
@@ -20,9 +17,7 @@ final class ClickTracker
     }
 
     /**
-     * Record the click for $token and return its verified redirect destination (or null so the router
-     * falls back to the site home). Verifies the token ONCE and reuses the payload for both recording
-     * and destination resolution.
+     * Record click for token and return its verified redirect destination, or null to fall back to site home.
      *
      * @param array<string,mixed> $request
      */
@@ -39,9 +34,7 @@ final class ClickTracker
     }
 
     /**
-     * The verified redirect target for a click token: its 'u' only after the signature verifies and a
-     * defense-in-depth http(s) recheck. Returns null for a forged/tampered token or a non-http(s)
-     * destination. Pure and DB-free, so a throttled hit can still redirect correctly without a write.
+     * Resolve verified redirect target for click token after signature and protocol verification; returns null if invalid.
      */
     public static function destination(string $token): ?string
     {
@@ -54,8 +47,7 @@ final class ClickTracker
     }
 
     /**
-     * Resolve the redirect target from an already-verified payload: its 'u' after an http(s) recheck,
-     * or null for a missing/non-http(s) destination. The signature check is the caller's job.
+     * Resolve redirect target from payload; decode HTML entities captured from href.
      *
      * @param array<string,mixed> $payload
      */
@@ -66,8 +58,6 @@ final class ClickTracker
             return null;
         }
 
-        // The URL was captured from an HTML href, so entities (&amp; -> &) must be decoded before we
-        // redirect, or the destination's query string is mangled. Scheme is re-checked after decoding.
         $url = html_entity_decode($url, ENT_QUOTES | ENT_HTML5);
         if (stripos($url, 'http://') !== 0 && stripos($url, 'https://') !== 0) {
             return null;

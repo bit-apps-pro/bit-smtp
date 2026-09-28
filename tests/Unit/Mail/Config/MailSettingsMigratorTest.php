@@ -49,8 +49,6 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
 
     public function testLegacyMigrationIsIdempotentAcrossLoads(): void
     {
-        // Migrate-on-load runs every request until the first v2 save; a non-stable id
-        // would mismatch the frontend load vs the save-time re-migration → duplicate connection.
         $first  = MailSettingsMigrator::migrate($this->legacyInput());
         $second = MailSettingsMigrator::migrate($this->legacyInput());
 

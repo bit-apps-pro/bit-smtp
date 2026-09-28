@@ -5,8 +5,7 @@ namespace BitApps\SMTP\Mail\Exceptions;
 use RuntimeException;
 
 /**
- * Raised whenever an OAuth2 `state` token fails verification. Callers must treat any instance as a
- * hard CSRF/tamper failure and abort before touching tokens.
+ * Raised on OAuth2 state token verification failure; treat as hard CSRF/tamper (abort before token touch).
  */
 class OAuthStateException extends RuntimeException
 {

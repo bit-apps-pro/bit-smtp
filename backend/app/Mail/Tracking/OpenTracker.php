@@ -5,8 +5,7 @@ namespace BitApps\SMTP\Mail\Tracking;
 \defined('ABSPATH') || exit();
 
 /**
- * Thin open-endpoint handler: records an open fire for the signed token. The router emits the pixel
- * regardless of the outcome, so a bad token records nothing yet still returns a normal response.
+ * Open endpoint handler: record fire for signed token; router emits pixel regardless of outcome.
  */
 final class OpenTracker
 {

@@ -6,9 +6,7 @@ use BitApps\SMTP\HTTP\Tracking\TrackingRouter;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Exercises the pure route parser: it matches ONLY the four-segment open/click shape and rejects the
- * two-segment webhook and three-segment OAuth paths, malformed verbs, and missing/extra segments.
- * No WordPress runtime required.
+ * Exercises route parser: matches four-segment open/click shape, rejects webhook/OAuth/malformed paths.
  *
  * @internal
  *

@@ -15,9 +15,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 
 /**
- * Drives MailjetProvider::transport()->send() over a mocked ApiClient, proving the shipped
- * descriptor engine renders Mailjet's contract correctly (spec §5/§11): basic auth, the
- * {"Messages":[...]} envelope, and capitalized {Email,Name} address objects.
+ * Drives MailjetProvider::transport()->send() over mocked ApiClient, verifies descriptor engine renders Mailjet contract.
  *
  * @internal
  *
@@ -225,7 +223,6 @@ class MailjetProviderTest extends BaseUnitTestCase
 
     public function testStatusOutsideTheDeclaredSuccessListMapsToFailure(): void
     {
-        // success => [200] in the descriptor; a 201 is still a failure by that contract.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(201, []));
 
@@ -267,7 +264,6 @@ class MailjetProviderTest extends BaseUnitTestCase
 
     public function testA200WithANestedMessagesErrorBodyMapsToFailure(): void
     {
-        // Mailjet answers a per-message failure with HTTP 200, so its errorDetectPaths must catch it.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
             'Messages' => [['Errors' => [['ErrorMessage' => 'bad']]]],
@@ -282,7 +278,6 @@ class MailjetProviderTest extends BaseUnitTestCase
 
     public function testA200WithACleanMessagesBodyMapsToSuccess(): void
     {
-        // Mailjet's success 200 body has no Errors/ErrorMessage, so errorDetectPaths must miss.
         $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, [
             'Messages' => [['Status' => 'success']],

@@ -5,15 +5,12 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Aws\Sns;
 
 /**
- * The SSRF allow-list for AWS-controlled SNS URLs (the SigningCertURL we fetch and the SubscribeURL we
- * confirm). Both are attacker-controllable fields in a spoofed POST, so each is validated against an
- * AWS SNS regional host BEFORE any outbound request.
+ * SSRF allow-list for AWS SNS URLs; validates against regional hosts before outbound requests.
  */
 final class SnsEndpoint
 {
     /**
-     * SNS regional host, including the China partition. Deliberately strict: never substring-match
-     * `amazonaws.com`, which `evil-amazonaws.com` or `amazonaws.com.attacker.test` would satisfy.
+     * SNS regional host pattern including China partition; prevents substring-matching attacks.
      */
     private const HOST_PATTERN = '/^sns\.[a-z0-9-]+\.amazonaws\.com(\.cn)?\z/';
 

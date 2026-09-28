@@ -12,8 +12,7 @@ final class ResendWebhookService extends AbstractWebhookProvisioner
     private const ENDPOINT = 'https://api.resend.com/webhooks';
 
     /**
-     * Create the delivery webhook, or reuse an existing webhook with the same endpoint URL. The signing
-     * secret is only ever returned by the API on creation, so a reused webhook carries no such key.
+     * Create the delivery webhook, or reuse an existing one; HMAC secret surfaced for encrypted storage only on creation.
      *
      * @return array{created: bool, id: string, signing_secret?: string}
      */
@@ -46,8 +45,6 @@ final class ResendWebhookService extends AbstractWebhookProvisioner
 
         $result = ['created' => true, 'id' => $id];
 
-        // Live HMAC secret shown only at creation: surface it for encrypted storage upstream, but never
-        // log it or fail on its absence — the webhook is registered either way.
         $signingSecret = \is_array($body) ? (string) ($body['signing_secret'] ?? '') : '';
         if ($signingSecret !== '') {
             $result['signing_secret'] = $signingSecret;

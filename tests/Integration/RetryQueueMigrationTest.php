@@ -6,9 +6,7 @@ use BitApps\SMTP\Config;
 use BitSmtpRetryQueueMigration;
 
 /**
- * Exercises the mail_retry_queue schema migration against the real WordPress test database: the
- * expected columns exist with the expected nullability, and re-running up() is a no-op (proving the
- * CREATE TABLE IF NOT EXISTS idempotency the migration relies on).
+ * Tests retry queue migration: schema creation and idempotency via CREATE TABLE IF NOT EXISTS.
  *
  * @internal
  *
@@ -61,6 +59,9 @@ final class RetryQueueMigrationTest extends IntegrationTestCase
         $this->assertSame($this->table, $tableExists);
     }
 
+    /**
+     * A bare Schema::drop() would miss the prefixed table and leak the encrypted payloads.
+     */
     public function testDownDropsTheRealPrefixedTableOnUninstallWithPurge(): void
     {
         (new BitSmtpRetryQueueMigration())->up();
@@ -72,8 +73,6 @@ final class RetryQueueMigrationTest extends IntegrationTestCase
             'sanity: the prefixed table exists before teardown'
         );
 
-        // uninstall_purge defaults to true, so down() must drop the *prefixed* table. A bare
-        // Schema::drop() emits an unprefixed name that matches nothing and leaks the encrypted payloads.
         (new BitSmtpRetryQueueMigration())->down();
 
         $this->assertNull(
@@ -81,7 +80,6 @@ final class RetryQueueMigrationTest extends IntegrationTestCase
             'down() must drop the real prefixed mail_retry_queue table on uninstall-with-purge'
         );
 
-        // Restore the table so this class stays order-independent for any later suite that TRUNCATEs it.
         (new BitSmtpRetryQueueMigration())->up();
     }
 }

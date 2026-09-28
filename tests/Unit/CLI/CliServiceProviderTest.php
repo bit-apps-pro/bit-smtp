@@ -7,12 +7,10 @@ use BitApps\SMTP\Providers\CliServiceProvider;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use WP_CLI;
 
-// Load the global-namespace WP_CLI recorder so this test can assert on real add_command() calls.
 require_once __DIR__ . '/WpCliSpy.php';
 
 /**
- * Covers CliServiceProvider's guard contract: a strict no-op off WP-CLI (register() never touches
- * the command bus), and full command registration when the WP-CLI context is active.
+ * Covers CliServiceProvider guard contract: no-op when not in WP-CLI context, full registration when active.
  *
  * @internal
  *

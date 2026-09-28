@@ -43,10 +43,11 @@ class WebhookRequest
         return null;
     }
 
+    /**
+     * Decode and memoize JSON body since the immutable request is decoded multiple times.
+     */
     public function decoded(): array
     {
-        // Memoized: the SES/SNS inbound path decodes the same body several times (verify → control
-        // plane → adapter), and this object is immutable, so a single decode is safe to reuse.
         if ($this->decoded === null) {
             $decoded       = json_decode($this->rawBody, true);
             $this->decoded = \is_array($decoded) ? $decoded : [];

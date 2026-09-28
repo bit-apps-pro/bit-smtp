@@ -7,6 +7,7 @@ import useOAuthAuthorize from './useOAuthAuthorize'
 
 vi.mock('@common/helpers/request', () => ({ default: vi.fn() }))
 
+/** Wraps children in a fresh, retry-disabled QueryClientProvider. */
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>

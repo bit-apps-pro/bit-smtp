@@ -5,11 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Import;
 
 /**
- * Imports a legacy "Easy WP SMTP" (v1.x) configuration. Reads the single `swpsmtp_options` option:
- * top-level `from_email_field` / `from_name_field`, and the `smtp_settings` sub-array (`host`,
- * `port`, `type_encryption` [none|ssl|tls], `autentication` ['yes'|'no'] — the plugin's real,
- * misspelled key — `username`, `password` [base64-encoded]). No reply-to setting exists.
- * Source: easy-wp-smtp.php (option `swpsmtp_options`, function swpsmtp_get_password()).
+ * Import legacy Easy WP SMTP v1.x configuration from swpsmtp_options option.
  */
 final class EasyWpSmtpImporter extends AbstractSmtpImporter
 {
@@ -56,12 +52,7 @@ final class EasyWpSmtpImporter extends AbstractSmtpImporter
     }
 
     /**
-     * Easy WP SMTP base64-encodes the stored password (optionally AES-encrypting it first, gated behind
-     * its own key). Its global swpsmtp_get_password() reverses whichever form is in play, so we defer to
-     * it when loaded. Without it (source plugin inactive) we can only safely handle the no-AES case:
-     * base64_decode yields the plaintext, which is valid UTF-8 text. An AES password is stored as
-     * base64(ciphertext) — also clean base64, but decodes to binary, so a non-UTF-8 result is treated as
-     * unreversible ciphertext and dropped rather than persisted broken. Source: easy-wp-smtp.php.
+     * Resolve password via swpsmtp_get_password() if available; otherwise decode base64.
      *
      * @param array<string,mixed> $smtp
      */
@@ -84,7 +75,6 @@ final class EasyWpSmtpImporter extends AbstractSmtpImporter
             return '';
         }
 
-        // Clean base64: a no-AES password decodes to UTF-8 text; AES ciphertext decodes to binary.
         return mb_check_encoding($decoded, 'UTF-8') ? $decoded : '';
     }
 

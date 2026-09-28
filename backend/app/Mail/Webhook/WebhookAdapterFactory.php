@@ -20,24 +20,25 @@ use BitApps\SMTP\Mail\Webhook\Contracts\WebhookAdapterInterface;
  */
 final class WebhookAdapterFactory
 {
-    // Brevo webhook correlation verified live: the webhook `message-id` equals the send `messageId`
-    // and `X-Mailin-custom` round-trips the stamped tracking id, both matched against real payloads.
+    /**
+     * Brevo webhook correlation verified live; message-id and X-Mailin-custom round-trip correctly.
+     */
     public const BREVO_WEBHOOK_ENABLED = true;
 
     /**
-     * @var array<string, class-string<WebhookAdapterInterface>> single source of truth for provider → adapter
+     * Provider → adapter map; SES uses SNS integration (no direct webhook API).
+     *
+     * @var array<string, class-string<WebhookAdapterInterface>>
      */
     private const ADAPTERS = [
-        'postmark'  => PostmarkWebhookAdapter::class,
-        'brevo'     => BrevoWebhookAdapter::class,
-        'sendgrid'  => SendGridWebhookAdapter::class,
-        'mailgun'   => MailgunWebhookAdapter::class,
-        'resend'    => ResendWebhookAdapter::class,
-        'mailjet'   => MailjetWebhookAdapter::class,
-        'sparkpost' => SparkPostWebhookAdapter::class,
-        'zeptomail' => ZeptoWebhookAdapter::class,
-        // SES has no provider webhook API — it delivers bounce/complaint/delivery over SNS, which the
-        // user wires manually to this endpoint; the adapter parses the SNS-wrapped SES notification.
+        'postmark'   => PostmarkWebhookAdapter::class,
+        'brevo'      => BrevoWebhookAdapter::class,
+        'sendgrid'   => SendGridWebhookAdapter::class,
+        'mailgun'    => MailgunWebhookAdapter::class,
+        'resend'     => ResendWebhookAdapter::class,
+        'mailjet'    => MailjetWebhookAdapter::class,
+        'sparkpost'  => SparkPostWebhookAdapter::class,
+        'zeptomail'  => ZeptoWebhookAdapter::class,
         'amazon_ses' => SesSnsWebhookAdapter::class,
     ];
 

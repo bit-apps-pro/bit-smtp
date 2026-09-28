@@ -8,9 +8,7 @@ use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 
 /**
- * Covers the shared LogCsvExporter extracted from LogController: the safe-column header/projection,
- * status humanization, recipient flattening, and CSV formula-injection defusal -- the exact behavior
- * both the REST export and the WP-CLI export/logs commands now depend on.
+ * Covers shared LogCsvExporter: safe columns, status humanization, recipient flattening, formula-injection defusal.
  *
  * @internal
  *

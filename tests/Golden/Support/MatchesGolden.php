@@ -5,19 +5,12 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Tests\Golden\Support;
 
 /**
- * Characterization-snapshot assertion shared by the unit-tier GoldenTestCase and integration-tier
- * golden tests (which can't extend GoldenTestCase — it's rooted in the Brain Monkey unit base).
+ * Characterization-snapshot assertion trait shared across unit and integration golden tests.
  */
 trait MatchesGolden
 {
-    private static function goldenDir(): string
-    {
-        return __DIR__ . '/../__snapshots__';
-    }
-
     /**
-     * Characterization assert: freezes current output as a committed snapshot, then
-     * asserts byte-identity on every later run. Regenerate intentionally with UPDATE_GOLDEN=1.
+     * Freezes output as a snapshot and asserts byte-identity on every later run (regenerate via UPDATE_GOLDEN=1).
      *
      * @param mixed $actual
      */
@@ -36,5 +29,10 @@ trait MatchesGolden
         }
 
         self::assertSame(rtrim((string) file_get_contents($file)), rtrim($json), "Golden mismatch: {$name} — a frozen boundary changed.");
+    }
+
+    private static function goldenDir(): string
+    {
+        return __DIR__ . '/../__snapshots__';
     }
 }

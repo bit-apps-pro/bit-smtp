@@ -15,6 +15,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 class MailSettingsSanitizerTest extends BaseUnitTestCase
 {
+    private const SLACK_URL = 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX';
+
     public function testDropsUnknownTopLevelKeys(): void
     {
         $input           = $this->baseV2();
@@ -271,10 +273,8 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         ];
         $settings = MailSettingsSanitizer::sanitize($input)['connections'][0]['settings'];
 
-        // Provider-specific non-secret settings survive the save, trimmed.
         $this->assertSame('AKIAEXAMPLE', $settings['access_key']);
         $this->assertSame('eu-central-1', $settings['region']);
-        // Known SMTP keys are still coerced/defaulted alongside the pass-through settings.
         $this->assertSame(0, $settings['port']);
         $this->assertIsInt($settings['port']);
         $this->assertSame('none', $settings['encryption']);
@@ -357,8 +357,6 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
 
     public function testDropsDeadDomainConditionOnANonAddressFieldAndTheNowEmptyRule(): void
     {
-        // `domain` only matches recipient/from; on subject/source_plugin it can never fire, so the
-        // sanitizer self-heals the legacy blob by dropping the condition (and the rule it emptied).
         $input             = $this->baseV2();
         $input['features'] = ['routing' => [
             [
@@ -672,9 +670,7 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
     }
 
     /**
-     * Guards the "provider confirmed" trust signal Task 3 renders: a value outside the known enum
-     * (e.g. a crafted connection-save payload trying to smuggle an arbitrary status string) must
-     * never survive sanitization.
+     * Guards "provider confirmed" trust signal: unknown webhook_provisioning_status values are dropped.
      */
     public function testWebhookProvisioningStatusDropsUnknownValue(): void
     {
@@ -714,162 +710,259 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
 
     public function testFailureAlertsAreWhitelistedAndNormalized(): void
     {
-        $input                       = $this->baseV2();
-        $input['features']['alerts'] = [
-            'enabled' => '1',
-            'email'   => [
-                'enabled'    => true,
-                'recipients' => [' ops@example.com ', 'invalid', 'ops@example.com'],
-                'ignored'    => 'value',
-            ],
-            'webhook' => [
-                'enabled'        => 'true',
-                'url'            => ' https://hooks.example.com/mail-failed ',
-                'signing_secret' => ' whsec_abcdefghijklmnopqrstuvwxyz012345 ',
-                'ignored'        => 'value',
+        $alerts = $this->sanitizeAlerts([
+            'enabled'  => '1',
+            'channels' => [
+                [
+                    'id'       => 'ch_email01',
+                    'type'     => 'email',
+                    'name'     => ' <b>Ops</b> inbox ',
+                    'enabled'  => true,
+                    'settings' => [
+                        'recipients' => [' ops@example.com ', 'invalid', 'ops@example.com'],
+                        'ignored'    => 'value',
+                    ],
+                    'ignored'  => 'value',
+                ],
+                [
+                    'id'       => 'ch_hook001',
+                    'type'     => 'webhook',
+                    'enabled'  => 'true',
+                    'settings' => [
+                        'url'            => ' https://hooks.example.com/mail-failed ',
+                        'signing_secret' => ' whsec_abcdefghijklmnopqrstuvwxyz012345 ',
+                    ],
+                ],
             ],
             'ignored' => 'value',
-        ];
-
-        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+        ]);
 
         $this->assertSame([
-            'enabled' => true,
-            'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
-            'webhook' => [
-                'enabled'        => true,
-                'url'            => 'https://hooks.example.com/mail-failed',
-                'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+            'enabled'          => true,
+            'reminder_minutes' => 60,
+            'channels'         => [
+                [
+                    'id'       => 'ch_email01',
+                    'type'     => 'email',
+                    'name'     => 'Ops inbox',
+                    'enabled'  => true,
+                    'settings' => ['recipients' => ['ops@example.com']],
+                ],
+                [
+                    'id'       => 'ch_hook001',
+                    'type'     => 'webhook',
+                    'name'     => 'Webhook',
+                    'enabled'  => true,
+                    'settings' => [
+                        'url'            => 'https://hooks.example.com/mail-failed',
+                        'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
+                    ],
+                ],
             ],
-            'slack'    => ['enabled' => false, 'webhook_url' => ''],
-            'telegram' => ['enabled' => false, 'bot_token' => '', 'chat_id' => ''],
-            'discord'  => ['enabled' => false, 'webhook_url' => ''],
         ], $alerts);
+    }
+
+    /**
+     * @return array<string,array{mixed,int}>
+     */
+    public static function reminderMinutesProvider(): array
+    {
+        return [
+            'absent uses default'      => [null, 60],
+            'integer kept'             => [30, 30],
+            'numeric string kept'      => ['15', 15],
+            'zero turns reminders off' => [0, 0],
+            'negative clamps to zero'  => [-5, 0],
+            'above max clamps'         => [5000, 1440],
+            'non-integer uses default' => ['soon', 60],
+            'fraction uses default'    => [12.5, 60],
+        ];
+    }
+
+    #[DataProvider('reminderMinutesProvider')]
+    public function testFailureAlertReminderMinutesIsClampedWithADefault(mixed $input, int $expected): void
+    {
+        $alerts = $input === null ? ['enabled' => true] : ['enabled' => true, 'reminder_minutes' => $input];
+
+        $this->assertSame($expected, $this->sanitizeAlerts($alerts)['reminder_minutes']);
+    }
+
+    public function testFailureAlertsEmptyOrGarbageBlobNormalizesToNoChannels(): void
+    {
+        $expected = ['enabled' => false, 'reminder_minutes' => 60, 'channels' => []];
+
+        $this->assertSame($expected, $this->sanitizeAlerts([]));
+        $this->assertSame($expected, $this->sanitizeAlerts(['channels' => 'nope']));
+    }
+
+    public function testReadOnlyRevisionAndDeliveryAreNeverPersisted(): void
+    {
+        $alerts = $this->sanitizeAlerts([
+            'enabled'  => true,
+            'revision' => 'abc123',
+            'delivery' => ['cron_disabled' => true, 'overdue' => true],
+        ]);
+
+        $this->assertSame(['enabled', 'reminder_minutes', 'channels'], array_keys($alerts));
+    }
+
+    public function testAnUnnamedChannelFallsBackToItsTranslatedTypeLabel(): void
+    {
+        $alerts = $this->sanitizeAlerts(['channels' => [['id' => 'ch_tele001', 'type' => 'telegram', 'name' => '  ', 'settings' => []]]]);
+
+        $this->assertSame('Telegram', $alerts['channels'][0]['name']);
+    }
+
+    public function testFailureAlertsKeepSeveralInstancesOfTheSameType(): void
+    {
+        $alerts = $this->sanitizeAlerts(['enabled' => true, 'channels' => [
+            ['id' => 'ch_slackaa', 'type' => 'slack', 'name' => 'Ops', 'enabled' => true, 'settings' => ['webhook_url' => self::SLACK_URL]],
+            ['id' => 'ch_slackbb', 'type' => 'slack', 'name' => 'Dev', 'enabled' => false, 'settings' => ['webhook_url' => self::SLACK_URL . 'B']],
+        ]]);
+
+        $this->assertCount(2, $alerts['channels']);
+        $this->assertSame(['ch_slackaa', 'ch_slackbb'], array_column($alerts['channels'], 'id'));
+        $this->assertSame([true, false], array_column($alerts['channels'], 'enabled'));
+    }
+
+    public function testFailureAlertsDropUnknownTypesAndCapTheList(): void
+    {
+        $channels = [['type' => 'sms', 'settings' => []], 'not-an-array'];
+        for ($i = 0; $i < 25; ++$i) {
+            $channels[] = ['type' => 'email', 'settings' => []];
+        }
+
+        $alerts = $this->sanitizeAlerts(['channels' => $channels]);
+
+        $this->assertCount(20, $alerts['channels']);
+        $this->assertSame(['email'], array_values(array_unique(array_column($alerts['channels'], 'type'))));
+    }
+
+    public function testFailureAlertsRegenerateInvalidAndDuplicateIds(): void
+    {
+        $alerts = $this->sanitizeAlerts(['channels' => [
+            ['id' => 'ch_keepme1', 'type' => 'email'],
+            ['id'   => 'ch_keepme1', 'type' => 'email'],
+            ['id'   => 'BAD id', 'type' => 'email'],
+            ['type' => 'email'],
+        ]]);
+
+        $ids = array_column($alerts['channels'], 'id');
+        $this->assertSame('ch_keepme1', $ids[0]);
+        $this->assertCount(4, array_unique($ids));
+        foreach ($ids as $id) {
+            $this->assertMatchesRegularExpression('/^ch_[a-z0-9]{6,32}$/', $id);
+        }
+    }
+
+    public function testFailureAlertsClampNameAndFallBackToTypeLabel(): void
+    {
+        $alerts = $this->sanitizeAlerts(['channels' => [
+            ['id' => 'ch_named01', 'type' => 'telegram', 'name' => str_repeat('a', 80)],
+            ['id' => 'ch_named02', 'type' => 'discord', 'name' => '   '],
+        ]]);
+
+        $this->assertSame(str_repeat('a', 60), $alerts['channels'][0]['name']);
+        $this->assertSame('Discord', $alerts['channels'][1]['name']);
     }
 
     public function testFailureAlertsRejectNonHttpWebhookUrls(): void
     {
-        $input                       = $this->baseV2();
-        $input['features']['alerts'] = [
-            'enabled' => true,
-            'webhook' => ['enabled' => true, 'url' => 'file:///etc/passwd'],
-        ];
+        $this->assertSame('', $this->sanitizeChannelSettings('webhook', ['url' => 'file:///etc/passwd'])['url']);
+    }
 
-        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+    public function testFailureAlertsRejectOverlongWebhookUrls(): void
+    {
+        $url = 'https://hooks.example.com/' . str_repeat('a', 2048);
 
-        $this->assertSame('', $alerts['webhook']['url']);
+        $this->assertSame('', $this->sanitizeChannelSettings('webhook', ['url' => $url])['url']);
     }
 
     public function testFailureAlertsRejectMalformedWebhookSigningSecret(): void
     {
-        $input                       = $this->baseV2();
-        $input['features']['alerts'] = [
-            'enabled' => true,
-            'webhook' => [
-                'enabled'        => true,
-                'url'            => 'https://hooks.example.com/failure',
-                'signing_secret' => 'not-a-whsec',
-            ],
-        ];
+        $settings = $this->sanitizeChannelSettings('webhook', [
+            'url'            => 'https://hooks.example.com/failure',
+            'signing_secret' => 'not-a-whsec',
+        ]);
 
-        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+        $this->assertSame('', $settings['signing_secret']);
+    }
 
-        $this->assertSame('', $alerts['webhook']['signing_secret']);
+    public function testFailureAlertsCapRecipientsAtTwenty(): void
+    {
+        $recipients = array_map(static fn (int $i): string => "ops{$i}@example.com", range(1, 25));
+
+        $this->assertCount(20, $this->sanitizeChannelSettings('email', ['recipients' => $recipients])['recipients']);
     }
 
     public function testFailureAlertsNormalizeSlackAndTelegramSettingsWithoutUnknownKeys(): void
     {
-        $input                       = $this->baseV2();
-        $input['features']['alerts'] = [
-            'enabled'  => true,
-            'email'    => ['enabled' => true, 'recipients' => ['ops@example.com']],
-            'webhook'  => [
-                'enabled'        => true,
-                'url'            => 'https://hooks.example.com/failure',
-                'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
-            ],
-            'slack'    => [
-                'enabled'     => 'true',
-                'webhook_url' => ' https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX ',
-                'ignored'     => 'drop me',
-            ],
-            'telegram' => [
-                'enabled'   => '1',
-                'bot_token' => ' 123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz ',
-                'chat_id'   => ' -1001234567890 ',
-                'ignored'   => 'drop me',
-            ],
-            'ignored' => 'drop me',
-        ];
-
-        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
-
-        $this->assertSame([
-            'enabled'  => true,
-            'email'    => ['enabled' => true, 'recipients' => ['ops@example.com']],
-            'webhook'  => [
-                'enabled'        => true,
-                'url'            => 'https://hooks.example.com/failure',
-                'signing_secret' => 'whsec_abcdefghijklmnopqrstuvwxyz012345',
-            ],
-            'slack'    => [
-                'enabled'     => true,
-                'webhook_url' => 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX',
-            ],
-            'telegram' => [
-                'enabled'   => true,
+        $this->assertSame(
+            ['webhook_url' => self::SLACK_URL],
+            $this->sanitizeChannelSettings('slack', ['webhook_url' => ' ' . self::SLACK_URL . ' ', 'ignored' => 'drop me'])
+        );
+        $this->assertSame(
+            [
                 'bot_token' => '123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz',
                 'chat_id'   => '-1001234567890',
             ],
-            'discord'  => ['enabled' => false, 'webhook_url' => ''],
-        ], $alerts);
+            $this->sanitizeChannelSettings('telegram', [
+                'bot_token' => ' 123456789:AAExampleBotToken_abcdefghijklmnopqrstuvwxyz ',
+                'chat_id'   => ' -1001234567890 ',
+                'ignored'   => 'drop me',
+            ])
+        );
     }
 
     public function testFailureAlertsNormalizeDiscordWebhookUrlWithoutUnknownKeys(): void
     {
-        $input                       = $this->baseV2();
-        $input['features']['alerts'] = [
-            'enabled' => true,
-            'discord' => [
-                'enabled'     => '1',
+        $this->assertSame(
+            ['webhook_url' => 'https://discord.com/api/webhooks/123456789012345678/aBcDeFgHiJkLmNoPqRsTuVwXyZ'],
+            $this->sanitizeChannelSettings('discord', [
                 'webhook_url' => ' https://discord.com/api/webhooks/123456789012345678/aBcDeFgHiJkLmNoPqRsTuVwXyZ ',
                 'ignored'     => 'drop me',
-            ],
-        ];
-
-        $discord = MailSettingsSanitizer::sanitize($input)['features']['alerts']['discord'];
-
-        $this->assertSame([
-            'enabled'     => true,
-            'webhook_url' => 'https://discord.com/api/webhooks/123456789012345678/aBcDeFgHiJkLmNoPqRsTuVwXyZ',
-        ], $discord);
+            ])
+        );
     }
 
     public function testFailureAlertsBlankMalformedDiscordWebhookUrl(): void
     {
-        $input                       = $this->baseV2();
-        $input['features']['alerts'] = [
-            'discord' => ['enabled' => true, 'webhook_url' => 'https://discord.com/webhooks/123/token'],
-        ];
+        $settings = $this->sanitizeChannelSettings('discord', ['webhook_url' => 'https://discord.com/webhooks/123/token']);
 
-        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
-
-        $this->assertSame('', $alerts['discord']['webhook_url']);
+        $this->assertSame('', $settings['webhook_url']);
     }
 
     public function testFailureAlertsBlankMalformedSlackAndTelegramSecrets(): void
     {
+        $slack    = $this->sanitizeChannelSettings('slack', ['webhook_url' => 'https://hooks.slack.com/api/services/T/B/X']);
+        $telegram = $this->sanitizeChannelSettings('telegram', ['bot_token' => 'bad token', 'chat_id' => 'channel-name']);
+
+        $this->assertSame('', $slack['webhook_url']);
+        $this->assertSame('', $telegram['bot_token']);
+        $this->assertSame('', $telegram['chat_id']);
+    }
+
+    /**
+     * Sanitize an alerts blob through the public entry point and return it.
+     *
+     * @param mixed $alerts
+     */
+    private function sanitizeAlerts($alerts): array
+    {
         $input                       = $this->baseV2();
-        $input['features']['alerts'] = [
-            'slack'    => ['enabled' => true, 'webhook_url' => 'https://hooks.slack.com/api/services/T/B/X'],
-            'telegram' => ['enabled' => true, 'bot_token' => 'bad token', 'chat_id' => 'channel-name'],
-        ];
+        $input['features']['alerts'] = $alerts;
 
-        $alerts = MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+        return MailSettingsSanitizer::sanitize($input)['features']['alerts'];
+    }
 
-        $this->assertSame('', $alerts['slack']['webhook_url']);
-        $this->assertSame('', $alerts['telegram']['bot_token']);
-        $this->assertSame('', $alerts['telegram']['chat_id']);
+    /**
+     * Sanitize one alert channel instance of the given type and return its settings.
+     */
+    private function sanitizeChannelSettings(string $type, array $settings): array
+    {
+        return $this->sanitizeAlerts([
+            'channels' => [['id' => 'ch_single1', 'type' => $type, 'settings' => $settings]],
+        ])['channels'][0]['settings'];
     }
 
     /**

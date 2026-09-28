@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Tests\Unit\Mail\Notifications;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Config\MailSettings;
 use BitApps\SMTP\Mail\Notifications\AlertChannelDispatcher;
+use BitApps\SMTP\Mail\Notifications\ChannelDeliveryResult;
 use BitApps\SMTP\Mail\Notifications\Contracts\FailureNotificationChannelInterface;
 use BitApps\SMTP\Mail\Notifications\Contracts\NotificationMessage;
 use BitApps\SMTP\Mail\Notifications\FailureNotificationChannelRegistry;
@@ -23,7 +24,7 @@ final class AlertChannelDispatcherTest extends BaseUnitTestCase
     {
         $channel = $this->channel('email');
         $channel->shouldReceive('send')->never();
-        $dispatcher = $this->dispatcher(['enabled' => true, 'email' => ['enabled' => false]], [$channel]);
+        $dispatcher = $this->dispatcher($this->alerts(true, [$this->instance('ch_email01', 'email', false)]), [$channel]);
 
         $this->assertFalse($dispatcher->hasEnabledChannel());
         $this->assertFalse($dispatcher->dispatch($this->message()));
@@ -33,10 +34,22 @@ final class AlertChannelDispatcherTest extends BaseUnitTestCase
     {
         $channel = $this->channel('email');
         $channel->shouldReceive('send')->never();
-        $dispatcher = $this->dispatcher(['enabled' => false, 'email' => ['enabled' => true]], [$channel]);
+        $dispatcher = $this->dispatcher($this->alerts(false, [$this->instance('ch_email01', 'email')]), [$channel]);
 
         $this->assertFalse($dispatcher->hasEnabledChannel());
         $this->assertFalse($dispatcher->dispatch($this->message()));
+    }
+
+    public function testReturnsFalseForAnEmptyOrGarbageAlertsBlob(): void
+    {
+        $channel = $this->channel('email');
+        $channel->shouldReceive('send')->never();
+
+        foreach ([[], ['enabled' => true, 'channels' => 'nope'], ['enabled' => true, 'email' => ['enabled' => true]]] as $alerts) {
+            $dispatcher = $this->dispatcher($alerts, [$channel]);
+            $this->assertFalse($dispatcher->hasEnabledChannel());
+            $this->assertFalse($dispatcher->dispatch($this->message()));
+        }
     }
 
     public function testDeliversThroughEachEnabledChannelWithItsOwnSettings(): void
@@ -44,14 +57,33 @@ final class AlertChannelDispatcherTest extends BaseUnitTestCase
         $email = $this->channel('email');
         $email->shouldReceive('send')
             ->once()
-            ->with(Mockery::type(NotificationMessage::class), ['enabled' => true, 'recipients' => ['ops@example.com']])
-            ->andReturn(true);
-        $dispatcher = $this->dispatcher([
-            'enabled' => true,
-            'email'   => ['enabled' => true, 'recipients' => ['ops@example.com']],
-        ], [$email]);
+            ->with(Mockery::type(NotificationMessage::class), ['recipients' => ['ops@example.com']])
+            ->andReturn(ChannelDeliveryResult::delivered());
+        $dispatcher = $this->dispatcher($this->alerts(true, [
+            $this->instance('ch_email01', 'email', true, ['recipients' => ['ops@example.com']]),
+        ]), [$email]);
 
         $this->assertTrue($dispatcher->hasEnabledChannel());
+        $this->assertTrue($dispatcher->dispatch($this->message()));
+    }
+
+    public function testDeliversToEveryEnabledInstanceOfTheSameTypeAndSkipsDisabledOnes(): void
+    {
+        $webhook = $this->channel('webhook');
+        $webhook->shouldReceive('send')
+            ->once()
+            ->with(Mockery::type(NotificationMessage::class), ['url' => 'https://a.example.com/hook'])
+            ->andReturn(ChannelDeliveryResult::failed('Rejected.'));
+        $webhook->shouldReceive('send')
+            ->once()
+            ->with(Mockery::type(NotificationMessage::class), ['url' => 'https://b.example.com/hook'])
+            ->andReturn(ChannelDeliveryResult::delivered());
+        $dispatcher = $this->dispatcher($this->alerts(true, [
+            $this->instance('ch_hookaaa', 'webhook', true, ['url' => 'https://a.example.com/hook']),
+            $this->instance('ch_hookbbb', 'webhook', true, ['url' => 'https://b.example.com/hook']),
+            $this->instance('ch_hookccc', 'webhook', false, ['url' => 'https://c.example.com/hook']),
+        ]), [$webhook]);
+
         $this->assertTrue($dispatcher->dispatch($this->message()));
     }
 
@@ -60,12 +92,11 @@ final class AlertChannelDispatcherTest extends BaseUnitTestCase
         $slack    = $this->channel('slack');
         $telegram = $this->channel('telegram');
         $slack->shouldReceive('send')->once()->andThrow(new RuntimeException('provider body: secret'));
-        $telegram->shouldReceive('send')->once()->andReturn(true);
-        $dispatcher = $this->dispatcher([
-            'enabled'  => true,
-            'slack'    => ['enabled' => true],
-            'telegram' => ['enabled' => true],
-        ], [$slack, $telegram]);
+        $telegram->shouldReceive('send')->once()->andReturn(ChannelDeliveryResult::delivered());
+        $dispatcher = $this->dispatcher($this->alerts(true, [
+            $this->instance('ch_slack01', 'slack'),
+            $this->instance('ch_tele001', 'telegram'),
+        ]), [$slack, $telegram]);
 
         $this->assertTrue($dispatcher->dispatch($this->message()));
     }
@@ -73,10 +104,26 @@ final class AlertChannelDispatcherTest extends BaseUnitTestCase
     public function testReturnsFalseWhenEveryEnabledChannelFailsToDeliver(): void
     {
         $email = $this->channel('email');
-        $email->shouldReceive('send')->once()->andReturn(false);
-        $dispatcher = $this->dispatcher(['enabled' => true, 'email' => ['enabled' => true]], [$email]);
+        $email->shouldReceive('send')->once()->andReturn(ChannelDeliveryResult::failed('Rejected.'));
+        $dispatcher = $this->dispatcher($this->alerts(true, [$this->instance('ch_email01', 'email')]), [$email]);
 
         $this->assertFalse($dispatcher->dispatch($this->message()));
+    }
+
+    /**
+     * An alerts blob in the channel-list shape.
+     */
+    private function alerts(bool $enabled, array $channels): array
+    {
+        return ['enabled' => $enabled, 'channels' => $channels];
+    }
+
+    /**
+     * One channel instance in the stored shape.
+     */
+    private function instance(string $id, string $type, bool $enabled = true, array $settings = []): array
+    {
+        return ['id' => $id, 'type' => $type, 'name' => '', 'enabled' => $enabled, 'settings' => $settings];
     }
 
     /**

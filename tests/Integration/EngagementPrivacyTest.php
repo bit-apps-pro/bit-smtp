@@ -10,14 +10,10 @@ use BitApps\SMTP\Privacy\EngagementDataExporter;
 use BitApps\SMTP\Privacy\RecipientLogLocator;
 use BitSmtpEngagementTableMigration;
 
-// Global-namespace migration class, included directly (migrations are not PSR-4 autoloaded).
 require_once \dirname(__DIR__, 2) . '/backend/db/Migrations/BitSmtpEngagementTableMigration.php';
 
 /**
- * Exercises the Phase 8.4 GDPR surface against the real WordPress test DB: the engagement exporter
- * and eraser scope strictly to the requested recipient email (matched through the to_addr JSON
- * array), never leak or delete another recipient's data, paginate per WP's privacy contract, and
- * fail closed when a delete errors.
+ * Verifies GDPR exporter/eraser scope to recipient email, never leak/delete other data, paginate correctly.
  *
  * @internal
  *
@@ -41,7 +37,7 @@ final class EngagementPrivacyTest extends IntegrationTestCase
     public function testExporterReturnsOnlyTheRequestedRecipientsEvents(): void
     {
         $logA1 = $this->seedLog(['alice@example.com']);
-        $logA2 = $this->seedLog(['Alice Example <alice@example.com>']); // display-name recipient form
+        $logA2 = $this->seedLog(['Alice Example <alice@example.com>']);
         $logB1 = $this->seedLog(['bob@example.com']);
 
         $this->service->recordEngagement($logA1, 'open', '', false);
@@ -83,7 +79,6 @@ final class EngagementPrivacyTest extends IntegrationTestCase
         self::assertSame(0, LogEngagementEvent::where('log_id', $logA2)->count());
         self::assertSame(2, LogEngagementEvent::where('log_id', $logB1)->count(), 'another recipient\'s events must be untouched');
 
-        // The eraser is scoped to engagement events only: the log rows themselves must survive.
         self::assertInstanceOf(Log::class, Log::where('id', $logA1)->first());
     }
 
@@ -109,7 +104,6 @@ final class EngagementPrivacyTest extends IntegrationTestCase
         $logA1 = $this->seedLog(['alice@example.com']);
         $this->service->recordEngagement($logA1, 'open', '', false);
 
-        // 'lice@example.com' is a LIKE substring of 'alice@example.com' but a different address.
         $export = (new EngagementDataExporter())->export('lice@example.com', 1);
         self::assertSame([], $export['data'], 'a substring of a real recipient must not leak their data');
     }
@@ -134,8 +128,6 @@ final class EngagementPrivacyTest extends IntegrationTestCase
         $this->service->recordEngagement($logA1, 'open', '', false);
 
         global $wpdb;
-        // Force a delete error by removing the table out from under the eraser; the locator still
-        // resolves candidate logs from the intact logs table, so the delete is the failure point.
         $this->dropTables($this->engagementTable);
 
         try {

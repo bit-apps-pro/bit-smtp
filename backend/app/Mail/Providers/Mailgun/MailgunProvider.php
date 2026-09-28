@@ -11,10 +11,7 @@ use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
 
 /**
- * Mailgun, wired entirely through the descriptor engine (spec §5/§11). Sends multipart/form-data
- * when the message has attachments and application/x-www-form-urlencoded otherwise (FormMultipartEncoder),
- * is Basic-authed with the literal "api" user, and region-maps its host over the {domain} path
- * segment validated by the engine's SSRF-safe resolvePath().
+ * Mailgun provider wired via descriptor engine with form encoding and region-mapped host.
  */
 final class MailgunProvider extends DescriptorProvider
 {

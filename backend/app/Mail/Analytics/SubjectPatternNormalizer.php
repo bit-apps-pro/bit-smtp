@@ -9,9 +9,7 @@ final class SubjectPatternNormalizer
     private const MAX_LENGTH = 160;
 
     /**
-     * Only fixed, generic email-category terms survive into an analytics pattern. Every other
-     * free-text token is treated as customer/application content and redacted before persistence.
-     * This deliberately favours privacy over a more specific (but potentially identifying) label.
+     * Safe email-category terms only; all other tokens redacted for privacy.
      *
      * @var array<int,string>
      */

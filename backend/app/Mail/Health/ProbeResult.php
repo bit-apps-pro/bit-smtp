@@ -3,8 +3,7 @@
 namespace BitApps\SMTP\Mail\Health;
 
 /**
- * Outcome of one active connection probe: liveness plus, on failure, a short secret-free reason and
- * its classified FailureCategory (for parity with the dispatch path's failure handling).
+ * Active connection probe outcome: liveness + failure reason + classified FailureCategory.
  */
 final class ProbeResult
 {

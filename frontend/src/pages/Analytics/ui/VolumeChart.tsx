@@ -48,10 +48,7 @@ function formatRateOrDash(numerator: number, denominator: number): string {
   return denominator > 0 ? formatPercent((numerator / denominator) * 100) : '—'
 }
 
-/**
- * A volume bucket has no `delivery_status` to filter on - scope Logs to the bucket's own day when its
- * `bucket` field parses to one, otherwise fall back to the dashboard's full selected range.
- */
+/** A volume bucket has no `delivery_status` to filter on - scope Logs to its own day, or the dashboard's full range when unparseable. */
 function logsFilterForBucket(
   bucket: SeriesBucket,
   rangeDateFrom: string,

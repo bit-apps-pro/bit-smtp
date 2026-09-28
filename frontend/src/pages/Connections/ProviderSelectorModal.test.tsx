@@ -39,7 +39,6 @@ describe('ProviderSelectorModal', () => {
 
     renderWithProviders(<ProviderSelectorModal open onClose={() => {}} onSelect={() => {}} />)
 
-    // antd Modal renders in a portal on document.body, not inside the render container.
     expect(document.querySelector('.ant-spin')).toBeInTheDocument()
   })
 

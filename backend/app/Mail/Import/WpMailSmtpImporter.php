@@ -5,13 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Import;
 
 /**
- * Imports a "WP Mail SMTP" (by WPForms) SMTP-mailer configuration. Reads the single `wp_mail_smtp`
- * option: the `mail` group (`from_email`, `from_name`, `mailer`, `reply_to_email`) and the `smtp`
- * group (`host`, `port`, `encryption`, `auth`, `user`, `pass`). Encryption values are `none|ssl|tls`.
- * Only the `smtp` mailer is imported; API mailers (sendgrid/mailgun/ses/...) are out of scope for
- * this first cut. The `mail.return_path` boolean ("set Return-Path to match From") is intentionally
- * not imported: Bit SMTP has no per-connection return-path setting to map it onto. Source: WP Mail
- * SMTP src/Options.php (META_KEY `wp_mail_smtp`, groups mail/smtp).
+ * Import WP Mail SMTP SMTP-mailer configuration from wp_mail_smtp option.
  */
 final class WpMailSmtpImporter extends AbstractSmtpImporter
 {
@@ -59,12 +53,7 @@ final class WpMailSmtpImporter extends AbstractSmtpImporter
     }
 
     /**
-     * WP Mail SMTP >= 3.3 encrypts `smtp.pass` at rest (Crypto) and also honors the `WPMS_SMTP_PASS`
-     * constant; its own Options API returns the decrypted / constant-resolved value, so we defer to it
-     * rather than reimplement (or mishandle) their crypto. Source: WP Mail SMTP src/Options.php.
-     * When that class is unavailable (source plugin deactivated) the raw value may be ciphertext we
-     * cannot safely reverse, so we return '' rather than persist a broken credential — the connection
-     * imports without a password for the user to set (better than a silently unusable one).
+     * Resolve password via WP Mail SMTP's Options API if available; empty string if not.
      *
      * @param array<string,mixed> $smtp
      */

@@ -7,9 +7,7 @@ use BitApps\SMTP\Mail\Health\Contracts\ConnectionProbeInterface;
 use BitApps\SMTP\Mail\Health\Probes\SmtpConnectionProbe;
 
 /**
- * Picks the active probe for a connection kind. Only `smtp` gets a real probe; `local` and `api` are
- * covered passively from real send outcomes (probing a local sendmail is meaningless, and an API
- * probe is a per-provider concern). This is the seam where a future API probe would register.
+ * Pick active probe per connection kind; smtp gets real probe, local/api passive (future API seam).
  */
 class HealthProbeResolver
 {
