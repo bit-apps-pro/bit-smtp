@@ -99,7 +99,13 @@ function settingsWith(channels: AlertChannel[], enabled = true): MailSettings {
 function Harness({ settings = settingsWith(allChannels) }: { settings?: MailSettings }) {
   const [alertsForm] = Form.useForm<NotificationFormValues>()
 
-  return <NotificationsChannels alertsForm={alertsForm} settings={settings} />
+  return (
+    <NotificationsChannels
+      alertsForm={alertsForm}
+      settings={settings}
+      alertEvents={<div data-testid="alert-events" />}
+    />
+  )
 }
 
 /** Scope queries to the channel card that contains `element`. */
@@ -151,7 +157,7 @@ describe('NotificationsChannels', () => {
     render(<Harness />)
 
     expect(channelNames()).toEqual(['Ops email', 'Webhook', 'Slack', 'Telegram', 'Discord'])
-    expect(screen.getAllByRole('switch', { name: 'Channel enabled' })).toHaveLength(5)
+    expect(screen.getAllByRole('switch', { name: /^Turn on / })).toHaveLength(5)
   })
 
   it('shows the empty state when no channel has been added', () => {
@@ -192,7 +198,7 @@ describe('NotificationsChannels', () => {
     await addChannel(user, 'Email')
 
     expect(screen.getByLabelText('Recipients')).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: 'Channel enabled' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Turn on Email' })).toBeChecked()
   })
 
   it('removes only the confirmed card', async () => {
@@ -201,7 +207,9 @@ describe('NotificationsChannels', () => {
 
     const [primaryName] = screen.getAllByLabelText('Name')
     await user.click(cardContaining(primaryName).getByRole('button', { name: /remove/i }))
-    await user.click(within(await screen.findByRole('tooltip')).getByRole('button', { name: 'Remove' }))
+    await user.click(
+      within(await screen.findByRole('tooltip')).getByRole('button', { name: 'Remove channel' })
+    )
 
     await waitFor(() => expect(channelNames()).toEqual(['Backup Slack']))
   })
@@ -210,7 +218,7 @@ describe('NotificationsChannels', () => {
     const user = userEvent.setup()
     render(<Harness />)
 
-    await user.click(screen.getByRole('switch', { name: 'Enable failure notifications' }))
+    await user.click(screen.getByRole('switch', { name: 'Send alerts' }))
 
     expect(screen.getByLabelText('Slack webhook URL')).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Add channel' })).toBeEnabled()
@@ -419,8 +427,8 @@ describe('NotificationsChannels', () => {
 })
 
 describe('delivery warnings', () => {
-  const CRON_DISABLED = /WP-Cron is disabled on this site \(DISABLE_WP_CRON\)/
-  const OVERDUE = /Some alerts are waiting to be sent/
+  const CRON_DISABLED = /WP-Cron\) are off on this site/
+  const OVERDUE = /Some alerts are waiting to go out/
 
   /** Settings whose alerts carry the given server-reported delivery status. */
   function settingsWithDelivery(delivery: AlertDeliveryStatus, enabled = true): MailSettings {
@@ -458,7 +466,7 @@ describe('delivery warnings', () => {
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('switch', { name: 'Enable failure notifications' }))
+    await user.click(screen.getByRole('switch', { name: 'Send alerts' }))
 
     expect(await screen.findAllByRole('alert')).toHaveLength(2)
   })
@@ -507,6 +515,30 @@ describe('reminder interval', () => {
     expect(
       toAlertsFormValues({ ...settings, features: { alerts: withoutReminder } }).reminder_minutes
     ).toBe(60)
+  })
+})
+
+describe('what triggers an alert', () => {
+  it('shows the alert checklist and repeat control only while alerts are on', async () => {
+    const user = userEvent.setup()
+    render(<Harness settings={settingsWith([], false)} />)
+
+    expect(screen.getByTestId('alert-events')).not.toBeVisible()
+    expect(screen.getByText('Repeat while the problem continues')).not.toBeVisible()
+
+    await user.click(screen.getByRole('switch', { name: 'Send alerts' }))
+
+    expect(screen.getByTestId('alert-events')).toBeVisible()
+    expect(screen.getByText('Repeat while the problem continues')).toBeVisible()
+  })
+
+  it('offers “Don’t repeat” for the shared repeat interval', async () => {
+    const user = userEvent.setup()
+    render(<Harness settings={settingsWith([])} />)
+
+    await user.click(screen.getByLabelText('Repeat while the problem continues'))
+
+    expect(await screen.findByText('Don’t repeat')).toBeInTheDocument()
   })
 })
 

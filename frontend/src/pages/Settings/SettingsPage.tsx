@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
@@ -6,15 +7,23 @@ import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import TabLabel, { StatusDot } from '@pages/Settings/components/TabLabel'
 import useAlertsSaveFlow, { type SaveOutcome } from '@pages/Settings/data/useAlertsSaveFlow'
 import usePreferences, { useSavePreferences } from '@pages/Settings/data/usePreferences'
+import AlertEventsField from '@pages/Settings/sections/AlertEventsField'
 import GeneralLogging from '@pages/Settings/sections/GeneralLogging'
 import Health from '@pages/Settings/sections/Health'
 import NotificationsChannels, {
   type NotificationFormValues,
+  storedAlerts,
   toAlertsFormValues
 } from '@pages/Settings/sections/NotificationsChannels'
 import PrivacyData from '@pages/Settings/sections/PrivacyData'
 import Reliability from '@pages/Settings/sections/Reliability'
-import { type Preferences, type PreferencesFormValues } from '@pages/Settings/types'
+import {
+  HEALTH_ALERT_EVENTS,
+  type Preferences,
+  type PreferencesFormValues,
+  SETTINGS_TAB_KEYS,
+  type SettingsTabKey
+} from '@pages/Settings/types'
 import valuesEqual from '@pages/Settings/utils/valuesEqual'
 import { Alert, Button, Flex, Form, Grid, Spin, Tabs, Typography, theme } from 'antd'
 import { Activity, Bell, Gauge, Lock, type LucideIcon, ScrollText } from 'lucide-react'
@@ -34,10 +43,30 @@ async function runSave(save: (() => Promise<SaveOutcome>) | null): Promise<SaveO
   }
 }
 
+/** The tab named by `?tab=`, falling back to the first tab for a missing or unknown key. */
+function toTabKey(value: string | null): SettingsTabKey {
+  return SETTINGS_TAB_KEYS.find(key => key === value) ?? SETTINGS_TAB_KEYS[0]
+}
+
+/** The active settings tab, kept in the `?tab=` query so `#/settings?tab=<key>` deep-links to it. */
+function useActiveTab(): [SettingsTabKey, (key: string) => void] {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectTab = (key: string) =>
+    setSearchParams(
+      params => {
+        params.set('tab', toTabKey(key))
+        return params
+      },
+      { replace: true }
+    )
+
+  return [toTabKey(searchParams.get('tab')), selectTab]
+}
+
 type SettingsLayoutVars = CSSProperties & Record<`--settings-${string}`, string>
 
 interface SectionDefinition {
-  key: string
+  key: SettingsTabKey
   icon: LucideIcon
   label: string
   enabled?: boolean
@@ -66,7 +95,7 @@ export default function SettingsPage() {
   const [prefsForm] = Form.useForm<PreferencesFormValues>()
   const [alertsForm] = Form.useForm<NotificationFormValues>()
   const [isSaving, setIsSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState('general')
+  const [activeTab, setActiveTab] = useActiveTab()
   const isWide = Grid.useBreakpoint().md ?? true
 
   const { data: preferences, isPending: preferencesPending } = usePreferences()
@@ -124,6 +153,11 @@ export default function SettingsPage() {
   const retryEnabled = rawRetryEnabled ?? preferences.retry_enabled
   const healthEnabled = rawHealthEnabled ?? preferences.health_check_enabled
   const notificationsEnabled = rawAlertsEnabled ?? alertsInitialValues.enabled
+  const alertChannels = watchedAlerts?.channels ?? alertsInitialValues.channels
+  const alertsReady = notificationsEnabled && alertChannels.some(channel => channel.enabled)
+  const alertEvents = watchedPrefs?.notify_events ?? preferences.notify_events
+  const healthAlertsSelected = HEALTH_ALERT_EVENTS.some(event => alertEvents.includes(event))
+  const openNotifications = () => setActiveTab('notifications')
 
   /** Validate and save only the store(s) that changed; a successful alerts save reseeds to avoid a stale revision. */
   const handleSave = async () => {
@@ -138,7 +172,7 @@ export default function SettingsPage() {
         return
       }
 
-      const prefsPayload = (): Preferences => ({ ...preferences, ...prefsForm.getFieldsValue() })
+      const prefsPayload = (): Preferences => ({ ...preferences, ...prefsForm.getFieldsValue(true) })
       const [prefsOutcome, alertsOutcome] = await Promise.all([
         runSave(prefsDirty ? () => savePreferences.mutateAsync(prefsPayload()) : null),
         runSave(alertsDirty ? () => updateSettings.mutateAsync(buildAlertsPayload(settings)) : null)
@@ -171,21 +205,39 @@ export default function SettingsPage() {
       icon: Gauge,
       label: __('Reliability'),
       enabled: retryEnabled,
-      content: <Reliability form={prefsForm} />
+      content: (
+        <Reliability
+          form={prefsForm}
+          cronDisabled={storedAlerts(settings)?.delivery?.cron_disabled ?? false}
+        />
+      )
     },
     {
       key: 'health',
       icon: Activity,
       label: __('Health'),
       enabled: healthEnabled,
-      content: <Health form={prefsForm} />
+      content: (
+        <Health
+          form={prefsForm}
+          alertsReady={alertsReady}
+          healthAlertsSelected={healthAlertsSelected}
+          onOpenNotifications={openNotifications}
+        />
+      )
     },
     {
       key: 'notifications',
       icon: Bell,
       label: __('Notifications'),
       enabled: notificationsEnabled,
-      content: <NotificationsChannels alertsForm={alertsForm} settings={settings} />
+      content: (
+        <NotificationsChannels
+          alertsForm={alertsForm}
+          settings={settings}
+          alertEvents={<AlertEventsField form={prefsForm} />}
+        />
+      )
     },
     {
       key: 'privacy',
@@ -219,7 +271,7 @@ export default function SettingsPage() {
               {__('Settings')}
             </Title>
             <Text type="secondary">
-              {__('Global preferences for logging, delivery, health, notifications, and privacy.')}
+              {__('Settings that apply to every connection and every email your site sends.')}
             </Text>
           </Flex>
           <Flex align="center" gap="middle">

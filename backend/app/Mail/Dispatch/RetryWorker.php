@@ -27,7 +27,7 @@ class RetryWorker
     private string $backoffMode;
 
     /**
-     * Admin's retry-class filter (empty = all retryable); dropped classes stop rescheduling on next claim.
+     * Admin's retry-class filter (empty = retry nothing); dropped classes stop rescheduling on next claim.
      *
      * @var string[]
      */
@@ -64,7 +64,7 @@ class RetryWorker
             $failureClass = $outcome['failure_class'];
 
             if ($failureClass !== null && $attempts < $row['max_attempts'] && FailureCategory::isRetryableWithin($failureClass, $this->retryOnClasses)) {
-                $this->queue->reschedule($row['id'], $attempts, $failureClass, $this->backoffDelay($attempts));
+                $this->queue->reschedule($row['id'], $attempts, $failureClass, $this->backoffDelay($attempts + 1));
 
                 continue;
             }

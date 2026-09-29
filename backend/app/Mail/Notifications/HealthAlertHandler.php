@@ -16,6 +16,11 @@ use BitApps\SMTP\Settings\PluginSettings;
 class HealthAlertHandler
 {
     /**
+     * Minimum spacing between repeat "unhealthy" alerts when the repeat interval is off, so a flapping connection can't spam.
+     */
+    public const FLAP_GUARD_MINUTES = 15;
+
+    /**
      * OAuth token expiry warning window (72 hours); keep in sync with HealthBadge.tsx.
      */
     private const OAUTH_WARNING_WINDOW_SECONDS = 259200;
@@ -107,15 +112,20 @@ class HealthAlertHandler
     }
 
     /**
-     * Subscription, per-transition dedup, pairing, cooldown, and channel availability for one event.
+     * Subscription, per-transition dedup, pairing, repeat-interval gap, and channel availability for one event.
      */
     private function isDueFor(string $event, ConnectionHealth $record, SettingsRepository $preferences): bool
     {
-        return $this->isSubscribed($event, $preferences)
-            && $record->getLastAlertedState() !== $event
-            && !$this->isUnpairedRecovery($event, $record, $preferences)
-            && !$this->isCoolingDown($record, $preferences)
-            && $this->dispatcher->hasEnabledChannel();
+        if (!AlertEvents::isSubscribed($event, $preferences)
+            || $record->getLastAlertedState() === $event
+            || $this->isUnpairedRecovery($event, $record, $preferences)) {
+            return false;
+        }
+
+        $alerts = $this->dispatcher->alerts();
+
+        return !$this->isCoolingDown($event, $record, $alerts['reminder_minutes'])
+            && $this->dispatcher->hasEnabledChannel($alerts);
     }
 
     /**
@@ -124,7 +134,7 @@ class HealthAlertHandler
     private function isUnpairedRecovery(string $event, ConnectionHealth $record, SettingsRepository $preferences): bool
     {
         return $event === HealthNotification::EVENT_RECOVERED
-            && $this->isSubscribed(HealthNotification::EVENT_UNHEALTHY, $preferences)
+            && AlertEvents::isSubscribed(HealthNotification::EVENT_UNHEALTHY, $preferences)
             && $record->getLastOutageAlert() !== HealthNotification::EVENT_UNHEALTHY;
     }
 
@@ -174,27 +184,31 @@ class HealthAlertHandler
     }
 
     /**
-     * True when the admin opted into this event in the `notify_events` preference.
+     * True while the connection's last alert is younger than the required spacing; a recovery is never held back.
      */
-    private function isSubscribed(string $event, SettingsRepository $preferences): bool
+    private function isCoolingDown(string $event, ConnectionHealth $record, int $repeatMinutes): bool
     {
-        $events = $preferences->get('notify_events', []);
-
-        return \is_array($events) && \in_array($event, $events, true);
-    }
-
-    /**
-     * True while the last alert for this connection is younger than `notify_cooldown_minutes`.
-     */
-    private function isCoolingDown(ConnectionHealth $record, SettingsRepository $preferences): bool
-    {
-        $cooldownMinutes = (int) $preferences->get('notify_cooldown_minutes', 0);
-        $lastAlertedAt   = $record->getLastAlertedAt();
-        if ($cooldownMinutes <= 0 || $lastAlertedAt === null) {
+        $lastAlertedAt  = $record->getLastAlertedAt();
+        $spacingMinutes = self::spacingMinutes($event, $record, $repeatMinutes);
+        if ($event === HealthNotification::EVENT_RECOVERED || $spacingMinutes <= 0 || $lastAlertedAt === null) {
             return false;
         }
 
-        return (time() - (int) strtotime($lastAlertedAt)) < $cooldownMinutes * self::SECONDS_PER_MINUTE;
+        return (time() - (int) strtotime($lastAlertedAt)) < $spacingMinutes * self::SECONDS_PER_MINUTE;
+    }
+
+    /**
+     * The shared repeat interval, or the built-in flap guard for a repeat "unhealthy" alert when repeating is off.
+     */
+    private static function spacingMinutes(string $event, ConnectionHealth $record, int $repeatMinutes): int
+    {
+        if ($repeatMinutes > 0) {
+            return $repeatMinutes;
+        }
+
+        $isRepeatOutage = $event === HealthNotification::EVENT_UNHEALTHY && $record->getLastOutageAlert() !== null;
+
+        return $isRepeatOutage ? self::FLAP_GUARD_MINUTES : 0;
     }
 
     /**

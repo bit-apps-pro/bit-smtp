@@ -44,7 +44,6 @@ const preferences: Preferences = {
   retry_on_classes: ['transient'],
   health_check_enabled: false,
   health_check_interval: 'daily',
-  notify_cooldown_minutes: 0,
   notify_events: ['connection_unhealthy'],
   uninstall_purge: true,
   tracking_enabled: false
@@ -141,6 +140,7 @@ async function addChannel(typeLabel: string) {
 describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.location.hash = ''
     ;(usePreferences as Mock).mockReturnValue({ data: preferences, isPending: false })
     ;(useSavePreferences as Mock).mockReturnValue({
       mutateAsync: savePreferencesMutateAsync,
@@ -221,8 +221,8 @@ describe('SettingsPage', () => {
     const saveButton = screen.getByRole('button', { name: /save changes/i })
     expect(saveButton).toBeDisabled()
 
-    await userEvent.clear(screen.getByLabelText('Log retention (days)'))
-    await userEvent.type(screen.getByLabelText('Log retention (days)'), '60')
+    await userEvent.clear(screen.getByLabelText('Keep logs for (days)'))
+    await userEvent.type(screen.getByLabelText('Keep logs for (days)'), '60')
 
     expect(saveButton).toBeEnabled()
     expect(screen.getByText('You have unsaved changes')).toBeInTheDocument()
@@ -255,58 +255,39 @@ describe('SettingsPage', () => {
     expect(screen.getByLabelText('Recipients')).toBeInTheDocument()
   })
 
-  it('renders the alert cooldown field on the Health tab, its actual consumer', async () => {
+  it('shows the alert checklist and the single repeat control on the Notifications tab, not Health', async () => {
     renderWithProviders(<SettingsPage />)
 
     await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
+    expect(screen.queryByRole('group', { name: 'Alert me about' })).not.toBeInTheDocument()
 
-    expect(screen.getByLabelText('Alert cooldown (minutes)')).toBeInTheDocument()
-    expect(screen.getByLabelText('Alert on these events')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+    expect(screen.getByRole('group', { name: 'Alert me about' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Repeat while the problem continues')).toBeInTheDocument()
   })
 
-  it('persists a newly selected notify_events subscription when saving from the Health tab', async () => {
-    ;(usePreferences as Mock).mockReturnValue({
-      data: { ...preferences, health_check_enabled: true, notify_events: ['connection_unhealthy'] },
-      isPending: false
-    })
+  it('persists a newly ticked alert event when saving from the Notifications tab', async () => {
     renderWithProviders(<SettingsPage />)
 
-    await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
-    await userEvent.click(screen.getByLabelText('Alert on these events'))
-    await userEvent.click(await screen.findByText('OAuth token expiring'))
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Account sign-in about to expire' }))
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
     await waitFor(() => {
       expect(savePreferencesMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          notify_events: ['connection_unhealthy', 'oauth_expiring']
-        })
+        expect.objectContaining({ notify_events: ['connection_unhealthy', 'oauth_expiring'] })
       )
     })
+    expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
   })
 
-  const anyEventLabel =
-    /Connection unhealthy|Connection recovered|OAuth token expiring|OAuth token expired/
-
-  it('durably saves an empty subscription when every alert event is deselected', async () => {
-    ;(usePreferences as Mock).mockReturnValue({
-      data: {
-        ...preferences,
-        health_check_enabled: true,
-        notify_events: ['connection_unhealthy', 'oauth_expired']
-      },
-      isPending: false
-    })
+  it('durably saves an empty subscription when every alert event is unticked', async () => {
     renderWithProviders(<SettingsPage />)
 
-    await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'A connection stops working' }))
 
-    await userEvent.click(screen.getByLabelText('Alert on these events'))
-    await userEvent.keyboard('{Backspace}{Backspace}')
-
-    const events = screen.getByLabelText('Alert on these events').closest('.ant-select') as HTMLElement
-    expect(within(events).queryByText(anyEventLabel)).not.toBeInTheDocument()
-
+    expect(screen.getByText('Nothing is ticked, so no alerts will be sent.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
     await waitFor(() => {
       expect(savePreferencesMutateAsync).toHaveBeenCalledWith(
@@ -315,25 +296,60 @@ describe('SettingsPage', () => {
     })
   })
 
-  it('reloads a stored empty subscription as no selection instead of re-defaulting to all four', async () => {
+  it('reloads a stored empty subscription as nothing ticked instead of re-defaulting to all', async () => {
     ;(usePreferences as Mock).mockReturnValue({
-      data: { ...preferences, health_check_enabled: true, notify_events: [] },
+      data: { ...preferences, notify_events: [] },
+      isPending: false
+    })
+    renderWithProviders(<SettingsPage />)
+
+    await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
+
+    const group = screen.getByRole('group', { name: 'Alert me about' })
+    within(group)
+      .getAllByRole('checkbox')
+      .forEach(checkbox => expect(checkbox).not.toBeChecked())
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  it('warns on the Health tab and jumps to Notifications when health alerts would reach nobody', async () => {
+    ;(usePreferences as Mock).mockReturnValue({
+      data: { ...preferences, health_check_enabled: true, notify_events: ['send_failure'] },
       isPending: false
     })
     renderWithProviders(<SettingsPage />)
 
     await userEvent.click(screen.getByRole('tab', { name: /^health/i }))
+    expect(screen.getByText('You won’t be alerted about connection problems')).toBeInTheDocument()
 
-    const events = screen.getByLabelText('Alert on these events').closest('.ant-select') as HTMLElement
-    expect(within(events).queryByText(anyEventLabel)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Set up alerts' }))
+
+    expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('aria-selected', 'true')
+    expect(window.location.hash).toBe('#/?tab=notifications')
+  })
+
+  it('opens the tab named in the ?tab= deep link', () => {
+    window.location.hash = '#/?tab=reliability'
+    renderWithProviders(<SettingsPage />)
+
+    expect(screen.getByRole('tab', { name: /^reliability/i })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('falls back to the first tab for an unknown ?tab= key', () => {
+    window.location.hash = '#/?tab=nope'
+    renderWithProviders(<SettingsPage />)
+
+    expect(screen.getByRole('tab', { name: /general & logging/i })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
   })
 
   it('saves only the preferences store when a General field changes', async () => {
     renderWithProviders(<SettingsPage />)
 
-    await userEvent.clear(screen.getByLabelText('Log retention (days)'))
-    await userEvent.type(screen.getByLabelText('Log retention (days)'), '60')
+    await userEvent.clear(screen.getByLabelText('Keep logs for (days)'))
+    await userEvent.type(screen.getByLabelText('Keep logs for (days)'), '60')
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
     await waitFor(() => {
@@ -375,11 +391,11 @@ describe('SettingsPage', () => {
   it('blocks save and shows inline validation when log_retention_days is out of range', async () => {
     renderWithProviders(<SettingsPage />)
 
-    await userEvent.clear(screen.getByLabelText('Log retention (days)'))
-    await userEvent.type(screen.getByLabelText('Log retention (days)'), '500')
+    await userEvent.clear(screen.getByLabelText('Keep logs for (days)'))
+    await userEvent.type(screen.getByLabelText('Keep logs for (days)'), '500')
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
-    expect(await screen.findByText('Enter a number of days between 1 and 200')).toBeInTheDocument()
+    expect(await screen.findByText('Enter 1 to 200 days.')).toBeInTheDocument()
     expect(savePreferencesMutateAsync).not.toHaveBeenCalled()
   })
 
@@ -401,7 +417,12 @@ describe('SettingsPage', () => {
     await waitFor(() => {
       expect(notify.error).toHaveBeenCalledWith('Please fix the highlighted fields before saving.')
     })
-    expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /notifications/i })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      )
+    })
     expect(savePreferencesMutateAsync).not.toHaveBeenCalled()
     expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
   })
@@ -543,8 +564,8 @@ describe('SettingsPage', () => {
     })
     renderWithProviders(<SettingsPage />)
 
-    await userEvent.clear(screen.getByLabelText('Log retention (days)'))
-    await userEvent.type(screen.getByLabelText('Log retention (days)'), '60')
+    await userEvent.clear(screen.getByLabelText('Keep logs for (days)'))
+    await userEvent.type(screen.getByLabelText('Keep logs for (days)'), '60')
     await editRecipientsAndSave()
     await waitFor(() => expect(notify.error).toHaveBeenCalledWith('Preferences store unavailable'))
 
@@ -593,7 +614,7 @@ describe('SettingsPage', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: /notifications/i }))
     await addSlackChannel()
-    const [, slackEnabled] = screen.getAllByRole('switch', { name: 'Channel enabled' })
+    const [, slackEnabled] = screen.getAllByRole('switch', { name: /^Turn on / })
     await userEvent.click(slackEnabled)
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
 

@@ -20,6 +20,11 @@ use Mockery;
 trait HealthAlertFixtures
 {
     /**
+     * The shared alerts repeat interval (`reminder_minutes`) the mocked dispatcher reports.
+     */
+    private int $repeatMinutes = 0;
+
+    /**
      * A delivery handler over the given dispatcher and store, resolving the given connections by id.
      *
      * @param null|Connection[] $connections
@@ -61,6 +66,11 @@ trait HealthAlertFixtures
     {
         $dispatcher = Mockery::mock(AlertChannelDispatcher::class);
         $dispatcher->shouldReceive('hasEnabledChannel')->andReturn($hasEnabledChannel);
+        $dispatcher->shouldReceive('alerts')->andReturnUsing(fn (): array => [
+            'enabled'          => $hasEnabledChannel,
+            'reminder_minutes' => $this->repeatMinutes,
+            'channels'         => [],
+        ]);
 
         return $dispatcher;
     }
@@ -132,15 +142,13 @@ trait HealthAlertFixtures
     }
 
     /**
-     * Subscribe to the given events with the given cooldown.
+     * Subscribe to the given events with the given shared repeat interval.
      *
      * @param string[] $events
      */
-    private function preferences(array $events, int $cooldownMinutes = 0): void
+    private function preferences(array $events, int $repeatMinutes = 0): void
     {
-        Functions\when('get_option')->justReturn([
-            'notify_events'           => $events,
-            'notify_cooldown_minutes' => $cooldownMinutes,
-        ]);
+        $this->repeatMinutes = $repeatMinutes;
+        Functions\when('get_option')->justReturn(['notify_events' => $events]);
     }
 }

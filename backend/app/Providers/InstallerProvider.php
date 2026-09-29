@@ -94,6 +94,7 @@ class InstallerProvider
             'BitSmtpCleanupOrphanDeliveryEvents',
             'BitSmtpRetryQueueMigration',
             'BitSmtpEngagementTableMigration',
+            'BitSmtpAlertingPreferencesUpgrade',
             'BitSmtpPluginOptions',
         ];
 

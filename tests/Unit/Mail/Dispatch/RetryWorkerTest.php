@@ -100,6 +100,22 @@ final class RetryWorkerTest extends BaseUnitTestCase
         (new RetryWorker($queue, $bridge))->process();
     }
 
+    public function testTheWaitAfterAFailedRetryDoublesTheWaitBeforeIt(): void
+    {
+        Functions\when('get_option')->justReturn([]);
+        $queue = Mockery::mock(RetryQueue::class);
+        $queue->shouldReceive('claimDue')->once()->with(20)->andReturn([$this->row(['id' => 3, 'attempts' => 0, 'max_attempts' => 3])]);
+        $queue->shouldReceive('renewClaim')->once()->with(3, 'tok')->andReturn(true);
+        $queue->shouldReceive('reschedule')->once()->with(3, 1, FailureCategory::TRANSIENT, Mockery::on(
+            static fn (int $delay): bool => $delay >= (int) floor(600 * 0.85) && $delay <= (int) ceil(600 * 1.15)
+        ));
+
+        $bridge = $this->mockBridge();
+        $bridge->shouldReceive('dispatchRetry')->once()->andReturn(['succeeded' => false, 'failure_class' => FailureCategory::TRANSIENT]);
+
+        (new RetryWorker($queue, $bridge))->process();
+    }
+
     public function testProcessDeletesWhenAttemptsAreExhausted(): void
     {
         $queue = Mockery::mock(RetryQueue::class);

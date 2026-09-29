@@ -48,7 +48,7 @@ describe('RetryQueuePanel', () => {
   it('renders the queue depth and a row per queued retry with its failure label', () => {
     render(<RetryQueuePanel />)
 
-    expect(screen.getByText('Queued retries')).toBeInTheDocument()
+    expect(screen.getByText('Waiting to be sent again')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByText('Sending limit reached')).toBeInTheDocument()
     expect(screen.getByText('2/5')).toBeInTheDocument()
@@ -60,28 +60,28 @@ describe('RetryQueuePanel', () => {
     mockQueue({ depth: 0, items: [] })
     render(<RetryQueuePanel />)
 
-    expect(screen.getByText('No retries queued')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Clear queue' })).not.toBeInTheDocument()
+    expect(screen.getByText('No emails are waiting to be sent again')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Clear list' })).not.toBeInTheDocument()
   })
 
   it('warns that queued sends are stuck when automatic retry is turned off', () => {
     mockQueue({ enabled: false })
     render(<RetryQueuePanel />)
 
-    expect(screen.getByText('Automatic retry is turned off')).toBeInTheDocument()
+    expect(screen.getByText('“Try failed emails again” is off')).toBeInTheDocument()
   })
 
   it('does not warn while automatic retry is enabled', () => {
     render(<RetryQueuePanel />)
 
-    expect(screen.queryByText('Automatic retry is turned off')).not.toBeInTheDocument()
+    expect(screen.queryByText('“Try failed emails again” is off')).not.toBeInTheDocument()
   })
 
   it('notes when the table shows only the first slice of a larger queue', () => {
     mockQueue({ depth: 150 })
     render(<RetryQueuePanel />)
 
-    expect(screen.getByText('Showing the first 1 of 150 queued retries.')).toBeInTheDocument()
+    expect(screen.getByText('Showing the first 1 of 150 waiting emails.')).toBeInTheDocument()
   })
 
   it('refetches the queue when Refresh is clicked', async () => {
@@ -99,10 +99,10 @@ describe('RetryQueuePanel', () => {
     ;(useFlushRetryQueue as Mock).mockReturnValue({ mutate, isPending: false })
     render(<RetryQueuePanel />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Clear queue' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Clear list' }))
     expect(mutate).not.toHaveBeenCalled()
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Discard' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove emails' }))
 
     expect(mutate).toHaveBeenCalledTimes(1)
   })
@@ -114,8 +114,8 @@ describe('RetryQueuePanel', () => {
     ;(useFlushRetryQueue as Mock).mockReturnValue({ mutate, isPending: false })
     render(<RetryQueuePanel />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Clear queue' }))
-    await userEvent.click(await screen.findByRole('button', { name: 'Discard' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Clear list' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove emails' }))
 
     expect(notify.success).toHaveBeenCalledWith('Cleared 1 queued retry.')
   })

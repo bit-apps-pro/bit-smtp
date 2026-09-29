@@ -10,6 +10,7 @@ use BitApps\SMTP\HTTP\Requests\SavePreferencesRequest;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Settings\PluginSettings;
+use BitApps\SMTP\Settings\PreferencesUpgrade;
 
 /**
  * REST endpoints for reading, saving, exporting, and importing the plugin's global preferences.
@@ -59,7 +60,7 @@ class PreferencesController
     }
 
     /**
-     * Validate imported blob with save() rules; accepts envelope or flat body for round-trip.
+     * Upgrade a pre-2.8 export, then validate with save() rules; accepts envelope or flat body for round-trip.
      */
     public function import(Request $request): Response
     {
@@ -67,6 +68,7 @@ class PreferencesController
         if (isset($payload['preferences']) && \is_array($payload['preferences'])) {
             $payload = $payload['preferences'];
         }
+        $payload = PreferencesUpgrade::upgrade($payload);
 
         $request->make($payload, (new SavePreferencesRequest())->rules());
 

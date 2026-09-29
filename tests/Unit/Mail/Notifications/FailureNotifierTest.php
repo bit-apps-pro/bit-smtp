@@ -6,9 +6,11 @@ use BitApps\SMTP\Config;
 use BitApps\SMTP\Mail\Notifications\ChannelDeliveryResult;
 use BitApps\SMTP\Mail\Notifications\FailureIncident;
 use BitApps\SMTP\Mail\Notifications\FailureNotification;
+use BitApps\SMTP\Mail\Notifications\HealthNotification;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use BitApps\SMTP\Tests\Fake\LosingFailureNotificationGate;
 use BitApps\SMTP\Tests\Unit\Mail\Notifications\Support\FailureAlertFixtures;
+use Brain\Monkey\Functions;
 use WP_Error;
 
 /**
@@ -50,6 +52,18 @@ final class FailureNotifierTest extends BaseUnitTestCase
 
         $this->assertSame([], $this->scheduled);
         $this->assertNull($this->gate->state);
+    }
+
+    public function testNothingIsTrackedOrQueuedWhenSendFailureAlertsAreUnsubscribed(): void
+    {
+        Functions\when('get_option')->justReturn(['notify_events' => [HealthNotification::EVENT_UNHEALTHY]]);
+        $notifier = $this->notifier([$this->channel('email')], $this->emailAlerts());
+
+        $notifier->notifyFailure($this->error('Connection refused'));
+        $notifier->notifySuccess();
+
+        $this->assertSame([], $this->scheduled);
+        $this->assertNull($this->storedIncident());
     }
 
     public function testFailuresWhileTheOpenedAlertIsInFlightOnlyCount(): void

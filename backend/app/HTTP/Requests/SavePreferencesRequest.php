@@ -7,7 +7,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Settings\SettingField;
 use BitApps\SMTP\HTTP\Requests\Rules\EachInRule;
 use BitApps\SMTP\HTTP\Requests\Rules\InRule;
 use BitApps\SMTP\Mail\Dispatch\FailureCategory;
-use BitApps\SMTP\Mail\Notifications\HealthNotification;
+use BitApps\SMTP\Mail\Notifications\AlertEvents;
 use BitApps\SMTP\Settings\PluginSettings;
 
 /**
@@ -15,6 +15,15 @@ use BitApps\SMTP\Settings\PluginSettings;
  */
 class SavePreferencesRequest extends Request
 {
+    /**
+     * Integer preferences bounded at the request boundary, mapped to their inclusive [min, max] range.
+     */
+    private const INT_RANGES = [
+        'log_retention_days'   => PluginSettings::LOG_RETENTION_DAYS_RANGE,
+        'send_timeout_seconds' => PluginSettings::SEND_TIMEOUT_SECONDS_RANGE,
+        'retry_max_attempts'   => PluginSettings::RETRY_MAX_ATTEMPTS_RANGE,
+    ];
+
     /**
      * Build nullable rule set per schema field; drop unknown keys from validated().
      *
@@ -48,8 +57,8 @@ class SavePreferencesRequest extends Request
 
             case SettingField::TYPE_INT:
                 $rules[] = 'integer';
-                if ($field->key() === 'log_retention_days') {
-                    $rules[] = 'between:1,200';
+                if (isset(self::INT_RANGES[$field->key()])) {
+                    $rules[] = 'between:' . implode(',', self::INT_RANGES[$field->key()]);
                 }
 
                 break;
@@ -62,7 +71,7 @@ class SavePreferencesRequest extends Request
             case SettingField::TYPE_ARRAY:
                 $rules[] = 'array';
                 if ($field->key() === 'notify_events') {
-                    $rules[] = new EachInRule(HealthNotification::eventKeys());
+                    $rules[] = new EachInRule(AlertEvents::keys());
                 } elseif ($field->key() === 'retry_on_classes') {
                     $rules[] = new EachInRule(FailureCategory::retryableClasses());
                 }

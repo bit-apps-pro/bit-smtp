@@ -1,10 +1,11 @@
 import { type ChangeEvent, useRef } from 'react'
 import { triggerBlobDownload } from '@common/helpers/download'
 import { __ } from '@common/helpers/i18nwrap'
+import { HelpfulFormItem } from '@components/FieldHelp'
 import notify from '@components/Toaster/Toaster'
 import SettingsPanel, { PanelDivider } from '@pages/Settings/components/SettingsPanel'
 import { useExportPreferences, useImportPreferences } from '@pages/Settings/data/usePreferences'
-import { Button, Flex, Form, Switch, Typography } from 'antd'
+import { Button, Flex, Form, Popconfirm, Switch, Typography } from 'antd'
 import { Download, Upload } from 'lucide-react'
 
 const { Text } = Typography
@@ -40,6 +41,8 @@ function readJsonFile(file: File): Promise<Record<string, unknown>> {
 
 /** Privacy & Data preference fields, plus Export/Import buttons for the whole preferences blob. */
 export default function PrivacyData() {
+  const form = Form.useFormInstance()
+  const purgeOnUninstall = Form.useWatch('uninstall_purge', form) ?? false
   const fileInputRef = useRef<HTMLInputElement>(null)
   const exportPreferences = useExportPreferences()
   const importPreferences = useImportPreferences()
@@ -49,9 +52,9 @@ export default function PrivacyData() {
     exportPreferences.mutate(undefined, {
       onSuccess: preferences => {
         downloadJson(EXPORT_FILENAME, { preferences })
-        notify.success(__('Preferences exported'))
+        notify.success(__('Settings exported'))
       },
-      onError: () => notify.error(__('Failed to export preferences'))
+      onError: () => notify.error(__('Couldn’t export your settings. Please try again.'))
     })
   }
 
@@ -61,7 +64,7 @@ export default function PrivacyData() {
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.target
     const file = input.files?.[0]
-    input.value = '' // allow re-selecting the same file next time
+    input.value = ''
     if (!file) {
       return
     }
@@ -71,57 +74,47 @@ export default function PrivacyData() {
       importPreferences.mutate(payload, {
         onSuccess: response => {
           if (response.status === 'success') {
-            notify.success(__('Preferences imported'))
+            notify.success(__('Settings imported'))
           } else {
-            notify.error(response.message || __('Failed to import preferences'))
+            notify.error(response.message || __('Couldn’t import that file. Check it and try again.'))
           }
         },
-        onError: () => notify.error(__('Failed to import preferences'))
+        onError: () => notify.error(__('Couldn’t import that file. Check it and try again.'))
       })
     } catch {
-      notify.error(__('Invalid preferences file'))
+      notify.error(__('That file isn’t a Bit SMTP settings file.'))
     }
   }
 
   return (
-    <SettingsPanel
-      intro={__(
-        'Control what happens to your data on uninstall, and export or import these preferences.'
-      )}
-    >
-      <Form.Item
+    <SettingsPanel intro={__('Choose what happens to your data, and back up these settings to a file.')}>
+      <HelpfulFormItem
         name="uninstall_purge"
-        label={__('Purge data on uninstall')}
-        valuePropName="checked"
-        extra={
-          <Text type="secondary">
-            {__('Delete all plugin settings and logs when the plugin is uninstalled.')}
+        label={__('Delete all data when you delete the plugin')}
+        hint={
+          <Text type={purgeOnUninstall ? 'danger' : 'secondary'}>
+            {__('Removes every connection, password, log and setting for good. This can’t be undone.')}
           </Text>
         }
+        valuePropName="checked"
       >
         <Switch />
-      </Form.Item>
+      </HelpfulFormItem>
       <PanelDivider />
-      <Form.Item
+      <HelpfulFormItem
         name="tracking_enabled"
-        label={__('Enable open/click tracking')}
+        label={__('Track opens and clicks')}
+        hint={__('Shows when people open your emails or click their links. Needs email logs turned on.')}
+        details={{
+          title: __('What gets tracked?'),
+          body: __(
+            'HTML emails get a tiny invisible image and tracked links. Some email apps open images by themselves, so those opens are marked separately. You can export or erase this data with the WordPress privacy tools.'
+          )
+        }}
         valuePropName="checked"
-        extra={
-          <Text type="secondary">
-            {__(
-              'Off by default. When on, outgoing HTML emails get an invisible pixel and rewritten ' +
-                'links to record opens and link clicks at the message level. Requires logging to be ' +
-                'enabled, since engagement is tied to the email log entry and kept for as long as your ' +
-                'log retention setting. Open counts include automated fetches such as Apple Mail ' +
-                'Privacy Protection and image proxies, which are flagged separately so human ' +
-                'engagement stays honest. Recorded events are covered by the built-in personal-data ' +
-                'export and erasure tools.'
-            )}
-          </Text>
-        }
       >
         <Switch />
-      </Form.Item>
+      </HelpfulFormItem>
       <PanelDivider />
       <Flex gap="small" wrap>
         <Button
@@ -129,22 +122,26 @@ export default function PrivacyData() {
           onClick={handleExport}
           loading={exportPreferences.isPending}
         >
-          {__('Export preferences')}
+          {__('Export settings')}
         </Button>
-        <Button
-          icon={<Upload size={16} />}
-          onClick={handleImportClick}
-          loading={importPreferences.isPending}
+        <Popconfirm
+          title={__('Replace your settings?')}
+          description={__('Importing a file replaces all your settings right away.')}
+          okText={__('Choose file')}
+          cancelText={__('Cancel')}
+          onConfirm={handleImportClick}
         >
-          {__('Import preferences')}
-        </Button>
+          <Button icon={<Upload size={16} />} loading={importPreferences.isPending}>
+            {__('Import settings')}
+          </Button>
+        </Popconfirm>
         <input
           ref={fileInputRef}
           type="file"
           accept="application/json"
-          style={{ display: 'none' }}
+          hidden
           onChange={handleFileChange}
-          aria-label={__('Import preferences file')}
+          aria-label={__('Settings file to import')}
         />
       </Flex>
     </SettingsPanel>

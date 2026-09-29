@@ -1,10 +1,12 @@
+import { failureClassEntry } from '@common/glossary'
 import { formatTimestamp } from '@common/helpers/datetime'
 import { __, sprintf } from '@common/helpers/i18nwrap'
+import { HelpPopover } from '@components/FieldHelp'
 import notify from '@components/Toaster/Toaster'
-import { FAILURE_CLASS_LABELS } from '@pages/Logs/data/failureClass'
 import SettingsPanel from '@pages/Settings/components/SettingsPanel'
 import useFlushRetryQueue from '@pages/Settings/data/useFlushRetryQueue'
 import useRetryQueue, { type RetryQueueItem } from '@pages/Settings/data/useRetryQueue'
+import failureTypesHelp from '@pages/Settings/sections/failureTypesHelp'
 import {
   Alert,
   Button,
@@ -34,17 +36,19 @@ const renderConnectionChain = (chain: string) => {
   )
 }
 
-const columns: TableColumnsType<RetryQueueItem> = [
+/** Queue table columns; the failure column uses the shared glossary labels plus the "why did it fail" popover. */
+const buildColumns = (): TableColumnsType<RetryQueueItem> => [
   {
-    title: __('Failure'),
+    title: (
+      <Flex align="center" gap={2}>
+        {__('Why it failed')}
+        <HelpPopover label={__('Help: why it failed')} details={failureTypesHelp()} />
+      </Flex>
+    ),
     dataIndex: 'failure_class',
     key: 'failure_class',
     render: (failureClass: string | null) =>
-      failureClass ? (
-        <Tag color="volcano">{FAILURE_CLASS_LABELS[failureClass] ?? failureClass}</Tag>
-      ) : (
-        '—'
-      )
+      failureClass ? <Tag color="volcano">{failureClassEntry(failureClass).label}</Tag> : '—'
   },
   {
     title: __('Attempts'),
@@ -81,34 +85,30 @@ export default function RetryQueuePanel() {
     flush.mutate(undefined, {
       onSuccess: result => {
         if (result.ok) {
-          notify.success(result.message || sprintf(__('Cleared %d queued retries'), result.deleted))
+          notify.success(result.message || sprintf(__('Removed %d waiting emails'), result.deleted))
           return
         }
-        notify.error(result.message || __('Could not clear the retry queue'))
+        notify.error(result.message || __('Couldn’t clear the list. Please try again.'))
       },
-      onError: () => notify.error(__('Could not clear the retry queue'))
+      onError: () => notify.error(__('Couldn’t clear the list. Please try again.'))
     })
   }
 
   return (
     <SettingsPanel
-      intro={__(
-        'Sends that failed with a retryable error wait here for their next attempt. Use Refresh to see the latest.'
-      )}
+      intro={__('Emails waiting for their next try are listed here. Click Refresh to see the latest.')}
     >
       <Flex vertical gap="middle">
         {!enabled && depth > 0 ? (
           <Alert
             type="warning"
             showIcon
-            message={__('Automatic retry is turned off')}
-            description={__(
-              'These queued sends will not be attempted until you enable automatic retry above and save.'
-            )}
+            message={__('“Try failed emails again” is off')}
+            description={__('These emails won’t be sent until you turn it back on and save.')}
           />
         ) : null}
         <Flex align="center" justify="space-between" gap="middle" wrap>
-          <Statistic title={__('Queued retries')} value={depth} />
+          <Statistic title={__('Waiting to be sent again')} value={depth} />
           <Flex gap="small" wrap>
             <Button
               icon={<RefreshCw size={16} />}
@@ -121,35 +121,33 @@ export default function RetryQueuePanel() {
             </Button>
             {depth > 0 ? (
               <Popconfirm
-                title={__('Clear the retry queue?')}
-                description={__(
-                  'Discarding queued retries abandons those sends — they will not be delivered.'
-                )}
-                okText={__('Discard')}
+                title={__('Clear the waiting list?')}
+                description={__('These emails will never be sent. This can’t be undone.')}
+                okText={__('Remove emails')}
                 cancelText={__('Cancel')}
                 okButtonProps={{ danger: true }}
                 onConfirm={handleFlush}
               >
                 <Button danger loading={flush.isPending}>
-                  {__('Clear queue')}
+                  {__('Clear list')}
                 </Button>
               </Popconfirm>
             ) : null}
           </Flex>
         </Flex>
         {depth === 0 && !isLoading ? (
-          <Empty description={__('No retries queued')} />
+          <Empty description={__('No emails are waiting to be sent again')} />
         ) : (
           <Table<RetryQueueItem>
             rowKey="id"
-            columns={columns}
+            columns={buildColumns()}
             dataSource={items}
             pagination={false}
             size="small"
             loading={isLoading}
             footer={
               depth > items.length
-                ? () => sprintf(__('Showing the first %d of %d queued retries.'), items.length, depth)
+                ? () => sprintf(__('Showing the first %d of %d waiting emails.'), items.length, depth)
                 : undefined
             }
           />

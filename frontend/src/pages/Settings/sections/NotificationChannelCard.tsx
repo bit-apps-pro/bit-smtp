@@ -1,5 +1,5 @@
 import { DeleteOutlined } from '@ant-design/icons'
-import { __ } from '@common/helpers/i18nwrap'
+import { __, sprintf } from '@common/helpers/i18nwrap'
 import { Button, Card, Flex, Form, Input, Popconfirm, Switch, Tag, Typography, theme } from 'antd'
 import { Send } from 'lucide-react'
 import { type ChannelDefinition } from './NotificationChannelFields'
@@ -46,7 +46,7 @@ export default function NotificationChannelCard({
       }
       extra={
         <Form.Item name={[index, 'enabled']} valuePropName="checked" noStyle>
-          <Switch size="small" aria-label={__('Channel enabled')} />
+          <Switch size="small" aria-label={sprintf(__('Turn on %s'), displayName)} />
         </Form.Item>
       }
       actions={[
@@ -63,8 +63,10 @@ export default function NotificationChannelCard({
         <Popconfirm
           key="remove"
           title={__('Remove this channel?')}
+          description={__('It’s removed for good when you click Save changes.')}
           onConfirm={onRemove}
-          okText={__('Remove')}
+          okText={__('Remove channel')}
+          okButtonProps={{ danger: true }}
           cancelText={__('Cancel')}
         >
           <Button type="text" danger icon={<DeleteOutlined />}>

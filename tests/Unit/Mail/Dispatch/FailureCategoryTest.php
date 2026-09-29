@@ -20,10 +20,10 @@ final class FailureCategoryTest extends BaseUnitTestCase
         );
     }
 
-    public function testIsRetryableWithinAnEmptyFilterAllowsEveryRetryableClass(): void
+    public function testIsRetryableWithinAnEmptyListRetriesNothing(): void
     {
-        $this->assertTrue(FailureCategory::isRetryableWithin(FailureCategory::TRANSIENT, []));
-        $this->assertTrue(FailureCategory::isRetryableWithin(FailureCategory::RATE_LIMITED, []));
+        $this->assertFalse(FailureCategory::isRetryableWithin(FailureCategory::TRANSIENT, []));
+        $this->assertFalse(FailureCategory::isRetryableWithin(FailureCategory::RATE_LIMITED, []));
     }
 
     public function testIsRetryableWithinNeverAllowsANonRetryableClass(): void

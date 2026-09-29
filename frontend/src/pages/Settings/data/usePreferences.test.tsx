@@ -30,7 +30,6 @@ const preferences: Preferences = {
   retry_on_classes: [],
   health_check_enabled: false,
   health_check_interval: 'daily',
-  notify_cooldown_minutes: 0,
   notify_events: [],
   uninstall_purge: true,
   tracking_enabled: false

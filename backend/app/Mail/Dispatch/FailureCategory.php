@@ -42,17 +42,13 @@ final class FailureCategory
     }
 
     /**
-     * True when failure is retryable and (if filter non-empty) listed in allowedClasses.
+     * True when failure is retryable and explicitly listed in allowedClasses (an empty list retries nothing).
      *
-     * @param string[] $allowedClasses retry_on_classes preference (empty = all retryable)
+     * @param string[] $allowedClasses retry_on_classes preference
      */
     public static function isRetryableWithin(string $category, array $allowedClasses): bool
     {
-        if (!self::isRetryable($category)) {
-            return false;
-        }
-
-        return $allowedClasses === [] || \in_array($category, $allowedClasses, true);
+        return self::isRetryable($category) && \in_array($category, $allowedClasses, true);
     }
 
     /**

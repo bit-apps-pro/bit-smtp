@@ -37,7 +37,7 @@ class FailureNotifier implements FailureNotifierInterface
     public function notifyFailure(WP_Error $error, ?Connection $connection = null): void
     {
         $alerts = $this->dispatcher->alerts();
-        if (!$this->dispatcher->hasEnabledChannel($alerts)) {
+        if (!$this->isAlerting($alerts)) {
             return;
         }
 
@@ -71,7 +71,7 @@ class FailureNotifier implements FailureNotifierInterface
     public function notifySuccess(): void
     {
         $closed = $this->incidents->close();
-        if ($closed === null || !$closed->announcesResolution() || !$this->dispatcher->hasEnabledChannel()) {
+        if ($closed === null || !$closed->announcesResolution() || !$this->isAlerting($this->dispatcher->alerts())) {
             return;
         }
 
@@ -81,6 +81,16 @@ class FailureNotifier implements FailureNotifierInterface
             return;
         }
         $this->schedule(FailureNotification::EVENT_RESOLVED, $resolved, $now);
+    }
+
+    /**
+     * True when send-failure alerts are subscribed to and at least one channel can deliver them.
+     *
+     * @param array{enabled:bool,reminder_minutes:int,channels:list<array{id:string,type:string,name:string,enabled:bool,settings:array<string,mixed>}>} $alerts
+     */
+    private function isAlerting(array $alerts): bool
+    {
+        return $this->dispatcher->hasEnabledChannel($alerts) && AlertEvents::isSubscribed(AlertEvents::SEND_FAILURE);
     }
 
     /**

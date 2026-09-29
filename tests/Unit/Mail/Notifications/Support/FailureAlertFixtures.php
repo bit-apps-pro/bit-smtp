@@ -40,6 +40,7 @@ trait FailureAlertFixtures
     {
         $this->gate         = new InMemoryFailureNotificationGate();
         $this->resolvedGate = new InMemoryFailureNotificationGate();
+        Functions\when('get_option')->justReturn([]);
         Functions\when('wp_doing_cron')->justReturn(false);
         Functions\when('spawn_cron')->justReturn(true);
         Functions\when('get_bloginfo')->justReturn('Example Site');

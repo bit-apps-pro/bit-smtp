@@ -15,54 +15,83 @@ const baseValues: PreferencesFormValues = {
   retry_enabled: true,
   retry_max_attempts: 3,
   retry_backoff: 'exponential',
-  retry_on_classes: [],
+  retry_on_classes: ['transient', 'rate_limited'],
   health_check_enabled: false,
   health_check_interval: 'daily',
-  notify_cooldown_minutes: 0,
   notify_events: [],
   uninstall_purge: true,
   tracking_enabled: false
 }
 
+const FAILURE_GROUP = 'Which failures should be tried again?'
+
 /** Mounts Reliability inside a real Form and echoes the live retry_on_classes value for assertions. */
-function Harness({ initialValues }: { initialValues: PreferencesFormValues }) {
+function Harness({
+  initialValues,
+  cronDisabled
+}: {
+  initialValues: PreferencesFormValues
+  cronDisabled?: boolean
+}) {
   const [form] = Form.useForm<PreferencesFormValues>()
   const watched = Form.useWatch('retry_on_classes', form)
 
   return (
     <Form form={form} layout="vertical" initialValues={initialValues}>
-      <Reliability form={form} />
+      <Reliability form={form} cronDisabled={cronDisabled} />
       <div data-testid="watched-classes">{JSON.stringify(watched)}</div>
     </Form>
   )
 }
 
-/** The antd Select container wrapping a given labelled combobox, for scoping tag/option queries. */
-function selectContainer(label: string): HTMLElement {
-  return screen.getByLabelText(label).closest('.ant-select') as HTMLElement
-}
-
 describe('Reliability', () => {
-  it('renders the retry-class filter bound to the stored selection', () => {
-    render(<Harness initialValues={{ ...baseValues, retry_on_classes: ['rate_limited'] }} />)
-
-    const control = selectContainer('Retry only these failure types')
-    expect(within(control).getByText('Rate limited')).toBeInTheDocument()
-    expect(within(control).queryByText('Transient errors')).not.toBeInTheDocument()
-  })
-
-  it('disables the retry-class filter until automatic retry is enabled', () => {
-    render(<Harness initialValues={{ ...baseValues, retry_enabled: false }} />)
-
-    expect(screen.getByLabelText('Retry only these failure types')).toBeDisabled()
-  })
-
-  it('writes the chosen failure class back to retry_on_classes', async () => {
+  it('lists all five failure reasons and only lets the temporary ones be ticked', () => {
     render(<Harness initialValues={baseValues} />)
 
-    await userEvent.click(screen.getByLabelText('Retry only these failure types'))
-    await userEvent.click(await screen.findByText('Transient errors'))
+    const group = screen.getByRole('group', { name: FAILURE_GROUP })
+    expect(
+      within(group).getByRole('checkbox', { name: 'Temporary server or network problem' })
+    ).toBeChecked()
+    expect(within(group).getByRole('checkbox', { name: 'Sending limit reached' })).toBeChecked()
+    expect(within(group).getByRole('checkbox', { name: 'Login or API key rejected' })).toBeDisabled()
+    expect(
+      within(group).getByRole('checkbox', { name: "Recipient address doesn't exist" })
+    ).toBeDisabled()
+    expect(within(group).getByRole('checkbox', { name: 'Rejected by provider' })).toBeDisabled()
+  })
 
-    expect(screen.getByTestId('watched-classes')).toHaveTextContent(JSON.stringify(['transient']))
+  it('writes an unticked reason back to retry_on_classes', async () => {
+    render(<Harness initialValues={baseValues} />)
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Temporary server or network problem' }))
+
+    expect(screen.getByTestId('watched-classes')).toHaveTextContent(JSON.stringify(['rate_limited']))
+  })
+
+  it('hides the retry details while automatic retry is off', () => {
+    render(<Harness initialValues={{ ...baseValues, retry_enabled: false }} />)
+
+    expect(screen.getByRole('group', { name: FAILURE_GROUP, hidden: true })).not.toBeVisible()
+    expect(screen.getByLabelText('Number of tries')).not.toBeVisible()
+  })
+
+  it('previews when the tries will happen for the chosen wait', async () => {
+    render(<Harness initialValues={baseValues} />)
+
+    expect(
+      screen.getByText('Tries again about 5 min, 15 min, and 35 min after the first failure.')
+    ).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Same wait every time' }))
+
+    expect(
+      screen.getByText('Tries again about 5 min, 10 min, and 15 min after the first failure.')
+    ).toBeInTheDocument()
+  })
+
+  it('warns that retries need a real cron job when WP-Cron is off', () => {
+    render(<Harness initialValues={baseValues} cronDisabled />)
+
+    expect(screen.getByText(/WP-Cron\) are off on this site/)).toBeInTheDocument()
   })
 })

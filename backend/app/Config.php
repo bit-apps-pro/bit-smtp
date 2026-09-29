@@ -24,7 +24,7 @@ class Config
 
     public const VERSION = '1.2.4';
 
-    public const DB_VERSION = '2.7';
+    public const DB_VERSION = '2.8';
 
     public const LOGGING_CONTINUITY_FROM_OPTION = 'logging_continuity_from';
 
@@ -288,11 +288,11 @@ class Config
     private static function sideBarSubmenus(): array
     {
         $routes = [
-            'Configuration' => [__('Configuration', 'bit-smtp'), '/'],
-            'Analytics'     => [__('Analytics', 'bit-smtp'), '/analytics'],
+            'Configuration' => [__('Connections', 'bit-smtp'), '/'],
             'Routing'       => [__('Routing', 'bit-smtp'), '/routing'],
-            'Test'          => [__('Test', 'bit-smtp'), '/test-mail'],
             'Logs'          => [__('Logs', 'bit-smtp'), '/logs'],
+            'Analytics'     => [__('Analytics', 'bit-smtp'), '/analytics'],
+            'Test'          => [__('Test email', 'bit-smtp'), '/test-mail'],
             'Settings'      => [__('Settings', 'bit-smtp'), '/settings'],
         ];
 

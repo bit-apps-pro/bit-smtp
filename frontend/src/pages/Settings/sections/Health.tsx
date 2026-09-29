@@ -1,92 +1,86 @@
 import { __ } from '@common/helpers/i18nwrap'
+import { HelpfulFormItem } from '@components/FieldHelp'
 import SettingsPanel, { PanelDivider } from '@pages/Settings/components/SettingsPanel'
-import {
-  HEALTH_ALERT_EVENTS,
-  type HealthAlertEvent,
-  type PreferencesFormValues
-} from '@pages/Settings/types'
-import { Form, type FormInstance, InputNumber, Select, Switch, Typography } from 'antd'
+import { type HealthCheckInterval, type PreferencesFormValues } from '@pages/Settings/types'
+import { Alert, Button, Form, type FormInstance, Select, Switch } from 'antd'
 
-const { Text } = Typography
+interface HealthProps {
+  form: FormInstance<PreferencesFormValues>
+  /** Alerts are switched on and at least one channel is enabled. */
+  alertsReady: boolean
+  /** At least one connection event is ticked under Notifications › Alert me about. */
+  healthAlertsSelected: boolean
+  onOpenNotifications: () => void
+}
 
-/** Health preference fields: check toggle, run interval, which events alert, and the alert cooldown. */
-export default function Health({ form }: { form: FormInstance<PreferencesFormValues> }) {
-  const healthCheckEnabled = Form.useWatch('health_check_enabled', form) ?? false
-  const selectedEvents = Form.useWatch('notify_events', form) ?? []
-  const controlsDisabled = !healthCheckEnabled
-  const noEventsSelected = healthCheckEnabled && selectedEvents.length === 0
-
-  const eventLabels: Record<HealthAlertEvent, string> = {
-    connection_unhealthy: __('Connection unhealthy'),
-    connection_recovered: __('Connection recovered'),
-    oauth_expiring: __('OAuth token expiring'),
-    oauth_expired: __('OAuth token expired')
+/** Why a check result would reach nobody, or null when health alerts can be delivered. */
+function silentAlertsReason(alertsReady: boolean, healthAlertsSelected: boolean): string | null {
+  if (!alertsReady) {
+    return __('Alerts are off or have no channel. Turn on “Send alerts” and add a channel.')
   }
-  const eventOptions = HEALTH_ALERT_EVENTS.map(event => ({ value: event, label: eventLabels[event] }))
+  if (!healthAlertsSelected) {
+    return __('No connection events are ticked under “Alert me about”.')
+  }
+  return null
+}
+
+/** Health fields: the background check switch and schedule, plus a warning when nobody would be alerted. */
+export default function Health({
+  form,
+  alertsReady,
+  healthAlertsSelected,
+  onOpenNotifications
+}: HealthProps) {
+  const healthCheckEnabled = Form.useWatch('health_check_enabled', form) ?? false
+  const silentReason = silentAlertsReason(alertsReady, healthAlertsSelected)
+  const intervalOptions: { value: HealthCheckInterval; label: string }[] = [
+    { value: 'hourly', label: __('Every hour') },
+    { value: 'twicedaily', label: __('Twice a day') },
+    { value: 'daily', label: __('Once a day') }
+  ]
 
   return (
     <SettingsPanel
-      intro={__('Periodically verify each connection can still send mail, and alert when one degrades.')}
+      intro={__(
+        'Bit SMTP can check in the background that each connection still works, so you hear about problems early.'
+      )}
     >
-      <Form.Item name="health_check_enabled" label={__('Enable health checks')} valuePropName="checked">
+      <HelpfulFormItem
+        name="health_check_enabled"
+        label={__('Check connections automatically')}
+        hint={__('Each check only signs in to your provider. No email is sent, so it uses no quota.')}
+        valuePropName="checked"
+      >
         <Switch />
-      </Form.Item>
+      </HelpfulFormItem>
+      <div hidden={!healthCheckEnabled}>
+        <PanelDivider />
+        <HelpfulFormItem name="health_check_interval" label={__('How often to check')}>
+          <Select options={intervalOptions} style={{ maxWidth: 240 }} />
+        </HelpfulFormItem>
+      </div>
       <PanelDivider />
-      <Form.Item
-        name="health_check_interval"
-        label={__('Check interval')}
-        extra={
-          <Text type="secondary">
-            {__('How often BitSMTP tests each connection in the background.')}
-          </Text>
-        }
-      >
-        <Select
-          disabled={controlsDisabled}
-          options={[
-            { value: 'hourly', label: __('Hourly') },
-            { value: 'twicedaily', label: __('Twice daily') },
-            { value: 'daily', label: __('Daily') }
-          ]}
+      {healthCheckEnabled && silentReason ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={__('You won’t be alerted about connection problems')}
+          description={silentReason}
+          action={
+            <Button size="small" onClick={onOpenNotifications}>
+              {__('Set up alerts')}
+            </Button>
+          }
         />
-      </Form.Item>
-      <PanelDivider />
-      <Form.Item
-        name="notify_events"
-        label={__('Alert on these events')}
-        extra={
-          <>
-            <Text type="secondary">
-              {__('Which health and OAuth changes send an alert through your notification channels.')}
-            </Text>
-            {noEventsSelected && (
-              <Text type="warning" style={{ display: 'block' }}>
-                {__('No events selected — connection health alerts are off.')}
-              </Text>
-            )}
-          </>
-        }
-      >
-        <Select
-          mode="multiple"
-          disabled={controlsDisabled}
-          options={eventOptions}
-          placeholder={__('Select the events to be alerted about')}
-        />
-      </Form.Item>
-      <PanelDivider />
-      <Form.Item
-        name="notify_cooldown_minutes"
-        label={__('Alert cooldown (minutes)')}
-        extra={
-          <Text type="secondary">
-            {__('Minimum time between repeat alerts for the same connection.')}
-          </Text>
-        }
-        rules={[{ type: 'number', required: true, min: 0, message: __('Enter 0 or more minutes') }]}
-      >
-        <InputNumber disabled={controlsDisabled} style={{ width: '100%' }} />
-      </Form.Item>
+      ) : (
+        <Button
+          type="link"
+          onClick={onOpenNotifications}
+          style={{ paddingInline: 0, alignSelf: 'flex-start' }}
+        >
+          {__('Choose which problems send an alert')}
+        </Button>
+      )}
     </SettingsPanel>
   )
 }

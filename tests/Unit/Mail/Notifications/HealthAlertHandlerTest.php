@@ -142,6 +142,78 @@ final class HealthAlertHandlerTest extends BaseUnitTestCase
         $this->handler($dispatcher, $store)->handle(HealthNotification::EVENT_UNHEALTHY, 'conn_1', 1);
     }
 
+    public function testAFlappingConnectionIsNotReAlertedAsUnhealthyWithinTheFlapGuardWhenRepeatIsOff(): void
+    {
+        $this->preferences([HealthNotification::EVENT_UNHEALTHY, HealthNotification::EVENT_RECOVERED]);
+        $dispatcher = $this->dispatcher();
+        $dispatcher->shouldReceive('dispatch')->never();
+        $store = $this->store(['conn_1' => $this->record([
+            'status'             => HealthStatus::UNHEALTHY,
+            'last_alerted_state' => HealthNotification::EVENT_RECOVERED,
+            'last_outage_alert'  => HealthNotification::EVENT_RECOVERED,
+            'last_alerted_at'    => gmdate('Y-m-d H:i:s', time() - 60),
+        ])]);
+
+        $this->handler($dispatcher, $store)->handle(HealthNotification::EVENT_UNHEALTHY, 'conn_1', 1);
+    }
+
+    public function testARepeatUnhealthyAlertIsDeliveredOnceTheFlapGuardHasPassed(): void
+    {
+        $this->preferences([HealthNotification::EVENT_UNHEALTHY, HealthNotification::EVENT_RECOVERED]);
+        $store = $this->store(['conn_1' => $this->record([
+            'status'             => HealthStatus::UNHEALTHY,
+            'last_alerted_state' => HealthNotification::EVENT_RECOVERED,
+            'last_outage_alert'  => HealthNotification::EVENT_RECOVERED,
+            'last_alerted_at'    => gmdate('Y-m-d H:i:s', time() - (HealthAlertHandler::FLAP_GUARD_MINUTES * 60) - 1),
+        ])]);
+
+        $this->handler($this->dispatcherExpecting(HealthNotification::EVENT_UNHEALTHY, true), $store)
+            ->handle(HealthNotification::EVENT_UNHEALTHY, 'conn_1', 1);
+    }
+
+    public function testTheFlapGuardNeverHoldsBackARecovery(): void
+    {
+        $this->preferences([HealthNotification::EVENT_UNHEALTHY, HealthNotification::EVENT_RECOVERED]);
+        $store = $this->store(['conn_1' => $this->record([
+            'status'             => HealthStatus::HEALTHY,
+            'last_alerted_state' => HealthNotification::EVENT_UNHEALTHY,
+            'last_outage_alert'  => HealthNotification::EVENT_UNHEALTHY,
+            'last_alerted_at'    => gmdate('Y-m-d H:i:s'),
+        ])]);
+
+        $this->handler($this->dispatcherExpecting(HealthNotification::EVENT_RECOVERED, true), $store)
+            ->handle(HealthNotification::EVENT_RECOVERED, 'conn_1', 1);
+    }
+
+    public function testTheFirstUnhealthyAlertIsNotHeldBackByTheFlapGuard(): void
+    {
+        $this->preferences([HealthNotification::EVENT_UNHEALTHY, HealthNotification::EVENT_OAUTH_EXPIRED]);
+        $store = $this->store(['conn_1' => $this->record([
+            'status'             => HealthStatus::UNHEALTHY,
+            'last_alerted_state' => HealthNotification::EVENT_OAUTH_EXPIRED,
+            'last_alerted_at'    => gmdate('Y-m-d H:i:s'),
+        ])]);
+
+        $this->handler($this->dispatcherExpecting(HealthNotification::EVENT_UNHEALTHY, true), $store)
+            ->handle(HealthNotification::EVENT_UNHEALTHY, 'conn_1', 1);
+    }
+
+    public function testTheRepeatIntervalNeverHoldsBackARecovery(): void
+    {
+        $this->preferences([HealthNotification::EVENT_UNHEALTHY, HealthNotification::EVENT_RECOVERED], 60);
+        $store = $this->store(['conn_1' => $this->record([
+            'status'             => HealthStatus::HEALTHY,
+            'last_alerted_state' => HealthNotification::EVENT_UNHEALTHY,
+            'last_outage_alert'  => HealthNotification::EVENT_UNHEALTHY,
+            'last_alerted_at'    => gmdate('Y-m-d H:i:s'),
+        ])]);
+
+        $this->handler($this->dispatcherExpecting(HealthNotification::EVENT_RECOVERED, true), $store)
+            ->handle(HealthNotification::EVENT_RECOVERED, 'conn_1', 1);
+
+        $this->assertSame(HealthNotification::EVENT_RECOVERED, $store->records['conn_1']->getLastAlertedState());
+    }
+
     public function testAnEventOvertakenByALaterTransitionIsDroppedAsStale(): void
     {
         $this->preferences([HealthNotification::EVENT_UNHEALTHY]);

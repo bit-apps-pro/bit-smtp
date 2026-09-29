@@ -8,11 +8,13 @@ use BitApps\SMTP\HTTP\Controllers\PreferencesController;
 use BitApps\SMTP\HTTP\Requests\SavePreferencesRequest;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Mail\Dispatch\FailureCategory;
+use BitApps\SMTP\Mail\Notifications\AlertEvents;
 use BitApps\SMTP\Mail\Notifications\HealthNotification;
 use BitApps\SMTP\Settings\PluginSettings;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
@@ -41,7 +43,7 @@ final class PreferencesControllerTest extends BaseUnitTestCase
         $this->assertSame(PluginSettings::schema()->defaults(), $data['preferences']);
 
         $groupNames = array_column($data['groups'], 'name');
-        $this->assertSame(['general', 'reliability', 'health', 'privacy'], $groupNames);
+        $this->assertSame(['general', 'reliability', 'health', 'notifications', 'privacy'], $groupNames);
 
         $logStoreBody = $this->fieldMetadata($data['groups'], 'general', 'log_store_body');
         $this->assertSame('enum', $logStoreBody['type']);
@@ -150,6 +152,76 @@ final class PreferencesControllerTest extends BaseUnitTestCase
 
         $this->assertTrue($request->fails());
         $this->assertArrayHasKey('retry_on_classes', $request->errors());
+    }
+
+    public function testSavePreferencesRequestRulesAcceptTheSendFailureSubscription(): void
+    {
+        $request = new SavePreferencesRequest();
+        $request->make(['notify_events' => [AlertEvents::SEND_FAILURE]], $request->rules());
+
+        $this->assertFalse($request->fails());
+    }
+
+    /**
+     * @return array<string,array{0:string,1:int,2:bool}>
+     */
+    public static function boundedIntegerProvider(): array
+    {
+        return [
+            'timeout below range'  => ['send_timeout_seconds', 4, true],
+            'timeout lower bound'  => ['send_timeout_seconds', 5, false],
+            'timeout upper bound'  => ['send_timeout_seconds', 120, false],
+            'timeout above range'  => ['send_timeout_seconds', 300, true],
+            'attempts below range' => ['retry_max_attempts', 0, true],
+            'attempts upper bound' => ['retry_max_attempts', 10, false],
+            'attempts above range' => ['retry_max_attempts', 11, true],
+        ];
+    }
+
+    #[DataProvider('boundedIntegerProvider')]
+    public function testSavePreferencesRequestRulesBoundTimeoutAndAttempts(string $key, int $value, bool $fails): void
+    {
+        $request = new SavePreferencesRequest();
+        $request->make([$key => $value], $request->rules());
+
+        $this->assertSame($fails, $request->fails());
+    }
+
+    public function testImportUpgradesALegacyExportInsteadOfRejectingIt(): void
+    {
+        $store = [];
+        $this->stubOptionsStore($store);
+
+        $request                            = new Request();
+        $request['retry_on_classes']        = [];
+        $request['notify_events']           = [HealthNotification::EVENT_UNHEALTHY];
+        $request['notify_cooldown_minutes'] = 30;
+
+        (new PreferencesController(new LogService()))->import($request);
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+        $saved = $store[PluginSettings::OPTION_NAME];
+        $this->assertSame(FailureCategory::retryableClasses(), $saved['retry_on_classes']);
+        $this->assertSame([AlertEvents::SEND_FAILURE, HealthNotification::EVENT_UNHEALTHY], $saved['notify_events']);
+        $this->assertArrayNotHasKey('notify_cooldown_minutes', $saved);
+    }
+
+    public function testExportedRetryNothingSurvivesTheImportRoundTrip(): void
+    {
+        $store = [PluginSettings::OPTION_NAME => ['retry_on_classes' => []]];
+        $this->stubOptionsStore($store);
+
+        (new PreferencesController())->export();
+        $exported = (array) Response::getData();
+
+        $store                  = [];
+        $request                = new Request();
+        $request['preferences'] = $exported['preferences'];
+
+        (new PreferencesController(new LogService()))->import($request);
+
+        $this->assertSame(Response::SUCCESS, Response::getStatus());
+        $this->assertSame([], $store[PluginSettings::OPTION_NAME]['retry_on_classes']);
     }
 
     /**
