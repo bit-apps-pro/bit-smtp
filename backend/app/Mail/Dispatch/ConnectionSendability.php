@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\Mail\Dispatch;
 
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Credentials\CredentialValues;
 use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 
@@ -29,6 +30,6 @@ final class ConnectionSendability
             return false;
         }
 
-        return $provider->validator()->validate($connection->getSettings(), $connection->getCredentials()) === [];
+        return $provider->validator()->validate($connection->getSettings(), CredentialValues::flatten($connection->getCredentials())) === [];
     }
 }
