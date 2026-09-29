@@ -79,7 +79,7 @@ describe('ConnectionDetailPage', () => {
     paramId = 'conn_2'
     renderWithProviders(<ConnectionDetailPage />)
 
-    expect(screen.getByLabelText('Name')).toHaveValue('Backup SMTP')
+    expect(screen.getByLabelText('Connection name')).toHaveValue('Backup SMTP')
     expect(screen.getByLabelText('SMTP Host')).toHaveValue('smtp.two')
   })
 

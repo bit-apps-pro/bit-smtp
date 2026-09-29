@@ -1,4 +1,5 @@
 import type * as ReactRouterDom from 'react-router-dom'
+import notify from '@components/Toaster/Toaster'
 import { renderWithProviders } from '@config/test-utils'
 import type * as DndKitCore from '@dnd-kit/core'
 import { type MailSettings, type ProviderMeta } from '@pages/Connections/types'
@@ -19,6 +20,9 @@ vi.mock('./data/useSetDefaultConnection', () => ({ default: vi.fn() }))
 vi.mock('./data/useToggleConnectionEnabled', () => ({ default: vi.fn() }))
 vi.mock('./data/useDeleteConnection', () => ({ default: vi.fn() }))
 vi.mock('./data/useUpdateSettings', () => ({ default: vi.fn() }))
+vi.mock('@components/Toaster/Toaster', () => ({
+  default: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }
+}))
 
 const navigateMock = vi.fn()
 vi.mock('react-router-dom', async importOriginal => ({
@@ -46,6 +50,19 @@ const otherSmtpMeta: ProviderMeta = {
   kind: 'smtp',
   fields: []
 }
+
+const thirdConnection = {
+  id: 'conn_3',
+  provider: 'other_smtp',
+  kind: 'smtp',
+  name: 'Third SMTP',
+  enabled: true,
+  fromEmail: 'g@h.i',
+  fromName: 'G',
+  replyToEmail: '',
+  settings: {},
+  credentials: {}
+} as const
 
 const settings: MailSettings = {
   schema_version: 2,
@@ -92,7 +109,9 @@ describe('ConnectionsListPage', () => {
     setDefaultMutate.mockClear()
     toggleEnabledMutate.mockClear()
     deleteMutate.mockClear()
-    updateSettingsMutate.mockClear()
+    updateSettingsMutate.mockReset()
+    vi.mocked(notify.success).mockClear()
+    vi.mocked(notify.error).mockClear()
     capturedOnDragEnd.current = undefined
     ;(useMailSettings as Mock).mockReturnValue({ data: settings, isPending: false })
     ;(useProviders as Mock).mockReturnValue({ data: [otherSmtpMeta], isPending: false })
@@ -106,12 +125,19 @@ describe('ConnectionsListPage', () => {
     ;(useUpdateSettings as Mock).mockReturnValue({ mutate: updateSettingsMutate })
   })
 
-  it('renders a card per connection with a Default tag on the default one', () => {
+  it('renders a card per connection with a Primary tag on the default one', () => {
     renderWithProviders(<ConnectionsListPage />)
 
     expect(screen.getByText('Primary SMTP')).toBeInTheDocument()
     expect(screen.getByText('Backup SMTP')).toBeInTheDocument()
-    expect(screen.getAllByText('Default')).toHaveLength(1)
+    expect(screen.getAllByText('Primary')).toHaveLength(1)
+  })
+
+  it('explains how the primary and backups fail over', () => {
+    renderWithProviders(<ConnectionsListPage />)
+
+    expect(screen.getByText(/If it fails, Bit SMTP tries each backup in order/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check connection health' })).toBeInTheDocument()
   })
 
   it('shows a loading spinner while settings or providers are pending', () => {
@@ -154,7 +180,7 @@ describe('ConnectionsListPage', () => {
     renderWithProviders(<ConnectionsListPage />)
 
     const backupCard = screen.getByText('Backup SMTP').closest('.ant-card') as HTMLElement
-    await userEvent.click(within(backupCard).getByRole('button', { name: /Set default/ }))
+    await userEvent.click(within(backupCard).getByRole('button', { name: /Set as primary/ }))
 
     expect(setDefaultMutate).toHaveBeenCalledWith('conn_2')
   })
@@ -173,31 +199,95 @@ describe('ConnectionsListPage', () => {
 
     const backupCard = screen.getByText('Backup SMTP').closest('.ant-card') as HTMLElement
     await userEvent.click(within(backupCard).getByRole('button', { name: /Delete/ }))
-    await userEvent.click(await screen.findByRole('button', { name: 'OK' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete connection' }))
 
     expect(deleteMutate).toHaveBeenCalledWith('conn_2')
   })
 
-  it('shows each card priority position', () => {
+  it('numbers every card after the primary as a backup', () => {
     renderWithProviders(<ConnectionsListPage />)
 
-    expect(screen.getByText('Priority 1')).toBeInTheDocument()
-    expect(screen.getByText('Priority 2')).toBeInTheDocument()
+    expect(screen.getByText('Backup #1')).toBeInTheDocument()
+    expect(screen.queryByText('Backup #2')).not.toBeInTheDocument()
   })
 
-  it('persists the reordered fallback_connection_ids when a card is dragged to a new position', () => {
+  it('persists the reordered backups and confirms with a toast', () => {
+    ;(useMailSettings as Mock).mockReturnValue({
+      data: { ...settings, connections: [...settings.connections, thirdConnection] },
+      isPending: false
+    })
+    updateSettingsMutate.mockImplementation((_payload, options) =>
+      options?.onSuccess?.({ status: 'success', data: {} })
+    )
     renderWithProviders(<ConnectionsListPage />)
 
     act(() => {
       capturedOnDragEnd.current?.({
-        active: { id: 'conn_2' },
+        active: { id: 'conn_3' },
+        over: { id: 'conn_2' }
+      } as DndKitCore.DragEndEvent)
+    })
+
+    expect(updateSettingsMutate).toHaveBeenCalledWith(
+      { fallback_connection_ids: ['conn_1', 'conn_3', 'conn_2'] },
+      expect.any(Object)
+    )
+    expect(notify.success).toHaveBeenCalledWith('Failover order saved.')
+  })
+
+  it('keeps the primary first when a backup is dropped onto it', () => {
+    ;(useMailSettings as Mock).mockReturnValue({
+      data: { ...settings, connections: [...settings.connections, thirdConnection] },
+      isPending: false
+    })
+    renderWithProviders(<ConnectionsListPage />)
+
+    act(() => {
+      capturedOnDragEnd.current?.({
+        active: { id: 'conn_3' },
         over: { id: 'conn_1' }
       } as DndKitCore.DragEndEvent)
     })
 
-    expect(updateSettingsMutate).toHaveBeenCalledWith({ fallback_connection_ids: ['conn_2', 'conn_1'] })
-    expect(screen.getByText('Primary SMTP')).toBeInTheDocument()
-    expect(screen.getByText('Backup SMTP')).toBeInTheDocument()
+    expect(updateSettingsMutate).toHaveBeenCalledWith(
+      { fallback_connection_ids: ['conn_1', 'conn_3', 'conn_2'] },
+      expect.any(Object)
+    )
+  })
+
+  it('does not move the primary even if a drag of it is reported', () => {
+    renderWithProviders(<ConnectionsListPage />)
+
+    act(() => {
+      capturedOnDragEnd.current?.({
+        active: { id: 'conn_1' },
+        over: { id: 'conn_2' }
+      } as DndKitCore.DragEndEvent)
+    })
+
+    expect(updateSettingsMutate).not.toHaveBeenCalled()
+  })
+
+  it('reverts the order and reports an error when saving it fails', () => {
+    ;(useMailSettings as Mock).mockReturnValue({
+      data: { ...settings, connections: [...settings.connections, thirdConnection] },
+      isPending: false
+    })
+    updateSettingsMutate.mockImplementation((_payload, options) =>
+      options?.onSuccess?.({ status: 'error', data: {} })
+    )
+    renderWithProviders(<ConnectionsListPage />)
+
+    act(() => {
+      capturedOnDragEnd.current?.({
+        active: { id: 'conn_3' },
+        over: { id: 'conn_2' }
+      } as DndKitCore.DragEndEvent)
+    })
+
+    expect(notify.error).toHaveBeenCalledWith("Couldn't save the failover order.")
+    const names = screen.getAllByRole('heading', { level: 5 }).map(heading => heading.textContent)
+    expect(names).toEqual(['Primary SMTP', 'Backup SMTP', 'Third SMTP'])
   })
 
   it('does not persist an order change when a card is dropped back on itself', () => {

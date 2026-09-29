@@ -1,12 +1,16 @@
+import { useId } from 'react'
 import { DeleteOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
+import { type HelpDetails, HelpPopover, IconButton } from '@components/FieldHelp'
 import {
   type EditableRoutingCondition,
   type MailSource,
   type RoutingField,
   type RoutingOperator
 } from '@pages/Routing/types'
-import { AutoComplete, Button, Flex, Input, Select } from 'antd'
+import { AutoComplete, Flex, Input, Select, Typography } from 'antd'
+
+const { Text } = Typography
 
 const FIELD_OPTIONS: { value: RoutingField; label: string }[] = [
   { value: 'recipient', label: __('To recipient') },
@@ -16,10 +20,10 @@ const FIELD_OPTIONS: { value: RoutingField; label: string }[] = [
 ]
 
 const OPERATOR_OPTIONS: { value: RoutingOperator; label: string }[] = [
-  { value: 'equals', label: __('Equals') },
-  { value: 'contains', label: __('Contains') },
-  { value: 'domain', label: __('Domain') },
-  { value: 'matches', label: __('Matches') }
+  { value: 'equals', label: __('is exactly') },
+  { value: 'contains', label: __('contains') },
+  { value: 'domain', label: __('domain is') },
+  { value: 'matches', label: __('matches pattern (regex)') }
 ]
 
 const DEFAULT_OPERATOR: RoutingOperator = 'equals'
@@ -30,6 +34,50 @@ const OPERATORS_BY_FIELD: Record<RoutingField, RoutingOperator[]> = {
   from: ['equals', 'contains', 'domain', 'matches'],
   subject: ['equals', 'contains', 'matches'],
   source_plugin: ['equals', 'contains', 'matches']
+}
+
+type PlaceholderKind = 'email' | 'subject' | 'source_plugin'
+
+const PLACEHOLDER_KIND: Record<RoutingField, PlaceholderKind> = {
+  recipient: 'email',
+  from: 'email',
+  subject: 'subject',
+  source_plugin: 'source_plugin'
+}
+
+const PLACEHOLDERS: Record<RoutingOperator, Record<PlaceholderKind, string>> = {
+  equals: {
+    email: 'customer@example.com',
+    subject: __('Your order has shipped'),
+    source_plugin: 'woocommerce'
+  },
+  contains: { email: 'order', subject: __('invoice'), source_plugin: 'woo' },
+  domain: { email: 'example.com', subject: 'example.com', source_plugin: 'example.com' },
+  matches: { email: '^noreply@.*\\.shop$', subject: '^Order #\\d+', source_plugin: '^woo' }
+}
+
+const REGEX_HELP: HelpDetails = {
+  title: __('Pattern (regex)'),
+  body: __(
+    'The rule matches when this pattern appears anywhere in the field. Upper and lower case are treated the same. Use ^ for "starts with" and $ for "ends with".'
+  ),
+  example: __('^noreply@ matches any address that starts with noreply@.')
+}
+
+/** Example value for the chosen field and operator, shown as the input placeholder. */
+function valuePlaceholder(field: RoutingField, operator: RoutingOperator): string {
+  return PLACEHOLDERS[operator][PLACEHOLDER_KIND[field]]
+}
+
+/** Best-effort client-side check that a pattern compiles; empty patterns are left to the empty-value flow. */
+function isValidPattern(pattern: string): boolean {
+  if (pattern === '') return true
+  try {
+    RegExp(pattern, 'i')
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** Case-insensitive match on both the plugin slug and its friendly label. */
@@ -45,6 +93,14 @@ function matchesSource(input: string, option?: { value?: string; label?: unknown
   )
 }
 
+/** Source options labelled "Friendly name (slug)" so the stored slug stays visible. */
+function sourceOptions(sources: MailSource[]): MailSource[] {
+  return sources.map(source => ({
+    value: source.value,
+    label: source.label === source.value ? source.label : `${source.label} (${source.value})`
+  }))
+}
+
 /** One match condition row: field, operator, and value inputs, plus remove. */
 export default function ConditionEditor({
   condition,
@@ -57,6 +113,8 @@ export default function ConditionEditor({
   onChange: (condition: EditableRoutingCondition) => void
   onRemove: () => void
 }) {
+  const patternWarningId = useId()
+
   /** Resets value on a source_plugin mode switch (stale slug/free-text can't leak) and operator when the new field disallows it. */
   const changeField = (field: RoutingField) => {
     const modeChanged = (field === 'source_plugin') !== (condition.field === 'source_plugin')
@@ -69,48 +127,67 @@ export default function ConditionEditor({
   const operatorOptions = OPERATOR_OPTIONS.filter(option =>
     OPERATORS_BY_FIELD[condition.field].includes(option.value)
   )
+  const isPattern = condition.operator === 'matches'
+  const hasInvalidPattern = isPattern && !isValidPattern(condition.value)
+  const placeholder = valuePlaceholder(condition.field, condition.operator)
+  const valueStatus = hasInvalidPattern ? 'warning' : undefined
+  const valueDescribedBy = hasInvalidPattern ? patternWarningId : undefined
 
   return (
-    <Flex gap="small" align="center">
-      <Select
-        aria-label={__('Field')}
-        value={condition.field}
-        options={FIELD_OPTIONS}
-        style={{ width: 160 }}
-        onChange={changeField}
-      />
-      <Select
-        aria-label={__('Operator')}
-        value={condition.operator}
-        options={operatorOptions}
-        style={{ width: 140 }}
-        onChange={(operator: RoutingOperator) => onChange({ ...condition, operator })}
-      />
-      {condition.field === 'source_plugin' ? (
-        <AutoComplete
-          aria-label={__('Value')}
-          value={condition.value}
-          options={sources}
-          placeholder={__('Value')}
-          style={{ flex: 1 }}
-          filterOption={matchesSource}
-          onChange={(value: string) => onChange({ ...condition, value })}
+    <Flex vertical gap={4}>
+      <Flex gap="small" align="center" wrap>
+        <Select
+          aria-label={__('Field')}
+          value={condition.field}
+          options={FIELD_OPTIONS}
+          style={{ flex: '1 1 150px', minWidth: 0 }}
+          onChange={changeField}
         />
-      ) : (
-        <Input
-          aria-label={__('Value')}
-          value={condition.value}
-          placeholder={__('Value')}
-          onChange={event => onChange({ ...condition, value: event.target.value })}
+        <Select
+          aria-label={__('Operator')}
+          value={condition.operator}
+          options={operatorOptions}
+          style={{ flex: '1 1 190px', minWidth: 0 }}
+          onChange={(operator: RoutingOperator) => onChange({ ...condition, operator })}
         />
+        <Flex align="center" gap={2} style={{ flex: '2 1 220px', minWidth: 0 }}>
+          {condition.field === 'source_plugin' ? (
+            <AutoComplete
+              aria-label={__('Value')}
+              aria-describedby={valueDescribedBy}
+              value={condition.value}
+              options={sourceOptions(sources)}
+              placeholder={placeholder}
+              status={valueStatus}
+              style={{ flex: 1, minWidth: 0 }}
+              filterOption={matchesSource}
+              onChange={(value: string) => onChange({ ...condition, value })}
+            />
+          ) : (
+            <Input
+              aria-label={__('Value')}
+              aria-describedby={valueDescribedBy}
+              value={condition.value}
+              placeholder={placeholder}
+              status={valueStatus}
+              onChange={event => onChange({ ...condition, value: event.target.value })}
+            />
+          )}
+          {isPattern && <HelpPopover label={__('Help: pattern matching')} details={REGEX_HELP} />}
+        </Flex>
+        <IconButton
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          label={__('Remove condition')}
+          onClick={onRemove}
+        />
+      </Flex>
+      {hasInvalidPattern && (
+        <Text id={patternWarningId} type="warning">
+          {__('This pattern has a mistake, so it will never match. Check its brackets and symbols.')}
+        </Text>
       )}
-      <Button
-        type="text"
-        danger
-        icon={<DeleteOutlined />}
-        aria-label={__('Remove condition')}
-        onClick={onRemove}
-      />
     </Flex>
   )
 }

@@ -2,17 +2,26 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
+import notify from '@components/Toaster/Toaster'
 import {
   DndContext,
   type DragEndEvent,
+  KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
   useSensors
 } from '@dnd-kit/core'
-import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable
+} from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { type Connection, type ConnectionHealth, type MailSettings } from '@pages/Connections/types'
+import { countRulesByConnection } from '@pages/Routing/routingRules'
 import { Button, Col, Flex, Row, Spin, Typography, theme } from 'antd'
 import ConnectionCard from './ConnectionCard'
 import ProviderSelectorModal from './ProviderSelectorModal'
@@ -47,10 +56,29 @@ function deriveOrderedIds(settings: MailSettings): string[] {
   return ordered
 }
 
+/** Moves `activeId` to `overId`'s slot, never displacing a locked primary from slot 1; null when nothing changes. */
+function reorderBackups(
+  orderedIds: string[],
+  activeId: string,
+  overId: string,
+  primaryId: string
+): string[] | null {
+  const oldIndex = orderedIds.indexOf(activeId)
+  const overIndex = orderedIds.indexOf(overId)
+  if (oldIndex === -1 || overIndex === -1 || activeId === primaryId) {
+    return null
+  }
+
+  const firstBackupIndex = orderedIds[0] === primaryId ? 1 : 0
+  const newIndex = Math.max(overIndex, firstBackupIndex)
+  return newIndex === oldIndex ? null : arrayMove(orderedIds, oldIndex, newIndex)
+}
+
 /** Drag-sortable wrapper around ConnectionCard, wired to dnd-kit's sortable context. */
 function SortableConnectionCard({
   connection,
-  priority,
+  backupNumber,
+  routingRuleCount,
   isDefault,
   health,
   onSetDefault,
@@ -60,7 +88,8 @@ function SortableConnectionCard({
   isToggling
 }: {
   connection: Connection
-  priority: number
+  backupNumber: number
+  routingRuleCount: number
   isDefault: boolean
   health?: ConnectionHealth
   onSetDefault: () => void
@@ -70,7 +99,8 @@ function SortableConnectionCard({
   isToggling: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: connection.id
+    id: connection.id,
+    disabled: isDefault
   })
 
   const style = {
@@ -84,7 +114,8 @@ function SortableConnectionCard({
       <ConnectionCard
         connection={connection}
         isDefault={isDefault}
-        priority={priority}
+        backupNumber={backupNumber}
+        routingRuleCount={routingRuleCount}
         health={health}
         onSetDefault={onSetDefault}
         onToggleEnabled={onToggleEnabled}
@@ -135,6 +166,11 @@ function EmptyConnections({ onAddConnection }: { onAddConnection: () => void }) 
       <Text type="secondary" style={{ maxWidth: 360 }}>
         {__('Add an SMTP server or an email API to start delivering mail through Bit SMTP.')}
       </Text>
+      <Text type="secondary" style={{ maxWidth: 420, fontSize: token.fontSizeSM }}>
+        {__(
+          'Not sure which to pick? Other SMTP works with most hosts. Services like Brevo or Postmark reach inboxes more reliably.'
+        )}
+      </Text>
       <Button type="primary" onClick={onAddConnection} style={{ marginTop: token.marginXS }}>
         {__('Add connection')}
       </Button>
@@ -142,8 +178,9 @@ function EmptyConnections({ onAddConnection }: { onAddConnection: () => void }) 
   )
 }
 
-/** Connections page: ordered, drag-reorderable connection cards with health, default, and enable controls. */
+/** Connections page: a locked primary plus drag/keyboard-reorderable backups, with health, primary, and enable controls. */
 export default function ConnectionsListPage() {
+  const { token } = theme.useToken()
   const navigate = useNavigate()
   const { data: settings, isPending: isSettingsPending } = useMailSettings()
   const { isPending: isProvidersPending } = useProviders()
@@ -153,7 +190,10 @@ export default function ConnectionsListPage() {
   const toggleEnabled = useToggleConnectionEnabled()
   const deleteConnection = useDeleteConnection()
   const updateSettings = useUpdateSettings()
-  const sensors = useSensors(useSensor(PointerSensor))
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   const [orderedIds, setOrderedIds] = useState<string[]>([])
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
@@ -181,44 +221,81 @@ export default function ConnectionsListPage() {
     .map(id => connectionsById.get(id))
     .filter((connection): connection is Connection => connection !== undefined)
 
-  /** Reorders connections locally, then persists the new fallback order; no-op when dropped on itself. */
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) {
+  /** Moves a backup to its drop slot, persists the failover order, and reverts it if the save fails. */
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over) {
       return
     }
 
-    const oldIndex = orderedIds.indexOf(String(active.id))
-    const newIndex = orderedIds.indexOf(String(over.id))
-    if (oldIndex === -1 || newIndex === -1) {
+    const newOrder = reorderBackups(
+      orderedIds,
+      String(active.id),
+      String(over.id),
+      settings.default_connection_id
+    )
+    if (!newOrder) {
       return
     }
 
-    const newOrder = arrayMove(orderedIds, oldIndex, newIndex)
+    const previousOrder = orderedIds
+    const revert = () => {
+      setOrderedIds(previousOrder)
+      notify.error(__("Couldn't save the failover order."))
+    }
+
     setOrderedIds(newOrder)
-    updateSettings.mutate({ fallback_connection_ids: newOrder })
+    updateSettings.mutate(
+      { fallback_connection_ids: newOrder },
+      {
+        onSuccess: response =>
+          response.status === 'success' ? notify.success(__('Failover order saved.')) : revert(),
+        onError: revert
+      }
+    )
   }
 
+  /** Probes every connection's health and reports when the check has finished. */
+  const handleCheckHealth = () => {
+    checkConnectionHealth.mutate(undefined, {
+      onSuccess: () => notify.success(__('Connection health checked.')),
+      onError: () => notify.error(__("Couldn't check connection health."))
+    })
+  }
+
+  /** Opens the new-connection editor for the provider picked in the selector. */
   const handleProviderSelected = (providerKey: string) => {
     navigate(`/connection/new?provider=${encodeURIComponent(providerKey)}`)
   }
 
   const hasConnections = settings.connections.length > 0
+  const hasPrimary = orderedIds[0] === settings.default_connection_id
+  const rulesByConnection = countRulesByConnection(settings)
   const openProviderModal = () => setIsProviderModalOpen(true)
 
   return (
     <Flex vertical gap="middle" style={{ padding: 24 }}>
-      <Flex justify="space-between" align="center">
-        <Title level={4} style={{ margin: 0 }}>
-          {__('Connections')}
-        </Title>
+      <Flex justify="space-between" align="center" gap="middle" wrap>
+        <Flex vertical gap={4} style={{ flex: '1 1 320px' }}>
+          <Title level={4} style={{ margin: 0 }}>
+            {__('Connections')}
+          </Title>
+          {hasConnections && (
+            <>
+              <Text type="secondary">
+                {__(
+                  'Emails go out through your primary connection. If it fails, Bit SMTP tries each backup in order.'
+                )}
+              </Text>
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                {__('Drag a backup to change the order. Disabled connections are skipped.')}
+              </Text>
+            </>
+          )}
+        </Flex>
         {hasConnections && (
-          <Flex gap="small">
-            <Button
-              onClick={() => checkConnectionHealth.mutate()}
-              loading={checkConnectionHealth.isPending}
-            >
-              {__('Check now')}
+          <Flex gap="small" wrap>
+            <Button onClick={handleCheckHealth} loading={checkConnectionHealth.isPending}>
+              {__('Check connection health')}
             </Button>
             <Button type="primary" onClick={openProviderModal}>
               {__('Add connection')}
@@ -239,7 +316,8 @@ export default function ConnectionsListPage() {
                 <SortableConnectionCard
                   key={connection.id}
                   connection={connection}
-                  priority={index + 1}
+                  backupNumber={hasPrimary ? index : index + 1}
+                  routingRuleCount={rulesByConnection.get(connection.id) ?? 0}
                   isDefault={connection.id === settings.default_connection_id}
                   health={health[connection.id]}
                   onSetDefault={() => setDefaultConnection.mutate(connection.id)}

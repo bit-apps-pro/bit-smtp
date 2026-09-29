@@ -51,38 +51,45 @@ describe('ConnectionCard', () => {
   })
 
   it('groups connection controls in a subtitle below the name', () => {
-    renderCard({ priority: 1, isDefault: true })
+    renderCard({ backupNumber: 2 })
 
     const subtitle = screen.getByRole('group', { name: 'Primary SMTP' })
-    expect(subtitle).toHaveTextContent('Priority 1')
-    expect(subtitle).toHaveTextContent('Default')
+    expect(subtitle).toHaveTextContent('Backup #2')
     expect(screen.getByRole('switch', { name: 'Disable this connection' })).toBeInTheDocument()
   })
 
-  it('shows a Default tag only when isDefault is true', () => {
-    const { rerender } = renderCard({ isDefault: false })
-    expect(screen.queryByText('Default')).not.toBeInTheDocument()
+  it('labels the default connection Primary instead of a backup number', () => {
+    renderCard({ isDefault: true, backupNumber: 0 })
 
-    rerender(
-      <ConnectionCard
-        connection={connection}
-        isDefault
-        onSetDefault={() => {}}
-        onToggleEnabled={() => {}}
-        onEdit={() => {}}
-        onDelete={() => {}}
-      />
-    )
-    expect(screen.getByText('Default')).toBeInTheDocument()
+    expect(screen.getByText('Primary')).toBeInTheDocument()
+    expect(screen.queryByText(/Backup #/)).not.toBeInTheDocument()
   })
 
-  it('calls onSetDefault when Set default is clicked', async () => {
+  it('hides Set as primary on the primary card', () => {
+    renderCard({ isDefault: true })
+
+    expect(screen.queryByRole('button', { name: /Set as primary/ })).not.toBeInTheDocument()
+  })
+
+  it('calls onSetDefault when Set as primary is clicked', async () => {
     const onSetDefault = vi.fn()
     renderCard({ onSetDefault })
 
-    await userEvent.click(screen.getByRole('button', { name: /Set default/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Set as primary/ }))
 
     expect(onSetDefault).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no drag handle on the locked primary card', () => {
+    renderCard({ isDefault: true, dragHandleListeners: {} })
+
+    expect(screen.queryByRole('button', { name: /Drag to reorder/ })).not.toBeInTheDocument()
+  })
+
+  it('offers a named drag handle on a backup card', () => {
+    renderCard({ dragHandleListeners: {} })
+
+    expect(screen.getByRole('button', { name: 'Drag to reorder' })).toBeInTheDocument()
   })
 
   it('calls onEdit when Edit is clicked', async () => {
@@ -113,10 +120,13 @@ describe('ConnectionCard', () => {
     expect(onToggleEnabled.mock.calls[0][0]).toBe(true)
   })
 
-  it('does not allow a disabled connection to be set as default', () => {
+  it('does not allow a disabled connection to be set as primary, and says why', async () => {
     renderCard({ connection: { ...connection, enabled: false } })
 
-    expect(screen.getByRole('button', { name: /Set default/ })).toBeDisabled()
+    const button = screen.getByRole('button', { name: /Set as primary/ })
+    expect(button).toBeDisabled()
+    await userEvent.hover(button.parentElement as HTMLElement)
+    expect(await screen.findByText('Turn this connection on first')).toBeInTheDocument()
   })
 
   it('renders the health badge only when health is provided', () => {
@@ -147,15 +157,28 @@ describe('ConnectionCard', () => {
     expect(screen.getByText('Unhealthy')).toBeInTheDocument()
   })
 
-  it('calls onDelete only after the Popconfirm is confirmed', async () => {
+  it('calls onDelete only after the Popconfirm is confirmed with a verb button', async () => {
     const onDelete = vi.fn()
     renderCard({ onDelete })
 
     await userEvent.click(screen.getByRole('button', { name: /Delete/ }))
     expect(onDelete).not.toHaveBeenCalled()
+    expect(await screen.findByText('Delete "Primary SMTP"?')).toBeInTheDocument()
 
-    await userEvent.click(await screen.findByRole('button', { name: 'OK' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete connection' }))
 
     expect(onDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it('warns in the delete confirmation that routing rules using it are deleted too', async () => {
+    renderCard({ routingRuleCount: 2, isDefault: true })
+
+    await userEvent.click(screen.getByRole('button', { name: /Delete/ }))
+
+    expect(
+      await screen.findByText(
+        'The 2 routing rules that use it are deleted too. Another enabled connection becomes the primary.'
+      )
+    ).toBeInTheDocument()
   })
 })

@@ -1,6 +1,6 @@
 import { type Connection } from '@pages/Connections/types'
 import { type EditableRoutingRule, type MailSource } from '@pages/Routing/types'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import RoutingRuleRow from './RoutingRuleRow'
@@ -128,8 +128,48 @@ describe('RoutingRuleRow', () => {
     )
 
     await userEvent.click(screen.getByRole('button', { name: /Delete rule/ }))
-    await userEvent.click(await screen.findByRole('button', { name: 'OK' }))
+    expect(await screen.findByText(/your primary connection/)).toBeInTheDocument()
+    const popconfirm = screen.getByText(/your primary connection/).closest('.ant-popover') as HTMLElement
+    await userEvent.click(within(popconfirm).getByRole('button', { name: 'Delete rule' }))
 
     expect(onRemove).toHaveBeenCalled()
+  })
+
+  /** Renders the row for `rule` with inert callbacks. */
+  const renderRule = (overrides: Partial<EditableRoutingRule>, rowConnections = connections) =>
+    render(
+      <RoutingRuleRow
+        rule={{ ...rule, ...overrides }}
+        connections={rowConnections}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+  it('states that all conditions must match and joins them with "and"', () => {
+    renderRule({
+      conditions: [
+        ...rule.conditions,
+        { id: 'condition-2', field: 'subject', operator: 'contains', value: 'order' }
+      ]
+    })
+
+    expect(screen.getByText('Send it here when all of these conditions match')).toBeInTheDocument()
+    expect(screen.getAllByText('and')).toHaveLength(1)
+  })
+
+  it('warns that a rule without conditions never matches', () => {
+    renderRule({ conditions: [] })
+
+    expect(
+      screen.getByText('This rule has no conditions, so it never runs. Add a condition.')
+    ).toBeInTheDocument()
+  })
+
+  it('marks a disabled target connection as skipped', () => {
+    renderRule({}, [{ ...connections[0], enabled: false }])
+
+    expect(screen.getByText('Primary SMTP (disabled)')).toBeInTheDocument()
   })
 })

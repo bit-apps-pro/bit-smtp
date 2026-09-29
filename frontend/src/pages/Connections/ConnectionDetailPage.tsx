@@ -7,6 +7,7 @@ import useProviders from './data/useProviders'
 
 const { Text } = Typography
 
+/** Edit page for one saved connection, with a way back to the Connections list. */
 export default function ConnectionDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()

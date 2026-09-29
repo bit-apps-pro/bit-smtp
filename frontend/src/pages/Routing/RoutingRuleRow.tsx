@@ -1,14 +1,17 @@
+import { Fragment } from 'react'
 import { DeleteOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons'
-import { __ } from '@common/helpers/i18nwrap'
+import { __, sprintf } from '@common/helpers/i18nwrap'
+import { IconButton } from '@components/FieldHelp'
 import { type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core'
-import { type ProviderVisual, getProviderVisual } from '@pages/Connections/providerVisuals'
+import ProviderLogo from '@pages/Connections/ProviderLogo'
+import { getProviderVisual } from '@pages/Connections/providerVisuals'
 import { type Connection } from '@pages/Connections/types'
 import {
   type EditableRoutingCondition,
   type EditableRoutingRule,
   type MailSource
 } from '@pages/Routing/types'
-import { Button, Card, Flex, Popconfirm, Select, Typography, theme } from 'antd'
+import { Alert, Button, Card, Flex, Popconfirm, Select, Typography, theme } from 'antd'
 import ConditionEditor from './ConditionEditor'
 
 const { Text } = Typography
@@ -25,43 +28,6 @@ function createConditionId(): string {
 /** Blank condition row seeded with sensible defaults. */
 function emptyCondition(): EditableRoutingCondition {
   return { id: createConditionId(), field: 'recipient', operator: 'equals', value: '' }
-}
-
-/** Mirrors ConnectionCard's logo-or-initial badge so a rule's target reads as the same provider identity. */
-function ProviderBadge({ visual }: { visual: ProviderVisual }) {
-  const { token } = theme.useToken()
-
-  if (visual.logo) {
-    return (
-      <img
-        src={visual.logo}
-        alt=""
-        width={PROVIDER_BADGE_SIZE}
-        height={PROVIDER_BADGE_SIZE}
-        style={{ objectFit: 'contain', flexShrink: 0 }}
-      />
-    )
-  }
-
-  return (
-    <Flex
-      align="center"
-      justify="center"
-      aria-hidden="true"
-      style={{
-        width: PROVIDER_BADGE_SIZE,
-        height: PROVIDER_BADGE_SIZE,
-        flexShrink: 0,
-        borderRadius: token.borderRadius,
-        backgroundColor: visual.accent,
-        color: token.colorWhite,
-        fontSize: token.fontSizeSM,
-        fontWeight: token.fontWeightStrong
-      }}
-    >
-      {visual.initial}
-    </Flex>
-  )
 }
 
 /** One routing rule: target-connection picker plus its match conditions, with a drag handle and delete. */
@@ -87,19 +53,23 @@ export default function RoutingRuleRow({
   const { token } = theme.useToken()
   const connectionOptions = connections.map(connection => ({
     value: connection.id,
-    label: connection.name
+    label: connection.enabled ? connection.name : sprintf(__('%s (disabled)'), connection.name)
   }))
+  const ruleLabel = typeof priority === 'number' ? sprintf(__('Rule %d'), priority) : __('Rule')
   const targetConnection = connections.find(connection => connection.id === rule.connectionId)
 
+  /** Replaces the condition at `index`. */
   const updateCondition = (index: number, condition: EditableRoutingCondition) => {
     const conditions = rule.conditions.map((item, itemIndex) => (itemIndex === index ? condition : item))
     onChange({ ...rule, conditions })
   }
 
+  /** Drops the condition at `index`. */
   const removeCondition = (index: number) => {
     onChange({ ...rule, conditions: rule.conditions.filter((_, itemIndex) => itemIndex !== index) })
   }
 
+  /** Appends a blank condition. */
   const addCondition = () => {
     onChange({ ...rule, conditions: [...rule.conditions, emptyCondition()] })
   }
@@ -109,25 +79,29 @@ export default function RoutingRuleRow({
       size="small"
       title={
         <Flex align="center" gap="small">
-          <Button
+          <IconButton
             type="text"
             size="small"
             icon={<HolderOutlined />}
-            aria-label={__('Drag to reorder')}
-            style={{ cursor: 'grab' }}
+            label={__('Drag to reorder')}
+            style={{ cursor: 'grab', color: token.colorTextSecondary }}
             // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
             {...dragHandleAttributes}
             // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
             {...dragHandleListeners}
           />
-          <Text strong>{typeof priority === 'number' ? `${__('Rule')} ${priority}` : __('Rule')}</Text>
+          <Text strong>{ruleLabel}</Text>
         </Flex>
       }
       extra={
         <Popconfirm
-          title={__('Delete this rule?')}
+          title={sprintf(__('Delete %s?'), ruleLabel)}
+          description={__(
+            'Matching emails will use the next rule or your primary connection. Click Save changes to apply.'
+          )}
           onConfirm={onRemove}
-          okText={__('OK')}
+          okText={__('Delete rule')}
+          okButtonProps={{ danger: true }}
           cancelText={__('Cancel')}
         >
           <Button type="text" danger icon={<DeleteOutlined />}>
@@ -142,26 +116,48 @@ export default function RoutingRuleRow({
             {__('Route matching mail to')}
           </Text>
           <Flex align="center" gap="small">
-            {targetConnection && <ProviderBadge visual={getProviderVisual(targetConnection.provider)} />}
+            {targetConnection && (
+              <ProviderLogo
+                visual={getProviderVisual(targetConnection.provider)}
+                size={PROVIDER_BADGE_SIZE}
+              />
+            )}
             <Select
               aria-label={__('Target connection')}
               placeholder={__('Select a connection')}
               value={rule.connectionId || undefined}
               options={connectionOptions}
-              style={{ width: 260 }}
+              style={{ width: '100%', maxWidth: 320 }}
               onChange={(connectionId: string) => onChange({ ...rule, connectionId })}
             />
           </Flex>
         </Flex>
         <Flex vertical gap="small">
-          {rule.conditions.map((condition, index) => (
-            <ConditionEditor
-              key={condition.id}
-              condition={condition}
-              sources={sources}
-              onChange={updated => updateCondition(index, updated)}
-              onRemove={() => removeCondition(index)}
+          {rule.conditions.length > 0 ? (
+            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+              {__('Send it here when all of these conditions match')}
+            </Text>
+          ) : (
+            <Alert
+              type="warning"
+              showIcon
+              message={__('This rule has no conditions, so it never runs. Add a condition.')}
             />
+          )}
+          {rule.conditions.map((condition, index) => (
+            <Fragment key={condition.id}>
+              {index > 0 && (
+                <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>
+                  {__('and')}
+                </Text>
+              )}
+              <ConditionEditor
+                condition={condition}
+                sources={sources}
+                onChange={updated => updateCondition(index, updated)}
+                onRemove={() => removeCondition(index)}
+              />
+            </Fragment>
           ))}
           <Button type="dashed" icon={<PlusOutlined />} onClick={addCondition}>
             {__('Add condition')}

@@ -6,22 +6,38 @@ import {
   MailOutlined,
   StarOutlined
 } from '@ant-design/icons'
-import { __ } from '@common/helpers/i18nwrap'
+import { __, sprintf } from '@common/helpers/i18nwrap'
+import { IconButton } from '@components/FieldHelp'
 import { type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core'
 import { getProviderVisual } from '@pages/Connections/providerVisuals'
 import { type Connection, type ConnectionHealth } from '@pages/Connections/types'
 import { Button, Card, Flex, Popconfirm, Switch, Tag, Tooltip, Typography, theme } from 'antd'
 import HealthBadge from './HealthBadge'
+import ProviderLogo from './ProviderLogo'
 
 const { Text, Title } = Typography
 
 const PROVIDER_BADGE_SIZE = 32
 
+/** What else a delete changes: routing rules that target the connection go too, and a primary is replaced. */
+function deleteConsequence(isDefault: boolean, routingRuleCount: number): string {
+  const parts = [
+    routingRuleCount === 1 ? __('The routing rule that uses it is deleted too.') : null,
+    routingRuleCount > 1
+      ? sprintf(__('The %d routing rules that use it are deleted too.'), routingRuleCount)
+      : null,
+    isDefault ? __('Another enabled connection becomes the primary.') : null
+  ].filter((part): part is string => part !== null)
+
+  return parts.length > 0 ? parts.join(' ') : __("This can't be undone.")
+}
+
 /** Renders connection identity in the header and status controls in the body. */
 export default function ConnectionCard({
   connection,
   isDefault,
-  priority,
+  backupNumber,
+  routingRuleCount = 0,
   health,
   onSetDefault,
   onToggleEnabled,
@@ -33,7 +49,8 @@ export default function ConnectionCard({
 }: {
   connection: Connection
   isDefault: boolean
-  priority?: number
+  backupNumber?: number
+  routingRuleCount?: number
   health?: ConnectionHealth
   onSetDefault: () => void
   onToggleEnabled: (enabled: boolean) => void
@@ -48,6 +65,7 @@ export default function ConnectionCard({
   const isEnabled = connection.enabled
   const toggleLabel = isEnabled ? __('Disable this connection') : __('Enable this connection')
   const nameId = `connection-card-name-${connection.id}`
+  const isDraggable = !isDefault && dragHandleListeners !== undefined
 
   let cardStyle: CSSProperties | undefined
   if (isDefault) {
@@ -65,45 +83,20 @@ export default function ConnectionCard({
       styles={{ title: { overflow: 'visible' } }}
       title={
         <Flex align="center" gap={12} style={{ width: '100%' }}>
-          <Button
-            type="text"
-            size="small"
-            icon={<HolderOutlined />}
-            aria-label={__('Drag to reorder')}
-            style={{ cursor: 'grab', flexShrink: 0 }}
-            // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
-            {...dragHandleAttributes}
-            // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
-            {...dragHandleListeners}
-          />
-          {visual.logo ? (
-            <Flex align="center" justify="center" aria-hidden="true" style={{ flexShrink: 0 }}>
-              <img
-                src={visual.logo}
-                alt=""
-                width={PROVIDER_BADGE_SIZE}
-                height={PROVIDER_BADGE_SIZE}
-                style={{ objectFit: 'contain' }}
-              />
-            </Flex>
-          ) : (
-            <Flex
-              align="center"
-              justify="center"
-              aria-hidden="true"
-              style={{
-                width: PROVIDER_BADGE_SIZE,
-                height: PROVIDER_BADGE_SIZE,
-                flexShrink: 0,
-                borderRadius: token.borderRadius,
-                backgroundColor: visual.accent,
-                color: token.colorWhite,
-                fontWeight: token.fontWeightStrong
-              }}
-            >
-              {visual.initial}
-            </Flex>
+          {isDraggable && (
+            <IconButton
+              type="text"
+              size="small"
+              icon={<HolderOutlined />}
+              label={__('Drag to reorder')}
+              style={{ cursor: 'grab', flexShrink: 0, color: token.colorTextSecondary }}
+              // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
+              {...dragHandleAttributes}
+              // eslint-disable-next-line react/jsx-props-no-spreading -- dnd-kit's own a11y attributes/listeners
+              {...dragHandleListeners}
+            />
           )}
+          <ProviderLogo visual={visual} size={PROVIDER_BADGE_SIZE} />
           <Title
             id={nameId}
             level={5}
@@ -131,21 +124,24 @@ export default function ConnectionCard({
           wrap
           style={{ paddingInline: token.paddingXS }}
         >
-          <Button
-            type="text"
-            icon={<StarOutlined />}
-            disabled={isDefault || !isEnabled}
-            onClick={onSetDefault}
-          >
-            {__('Set default')}
-          </Button>
+          {!isDefault && (
+            <Tooltip title={isEnabled ? undefined : __('Turn this connection on first')}>
+              <span tabIndex={isEnabled ? undefined : 0}>
+                <Button type="text" icon={<StarOutlined />} disabled={!isEnabled} onClick={onSetDefault}>
+                  {__('Set as primary')}
+                </Button>
+              </span>
+            </Tooltip>
+          )}
           <Button type="text" icon={<EditOutlined />} onClick={onEdit}>
             {__('Edit')}
           </Button>
           <Popconfirm
-            title={__('Delete this connection?')}
+            title={sprintf(__('Delete "%s"?'), connection.name)}
+            description={deleteConsequence(isDefault, routingRuleCount)}
             onConfirm={onDelete}
-            okText={__('OK')}
+            okText={__('Delete connection')}
+            okButtonProps={{ danger: true }}
             cancelText={__('Cancel')}
           >
             <Button type="text" danger icon={<DeleteOutlined />}>
@@ -166,14 +162,16 @@ export default function ConnectionCard({
               aria-label={toggleLabel}
             />
           </Tooltip>
-          {health && <HealthBadge health={health} />}
+          {health && <HealthBadge health={health} connectionName={connection.name} />}
           {isDefault && (
             <Tag bordered={false} color={token.colorPrimary}>
-              {__('Default')}
+              {__('Primary')}
             </Tag>
           )}
           {!isEnabled && <Tag bordered={false}>{__('Disabled')}</Tag>}
-          {typeof priority === 'number' && <Tag bordered={false}>{`${__('Priority')} ${priority}`}</Tag>}
+          {!isDefault && typeof backupNumber === 'number' && (
+            <Tag bordered={false}>{sprintf(__('Backup #%d'), backupNumber)}</Tag>
+          )}
         </Flex>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
           {visual.blurb}

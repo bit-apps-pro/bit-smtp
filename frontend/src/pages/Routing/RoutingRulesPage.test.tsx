@@ -1,3 +1,4 @@
+import notify from '@components/Toaster/Toaster'
 import { renderWithProviders } from '@config/test-utils'
 import type * as DndKitCore from '@dnd-kit/core'
 import type * as DndKitSortable from '@dnd-kit/sortable'
@@ -13,6 +14,9 @@ import RoutingRulesPage from './RoutingRulesPage'
 vi.mock('@pages/Connections/data/useMailSettings', () => ({ default: vi.fn() }))
 vi.mock('@pages/Connections/data/useUpdateSettings', () => ({ default: vi.fn() }))
 vi.mock('@pages/Routing/data/useMailSources', () => ({ default: vi.fn() }))
+vi.mock('@components/Toaster/Toaster', () => ({
+  default: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }
+}))
 
 const { capturedOnDragEnd, capturedItems } = vi.hoisted(() => ({
   capturedOnDragEnd: { current: undefined as ((event: DndKitCore.DragEndEvent) => void) | undefined },
@@ -84,7 +88,10 @@ describe('RoutingRulesPage', () => {
   const updateSettingsMutate = vi.fn()
 
   beforeEach(() => {
-    updateSettingsMutate.mockClear()
+    updateSettingsMutate.mockReset()
+    vi.mocked(notify.success).mockClear()
+    vi.mocked(notify.error).mockClear()
+    window.location.hash = '#/routing'
     capturedOnDragEnd.current = undefined
     capturedItems.current = []
     ;(useMailSettings as Mock).mockReturnValue({ data: settings, isPending: false })
@@ -114,7 +121,7 @@ describe('RoutingRulesPage', () => {
     await userEvent.click(await screen.findByTitle('Source plugin'))
     await userEvent.click(screen.getByRole('combobox', { name: 'Value' }))
 
-    expect(await screen.findByTitle('WooCommerce')).toBeInTheDocument()
+    expect(await screen.findByTitle('WooCommerce (woocommerce)')).toBeInTheDocument()
   })
 
   it('adds a rule row when Add rule is clicked', async () => {
@@ -127,23 +134,78 @@ describe('RoutingRulesPage', () => {
     expect(screen.getAllByRole('combobox', { name: 'Target connection' })).toHaveLength(2)
   })
 
-  it('saves features.routing with the connectionId and condition shape on Save', async () => {
+  it('keeps Save disabled and shows no unsaved-changes notice until something changes', () => {
     renderWithProviders(<RoutingRulesPage />)
 
-    await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+    expect(screen.queryByText('You have unsaved changes')).not.toBeInTheDocument()
+  })
 
-    expect(updateSettingsMutate).toHaveBeenCalled()
-    const [payload] = updateSettingsMutate.mock.calls[0]
-    expect(payload).toEqual({
-      features: {
-        routing: [
-          {
-            connectionId: 'conn_2',
-            conditions: [{ field: 'subject', operator: 'contains', value: 'invoice' }]
-          }
-        ]
-      }
+  it('flags unsaved changes and discards them back to the saved rules', async () => {
+    renderWithProviders(<RoutingRulesPage />)
+
+    await userEvent.type(screen.getByLabelText('Value'), 's')
+    expect(screen.getByText('You have unsaved changes')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
+
+    expect(screen.getByLabelText('Value')).toHaveValue('invoice')
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+  })
+
+  it('confirms a successful save with a toast', async () => {
+    updateSettingsMutate.mockImplementation((_payload, options) =>
+      options?.onSuccess?.({ status: 'success', data: {} })
+    )
+    renderWithProviders(<RoutingRulesPage />)
+
+    await userEvent.type(screen.getByLabelText('Value'), 's')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(notify.success).toHaveBeenCalledWith('Routing rules saved.')
+  })
+
+  it('reports a rejected save instead of claiming success', async () => {
+    updateSettingsMutate.mockImplementation((_payload, options) =>
+      options?.onSuccess?.({ status: 'error', data: {} })
+    )
+    renderWithProviders(<RoutingRulesPage />)
+
+    await userEvent.type(screen.getByLabelText('Value'), 's')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(notify.error).toHaveBeenCalledWith("Couldn't save routing rules.")
+    expect(notify.success).not.toHaveBeenCalled()
+  })
+
+  it('shows an empty state explaining routing when there are no rules', async () => {
+    ;(useMailSettings as Mock).mockReturnValue({
+      data: { ...settings, features: {} },
+      isPending: false
     })
+    renderWithProviders(<RoutingRulesPage />)
+
+    expect(screen.getByText('No routing rules')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Add rule' }))
+    expect(screen.getAllByRole('combobox', { name: 'Target connection' })).toHaveLength(1)
+  })
+
+  it('asks before following an in-app link while there are unsaved changes', async () => {
+    renderWithProviders(
+      <>
+        <a href="#/logs">Logs</a>
+        <RoutingRulesPage />
+      </>
+    )
+
+    await userEvent.type(screen.getByLabelText('Value'), 's')
+    await userEvent.click(screen.getByRole('link', { name: 'Logs' }))
+
+    expect(await screen.findByText('Leave without saving?')).toBeInTheDocument()
+    expect(window.location.hash).not.toBe('#/logs')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Leave without saving' }))
+    expect(window.location.hash).toBe('#/logs')
   })
 
   it('posts an updated condition value after editing it', async () => {
@@ -151,7 +213,7 @@ describe('RoutingRulesPage', () => {
 
     await userEvent.clear(screen.getByLabelText('Value'))
     await userEvent.type(screen.getByLabelText('Value'), 'receipt')
-    await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     const [payload] = updateSettingsMutate.mock.calls[0]
     expect(payload).toEqual({
@@ -171,8 +233,11 @@ describe('RoutingRulesPage', () => {
 
     const ruleCard = screen.getByText('Backup SMTP').closest('.ant-card') as HTMLElement
     await userEvent.click(within(ruleCard).getByRole('button', { name: /Delete rule/ }))
-    await userEvent.click(await screen.findByRole('button', { name: 'OK' }))
-    await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+    const popconfirm = (await screen.findByText(/Matching emails will use/)).closest(
+      '.ant-popover'
+    ) as HTMLElement
+    await userEvent.click(within(popconfirm).getByRole('button', { name: 'Delete rule' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     const [payload] = updateSettingsMutate.mock.calls[0]
     expect(payload).toEqual({ features: { routing: [] } })
@@ -182,7 +247,7 @@ describe('RoutingRulesPage', () => {
     renderWithProviders(<RoutingRulesPage />)
 
     await userEvent.click(screen.getByRole('button', { name: /Add rule/ }))
-    await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     const [payload] = updateSettingsMutate.mock.calls[0]
     expect(payload).toEqual({
@@ -208,7 +273,7 @@ describe('RoutingRulesPage', () => {
         over: { id: capturedItems.current[0] }
       } as DndKitCore.DragEndEvent)
     })
-    await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     const [payload] = updateSettingsMutate.mock.calls[0]
     expect(payload).toEqual({

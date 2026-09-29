@@ -25,7 +25,7 @@ describe('ConditionEditor', () => {
     expect(screen.getByRole('combobox', { name: 'Field' })).toBeInTheDocument()
     expect(screen.getByText('To recipient')).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Operator' })).toBeInTheDocument()
-    expect(screen.getByText('Equals')).toBeInTheDocument()
+    expect(screen.getByText('is exactly')).toBeInTheDocument()
     expect(screen.getByLabelText('Value')).toHaveValue('a@b.com')
   })
 
@@ -48,7 +48,7 @@ describe('ConditionEditor', () => {
     )
 
     await userEvent.click(screen.getByRole('combobox', { name: 'Operator' }))
-    await userEvent.click(await screen.findByTitle('Contains'))
+    await userEvent.click(await screen.findByTitle('contains'))
 
     expect(onChange).toHaveBeenCalledWith({ ...condition, operator: 'contains' })
   })
@@ -94,8 +94,8 @@ describe('ConditionEditor', () => {
     const value = screen.getByRole('combobox', { name: 'Value' })
     await userEvent.click(value)
 
-    expect(await screen.findByTitle('WooCommerce')).toBeInTheDocument()
-    expect(screen.getByTitle('Bit Form')).toBeInTheDocument()
+    expect(await screen.findByTitle('WooCommerce (woocommerce)')).toBeInTheDocument()
+    expect(screen.getByTitle('Bit Form (bit-form)')).toBeInTheDocument()
   })
 
   it('emits the plugin slug when a source is picked from the autocomplete', async () => {
@@ -116,7 +116,7 @@ describe('ConditionEditor', () => {
     )
 
     await userEvent.click(screen.getByRole('combobox', { name: 'Value' }))
-    await userEvent.click(await screen.findByTitle('WooCommerce'))
+    await userEvent.click(await screen.findByTitle('WooCommerce (woocommerce)'))
 
     expect(onChange).toHaveBeenCalledWith({ ...sourceCondition, value: 'woocommerce' })
   })
@@ -185,7 +185,7 @@ describe('ConditionEditor', () => {
 
     await userEvent.click(screen.getByRole('combobox', { name: 'Operator' }))
 
-    expect(await screen.findByTitle('Domain')).toBeInTheDocument()
+    expect(await screen.findByTitle('domain is')).toBeInTheDocument()
   })
 
   it('offers the domain operator for the from field', async () => {
@@ -206,7 +206,7 @@ describe('ConditionEditor', () => {
 
     await userEvent.click(screen.getByRole('combobox', { name: 'Operator' }))
 
-    expect(await screen.findByTitle('Domain')).toBeInTheDocument()
+    expect(await screen.findByTitle('domain is')).toBeInTheDocument()
   })
 
   it('does not offer the domain operator for the subject field', async () => {
@@ -227,8 +227,8 @@ describe('ConditionEditor', () => {
 
     await userEvent.click(screen.getByRole('combobox', { name: 'Operator' }))
 
-    expect(await screen.findByTitle('Contains')).toBeInTheDocument()
-    expect(screen.queryByTitle('Domain')).not.toBeInTheDocument()
+    expect(await screen.findByTitle('contains')).toBeInTheDocument()
+    expect(screen.queryByTitle('domain is')).not.toBeInTheDocument()
   })
 
   it('does not offer the domain operator for the source_plugin field', async () => {
@@ -249,8 +249,8 @@ describe('ConditionEditor', () => {
 
     await userEvent.click(screen.getByRole('combobox', { name: 'Operator' }))
 
-    expect(await screen.findByTitle('Contains')).toBeInTheDocument()
-    expect(screen.queryByTitle('Domain')).not.toBeInTheDocument()
+    expect(await screen.findByTitle('contains')).toBeInTheDocument()
+    expect(screen.queryByTitle('domain is')).not.toBeInTheDocument()
   })
 
   it('resets a domain operator to a valid default when switching to source_plugin', async () => {
@@ -279,5 +279,69 @@ describe('ConditionEditor', () => {
       operator: 'equals',
       value: ''
     })
+  })
+
+  it.each([
+    ['recipient', 'equals', 'customer@example.com'],
+    ['subject', 'contains', 'invoice'],
+    ['from', 'domain', 'example.com'],
+    ['recipient', 'matches', '^noreply@.*\\.shop$']
+  ] as const)('shows a %s/%s example placeholder', (field, operator, placeholder) => {
+    render(
+      <ConditionEditor
+        condition={{ ...condition, field, operator, value: '' }}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    expect(screen.getByLabelText('Value')).toHaveAttribute('placeholder', placeholder)
+  })
+
+  it('explains regex matching in a help popover only for the pattern operator', async () => {
+    const { rerender } = render(
+      <ConditionEditor condition={condition} sources={sources} onChange={vi.fn()} onRemove={vi.fn()} />
+    )
+    expect(screen.queryByRole('button', { name: 'Help: pattern matching' })).not.toBeInTheDocument()
+
+    rerender(
+      <ConditionEditor
+        condition={{ ...condition, operator: 'matches', value: '^a' }}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Help: pattern matching' }))
+
+    expect(await screen.findByText(/appears anywhere in the field/)).toBeInTheDocument()
+  })
+
+  it('warns that an invalid pattern will never match', () => {
+    render(
+      <ConditionEditor
+        condition={{ ...condition, operator: 'matches', value: '([a-z' }}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    const warning = screen.getByText(/will never match/)
+    expect(screen.getByLabelText('Value')).toHaveAttribute('aria-describedby', warning.id)
+  })
+
+  it('does not warn about a valid pattern', () => {
+    render(
+      <ConditionEditor
+        condition={{ ...condition, operator: 'matches', value: '^noreply@' }}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText(/will never match/)).not.toBeInTheDocument()
   })
 })
