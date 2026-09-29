@@ -204,8 +204,8 @@ export default function Logs() {
         }
         return (
           <>
-            {record.opened ? <Tag color="blue">{__('Opened')}</Tag> : null}
-            {record.clicked ? <Tag color="green">{__('Clicked')}</Tag> : null}
+            {record.opened ? <Tag color="processing">{__('Opened')}</Tag> : null}
+            {record.clicked ? <Tag color="success">{__('Clicked')}</Tag> : null}
           </>
         )
       }

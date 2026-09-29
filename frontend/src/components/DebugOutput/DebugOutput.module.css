@@ -1,12 +1,12 @@
 .terminal {
-  background: #0b0f14;
-  color: #d6deeb;
+  background: #0b131e;
+  color: #d5deea;
   border-radius: 6px;
   padding: 8px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.4;
-  border: 1px solid rgba(255 255 255, 3%);
+  border: 1px solid rgba(255, 255, 255, 6%);
 }
 
 .header {
@@ -18,7 +18,7 @@
 
 .title {
   font-weight: 600;
-  color: #9fb0ff;
+  color: #68b0f3;
 }
 
 .content {

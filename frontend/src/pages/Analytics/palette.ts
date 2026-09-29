@@ -1,49 +1,57 @@
 import { type DeliveryStatusKey } from '@common/glossary'
+import { SEMANTIC } from '@config/themes/palette'
 
-/** Dataviz chart palette: brand-anchored, CVD-separated categorical hues in a fixed never-reassigned order, plus the dataviz skill's reserved status scale. */
+/** Dataviz categorical palette opening on the logo-blue hue; the order is the CVD-safety mechanism (validated adjacent-pair ΔE ≥ 8 in both modes), never reassigned. */
 export const CATEGORICAL_LIGHT = [
-  '#4f46e5',
+  '#1d7ee0',
+  '#eb6834',
   '#1baf7a',
   '#eda100',
-  '#e34948',
-  '#7c3aed',
-  '#008300',
   '#e87ba4',
-  '#eb6834'
+  '#008300',
+  '#4a3aa7',
+  '#e34948'
 ] as const
 
 export const CATEGORICAL_DARK = [
-  '#4f46e5',
+  '#3b93ea',
+  '#d95926',
   '#199e70',
   '#c98500',
-  '#e66767',
-  '#7c3aed',
-  '#008300',
   '#d55181',
-  '#d95926'
+  '#008300',
+  '#9085e9',
+  '#e66767'
 ] as const
 
-/** Reserved status scale - fixed meaning, never themed, always paired with an icon + label. */
+const BLUE = 0
+const AQUA = 2
+const RED = 7
+
+/** Brand-tinted neutral ink for aggregate series (totals) so they read as context, not as another category. */
+const INK = { light: '#4a5a70', dark: '#a9b8cc' } as const
+
+/** Reserved status scale sharing the theme's semantic seeds - fixed meaning, always paired with an icon + label. */
 export const STATUS = {
-  good: '#0ca30c',
-  warning: '#fab219',
-  serious: '#ec835a',
-  critical: '#d03b3b'
+  good: SEMANTIC.success,
+  warning: SEMANTIC.warning,
+  serious: SEMANTIC.serious,
+  critical: SEMANTIC.error
 } as const
 
 export type StatusKey = keyof typeof STATUS
 
-/** The de-emphasis / "Other" gray - a residual bucket, never a categorical identity slot (same in both modes). */
-export const OTHER_GRAY = '#898781'
+/** The de-emphasis / "Other" gray, brand-tinted - a residual bucket, never a categorical identity slot (same in both modes). */
+export const OTHER_GRAY = '#8a95a5'
 
-/** Fixed identity colors for the volume-over-time metrics (see report for the assignment rationale). */
+/** Fixed identity colors for the volume-over-time metrics: neutral total, then blue/aqua/red (all-pairs CVD-validated trio). */
 export function volumeSeriesColors(isDark: boolean) {
   const c = isDark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT
   return {
-    total: c[0],
-    accepted: c[1],
-    delivered: c[4],
-    failed: c[3]
+    total: isDark ? INK.dark : INK.light,
+    accepted: c[BLUE],
+    delivered: c[AQUA],
+    failed: c[RED]
   }
 }
 
@@ -64,7 +72,7 @@ export function deliveryStatusColor(row: DeliveryStatusKey): string {
   }
 }
 
-/** The single hue used for every bar in a nominal top-N ranking (never one hue per bar - see anti-patterns.md). */
+/** The single brand hue used for every bar in a nominal top-N ranking (never one hue per bar - see anti-patterns.md). */
 export function rankingHue(isDark: boolean): string {
-  return (isDark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT)[0]
+  return (isDark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT)[BLUE]
 }

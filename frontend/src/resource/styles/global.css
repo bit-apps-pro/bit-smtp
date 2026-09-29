@@ -1,26 +1,27 @@
 /* stylelint-disable comment-whitespace-inside */
 
-/* Vars for legacy .css/.module.css files that can't reach antd's ConfigProvider tokens; kept in sync with the [data-theme] attribute ThemeProvider sets, not the old [color-scheme] system. */
+/* Vars for legacy .css/.module.css files that can't reach antd's ConfigProvider tokens; values mirror config/themes/palette.ts and follow the [data-theme] attribute ThemeProvider sets. */
 :root {
   --font-family: 'Roboto', sans-serif;
-  --accent-color: hsl(290deg, 100%, 9%);
-  --bg: hsl(0deg, 0%, 100%);
-  --bg-5: hsl(0deg, 0%, 95%);
-  --bg-10: hsl(0deg, 0%, 90%);
-  --bg-40: hsl(0deg, 0%, 60%);
-  --danger-txt: hsl(4deg, 90%, 58%);
-  --txt: hsl(0deg, 0%, 0%);
-  --shadow-1: 0 4px 6px 0 hsla(200deg, 15%, 85%, 100%);
+  --accent-color: #0b76da;
+  --bg: #fff;
+  --bg-layout: #f3f6fa;
+  --bg-5: #eef2f7;
+  --bg-10: #e2e8f0;
+  --bg-40: #8a95a5;
+  --danger-txt: #c0302b;
+  --txt: #0e192a;
+  --shadow-1: 0 4px 6px 0 rgba(14, 25, 42, 12%);
 }
 
 [data-theme='dark'] {
-  --accent-color: hsl(325deg, 55%, 67%);
-  --bg: hsl(274deg, 13%, 17%);
-  --bg-5: hsl(274deg, 13%, 22%);
-  --bg-10: hsl(274deg, 13%, 27%);
-  --bg-40: hsl(274deg, 13%, 57%);
-  --txt: rgb(234, 224, 240);
-  --shadow-1: 0 4px 6px 0 hsl(274deg, 13%, 10%);
+  --bg: #121c2b;
+  --bg-layout: #0b131e;
+  --bg-5: #1b2637;
+  --bg-10: #243247;
+  --danger-txt: #f27a74;
+  --txt: #e8eef7;
+  --shadow-1: 0 4px 6px 0 rgba(0, 0, 0, 45%);
 }
 
 .ant-notification,

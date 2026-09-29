@@ -4,9 +4,9 @@ import { type LogType } from '@pages/Logs/data/useFetchLogs'
 import { Tag, Tooltip } from 'antd'
 
 const RESULT_COLOR: Record<SendResult, string> = {
-  sent: 'green',
-  failed: 'red',
-  failover_recovered: 'gold'
+  sent: 'success',
+  failed: 'error',
+  failover_recovered: 'warning'
 }
 
 /** Number of connections that failed before the one that finally handled this send. */

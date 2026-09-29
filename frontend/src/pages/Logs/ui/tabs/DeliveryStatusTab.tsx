@@ -26,7 +26,7 @@ const engagementColumns: TableColumnsType<EngagementEvent> = [
     key: 'type',
     width: 90,
     render: (type: string) => (
-      <Tag color={type === 'click' ? 'geekblue' : 'green'}>{engagementTypeLabel(type)}</Tag>
+      <Tag color={type === 'click' ? 'success' : 'processing'}>{engagementTypeLabel(type)}</Tag>
     )
   },
   {

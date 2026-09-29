@@ -1,7 +1,7 @@
 import { type CSSProperties } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import { type Direction, describeObservation } from '@pages/Analytics/anomalies'
-import { STATUS, type StatusKey } from '@pages/Analytics/palette'
+import { type StatusKey } from '@pages/Analytics/palette'
 import { type Anomalies } from '@pages/Analytics/types'
 import { Flex, Tag, Typography, theme } from 'antd'
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, Info } from 'lucide-react'
@@ -16,6 +16,14 @@ const SEVERITY_ICON: Record<StatusKey, typeof AlertTriangle> = {
   warning: AlertTriangle,
   serious: AlertTriangle,
   critical: AlertTriangle
+}
+
+/** Themed Tag preset per severity, so the pill text meets AA on its tint instead of white-on-hex. */
+const SEVERITY_TAG: Record<StatusKey, string> = {
+  good: 'success',
+  warning: 'warning',
+  serious: 'volcano',
+  critical: 'error'
 }
 
 const SEVERITY_LABEL: Record<StatusKey, string> = {
@@ -77,7 +85,7 @@ export default function AnomaliesList({ anomalies }: { anomalies: Anomalies }) {
           const described = describeObservation(observation)
           const DirectionIcon = directionIcon(described.direction)
           const SeverityIcon = described.severity ? SEVERITY_ICON[described.severity] : Info
-          const severityColor = described.severity ? STATUS[described.severity] : token.colorTextTertiary
+          const severityColor = described.severity ? SEVERITY_TAG[described.severity] : undefined
           const severityLabel = described.severity ? SEVERITY_LABEL[described.severity] : __('Info')
 
           return (

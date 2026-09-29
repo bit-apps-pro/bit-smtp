@@ -3,12 +3,12 @@ import { Tag, Tooltip } from 'antd'
 
 /** Tag color per delivery status; anything unlisted renders in the neutral default. */
 const STATUS_COLOR: Partial<Record<DeliveryStatusKey, string>> = {
-  delivered: 'green',
-  bounced: 'red',
-  spam: 'red',
-  blocked: 'red',
-  deferred: 'gold',
-  pending: 'gold'
+  delivered: 'success',
+  bounced: 'error',
+  spam: 'error',
+  blocked: 'error',
+  deferred: 'warning',
+  pending: 'warning'
 }
 
 /** Filterable stored statuses; "pending" is a NULL-rendered UI state and "not_tracked" is never stored. */

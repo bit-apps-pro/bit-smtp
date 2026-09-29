@@ -1,4 +1,5 @@
 import { __ } from '@common/helpers/i18nwrap'
+import { NEUTRAL_ACCENT, PRIMARY_SEED } from '@config/themes/palette'
 import amazonSesLogo from '@resource/img/providers/amazon_ses.svg'
 import brevoLogo from '@resource/img/providers/brevo.svg'
 import gmailLogo from '@resource/img/providers/gmail.svg'
@@ -28,12 +29,12 @@ interface ProviderEntry {
 const providers: Record<string, ProviderEntry> = {
   other_smtp: {
     logo: otherSmtpLogo,
-    accent: '#64748b',
+    accent: NEUTRAL_ACCENT,
     blurb: () => __('Any SMTP server')
   },
   php_sendmail: {
     logo: null,
-    accent: '#475569',
+    accent: NEUTRAL_ACCENT,
     blurb: () => __('PHP mail() / server sendmail')
   },
   sendgrid: {
@@ -98,7 +99,7 @@ const providers: Record<string, ProviderEntry> = {
   }
 }
 
-/** Resolves a provider key to its display visual (logo/initial/accent/blurb), falling back to a generic indigo tile for unknown providers. */
+/** Resolves a provider key to its display visual (logo/initial/accent/blurb), falling back to a brand-blue tile for unknown providers. */
 export function getProviderVisual(key: string, label?: string): ProviderVisual {
   const entry = providers[key]
   const displayLabel = label ?? key
@@ -116,7 +117,7 @@ export function getProviderVisual(key: string, label?: string): ProviderVisual {
   return {
     logo: null,
     initial,
-    accent: '#4f46e5',
+    accent: PRIMARY_SEED,
     blurb: __('Custom mail provider')
   }
 }

@@ -5,7 +5,7 @@ const globalCssInJs = ({ token }: Theme) =>
   ({
     '#bit-apps-root *': {
       scrollbarWidth: 'thin',
-      scrollbarColor: 'red'
+      scrollbarColor: `${token.colorBorder} transparent`
     },
     '.ant-popover-inner-content': {
       maxHeight: 'calc(100vh - 80px)',

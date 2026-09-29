@@ -1,3 +1,4 @@
+import { PRIMARY_SEED } from '@config/themes/palette'
 import { describe, expect, it } from 'vitest'
 import { getProviderVisual } from './providerVisuals'
 
@@ -13,7 +14,7 @@ describe('getProviderVisual', () => {
     const v = getProviderVisual('future_provider', 'Future Provider')
     expect(v.logo).toBeNull()
     expect(v.initial).toBe('F')
-    expect(v.accent).toBe('#4f46e5')
+    expect(v.accent).toBe(PRIMARY_SEED)
     expect(v.blurb).toBe('Custom mail provider')
   })
   it('derives the initial from the key when no label is given', () => {

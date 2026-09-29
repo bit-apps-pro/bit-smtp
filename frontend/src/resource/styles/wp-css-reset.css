@@ -18,7 +18,7 @@ stylelint-disable .media-toolbar .button-primary {
 }
 
 #wpcontent {
-  background: #f5f8ff;
+  background: var(--bg-layout);
   padding-left: 0;
   transition: margin-left 0.3s ease-in-out;
 }
@@ -40,7 +40,7 @@ stylelint-disable .media-toolbar .button-primary {
 }
 
 .media-modal-backdrop {
-  background: #25283b !important;
+  background: #0e192a !important;
 }
 
 .media-menu-item.active {
@@ -65,7 +65,7 @@ stylelint-disable .media-toolbar .button-primary {
 }
 
 .media-sidebar {
-  background: #f3f4ff;
+  background: #f3f6fa;
 }
 
 .media-modal-content {
@@ -120,7 +120,7 @@ button.check {
 .media-modal textarea:focus,
 .media-modal select:focus {
   border-color: var(--accent-color) !important;
-  box-shadow: 0 0 0 0 var(--accent-color), 0 0 0 4px rgba(0, 131, 243, 10%) !important;
+  box-shadow: 0 0 0 0 var(--accent-color), 0 0 0 4px rgba(11, 118, 218, 16%) !important;
 }
 
 input[type='checkbox']:disabled:checked::before,
