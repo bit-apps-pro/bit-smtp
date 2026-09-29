@@ -17,11 +17,14 @@ interface Stat {
 
 /** The automated-fire caveat shared by the opens/clicks tiles - a bare count must never read as human. */
 function automatedCaveat(automated: number): string | undefined {
-  return automated > 0
-    ? __(
-        'Includes automated fires (Apple Mail Privacy Protection, image proxies, prefetch bots) that are excluded from the confirmed-human figure.'
-      )
-    : undefined
+  return automated > 0 ? __('Includes automatic activity from privacy and security tools.') : undefined
+}
+
+const AUTOMATED_HELP = {
+  title: __('Why some opens and clicks are automatic'),
+  body: __(
+    'Some email apps, like Apple Mail, and security scanners open emails and links on their own. We count those separately. "Confirmed human" shows only real people.'
+  )
 }
 
 /** One labelled figure; muted and tooltip-hinted when it carries an honesty caveat (automated / no data). */
@@ -100,9 +103,7 @@ export default function EngagementMetrics({ engagement }: { engagement: Engageme
 
   const honestOpens = `${__('Opens')}: ${formatExactNumber(opens.total)} (${formatExactNumber(
     opens.automated
-  )} ${__('flagged automated — Apple Mail Privacy / image proxies / prefetch')}). ${__(
-    'Confirmed human'
-  )}: ${formatExactNumber(opens.human)}.`
+  )} ${__('automatic')}). ${__('Confirmed human')}: ${formatExactNumber(opens.human)}.`
 
   const stats: Array<Stat> = [
     {
@@ -172,6 +173,7 @@ export default function EngagementMetrics({ engagement }: { engagement: Engageme
     <ChartCard
       title={__('Engagement')}
       subtitle={engagement.engagement_interpretation}
+      help={AUTOMATED_HELP}
       tableView={tableView}
     >
       <Flex vertical gap={token.padding}>

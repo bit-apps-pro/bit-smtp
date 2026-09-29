@@ -1,45 +1,46 @@
-import { __ } from '@common/helpers/i18nwrap'
-import { Tag } from 'antd'
+import { type DeliveryStatusKey, deliveryStatusEntry } from '@common/glossary'
+import { Tag, Tooltip } from 'antd'
 
-type DeliveryPresentation = { color: string; label: string }
-
-/** Presentation for verified connection with no provider event yet. */
-const PENDING: DeliveryPresentation = { color: 'gold', label: __('Pending') }
-
-const PRESENTATION: Record<string, DeliveryPresentation> = {
-  delivered: { color: 'green', label: __('Delivered') },
-  bounced: { color: 'red', label: __('Bounced') },
-  spam: { color: 'red', label: __('Spam') },
-  blocked: { color: 'red', label: __('Blocked') },
-  deferred: { color: 'gold', label: __('Deferred') },
-  accepted: { color: 'default', label: __('Accepted') }
+/** Tag color per delivery status; anything unlisted renders in the neutral default. */
+const STATUS_COLOR: Partial<Record<DeliveryStatusKey, string>> = {
+  delivered: 'green',
+  bounced: 'red',
+  spam: 'red',
+  blocked: 'red',
+  deferred: 'gold',
+  pending: 'gold'
 }
 
-/** Sortable delivery statuses; "Pending" (NULL status) is excluded from this list since it's never persisted. */
-const DELIVERY_STATUS_ORDER = [
+/** Filterable stored statuses; "pending" is a NULL-rendered UI state and "not_tracked" is never stored. */
+const FILTERABLE_DELIVERY_STATUSES: ReadonlyArray<DeliveryStatusKey> = [
   'delivered',
   'deferred',
   'bounced',
   'blocked',
   'spam',
   'accepted'
-] as const
+]
 
-/** Human label for a delivery_status value, shared by this Tag and the Logs filter select/chip. */
+/** Glossary label for a delivery_status value, shared by this Tag and the Logs filter select/chip. */
 export function deliveryStatusLabel(status: string): string {
-  if (status === 'pending') return PENDING.label
-  return PRESENTATION[status]?.label ?? status
+  return deliveryStatusEntry(status).label
 }
 
-/** Select options for the Logs page's Delivery status filter, derived from the same labels the Tag renders. */
-export const DELIVERY_STATUS_OPTIONS = DELIVERY_STATUS_ORDER.map(value => ({
+/** Select options for the Logs page's Delivery status filter, labelled from the shared glossary. */
+export const DELIVERY_STATUS_OPTIONS = FILTERABLE_DELIVERY_STATUSES.map(value => ({
   value,
   label: deliveryStatusLabel(value)
 }))
 
-/** Renders a colored delivery-status tag, falling back to the pending presentation when no status is set. */
+/** Colored delivery-status tag with the glossary hint as tooltip; a missing status reads as "Awaiting report". */
 export default function DeliveryStatusTag({ status }: { status?: string | null }) {
-  const presentation = status ? PRESENTATION[status] : PENDING
-  if (!presentation) return null
-  return <Tag color={presentation.color}>{presentation.label}</Tag>
+  const key = status || 'pending'
+  const entry = deliveryStatusEntry(key)
+  const color = STATUS_COLOR[key as DeliveryStatusKey]
+
+  return (
+    <Tooltip title={entry.hint}>
+      <Tag color={color}>{entry.label}</Tag>
+    </Tooltip>
+  )
 }

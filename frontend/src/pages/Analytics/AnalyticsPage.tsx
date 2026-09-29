@@ -178,7 +178,7 @@ export default function AnalyticsPage() {
 
       {overviewState.status === 'ready' ? (
         <div className={cls.page} style={pageVars}>
-          <StatTiles overview={overviewState.data} />
+          <StatTiles overview={overviewState.data} dateFrom={logsDateFrom} dateTo={logsDateTo} />
 
           {overviewState.data.total === 0 ? (
             <NoDataState />

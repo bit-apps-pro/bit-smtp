@@ -20,8 +20,8 @@ const SEVERITY_ICON: Record<StatusKey, typeof AlertTriangle> = {
 
 const SEVERITY_LABEL: Record<StatusKey, string> = {
   good: __('Improved'),
-  warning: __('Watch'),
-  serious: __('Notable'),
+  warning: __('Minor'),
+  serious: __('Significant'),
   critical: __('Critical')
 }
 

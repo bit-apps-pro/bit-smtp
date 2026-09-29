@@ -172,7 +172,7 @@ describe('AnalyticsPage', () => {
 
     renderWithProviders(<AnalyticsPage />)
 
-    expect(screen.queryByText('Total sent')).not.toBeInTheDocument()
+    expect(screen.queryByText('Total emails')).not.toBeInTheDocument()
     expect(screen.queryByText('Volume over time')).not.toBeInTheDocument()
     expect(screen.queryByText('Could not load analytics')).not.toBeInTheDocument()
   })
@@ -180,8 +180,8 @@ describe('AnalyticsPage', () => {
   it('renders stat tiles and the chart grid from a fixture overview', () => {
     renderWithProviders(<AnalyticsPage />)
 
-    expect(screen.getByText('Total sent')).toBeInTheDocument()
-    expect(screen.getByText('Accepted rate')).toBeInTheDocument()
+    expect(screen.getByText('Total emails')).toBeInTheDocument()
+    expect(screen.getByText('Sent rate')).toBeInTheDocument()
     expect(screen.getByText('Delivered rate')).toBeInTheDocument()
     expect(screen.getByText('Failed')).toBeInTheDocument()
     expect(screen.getByText('Volume over time')).toBeInTheDocument()
@@ -212,7 +212,7 @@ describe('AnalyticsPage', () => {
 
     expect(screen.getByText('Enable logging to see analytics')).toBeInTheDocument()
     expect(screen.queryByText('Could not load analytics')).not.toBeInTheDocument()
-    expect(screen.queryByText('Total sent')).not.toBeInTheDocument()
+    expect(screen.queryByText('Total emails')).not.toBeInTheDocument()
   })
 
   it('renders the no-data empty state, not the charts, when the range has zero sends', () => {
@@ -225,7 +225,7 @@ describe('AnalyticsPage', () => {
     expect(screen.queryByText('Delivery breakdown')).not.toBeInTheDocument()
     expect(screen.queryByText('Engagement')).not.toBeInTheDocument()
     expect(screen.queryByText('Anomalies')).not.toBeInTheDocument()
-    expect(screen.getByText('Total sent')).toBeInTheDocument()
+    expect(screen.getByText('Total emails')).toBeInTheDocument()
   })
 
   it('requests a new bucket - and therefore a new query key - when the filter changes', async () => {

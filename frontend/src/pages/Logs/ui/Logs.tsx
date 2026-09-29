@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { DELIVERY_STATUSES, SEND_RESULTS } from '@common/glossary'
 import { __ } from '@common/helpers/i18nwrap'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useDeleteLog from '@pages/Logs/data/useDeleteLog'
@@ -14,11 +15,13 @@ import {
   DatePicker,
   Flex,
   Input,
+  Popconfirm,
   Select,
   Table,
   type TableColumnsType,
   type TableProps,
   Tag,
+  Tooltip,
   Typography,
   notification,
   theme
@@ -26,8 +29,17 @@ import {
 import dayjs, { type Dayjs } from 'dayjs'
 import { Download } from 'lucide-react'
 import DeliveryStatusTag, { DELIVERY_STATUS_OPTIONS, deliveryStatusLabel } from './DeliveryStatusTag'
-import LogRetentionSettings from './LogRetentionSettings'
-import LogToggle from './LogToggle'
+import LegendTitle from './GlossaryLegend'
+import LoggingStatusChip from './LoggingStatusChip'
+import LogsEmptyState from './LogsEmptyState'
+import SendResultTag from './SendResultTag'
+import {
+  deleteConfirmCopy,
+  deleteSuccessMessage,
+  resendConfirmCopy,
+  resendSuccessMessage,
+  retriedMessage
+} from './logActionCopy'
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -51,10 +63,10 @@ type DateRangeValue = [Dayjs, Dayjs] | null
 const FILTER_CONTROL_WIDTH = 180
 const MAX_CHIP_ID_LENGTH = 12
 
-/** Send-status filter options; the backend maps these to its internal success/error log status. */
+/** Send-result filter options; the backend maps these to its internal success/error log status. */
 const SEND_STATUS_OPTIONS = [
-  { value: 'sent', label: __('Sent') },
-  { value: 'failed', label: __('Failed') }
+  { value: 'sent', label: SEND_RESULTS.sent.label },
+  { value: 'failed', label: SEND_RESULTS.failed.label }
 ]
 
 const SEND_STATUS_LABEL: Record<string, string> = Object.fromEntries(
@@ -79,7 +91,7 @@ function chipLabel(
 ): string {
   switch (key) {
     case 'status':
-      return `${__('Send status')}: ${SEND_STATUS_LABEL[value] ?? value}`
+      return `${__('Result')}: ${SEND_STATUS_LABEL[value] ?? value}`
     case 'delivery_status':
       return `${__('Delivery')}: ${deliveryStatusLabel(value)}`
     case 'source_plugin':
@@ -106,54 +118,51 @@ function filtersFromSearchParams(searchParams: URLSearchParams): Partial<LogQuer
   return filters
 }
 
-/** Counts attempts with a 'failed' status. */
-const failedCount = (attempts?: Array<{ status: string }>) => {
-  if (!attempts) return 0
-  return attempts.filter(a => a.status === 'failed').length
+/** Delivery cell: dashed for failed sends, "Not tracked" without delivery tracking, else the reported status. */
+function renderDelivery(record: LogType) {
+  if (!Number(record.status)) return <Text type="secondary">—</Text>
+  return <DeliveryStatusTag status={record.delivery_verified ? record.delivery_status : 'not_tracked'} />
+}
+
+/** Retries cell: dashed when never retried, else the count with an explanatory tooltip. */
+function renderRetries(retryCount: number) {
+  if (!retryCount) return <Text type="secondary">—</Text>
+  return (
+    <Tooltip title={retriedMessage(retryCount)}>
+      <span>{retryCount}</span>
+    </Tooltip>
+  )
 }
 
 const columns: TableColumnsType<LogType> = [
   {
-    title: __('Status'),
-    key: 'status',
-    render: (_, record) => {
-      if (!record.status) {
-        return <Tag color="red">{__('Failed')}</Tag>
-      }
-      if (record.delivery_verified) {
-        return <DeliveryStatusTag status={record.delivery_status} />
-      }
-
-      return <Tag>{__('Sent')}</Tag>
-    }
+    title: <LegendTitle label={__('Result')} entries={Object.values(SEND_RESULTS)} />,
+    key: 'result',
+    render: (_, record) => <SendResultTag log={record} />
+  },
+  {
+    title: <LegendTitle label={__('Delivery')} entries={Object.values(DELIVERY_STATUSES)} />,
+    key: 'delivery',
+    render: (_, record) => renderDelivery(record)
   },
   {
     title: __('Connection'),
     dataIndex: 'connection',
     key: 'connection',
-    render: (connection, record) => {
-      const attempts = record.details?.attempts
-      const failed = attempts && attempts.length > 1 ? failedCount(attempts) : 0
-      if (failed > 0) {
-        return (
-          <div>
-            {connection || '—'}
-            <Text type="secondary" style={{ fontSize: '0.85em', marginLeft: '0.5em' }}>
-              · {failed} failed
-            </Text>
-          </div>
-        )
-      }
-      return connection || '—'
-    }
+    render: (connection: string | null) => connection || '—'
   },
   { title: __('Subject'), dataIndex: 'subject', key: 'subject' },
   { title: __('To'), dataIndex: 'to_addr', key: 'to_addr' },
-  { title: __('Retry'), dataIndex: 'retry_count', key: 'retry_count' },
-  { title: __('Sent At'), dataIndex: 'created_at', key: 'created_at' }
+  {
+    title: __('Retries'),
+    dataIndex: 'retry_count',
+    key: 'retry_count',
+    render: (retryCount: number) => renderRetries(retryCount)
+  },
+  { title: __('Sent at'), dataIndex: 'created_at', key: 'created_at' }
 ]
 
-/** Logs list page: filterable, paginated log table with export, resend, delete, and retention controls. */
+/** Logs list page: filterable, paginated log table with export, confirmed resend/delete, and logging status. */
 export default function Logs() {
   const { token } = theme.useToken()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -273,27 +282,37 @@ export default function Logs() {
   )
 
   /** Deletes the selected log rows and refreshes the table on success. */
-  const handleDelete = () => {
-    deleteLog(selectedRowKeys as number[]).then(res => {
-      if (res.code === 'SUCCESS') {
-        setSelectedRowKeys([])
-        refetch()
-        notification.success({ message: res?.message || 'Log deleted successfully' })
-      } else {
-        notification.error({ message: res?.message || 'Failed to delete logs' })
+  const handleDelete = async () => {
+    const count = selectedRowKeys.length
+    try {
+      const res = await deleteLog(selectedRowKeys as number[])
+      if (res.code !== 'SUCCESS') {
+        notification.error({ message: res?.message || __('Failed to delete logs') })
+        return
       }
-    })
+      setSelectedRowKeys([])
+      refetch()
+      notification.success({ message: deleteSuccessMessage(count) })
+    } catch {
+      notification.error({ message: __('Failed to delete logs') })
+    }
   }
 
-  /** Resends the selected log rows as-is. */
-  const handleResend = () => {
-    resendLogs(selectedRowKeys as number[]).then(res => {
-      if (res.code === 'SUCCESS') {
-        setSelectedRowKeys([])
-      } else {
-        notification.error({ message: res?.message || 'Failed to resend' })
+  /** Resends the selected log rows as-is and refreshes the table so the new sends appear. */
+  const handleResend = async () => {
+    const count = selectedRowKeys.length
+    try {
+      const res = await resendLogs(selectedRowKeys as number[])
+      if (res.code !== 'SUCCESS') {
+        notification.error({ message: res?.message || __('Failed to resend') })
+        return
       }
-    })
+      setSelectedRowKeys([])
+      refetch()
+      notification.success({ message: resendSuccessMessage(count), description: res?.message })
+    } catch {
+      notification.error({ message: __('Failed to resend') })
+    }
   }
 
   /** The active filters (no pagination) the CSV export should cover. */
@@ -335,6 +354,8 @@ export default function Logs() {
   }
 
   const hasSelected = selectedRowKeys.length > 0
+  const deleteCopy = deleteConfirmCopy(selectedRowKeys.length)
+  const resendCopy = resendConfirmCopy(selectedRowKeys.length)
   /** Updates the table's page number and page size in query state. */
   const onChange = (page: number, pageSize: number) => {
     setQuery(prev => ({ ...prev, pageNo: page, limit: pageSize }))
@@ -396,7 +417,8 @@ export default function Logs() {
       <Card styles={{ body: { display: 'flex', flexDirection: 'column', gap: token.padding } }}>
         <Flex align="center" gap="middle" justify="space-between" wrap>
           <Input.Search
-            placeholder={__('Search To address')}
+            placeholder={__('Search recipient')}
+            aria-label={__('Search recipient')}
             value={toAddrInput}
             onChange={handleToAddrChange}
             allowClear
@@ -407,15 +429,14 @@ export default function Logs() {
             <Button icon={<Download size={16} />} onClick={handleExport} loading={exportLogs.isPending}>
               {__('Export CSV')}
             </Button>
-            <LogToggle />
-            <LogRetentionSettings />
+            <LoggingStatusChip />
           </Flex>
         </Flex>
 
         <Flex gap="small" wrap>
           <Select
-            aria-label={__('Send status')}
-            placeholder={__('Send status')}
+            aria-label={__('Result')}
+            placeholder={__('Result')}
             allowClear
             value={query.status}
             options={SEND_STATUS_OPTIONS}
@@ -423,8 +444,8 @@ export default function Logs() {
             onChange={value => setFilterParam('status', value)}
           />
           <Select
-            aria-label={__('Delivery status')}
-            placeholder={__('Delivery status')}
+            aria-label={__('Delivery')}
+            placeholder={__('Delivery')}
             allowClear
             value={query.delivery_status}
             options={DELIVERY_STATUS_OPTIONS}
@@ -490,12 +511,27 @@ export default function Logs() {
           >
             <Text>{`${selectedRowKeys.length} ${__('selected')}`}</Text>
             <Flex align="center" gap="small">
-              <Button danger onClick={handleDelete} loading={isLogDeleting}>
-                {__('Delete')}
-              </Button>
-              <Button onClick={handleResend} loading={isResending}>
-                {__('Resend')}
-              </Button>
+              <Popconfirm
+                title={deleteCopy.title}
+                description={deleteCopy.description}
+                okText={deleteCopy.okText}
+                okButtonProps={{ danger: true }}
+                cancelText={__('Cancel')}
+                onConfirm={handleDelete}
+              >
+                <Button danger loading={isLogDeleting}>
+                  {__('Delete')}
+                </Button>
+              </Popconfirm>
+              <Popconfirm
+                title={resendCopy.title}
+                description={resendCopy.description}
+                okText={resendCopy.okText}
+                cancelText={__('Cancel')}
+                onConfirm={handleResend}
+              >
+                <Button loading={isResending}>{__('Resend')}</Button>
+              </Popconfirm>
               <Button type="link" size="small" onClick={() => setSelectedRowKeys([])}>
                 {__('Clear selection')}
               </Button>
@@ -511,6 +547,11 @@ export default function Logs() {
           dataSource={logs}
           onRow={onRowClick}
           loading={isLoading || isLogsFetching}
+          locale={{
+            emptyText: (
+              <LogsEmptyState filtered={activeChips.length > 0} onClearFilters={clearAllFilters} />
+            )
+          }}
           pagination={{
             current: query.pageNo,
             total,

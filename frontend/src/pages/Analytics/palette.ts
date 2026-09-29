@@ -1,5 +1,6 @@
-/** Dataviz chart palette: brand-anchored, CVD-separated categorical hues in a fixed never-reassigned order, plus the dataviz skill's reserved status scale. */
+import { type DeliveryStatusKey } from '@common/glossary'
 
+/** Dataviz chart palette: brand-anchored, CVD-separated categorical hues in a fixed never-reassigned order, plus the dataviz skill's reserved status scale. */
 export const CATEGORICAL_LIGHT = [
   '#4f46e5',
   '#1baf7a',
@@ -47,9 +48,7 @@ export function volumeSeriesColors(isDark: boolean) {
 }
 
 /** Reserved status color for each delivery-breakdown row; blocked and spam share "serious" by design. */
-export function deliveryStatusColor(
-  row: 'delivered' | 'deferred' | 'bounced' | 'blocked' | 'spam' | 'accepted' | 'pending'
-): string {
+export function deliveryStatusColor(row: DeliveryStatusKey): string {
   switch (row) {
     case 'delivered':
       return STATUS.good

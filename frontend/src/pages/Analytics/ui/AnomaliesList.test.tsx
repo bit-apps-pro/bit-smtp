@@ -76,7 +76,7 @@ describe('AnomaliesList', () => {
     )
 
     expect(screen.getByText('Improved')).toBeInTheDocument()
-    expect(screen.getByText('Watch')).toBeInTheDocument()
+    expect(screen.getByText('Minor')).toBeInTheDocument()
     expect(screen.getByText('Critical')).toBeInTheDocument()
     expect(screen.getByText('Info')).toBeInTheDocument()
   })

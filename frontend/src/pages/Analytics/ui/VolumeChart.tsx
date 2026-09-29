@@ -6,6 +6,7 @@ import usePrefersReducedMotion from '@pages/Analytics/hooks/usePrefersReducedMot
 import { type LogsFilter, cleanLogsFilter } from '@pages/Analytics/logsFilter'
 import { volumeSeriesColors } from '@pages/Analytics/palette'
 import { type SeriesBucket } from '@pages/Analytics/types'
+import { METRICS, METRICS_LEGEND } from '@pages/Analytics/vocabulary'
 import { Typography, theme } from 'antd'
 import dayjs from 'dayjs'
 import {
@@ -68,12 +69,19 @@ export function buildVolumeBucketMetrics(
   colors: VolumeSeriesColors
 ): Array<PointDetailMetric> {
   return [
-    { label: __('Total'), value: formatExactNumber(bucket.total), color: colors.total },
-    { label: __('Accepted'), value: formatExactNumber(bucket.accepted), color: colors.accepted },
-    { label: __('Delivered'), value: formatExactNumber(bucket.delivered), color: colors.delivered },
-    { label: __('Failed'), value: formatExactNumber(bucket.failed), color: colors.failed },
-    { label: __('Accepted rate'), value: formatRateOrDash(bucket.accepted, bucket.total) },
-    { label: __('Delivered rate'), value: formatRateOrDash(bucket.delivered, bucket.verified_delivery) }
+    { label: METRICS.total.label, value: formatExactNumber(bucket.total), color: colors.total },
+    { label: METRICS.sent.label, value: formatExactNumber(bucket.accepted), color: colors.accepted },
+    {
+      label: METRICS.delivered.label,
+      value: formatExactNumber(bucket.delivered),
+      color: colors.delivered
+    },
+    { label: METRICS.failed.label, value: formatExactNumber(bucket.failed), color: colors.failed },
+    { label: METRICS.sentRate.label, value: formatRateOrDash(bucket.accepted, bucket.total) },
+    {
+      label: METRICS.deliveredRate.label,
+      value: formatRateOrDash(bucket.delivered, bucket.verified_delivery)
+    }
   ]
 }
 
@@ -93,10 +101,10 @@ export default function VolumeChart({ series, dateFrom, dateTo }: VolumeChartPro
   const [detail, setDetail] = useState<DetailState | null>(null)
 
   const seriesDefs: Array<SeriesDef> = [
-    { key: 'total', name: __('Total'), color: colors.total },
-    { key: 'accepted', name: __('Accepted'), color: colors.accepted },
-    { key: 'delivered', name: __('Delivered'), color: colors.delivered },
-    { key: 'failed', name: __('Failed'), color: colors.failed }
+    { key: 'total', name: METRICS.total.label, color: colors.total },
+    { key: 'accepted', name: METRICS.sent.label, color: colors.accepted },
+    { key: 'delivered', name: METRICS.delivered.label, color: colors.delivered },
+    { key: 'failed', name: METRICS.failed.label, color: colors.failed }
   ]
 
   const last = series[series.length - 1]
@@ -120,16 +128,16 @@ export default function VolumeChart({ series, dateFrom, dateTo }: VolumeChartPro
       rows={series}
       columns={[
         { title: __('Period'), dataIndex: 'label', key: 'label' },
-        { title: __('Total'), dataIndex: 'total', key: 'total' },
-        { title: __('Accepted'), dataIndex: 'accepted', key: 'accepted' },
-        { title: __('Delivered'), dataIndex: 'delivered', key: 'delivered' },
-        { title: __('Failed'), dataIndex: 'failed', key: 'failed' }
+        { title: METRICS.total.label, dataIndex: 'total', key: 'total' },
+        { title: METRICS.sent.label, dataIndex: 'accepted', key: 'accepted' },
+        { title: METRICS.delivered.label, dataIndex: 'delivered', key: 'delivered' },
+        { title: METRICS.failed.label, dataIndex: 'failed', key: 'failed' }
       ]}
     />
   )
 
   return (
-    <ChartCard title={__('Volume over time')} tableView={tableView}>
+    <ChartCard title={__('Volume over time')} help={METRICS_LEGEND} tableView={tableView}>
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={series} margin={CHART_MARGIN} cursor="pointer" onClick={handleChartClick}>
           <ChartGrid />

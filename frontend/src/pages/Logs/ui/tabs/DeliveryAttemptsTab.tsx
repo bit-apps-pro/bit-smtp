@@ -1,7 +1,8 @@
 import { CheckCircleTwoTone, CloseCircleTwoTone, MinusCircleTwoTone } from '@ant-design/icons'
+import { deliveryStatusEntry, sendResultEntry } from '@common/glossary'
 import { __ } from '@common/helpers/i18nwrap'
 import { type LogAttempt, type LogType } from '@pages/Logs/data/useFetchLogs'
-import { Timeline, Typography } from 'antd'
+import { Timeline, Typography, theme } from 'antd'
 
 const { Text } = Typography
 
@@ -23,8 +24,14 @@ function reasonLabel(reason: string): string {
   }
 }
 
+/** Glossary label for one connection attempt's outcome. */
+function attemptStatusLabel(status: LogAttempt['status']): string {
+  return status === 'accepted' ? deliveryStatusEntry(status).label : sendResultEntry(status).label
+}
+
 /** Renders the delivery-attempts timeline plus any routing-skipped connections for a log entry. */
 export default function DeliveryAttemptsTab({ log }: DeliveryAttemptsTabProps) {
+  const { token } = theme.useToken()
   const attempts = log?.details?.attempts ?? []
   const skipped = log?.details?.routing_skipped ?? []
 
@@ -35,17 +42,11 @@ export default function DeliveryAttemptsTab({ log }: DeliveryAttemptsTabProps) {
   const items = attempts.map((attempt: LogAttempt) => {
     const isSuccess = attempt.status === 'sent' || attempt.status === 'accepted'
     const icon = isSuccess ? (
-      <CheckCircleTwoTone twoToneColor="#52c41a" />
+      <CheckCircleTwoTone twoToneColor={token.colorSuccess} />
     ) : (
-      <CloseCircleTwoTone twoToneColor="#ff4d4f" />
+      <CloseCircleTwoTone twoToneColor={token.colorError} />
     )
-
-    const statusLabel =
-      {
-        sent: __('Sent'),
-        accepted: __('Accepted'),
-        failed: __('Failed')
-      }[attempt.status] || attempt.status
+    const statusLabel = attemptStatusLabel(attempt.status)
 
     return {
       dot: icon,
@@ -75,7 +76,7 @@ export default function DeliveryAttemptsTab({ log }: DeliveryAttemptsTabProps) {
           <Timeline
             style={{ marginTop: '0.5em' }}
             items={skipped.map(skip => ({
-              dot: <MinusCircleTwoTone twoToneColor="#faad14" />,
+              dot: <MinusCircleTwoTone twoToneColor={token.colorWarning} />,
               children: (
                 <div>
                   <Text strong>{skip.connection}</Text>

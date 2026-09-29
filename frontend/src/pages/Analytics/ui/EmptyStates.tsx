@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { __ } from '@common/helpers/i18nwrap'
+import { LOGGING_SETTINGS_PATH } from '@pages/Logs/ui/LoggingStatusChip'
 import { Button, Empty, Flex, Skeleton, Typography } from 'antd'
 
 const { Text } = Typography
@@ -34,8 +35,8 @@ export function LoggingOffState() {
       }
       style={{ padding: '64px 0' }}
     >
-      <Link to="/settings">
-        <Button type="primary">{__('Go to Settings')}</Button>
+      <Link to={LOGGING_SETTINGS_PATH}>
+        <Button type="primary">{__('Turn on logging')}</Button>
       </Link>
     </Empty>
   )

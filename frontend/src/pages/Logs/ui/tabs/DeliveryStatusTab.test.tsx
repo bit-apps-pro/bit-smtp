@@ -47,7 +47,7 @@ describe('DeliveryStatusTab', () => {
 
     expect(
       screen.getByText(
-        'No opens or clicks recorded. Engagement tracking must be enabled to capture these.'
+        'No opens or clicks yet. To record them, turn on open and click tracking in Settings.'
       )
     ).toBeInTheDocument()
   })

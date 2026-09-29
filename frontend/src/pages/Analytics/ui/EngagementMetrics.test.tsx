@@ -26,9 +26,7 @@ describe('EngagementMetrics', () => {
   it('surfaces the honest opens split - total, flagged automated, and confirmed human', () => {
     renderWithProviders(<EngagementMetrics engagement={engagementFixture()} />)
 
-    expect(
-      screen.getByText(/Opens: 40 \(15 flagged automated .* Confirmed human: 25\./)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Opens: 40 \(15 automatic\)\. Confirmed human: 25\./)).toBeInTheDocument()
     expect(screen.getByText('25.0%')).toBeInTheDocument()
   })
 
@@ -37,7 +35,7 @@ describe('EngagementMetrics', () => {
     renderWithProviders(<EngagementMetrics engagement={engagementFixture()} />)
 
     await user.hover(screen.getAllByText('40')[0])
-    expect(await screen.findByText(/automated fires/i)).toBeInTheDocument()
+    expect(await screen.findByText(/automatic activity/i)).toBeInTheDocument()
   })
 
   it('renders the unique opened and clicked message counts in the table view', async () => {

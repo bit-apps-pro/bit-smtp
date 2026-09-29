@@ -19,11 +19,11 @@ describe('buildVolumeBucketMetrics', () => {
     const metrics = buildVolumeBucketMetrics(bucket, colors)
 
     expect(metrics).toEqual([
-      { label: 'Total', value: '100', color: '#111' },
-      { label: 'Accepted', value: '90', color: '#222' },
+      { label: 'Total emails', value: '100', color: '#111' },
+      { label: 'Sent', value: '90', color: '#222' },
       { label: 'Delivered', value: '72', color: '#333' },
       { label: 'Failed', value: '10', color: '#444' },
-      { label: 'Accepted rate', value: '90.0%' },
+      { label: 'Sent rate', value: '90.0%' },
       { label: 'Delivered rate', value: '90.0%' }
     ])
   })
@@ -33,7 +33,7 @@ describe('buildVolumeBucketMetrics', () => {
 
     const metrics = buildVolumeBucketMetrics(emptyBucket, colors)
 
-    expect(metrics.find(metric => metric.label === 'Accepted rate')?.value).toBe('—')
+    expect(metrics.find(metric => metric.label === 'Sent rate')?.value).toBe('—')
     expect(metrics.find(metric => metric.label === 'Delivered rate')?.value).toBe('—')
   })
 })

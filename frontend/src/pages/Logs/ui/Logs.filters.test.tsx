@@ -85,13 +85,13 @@ describe('Logs page filter bar controls', () => {
     window.location.hash = ''
   })
 
-  it('selecting a send status sets status, the URL, and shows a friendly "Send status:" chip', async () => {
+  it('selecting a send status sets status, the URL, and shows a friendly "Result:" chip', async () => {
     const user = userEvent.setup()
     renderWithProviders(<Logs />)
 
-    await selectOption(user, 'Send status', 'Failed')
+    await selectOption(user, 'Result', 'Failed')
 
-    expect(await screen.findByText('Send status: Failed')).toBeInTheDocument()
+    expect(await screen.findByText('Result: Failed')).toBeInTheDocument()
     expect(window.location.hash).toContain('status=failed')
     await waitFor(() => expect(lastLogsRequestData()?.status).toBe('failed'))
   })
@@ -100,21 +100,21 @@ describe('Logs page filter bar controls', () => {
     const user = userEvent.setup()
     renderWithProviders(<Logs />)
 
-    await selectOption(user, 'Delivery status', 'Delivered')
+    await selectOption(user, 'Delivery', 'Delivered')
 
     expect(await screen.findByText('Delivery: Delivered')).toBeInTheDocument()
     expect(window.location.hash).toContain('delivery_status=delivered')
     await waitFor(() => expect(lastLogsRequestData()?.delivery_status).toBe('delivered'))
   })
 
-  it('does not offer "Pending" as a delivery-status option (it is a NULL-rendered UI state, never a stored value)', async () => {
+  it('does not offer "Awaiting report" as a delivery option (it is a NULL-rendered UI state, never a stored value)', async () => {
     const user = userEvent.setup()
     renderWithProviders(<Logs />)
 
-    await user.click(screen.getByRole('combobox', { name: 'Delivery status' }))
+    await user.click(screen.getByRole('combobox', { name: 'Delivery' }))
 
     expect(await screen.findByTitle('Delivered')).toBeInTheDocument()
-    expect(screen.queryByTitle('Pending')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Awaiting report')).not.toBeInTheDocument()
   })
 
   it('selecting a connection sets connection_id and shows the connection name on the chip', async () => {

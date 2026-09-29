@@ -1,26 +1,37 @@
 import { useState } from 'react'
+import { type DeliveryStatusKey, deliveryStatusEntry } from '@common/glossary'
 import { __ } from '@common/helpers/i18nwrap'
 import { formatExactNumber, formatPercent } from '@pages/Analytics/format'
 import { type LogsFilter, cleanLogsFilter } from '@pages/Analytics/logsFilter'
 import { deliveryStatusColor } from '@pages/Analytics/palette'
 import { type DeliveryStats } from '@pages/Analytics/types'
+import { glossaryLegendDetails } from '@pages/Logs/ui/GlossaryLegend'
 import { Flex, Typography, theme } from 'antd'
 import ChartCard from './ChartCard'
 import DataTable from './DataTable'
 import PointDetailModal, { type PointDetailMetric } from './PointDetailModal'
 import clickableRowProps from './clickableRow'
 
-type Row = 'delivered' | 'deferred' | 'bounced' | 'blocked' | 'spam' | 'accepted' | 'pending'
+type Row = Extract<
+  DeliveryStatusKey,
+  'delivered' | 'deferred' | 'bounced' | 'blocked' | 'spam' | 'accepted' | 'pending'
+>
 
-const ROW_LABELS: Record<Row, string> = {
-  delivered: __('Delivered'),
-  deferred: __('Deferred'),
-  bounced: __('Bounced'),
-  blocked: __('Blocked'),
-  spam: __('Spam'),
-  accepted: __('Accepted (pre-delivery)'),
-  pending: __('Pending')
-}
+/** Breakdown rows in display order; labels and hints come from the shared delivery glossary. */
+const ROWS: ReadonlyArray<Row> = [
+  'delivered',
+  'deferred',
+  'bounced',
+  'blocked',
+  'spam',
+  'accepted',
+  'pending'
+]
+
+const LEGEND = glossaryLegendDetails(
+  __('Delivery statuses'),
+  ROWS.map(row => deliveryStatusEntry(row))
+)
 
 interface BreakdownRow {
   key: Row
@@ -40,9 +51,9 @@ function rowsFrom(delivery: DeliveryStats): Array<BreakdownRow> {
     accepted: delivery.accepted,
     pending: delivery.pending
   }
-  return (Object.keys(ROW_LABELS) as Array<Row>).map(key => ({
+  return ROWS.map(key => ({
     key,
-    label: ROW_LABELS[key],
+    label: deliveryStatusEntry(key).label,
     value: values[key],
     color: deliveryStatusColor(key)
   }))
@@ -97,7 +108,8 @@ export default function DeliveryBreakdown({ delivery, dateFrom, dateTo }: Delive
   return (
     <ChartCard
       title={__('Delivery breakdown')}
-      subtitle={__('Verified delivery outcomes for sends with a webhook-confirmed status.')}
+      subtitle={__('What happened after sending, for connections that report delivery.')}
+      help={LEGEND}
       tableView={tableView}
     >
       <Flex vertical gap={10}>

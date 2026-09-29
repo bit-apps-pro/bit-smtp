@@ -1,10 +1,15 @@
 import { type CSSProperties } from 'react'
-import { __ } from '@common/helpers/i18nwrap'
+import { Link } from 'react-router-dom'
+import { type GlossaryEntry } from '@common/glossary'
+import { __, sprintf } from '@common/helpers/i18nwrap'
+import { HelpPopover } from '@components/FieldHelp'
 import { useTheme } from '@config/themes/theme.provider'
 import { formatCompactNumber, formatPercent } from '@pages/Analytics/format'
+import { type LogsFilter, cleanLogsFilter } from '@pages/Analytics/logsFilter'
 import { volumeSeriesColors } from '@pages/Analytics/palette'
 import { type Overview } from '@pages/Analytics/types'
-import { Tooltip, Typography, theme } from 'antd'
+import { METRICS } from '@pages/Analytics/vocabulary'
+import { Flex, Tooltip, Typography, theme } from 'antd'
 import Sparkline from './Sparkline'
 import cls from './StatTiles.module.css'
 
@@ -14,12 +19,23 @@ type TileVars = CSSProperties & Record<`--tile-${string}`, string>
 
 interface Tile {
   key: string
-  label: string
+  metric: GlossaryEntry
+  /** Whether the tile label carries a ⓘ popover explaining the metric. */
+  explained?: boolean
   value: string
   hero?: boolean
   trend?: Array<number>
   /** Tooltip shown next to the value when the metric carries a caveat worth surfacing (e.g. no data yet). */
   caveat?: string
+  /** Filtered Logs view behind the tile's "View in logs" link, with its accessible name. */
+  logsLink?: { filter: LogsFilter; label: string }
+}
+
+interface StatTilesProps {
+  overview: Overview
+  /** Selected range ('YYYY-MM-DD'), carried into each tile's "View in logs" link. */
+  dateFrom?: string
+  dateTo?: string
 }
 
 /** Divide safely, treating a zero denominator as a flat 0% rather than NaN/Infinity. */
@@ -48,8 +64,25 @@ function TileValue({
   return tile.caveat ? <Tooltip title={tile.caveat}>{value}</Tooltip> : value
 }
 
-/** Hero "Total sent" + Accepted/Delivered rate + Failed tiles, each with an optional bucket-level sparkline. */
-export default function StatTiles({ overview }: { overview: Overview }) {
+/** A tile's label, with a ⓘ explanation for metrics that are easy to misread. */
+function TileLabel({ tile, fontSize }: { tile: Tile; fontSize: number }) {
+  return (
+    <Flex align="center" gap={2}>
+      <Text type="secondary" style={{ fontSize }}>
+        {tile.metric.label}
+      </Text>
+      {tile.explained ? (
+        <HelpPopover
+          label={sprintf(__('What %s means'), tile.metric.label)}
+          details={{ title: tile.metric.label, body: tile.metric.hint }}
+        />
+      ) : null}
+    </Flex>
+  )
+}
+
+/** Hero "Total emails" + Sent/Delivered rate + Failed tiles, each with an optional bucket-level sparkline. */
+export default function StatTiles({ overview, dateFrom, dateTo }: StatTilesProps) {
   const { token } = theme.useToken()
   const { isDark } = useTheme()
   const colors = volumeSeriesColors(isDark)
@@ -59,14 +92,15 @@ export default function StatTiles({ overview }: { overview: Overview }) {
   const tiles: Array<Tile> = [
     {
       key: 'total',
-      label: __('Total sent'),
+      metric: METRICS.total,
       value: formatCompactNumber(overview.total),
       hero: true,
       trend: hasTrend ? overview.series.map(bucket => bucket.total) : undefined
     },
     {
-      key: 'accepted_rate',
-      label: __('Accepted rate'),
+      key: 'sent_rate',
+      metric: METRICS.sentRate,
+      explained: true,
       value: formatPercent(overview.acceptance.accepted_rate),
       trend: hasTrend
         ? overview.series.map(bucket => safeRate(bucket.accepted, bucket.total))
@@ -74,23 +108,39 @@ export default function StatTiles({ overview }: { overview: Overview }) {
     },
     {
       key: 'delivered_rate',
-      label: __('Delivered rate'),
+      metric: METRICS.deliveredRate,
+      explained: true,
       value: hasDeliveryConfirmations ? formatPercent(overview.delivery.delivered_rate) : '—',
       caveat: hasDeliveryConfirmations
         ? undefined
-        : __(
-            'No delivery confirmations yet - this metric only counts sends with a webhook-confirmed status.'
-          ),
+        : __('No delivery reports yet. Turn on delivery tracking for a connection to see this.'),
       trend:
         hasTrend && hasDeliveryConfirmations
           ? overview.series.map(bucket => safeRate(bucket.delivered, bucket.verified_delivery))
-          : undefined
+          : undefined,
+      logsLink: hasDeliveryConfirmations
+        ? {
+            filter: cleanLogsFilter({
+              delivery_status: 'delivered',
+              date_from: dateFrom,
+              date_to: dateTo
+            }),
+            label: __('View delivered emails in logs')
+          }
+        : undefined
     },
     {
       key: 'failed',
-      label: __('Failed'),
+      metric: METRICS.failed,
       value: formatCompactNumber(overview.acceptance.failed),
-      trend: hasTrend ? overview.series.map(bucket => bucket.failed) : undefined
+      trend: hasTrend ? overview.series.map(bucket => bucket.failed) : undefined,
+      logsLink:
+        overview.acceptance.failed > 0
+          ? {
+              filter: cleanLogsFilter({ status: 'failed', date_from: dateFrom, date_to: dateTo }),
+              label: __('View failed emails in logs')
+            }
+          : undefined
     }
   ]
 
@@ -105,9 +155,7 @@ export default function StatTiles({ overview }: { overview: Overview }) {
     <div className={cls.grid} style={vars}>
       {tiles.map(tile => (
         <div key={tile.key} className={cls.tile}>
-          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            {tile.label}
-          </Text>
+          <TileLabel tile={tile} fontSize={token.fontSizeSM} />
           <div className={cls.valueRow}>
             <TileValue tile={tile} textColor={token.colorText} mutedColor={token.colorTextTertiary} />
             {tile.trend ? (
@@ -119,6 +167,15 @@ export default function StatTiles({ overview }: { overview: Overview }) {
               />
             ) : null}
           </div>
+          {tile.logsLink ? (
+            <Link
+              to={`/logs?${new URLSearchParams(tile.logsLink.filter).toString()}`}
+              aria-label={tile.logsLink.label}
+              style={{ fontSize: token.fontSizeSM }}
+            >
+              {__('View in logs')}
+            </Link>
+          ) : null}
         </div>
       ))}
     </div>

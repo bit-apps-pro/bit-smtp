@@ -1,6 +1,6 @@
+import { failureClassEntry } from '@common/glossary'
 import { formatTimestamp } from '@common/helpers/datetime'
 import { __ } from '@common/helpers/i18nwrap'
-import { FAILURE_CLASS_LABELS } from '@pages/Logs/data/failureClass'
 import { type DeliveryEvent, type EngagementEvent, type LogType } from '@pages/Logs/data/useFetchLogs'
 import DeliveryStatusTag from '@pages/Logs/ui/DeliveryStatusTag'
 import { Flex, Table, type TableColumnsType, Tag, Tooltip, Typography } from 'antd'
@@ -92,9 +92,11 @@ export default function DeliveryStatusTab({ log }: { log: LogType }) {
         <Text strong>{__('Overall')}:</Text>
         <DeliveryStatusTag status={log?.delivery_status} />
         {log?.failure_class ? (
-          <Tag color="volcano">
-            {`${__('Failure')}: ${FAILURE_CLASS_LABELS[log.failure_class] ?? log.failure_class}`}
-          </Tag>
+          <Tooltip title={failureClassEntry(log.failure_class).hint}>
+            <Tag color="volcano">
+              {`${__('Failure')}: ${failureClassEntry(log.failure_class).label}`}
+            </Tag>
+          </Tooltip>
         ) : null}
       </Flex>
       {events.length === 0 ? (
@@ -114,7 +116,7 @@ export default function DeliveryStatusTab({ log }: { log: LogType }) {
       <Text strong>{__('Engagement (opens & clicks)')}</Text>
       {engagement.length === 0 ? (
         <Text type="secondary">
-          {__('No opens or clicks recorded. Engagement tracking must be enabled to capture these.')}
+          {__('No opens or clicks yet. To record them, turn on open and click tracking in Settings.')}
         </Text>
       ) : (
         <Table<EngagementEvent>

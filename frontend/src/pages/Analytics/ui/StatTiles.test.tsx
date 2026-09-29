@@ -71,6 +71,28 @@ describe('StatTiles', () => {
     expect(screen.queryByText('0.0%')).not.toBeInTheDocument()
 
     await user.hover(screen.getByText('—'))
-    expect(await screen.findByText(/No delivery confirmations yet/)).toBeInTheDocument()
+    expect(await screen.findByText(/No delivery reports yet/)).toBeInTheDocument()
+  })
+
+  it('links the failed and delivered tiles to the matching filtered Logs view', () => {
+    renderWithProviders(
+      <StatTiles overview={overviewFixture()} dateFrom="2026-01-01" dateTo="2026-01-31" />
+    )
+
+    expect(screen.getByRole('link', { name: 'View failed emails in logs' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('status=failed&date_from=2026-01-01&date_to=2026-01-31')
+    )
+    expect(screen.getByRole('link', { name: 'View delivered emails in logs' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('delivery_status=delivered')
+    )
+  })
+
+  it('explains the easily misread rate tiles with a help popover', () => {
+    renderWithProviders(<StatTiles overview={overviewFixture()} />)
+
+    expect(screen.getByRole('button', { name: 'What Sent rate means' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'What Delivered rate means' })).toBeInTheDocument()
   })
 })
