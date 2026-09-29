@@ -50,7 +50,7 @@ describe('RetryQueuePanel', () => {
 
     expect(screen.getByText('Queued retries')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
-    expect(screen.getByText('Rate limited')).toBeInTheDocument()
+    expect(screen.getByText('Sending limit reached')).toBeInTheDocument()
     expect(screen.getByText('2/5')).toBeInTheDocument()
     expect(screen.getByText('Primary SMTP')).toBeInTheDocument()
     expect(screen.getByText('Backup SES')).toBeInTheDocument()
