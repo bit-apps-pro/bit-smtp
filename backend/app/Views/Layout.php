@@ -16,12 +16,15 @@ class Layout
 {
     public const FONT_URL = 'https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap';
 
+    private const FONT_CSS_HOST = 'https://fonts.googleapis.com';
+
+    private const FONT_FILE_HOST = 'https://fonts.gstatic.com';
+
     public function __construct()
     {
         Hooks::addAction('in_admin_header', [$this, 'RemoveAdminNotices']);
         Hooks::addAction('admin_menu', [$this, 'sideBarMenuItem']);
         Hooks::addAction('admin_enqueue_scripts', [$this, 'head'], 0);
-        Hooks::addFilter('style_loader_tag', [$this, 'linkTagFilter'], 0, 3);
         Hooks::addFilter('script_loader_tag', [$this, 'scriptTagFilter'], 0, 3);
     }
 
@@ -65,8 +68,7 @@ class Layout
         $version = Config::VERSION;
         $slug    = Config::SLUG;
 
-        wp_enqueue_style($slug . 'PRECONNECT', 'https://fonts.googleapis.com');
-        wp_enqueue_style($slug . 'CROSSORIGIN', 'https://fonts.gstatic.com');
+        Hooks::addFilter('wp_resource_hints', [$this, 'fontResourceHints'], 10, 2);
         wp_enqueue_style('font', self::FONT_URL, [], $version);
 
         if (Config::isDev()) {
@@ -105,26 +107,23 @@ class Layout
     }
 
     /**
-     * Modify style tags.
+     * Adds preconnect hints for the Google Fonts hosts; font files are fetched with CORS, so that host needs crossorigin.
      *
-     * @param string $html   link tag
-     * @param mixed  $handle
-     * @param mixed  $href
+     * @param array<int, array<string, string>|string> $urls         resource hints collected so far
+     * @param string                                   $relationType hint relation, e.g. "preconnect"
      *
-     * @return string new link tag
+     * @return array<int, array<string, string>|string>
      */
-    public function linkTagFilter($html, $handle, $href)
+    public function fontResourceHints($urls, $relationType)
     {
-        $newTag = $html;
-        if (str_contains($handle, Config::SLUG . 'PRECONNECT')) {
-            $newTag = preg_replace('/rel=("|\')stylesheet("|\')/', 'rel="preconnect"', $newTag);
+        if ($relationType !== 'preconnect') {
+            return $urls;
         }
 
-        if (str_contains($handle, Config::SLUG . 'CROSSORIGIN')) {
-            $newTag = preg_replace('/<link /', '<link crossorigin ', $newTag);
-        }
+        $urls[] = ['href' => self::FONT_CSS_HOST];
+        $urls[] = ['href' => self::FONT_FILE_HOST, 'crossorigin' => 'anonymous'];
 
-        return $newTag;
+        return $urls;
     }
 
     /**
@@ -151,19 +150,20 @@ class Layout
         $frontendVars = apply_filters(
             Config::withPrefix('localized_script'),
             [
-                'nonce'       => wp_create_nonce('wp_rest'),
-                'rootURL'     => Config::get('ROOT_URI'),
-                'assetsURL'   => Config::get('ASSET_URI'),
-                'baseURL'     => Config::get('ADMIN_URL') . 'admin.php?page=' . Config::SLUG . '#',
-                'ajaxURL'     => admin_url('admin-ajax.php'),
-                'apiURL'      => Config::get('API_URL'),
-                'routePrefix' => Config::VAR_PREFIX,
-                'settings'    => Config::getOption('settings'),
-                'dateFormat'  => Config::getOption('date_format', true),
-                'timeFormat'  => Config::getOption('time_format', true),
-                'timeZone'    => DateTimeHelper::wp_timezone_string(),
-                'adButton'    => Config::adButton(),
-                'sendTo'      => wp_get_current_user()->user_email
+                'nonce'         => wp_create_nonce('wp_rest'),
+                'rootURL'       => Config::get('ROOT_URI'),
+                'assetsURL'     => Config::get('ASSET_URI'),
+                'baseURL'       => Config::get('ADMIN_URL') . 'admin.php?page=' . Config::SLUG . '#',
+                'ajaxURL'       => admin_url('admin-ajax.php'),
+                'apiURL'        => Config::get('API_URL'),
+                'routePrefix'   => Config::VAR_PREFIX,
+                'settings'      => Config::getOption('settings'),
+                'dateFormat'    => Config::getOption('date_format', true),
+                'timeFormat'    => Config::getOption('time_format', true),
+                'timeZone'      => DateTimeHelper::wp_timezone_string(),
+                'adButton'      => Config::adButton(),
+                'sendTo'        => wp_get_current_user()->user_email,
+                'testEmailSent' => (int) Config::getOption('test_mail_form_submitted') > 0,
             ]
         );
         if (get_locale() !== 'en_US' && file_exists(Config::get('BASEDIR') . '/languages/generatedString.php')) {

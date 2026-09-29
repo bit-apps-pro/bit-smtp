@@ -1,42 +1,41 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { type CSSProperties, useState } from 'react'
+import { type CSSProperties, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { MoonOutlined, SunOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
-import config from '@config/config'
+import useHorizontalOverflow from '@common/hooks/useHorizontalOverflow'
+import { IconButton } from '@components/FieldHelp'
 import { useTheme } from '@config/themes/theme.provider'
 import LogoIcon from '@icons/LogoIcon'
 import LogoText from '@icons/LogoText'
-import adBanner from '@resource/img/adBanner.png'
-import { Layout as AntLayout, Button, Flex, Modal, Space, Typography, theme } from 'antd'
-import confetti from 'canvas-confetti'
+import { Layout as AntLayout, Flex, theme } from 'antd'
 import cls from './Layout.module.css'
 
 type NavVars = CSSProperties & Record<`--nav-${string}`, string>
 
-/** Top app header: logo, primary nav, review link, theme toggle, and the cross-promo ad modal. */
-export default function Header() {
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const { isDark, toggleTheme } = useTheme()
+/** Primary nav in setup order: connect, route, observe, test, configure. */
+function navItems() {
+  return [
+    { label: __('Connections'), path: '/' },
+    { label: __('Routing'), path: '/routing' },
+    { label: __('Logs'), path: '/logs' },
+    { label: __('Analytics'), path: '/analytics' },
+    { label: __('Test email'), path: '/test-mail' },
+    { label: __('Settings'), path: '/settings' }
+  ]
+}
+
+/** Primary nav links; scrolls sideways on narrow screens with edge fades and keeps the current page in view. */
+function PrimaryNav() {
   const { pathname } = useLocation()
+  const { token } = theme.useToken()
+  const { ref, overflowStart, overflowEnd } = useHorizontalOverflow<HTMLElement>()
   const isConnectionSubpage = pathname.startsWith('/connection')
 
-  const { AD_BUTTON }: { AD_BUTTON: { title: string; campaign: string; alt?: string; url: string } } =
-    config
-  const { Text } = Typography
-
-  const { useToken } = theme
-  const { token } = useToken()
-
-  const navItems = [
-    { label: __('Analytics'), path: '/analytics' },
-    { label: __('Configuration'), path: '/' },
-    { label: __('Routing'), path: '/routing' },
-    { label: __('Test'), path: '/test-mail' },
-    { label: __('Logs'), path: '/logs' },
-    { label: __('Settings'), path: '/settings' },
-    { label: __('Others'), path: '/others' }
-  ]
+  useEffect(() => {
+    ref.current
+      ?.querySelector<HTMLElement>(`.${cls.navLinkActive}`)
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [pathname, ref])
 
   const navStyle: NavVars = {
     '--nav-inactive-color': token.colorTextSecondary,
@@ -45,116 +44,62 @@ export default function Header() {
     '--nav-underline': `linear-gradient(90deg, ${token.colorPrimary}, ${token.colorInfo})`
   }
 
-  const handleConfetti = () => {
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-      zIndex: 1000
-    })
-  }
-  const showModal = () => {
-    setIsModalOpen(true)
-    handleConfetti()
-  }
-  const handleOk = () => setIsModalOpen(false)
-  const handleCancel = () => setIsModalOpen(false)
-
   return (
-    <>
-      <AntLayout.Header
-        style={{
-          height: 'min-content',
-          backgroundColor: token.colorBgContainer,
-          paddingInline: token.paddingLG,
-          paddingBlock: token.paddingSM
-        }}
-      >
-        <Flex
-          align="center"
-          justify="space-between"
-          wrap
-          gap="middle"
-          style={{ width: '100%', borderBottom: `${token.colorBorder} 0.5px solid` }}
-        >
-          <Flex align="center">
-            <LogoIcon size={44} />
-            <LogoText h={44} w={120} />
-          </Flex>
-          <nav className={cls.nav} style={navStyle}>
-            {navItems.map(item => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.path === '/'}
-                className={({ isActive }) => {
-                  const active = item.path === '/' ? isActive || isConnectionSubpage : isActive
-                  return `${cls.navLink} ${active ? cls.navLinkActive : ''}`.trim()
-                }}
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-          <Space align="center" size="small">
-            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-              {__('Share Your Product Experience!')}
-            </Text>
-            <a
-              href="https://wordpress.org/support/plugin/bit-smtp/reviews/"
-              target="_blank"
-              rel="noreferrer"
-              className={cls.reviewLink}
-              style={{ color: token.colorPrimaryText, fontWeight: token.fontWeightStrong }}
-            >
-              {__('Review us')}
-            </a>
-            <Button
-              type="text"
-              icon={isDark ? <SunOutlined /> : <MoonOutlined />}
-              onClick={toggleTheme}
-              aria-label={isDark ? __('Switch to light theme') : __('Switch to dark theme')}
-              style={{ fontSize: 16 }}
-            />
-          </Space>
-        </Flex>
-      </AntLayout.Header>
-      {AD_BUTTON && AD_BUTTON.title && (
-        <div
-          className={cls.bitSmtpAd}
-          style={{
-            position: 'fixed',
-            top: 35,
-            left: '60%',
-            zIndex: 1001,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+    <nav
+      ref={ref}
+      className={cls.nav}
+      style={navStyle}
+      data-overflow-start={overflowStart}
+      data-overflow-end={overflowEnd}
+      aria-label={__('Bit SMTP sections')}
+    >
+      {navItems().map(item => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          end={item.path === '/'}
+          className={({ isActive }) => {
+            const active = item.path === '/' ? isActive || isConnectionSubpage : isActive
+            return `${cls.navLink} ${active ? cls.navLinkActive : ''}`.trim()
           }}
         >
-          <button type="button" onClick={showModal} className={cls.btn}>
-            {AD_BUTTON.title}
-            <span className={cls.star} />
-            <span className={cls.star} />
-            <span className={cls.star} />
-            <span className={cls.star} />
-          </button>
-        </div>
-      )}
-      <Modal
-        open={isModalOpen}
-        onOk={handleOk}
-        onCancel={handleCancel}
-        footer={null}
-        centered
-        width="40vw"
-      >
-        <a
-          href={`${AD_BUTTON.url}/?utm_source=bit-smtp&utm_medium=inside-plugin&utm_campaign=${AD_BUTTON.campaign}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <img src={adBanner} alt={AD_BUTTON.alt || AD_BUTTON.title} width="100%" />
-        </a>
-      </Modal>
-    </>
+          {item.label}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
+/** Top app header: logo, primary nav and theme toggle; stacks the nav under the logo row on narrow screens. */
+export default function Header() {
+  const { isDark, toggleTheme } = useTheme()
+  const { token } = theme.useToken()
+
+  return (
+    <AntLayout.Header
+      style={{
+        height: 'auto',
+        lineHeight: token.lineHeight,
+        backgroundColor: token.colorBgContainer,
+        paddingInline: token.paddingLG,
+        paddingBlock: token.paddingSM
+      }}
+    >
+      <div className={cls.bar} style={{ borderBottom: `${token.colorBorder} 0.5px solid` }}>
+        <Flex className={cls.brand} align="center" aria-label="Bit SMTP" role="img">
+          <LogoIcon size={44} />
+          <LogoText h={44} w={120} />
+        </Flex>
+        <PrimaryNav />
+        <IconButton
+          className={cls.themeToggle}
+          type="text"
+          icon={isDark ? <SunOutlined /> : <MoonOutlined />}
+          onClick={toggleTheme}
+          label={isDark ? __('Switch to light theme') : __('Switch to dark theme')}
+          style={{ fontSize: token.fontSizeLG }}
+        />
+      </div>
+    </AntLayout.Header>
   )
 }

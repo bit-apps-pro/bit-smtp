@@ -14,7 +14,7 @@ function isWithinRoute(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(`${route}/`)
 }
 
-/** Keep the WordPress sidebar's active Bit SMTP submenu in sync with the in-app hash route; unmatched paths (e.g. /connection/3) belong to the root "Configuration" entry. */
+/** Keep the WordPress sidebar's active Bit SMTP submenu in sync with the in-app hash route; unmatched paths (e.g. /connection/3) belong to the root "Connections" entry. */
 export default function useWpSubmenuHighlight(): void {
   const { pathname } = useLocation()
 

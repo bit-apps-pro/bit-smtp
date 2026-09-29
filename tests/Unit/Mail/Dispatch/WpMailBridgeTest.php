@@ -10,6 +10,7 @@ use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 use BitApps\SMTP\Mail\Dispatch\ConnectionSendability;
+use BitApps\SMTP\Mail\Dispatch\DispatchMode;
 use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Mail\Dispatch\FailureClassifier;
 use BitApps\SMTP\Mail\Dispatch\MailDataBuilder;
@@ -276,6 +277,111 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
         $this->assertTrue($succeeded);
         $this->assertNotNull($transport->received, 'the chosen connection must be used');
+    }
+
+    public function testDispatchTestSendsOnlyOverTheChosenConnectionAndRecordsTheAttempt(): void
+    {
+        $transport = new ScriptedTransport([SendResult::failure('Chosen is down'), SendResult::success()]);
+        $bridge    = $this->dispatchableBridge($transport);
+
+        $succeeded = $bridge->dispatchTest(
+            ['to' => ['x@example.org'], 'subject' => 'Hi', 'message' => 'Body'],
+            $this->connection(['id' => 'chosen', 'name' => 'Chosen'])
+        );
+
+        $this->assertFalse($succeeded);
+        $this->assertSame(1, $transport->callCount, 'a test over a chosen connection must never fail over');
+        $this->assertSame(
+            [['connection' => 'Chosen', 'status' => 'failed', 'error' => 'Chosen is down']],
+            $bridge->lastAttempts()
+        );
+    }
+
+    public function testFailedTestSendEnqueuesNoRetry(): void
+    {
+        $this->enableRetries();
+        $bridge = $this->dispatchableBridge(new ScriptedTransport([SendResult::failure('Connection refused')]));
+
+        $retryQueue = Mockery::mock(RetryQueue::class);
+        $retryQueue->shouldNotReceive('enqueue');
+        $this->setRetryQueue($bridge, $retryQueue);
+
+        $this->assertFalse($bridge->dispatchTest($this->testAtts(), $this->connection(['id' => 'chosen'])));
+    }
+
+    public function testFailedTestSendFiresNoFailureNotifier(): void
+    {
+        $bridge   = $this->dispatchableBridge(new ScriptedTransport([SendResult::failure('Connection refused')]));
+        $notifier = Mockery::mock(FailureNotifierInterface::class);
+        $notifier->shouldNotReceive('notifyFailure');
+        $notifier->shouldNotReceive('notifySuccess');
+        $this->setFailureNotifier($bridge, $notifier);
+
+        $this->assertFalse($bridge->dispatchTest($this->testAtts(), $this->connection(['id' => 'chosen'])));
+    }
+
+    public function testTestSendStillRecordsHealthAsARealSignal(): void
+    {
+        $bridge = $this->dispatchableBridge(new ScriptedTransport([SendResult::failure('Connection refused')]));
+        $this->setHealthEnabled($bridge, true);
+
+        $recorder = Mockery::mock(HealthRecorder::class);
+        $recorder->shouldReceive('record')
+            ->once()
+            ->with(Mockery::on(static fn (Connection $c): bool => $c->getId() === 'chosen'), FailureCategory::TRANSIENT)
+            ->andReturnNull();
+        $recorder->shouldReceive('notify')->once()->with(Mockery::type('array'));
+        $this->setHealthRecorder($bridge, $recorder);
+
+        $this->assertFalse($bridge->dispatchTest($this->testAtts(), $this->connection(['id' => 'chosen'])));
+    }
+
+    public function testFailedResendStillNotifiesAndEnqueuesRetry(): void
+    {
+        $this->enableRetries();
+        $bridge = $this->dispatchableBridge(new ScriptedTransport([SendResult::failure('Connection refused')]));
+
+        $retryQueue = Mockery::mock(RetryQueue::class);
+        $retryQueue->shouldReceive('enqueue')->once();
+        $this->setRetryQueue($bridge, $retryQueue);
+
+        $notifier = Mockery::mock(FailureNotifierInterface::class);
+        $notifier->shouldReceive('notifyFailure')->once();
+        $this->setFailureNotifier($bridge, $notifier);
+
+        $this->assertFalse($bridge->dispatchResend($this->testAtts(), $this->connection(['id' => 'chosen']), 42));
+    }
+
+    public function testIsSendableUnwrapsStoredCredentialsSoAnEmptyApiKeyIsNotSendable(): void
+    {
+        $apiKeyRequired = new class() implements ValidatorInterface {
+            public function validate(array $settings, array $credentials): array
+            {
+                return trim((string) ($credentials['api_key'] ?? '')) === '' ? ['api_key' => 'API key is required.'] : [];
+            }
+        };
+        $sendability = new ConnectionSendability($this->registryWith('fake', $apiKeyRequired));
+
+        $this->assertFalse($sendability->isSendable($this->connection([
+            'credentials' => ['api_key' => ['source' => 'database', 'value' => '']],
+        ])));
+        $this->assertTrue($sendability->isSendable($this->connection([
+            'credentials' => ['api_key' => ['source' => 'database', 'value' => 'key-123']],
+        ])));
+    }
+
+    public function testLastAttemptsExposesTheFailoverTrail(): void
+    {
+        $transport = new ScriptedTransport([SendResult::failure('Primary unavailable'), SendResult::success()]);
+        $bridge    = $this->dispatchableBridge($transport);
+
+        $this->invokeDispatch($bridge, [
+            $this->connection(['id' => 'conn_1', 'name' => 'Primary']),
+            $this->connection(['id' => 'conn_2', 'name' => 'Backup']),
+        ], $this->message(), []);
+
+        $this->assertSame(['Primary', 'Backup'], array_column($bridge->lastAttempts(), 'connection'));
+        $this->assertSame(['failed', 'sent'], array_column($bridge->lastAttempts(), 'status'));
     }
 
     public function testFinalFailureNotifiesOnceAfterAllFallbacksFail(): void
@@ -1076,7 +1182,7 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $method = new ReflectionMethod(WpMailBridge::class, 'dispatch');
         $method->setAccessible(true);
 
-        return $method->invoke($bridge, $connections, $message, $mailData, $isWorkerRedispatch);
+        return $method->invoke($bridge, $connections, $message, $mailData, $isWorkerRedispatch ? DispatchMode::workerRetry() : DispatchMode::live());
     }
 
     private function setEventLogger(WpMailBridge $bridge, LogService $logService): void
@@ -1248,6 +1354,28 @@ class WpMailBridgeTest extends BaseUnitTestCase
         return $method->invoke($bridge, $provider, $connection, $message, [], null);
     }
 
+    /**
+     * Stub the stored preferences so a retryable failure would be enqueued on a live send.
+     */
+    private function enableRetries(): void
+    {
+        Functions\when('get_option')->justReturn([
+            'retry_enabled'      => true,
+            'retry_max_attempts' => 5,
+            'retry_backoff'      => 'exponential',
+        ]);
+    }
+
+    /**
+     * Minimal wp_mail() arguments for a manual (test or resend) dispatch.
+     *
+     * @return array<string,mixed>
+     */
+    private function testAtts(): array
+    {
+        return ['to' => ['x@example.org'], 'subject' => 'Hi', 'message' => 'Body'];
+    }
+
     private function connection(array $overrides = []): Connection
     {
         return Connection::fromArray(array_merge([
@@ -1367,5 +1495,10 @@ final class FakeProvider implements ProviderInterface
     public function tracking(): array
     {
         return ['channel' => 'metadata', 'key' => 'bit_tracking_id'];
+    }
+
+    public function guide(): array
+    {
+        return [];
     }
 }

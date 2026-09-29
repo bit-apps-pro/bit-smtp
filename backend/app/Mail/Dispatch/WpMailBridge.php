@@ -71,6 +71,13 @@ class WpMailBridge
      */
     private bool $dispatching = false;
 
+    /**
+     * Per-connection attempt trail of the most recent dispatch, for callers that report which connection sent.
+     *
+     * @var array<int,array{connection: string, status: string, error: ?string}>
+     */
+    private array $lastAttempts = [];
+
     public function __construct(
         ProviderRegistry $registry,
         ConnectionResolver $connectionResolver,
@@ -165,13 +172,27 @@ class WpMailBridge
      */
     public function dispatchResend(array $atts, Connection $connection, int $resendParentId): bool
     {
-        $this->context->resetForSend();
-        $this->context->setResendParentId($resendParentId);
-        $this->context->setRoutingDecision(new RoutingDecision($this->sourceDetector->detect(), $connection->getId(), 'manual', null));
+        return $this->dispatchManual($atts, $connection, $resendParentId, DispatchMode::live());
+    }
 
-        $message = $this->messageFactory->fromWpMailAtts($atts);
+    /**
+     * Send a test email over one chosen connection, bypassing routing/failover; a failure queues no retry and raises no alert.
+     *
+     * @param array<string,mixed> $atts
+     */
+    public function dispatchTest(array $atts, Connection $connection): bool
+    {
+        return $this->dispatchManual($atts, $connection, null, DispatchMode::adminTest());
+    }
 
-        return $this->dispatch([$connection], $message, $this->mailData->buildFromAtts($atts, $message))['succeeded'];
+    /**
+     * Attempt trail of the most recent dispatch (empty when native wp_mail handled the send).
+     *
+     * @return array<int,array{connection: string, status: string, error: ?string}>
+     */
+    public function lastAttempts(): array
+    {
+        return $this->lastAttempts;
     }
 
     /**
@@ -213,6 +234,7 @@ class WpMailBridge
             return;
         }
 
+        $this->lastAttempts = [];
         $this->context->resetForSend();
 
         $this->context->setNativeMailHeaders($atts['headers'] ?? '');
@@ -248,7 +270,7 @@ class WpMailBridge
             $routingSkips = $this->routingSkipTracer->routingSkips($settings, $routingChain, $connections);
         }
 
-        return $this->dispatch($connections, $message, $this->mailData->buildFromAtts($atts, $message), false, $routingSkips, $routingChain)['succeeded'];
+        return $this->dispatch($connections, $message, $this->mailData->buildFromAtts($atts, $message), DispatchMode::live(), $routingSkips, $routingChain)['succeeded'];
     }
 
     /**
@@ -271,7 +293,7 @@ class WpMailBridge
             }
         }
 
-        return $this->dispatch($connections, $message, $mailData, true);
+        return $this->dispatch($connections, $message, $mailData, DispatchMode::workerRetry());
     }
 
     /**
@@ -313,14 +335,16 @@ class WpMailBridge
     }
 
     /**
-     * Attempt each connection in order, stopping at the first success; injects tracking once before failover (no-op if tracking off), records health per-attempt without delaying failover, falls back only on non-accepted sends to prevent duplicates, and enqueues retryable failures (unless worker-driven re-dispatch).
+     * Attempt each connection in order, stopping at the first success; injects tracking once before failover (no-op if tracking off), records health per-attempt without delaying failover, falls back only on non-accepted sends to prevent duplicates, and lets $mode decide whether the outcome notifies and a retryable failure is enqueued.
      *
-     * @param Connection[]        $connections
-     * @param array<string,mixed> $mailData
+     * @param Connection[]                                                                $connections
+     * @param array<string,mixed>                                                         $mailData
+     * @param array<int,array{connection: string, connection_id: string, reason: string}> $routingSkips
+     * @param string[]                                                                    $routingChain
      *
      * @return array{succeeded: bool, failure_class: ?string}
      */
-    private function dispatch(array $connections, MailMessage $message, array $mailData, bool $isWorkerRedispatch = false, array $routingSkips = [], array $routingChain = []): array
+    private function dispatch(array $connections, MailMessage $message, array $mailData, DispatchMode $mode, array $routingSkips = [], array $routingChain = []): array
     {
         $this->dispatching = true;
 
@@ -368,6 +392,7 @@ class WpMailBridge
             }
 
             $this->context->setFailed(!$succeeded);
+            $this->lastAttempts = $attempts;
 
             $failureClass = $lastResult !== null && !$succeeded ? $this->classifier->classify($lastResult) : null;
 
@@ -378,12 +403,14 @@ class WpMailBridge
             $outcomeMailData = $this->mailData->withSender($outcomeMailData, $sender);
             $outcomeMailData = $this->mailData->withRoutingSkips($outcomeMailData, $aheadSkips);
             $this->logOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection, $winningMessageId, $winningTrackingId, $winningDeliveryStatus, $failureClass);
-            $this->notifyOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection);
+            if ($mode->notifiesOutcome()) {
+                $this->notifyOutcome($succeeded, $lastResult, $outcomeMailData, $lastConnection);
+            }
             $this->flushHealth($healthTransitions);
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
 
-            if (!$succeeded && !$isWorkerRedispatch && $failureClass !== null && FailureCategory::isRetryable($failureClass)) {
+            if (!$succeeded && $mode->enqueuesRetry() && $failureClass !== null && FailureCategory::isRetryable($failureClass)) {
                 $this->maybeEnqueueRetry($message, $mailData, $connectionIdsTried, $failureClass);
             }
 
@@ -391,6 +418,23 @@ class WpMailBridge
         } finally {
             $this->dispatching = false;
         }
+    }
+
+    /**
+     * Dispatch over a single user-chosen connection as a manual send, optionally logged as a resend child.
+     *
+     * @param array<string,mixed> $atts
+     */
+    private function dispatchManual(array $atts, Connection $connection, ?int $resendParentId, DispatchMode $mode): bool
+    {
+        $this->lastAttempts = [];
+        $this->context->resetForSend();
+        $this->context->setResendParentId($resendParentId);
+        $this->context->setRoutingDecision(new RoutingDecision($this->sourceDetector->detect(), $connection->getId(), 'manual', null));
+
+        $message = $this->messageFactory->fromWpMailAtts($atts);
+
+        return $this->dispatch([$connection], $message, $this->mailData->buildFromAtts($atts, $message), $mode)['succeeded'];
     }
 
     /**
@@ -410,7 +454,7 @@ class WpMailBridge
     }
 
     /**
-     * Enqueue a retryable failure onto the retry queue when the reliability preferences allow it; honors the admin's retry-class filter (empty = every retryable class). The queued row carries no log id (a fresh log row is written per retry attempt instead).
+     * Enqueue a retryable failure onto the retry queue when the reliability preferences allow it; honors the admin's retry-class filter (an empty filter retries nothing). The queued row carries no log id (a fresh log row is written per retry attempt instead).
      *
      * @param array<string,mixed> $mailData
      * @param string[]            $connectionIds

@@ -3,6 +3,8 @@
 /* eslint-disable no-nested-ternary */
 import type React from 'react'
 import { useState } from 'react'
+import { DOCS } from '@common/docs'
+import { __ } from '@common/helpers/i18nwrap'
 import request from '@common/helpers/request'
 import { Modal as AntModal, Button, Steps } from 'antd'
 import changeLogs from '../../changeLogs'
@@ -35,43 +37,39 @@ function TelemetryPopup({ isTelemetryModalOpen, setIsTelemetryModalOpen }: Telem
       title: '',
       content: (
         <>
-          <span className={cls.improvementsTitle}>New Features</span>
+          <span className={cls.improvementsTitle}>{__('New features')}</span>
           <div className={cls.improvements}>
             <ul>
               {changeLogs.improvements.map(item => (
-                <li>{item}</li>
+                <li key={item}>{item}</li>
               ))}
             </ul>
           </div>
-          <span className={cls.fixedTitle}>Fixed</span>
+          <span className={cls.fixedTitle}>{__('Fixed')}</span>
           <div className={cls.fixed}>
             <ul>
               {changeLogs.fixed.map(item => (
-                <li>{item}</li>
+                <li key={item}>{item}</li>
               ))}
             </ul>
           </div>
           <div className={cls.telemetryContent}>
             <h3>
-              <b>Build a better Bit SMTP</b>
+              <b>{__('Help us improve Bit SMTP')}</b>
             </h3>
-            <span>
-              Accept and complete to share non-sensitive diagnostic data to help us improve your
-              experience.
-            </span>
+            <span>{__('Share basic, non-sensitive site details to help us make Bit SMTP better.')}</span>
             <button type="button" onClick={() => setIsDataNoticeShow(true)}>
-              What we collect?
+              {__('What do we collect?')}
             </button>
             {isDataNoticeShow && (
               <>
                 <br />
                 <span>
-                  Server details (PHP, MySQL, server, WordPress versions), plugin usage
-                  (active/inactive), site name and URL, your name and email. No sensitive data is
-                  tracked.{' '}
-                  <a href="https://bitapps.pro/terms-of-service/" target="_blank" rel="noreferrer">
-                    {' '}
-                    Terms & Conditions.
+                  {__(
+                    'Your PHP, MySQL, server and WordPress versions, which plugins are active, your site name and address, and your name and email. Nothing sensitive.'
+                  )}{' '}
+                  <a href={DOCS.termsOfService} target="_blank" rel="noreferrer">
+                    {__('Terms and conditions')}
                   </a>
                 </span>
               </>
@@ -95,11 +93,13 @@ function TelemetryPopup({ isTelemetryModalOpen, setIsTelemetryModalOpen }: Telem
   return (
     <AntModal
       title={
-        <div style={{ textAlign: 'center', fontSize: '20px', marginBottom: '20px' }}>Changelog</div>
+        <div style={{ textAlign: 'center', fontSize: '20px', marginBottom: '20px' }}>
+          {__('What’s new')}
+        </div>
       }
       open={isTelemetryModalOpen}
       closable={false}
-      width="450px"
+      width="min(450px, 92vw)"
       centered
       className="telemetry-popup"
       footer={null}
@@ -110,15 +110,15 @@ function TelemetryPopup({ isTelemetryModalOpen, setIsTelemetryModalOpen }: Telem
         <div style={footerBtnStyle}>
           {current < steps.length - 1 && (
             <Button type="primary" onClick={() => next()}>
-              Next
+              {__('Next')}
             </Button>
           )}
           <Button className={cls.skipBtn} onClick={handleTelemetryModalSkip}>
-            Skip
+            {__('Skip')}
           </Button>
           {current === steps.length - 1 && (
             <Button type="primary" onClick={() => handleTelemetryAccess()}>
-              Accept & Complete
+              {__('Accept and finish')}
             </Button>
           )}
         </div>

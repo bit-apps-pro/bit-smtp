@@ -2,6 +2,9 @@
 // @ts-ignore
 const serverVariables = typeof bit_smtp_ === 'undefined' ? {} : bit_smtp_ // eslint-disable-line camelcase,
 
+/** Reads a boolean localized by wp_localize_script, which sends true as "1" and false as "". */
+const isServerFlagSet = (value: unknown): boolean => value === true || value === '1'
+
 const config = {
   PRODUCT_NAME: 'Bit SMTP',
   IS_DEV: true,
@@ -12,6 +15,7 @@ const config = {
   ROUTE_PREFIX: serverVariables.routePrefix || 'bit_smtp_',
   AD_BUTTON: serverVariables.adButton,
   SEND_TO: serverVariables.sendTo || '',
+  TEST_EMAIL_SENT: isServerFlagSet(serverVariables.testEmailSent),
   SUBJECT: 'This is a test email sent via Bit SMTP plugin'
 }
 

@@ -8,6 +8,7 @@
   "rules": {
     "selector-class-pattern": "^(?:[A-Z][a-z0-9]*)+|(?:[a-z][a-z0-9]*)(?:-[a-z0-9]+)*",
     "no-missing-end-of-source-newline": null,
+    "media-feature-range-notation": "prefix",
     "color-function-notation": "legacy",
     "selector-pseudo-class-no-unknown": [
       true,

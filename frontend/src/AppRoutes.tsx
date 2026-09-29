@@ -14,6 +14,7 @@ import RoutingRulesPage from '@pages/Routing/RoutingRulesPage'
 import SettingsPage from '@pages/Settings/SettingsPage'
 import { message, notification } from 'antd'
 
+/** Top-level providers and hash routes for the admin app. */
 export default function AppRoutes() {
   const [, notificationContextHolder] = notification.useNotification()
   const [, messageContextHolder] = message.useMessage()

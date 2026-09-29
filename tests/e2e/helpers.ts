@@ -6,7 +6,11 @@ const MAILPIT_URL = process.env.E2E_MAILPIT_URL || 'http://localhost:8025'
 /** Navigate to a Bit SMTP SPA hash route and wait for the app shell to render. */
 export async function gotoSmtp(page: Page, hash = '/'): Promise<void> {
   await page.goto(`${ADMIN_PAGE}#${hash}`)
-  await expect(page.getByRole('link', { name: 'Configuration' })).toBeVisible()
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Bit SMTP sections' })
+      .getByRole('link', { name: 'Connections' })
+  ).toBeVisible()
 }
 
 /** Unique, identifiable name so parallel/leftover runs never collide. */

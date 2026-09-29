@@ -1,15 +1,33 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { Outlet } from 'react-router-dom'
-import { Layout as AntLayout, theme } from 'antd'
+import { Link, Outlet, useLocation } from 'react-router-dom'
+import { __ } from '@common/helpers/i18nwrap'
+import { OnboardingChecklist } from '@components/Onboarding'
+import { Layout as AntLayout, Flex, Typography, theme } from 'antd'
 import Header from './Header'
 import useWpSubmenuHighlight from './useWpSubmenuHighlight'
 
 const CONTENT_MAX_WIDTH = 1280
 
-/** App shell: header plus a max-width content outlet for the routed page. */
+/** Secondary links kept out of the primary nav. */
+function Footer() {
+  const { token } = theme.useToken()
+  return (
+    <Flex
+      component="footer"
+      justify="center"
+      gap="middle"
+      wrap
+      style={{ padding: token.paddingLG, borderTop: `1px solid ${token.colorBorderSecondary}` }}
+    >
+      <Typography.Text type="secondary">Bit SMTP</Typography.Text>
+      <Link to="/others">{__('More plugins from Bit Apps')}</Link>
+    </Flex>
+  )
+}
+
+/** App shell: header, first-run checklist on Connections, the routed page, and a footer. */
 function Layout() {
-  const { useToken } = theme
-  const { token } = useToken()
+  const { token } = theme.useToken()
+  const { pathname } = useLocation()
   useWpSubmenuHighlight()
   return (
     <AntLayout
@@ -28,9 +46,15 @@ function Layout() {
       >
         <Header />
       </div>
-      <AntLayout.Content style={{ maxWidth: CONTENT_MAX_WIDTH, width: '100%', margin: '0 auto' }}>
+      <div
+        role="region"
+        aria-label="Bit SMTP"
+        style={{ maxWidth: CONTENT_MAX_WIDTH, width: '100%', margin: '0 auto', flex: 'auto' }}
+      >
+        {pathname === '/' ? <OnboardingChecklist /> : null}
         <Outlet />
-      </AntLayout.Content>
+      </div>
+      <Footer />
     </AntLayout>
   )
 }

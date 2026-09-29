@@ -5,7 +5,7 @@ import useWpSubmenuHighlight from './useWpSubmenuHighlight'
 
 const SUBMENU_HTML = `
   <li id="toplevel_page_bit-smtp"><ul class="wp-submenu">
-    <li class="current"><a class="current" href="admin.php?page=bit-smtp">Configuration</a></li>
+    <li class="current"><a class="current" href="admin.php?page=bit-smtp">Connections</a></li>
     <li><a href="admin.php?page=bit-smtp#/logs">Logs</a></li>
     <li><a href="admin.php?page=bit-smtp#/settings">Settings</a></li>
   </ul></li>`
@@ -29,10 +29,10 @@ describe('useWpSubmenuHighlight', () => {
   it.each([
     ['/logs', 'Logs'],
     ['/logs/12', 'Logs'],
-    ['/logsx', 'Configuration'],
+    ['/logsx', 'Connections'],
     ['/settings', 'Settings'],
-    ['/connection/3', 'Configuration'],
-    ['/', 'Configuration']
+    ['/connection/3', 'Connections'],
+    ['/', 'Connections']
   ])('marks the submenu owning %s as current', (path, expected) => {
     document.body.insertAdjacentHTML('beforeend', SUBMENU_HTML)
     render(

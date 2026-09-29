@@ -12,9 +12,10 @@ use BitApps\SMTP\HTTP\Requests\MailConfigStoreRequest;
 use BitApps\SMTP\HTTP\Requests\MailTestRequest;
 use BitApps\SMTP\HTTP\Requests\ResendEditRequest;
 use BitApps\SMTP\HTTP\Services\LogBodyRedactor;
+use BitApps\SMTP\HTTP\Services\TestMailReport;
 use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Views\EmailTemplate;
-use Exception;
+use Throwable;
 
 class SMTPController
 {
@@ -32,48 +33,55 @@ class SMTPController
         return Response::success(__('SMTP config saved successfully', 'bit-smtp'));
     }
 
+    /**
+     * Send an admin test email through routing + failover, or through one chosen connection, and report who sent it.
+     */
     public function sendTestEmail(MailTestRequest $request)
     {
-        $queryParams = $request->validated();
+        if (!Capabilities::check('manage_options')) {
+            return Response::error([])->message(__('Unauthorized', 'bit-smtp'));
+        }
+
+        $data       = $request->validated();
+        $bridge     = Plugin::instance()->smtpProvider();
+        $connection = null;
+
+        $connectionId = trim((string) ($data['connection_id'] ?? ''));
+        if ($connectionId !== '') {
+            $connection = Plugin::instance()->mailConfigService()->connectionById($connectionId);
+            if ($connection === null || !$connection->isEnabled() || !$bridge->canSend($connection)) {
+                return Response::error([])->message(__('The selected connection is unavailable', 'bit-smtp'));
+            }
+        }
+
+        $atts = [
+            'to'      => $data['to'],
+            'subject' => $data['subject'],
+            'message' => $this->testMessageBody($data),
+        ];
 
         try {
-            $smtpProvider = Plugin::instance()->smtpProvider();
-            $smtpProvider->setDebug(true);
+            $bridge->setDebug(true);
             Hooks::addFilter('wp_mail_content_type', [$this, 'setContentType']);
-
-            if (!isset($queryParams['message']) || empty(trim($queryParams['message']))) {
-                $emailData = [
-                    'title'     => $queryParams['subject'],
-                    'message'   => 'This is a test email sent via Bit SMTP plugin to verify your email configuration.',
-                    'site_name' => get_bloginfo('name'),
-                    'site_url'  => home_url()
-                ];
-
-                $message = EmailTemplate::getTemplate($emailData);
-            } else {
-                $message = $queryParams['message'];
-            }
-
-            wp_mail($queryParams['to'], $queryParams['subject'], $message);
+            $succeeded = $connection === null
+                ? (bool) wp_mail($atts['to'], $atts['subject'], $atts['message'])
+                : $bridge->dispatchTest($atts, $connection);
+        } catch (Throwable $e) {
+            return Response::error(TestMailReport::fromAttempts(false, [], [$e->getMessage()])->toArray())
+                ->message(__('Mail send testing failed', 'bit-smtp'));
+        } finally {
             remove_filter('wp_mail_content_type', [$this, 'setContentType']);
-            if ($smtpProvider->isFailed() === false) {
-                $previousData = Config::getOption('test_mail_form_submitted');
-                if (!$previousData) {
-                    $previousData = 1;
-                } else {
-                    $previousData = (int) $previousData + 1;
-                }
-                Config::updateOption('test_mail_form_submitted', $previousData);
-
-                return Response::success(__('Mail sent successfully', 'bit-smtp'));
-            }
-
-            return Response::message(__('Mail send testing failed', 'bit-smtp'))->error($smtpProvider->getDebugOutput());
-        } catch (Exception $e) {
-            $error = $e->getMessage();
-
-            return Response::message(__('Mail send testing failed', 'bit-smtp'))->error([$error]);
         }
+
+        $report = TestMailReport::fromAttempts($succeeded, $bridge->lastAttempts(), $bridge->getDebugOutput());
+
+        if (!$succeeded) {
+            return Response::error($report->toArray())->message(__('Mail send testing failed', 'bit-smtp'));
+        }
+
+        $this->countSuccessfulTestSend();
+
+        return Response::success($report->toArray())->message(__('Mail sent successfully', 'bit-smtp'));
     }
 
     public function resend(Request $request)
@@ -179,6 +187,34 @@ class SMTPController
     public function setContentType()
     {
         return 'text/html';
+    }
+
+    /**
+     * The admin's own message, or the branded default test template when none was given.
+     *
+     * @param array<string,mixed> $data
+     */
+    private function testMessageBody(array $data): string
+    {
+        $message = trim((string) ($data['message'] ?? ''));
+        if ($message !== '') {
+            return $message;
+        }
+
+        return EmailTemplate::getTemplate([
+            'title'     => $data['subject'],
+            'message'   => __('This is a test email sent via Bit SMTP plugin to verify your email configuration.', 'bit-smtp'),
+            'site_name' => get_bloginfo('name'),
+            'site_url'  => home_url(),
+        ]);
+    }
+
+    /**
+     * Increment the successful test-send counter reported by telemetry.
+     */
+    private function countSuccessfulTestSend(): void
+    {
+        Config::updateOption('test_mail_form_submitted', (int) Config::getOption('test_mail_form_submitted') + 1);
     }
 
     /**

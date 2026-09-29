@@ -1,18 +1,23 @@
 import { __ } from '@common/helpers/i18nwrap'
 import { Button, Card, Col, Flex, Row, Typography, theme } from 'antd'
+import PromoBanner from './PromoBanner'
 import { pluginsData } from './pluginsData'
 
 const { Title, Text } = Typography
 const { useToken } = theme
 
+/** Cross-promotion page listing other Bit Apps plugins, plus any running campaign. */
 export default function Others() {
   const { token } = useToken()
 
   return (
     <Flex vertical gap="middle" style={{ padding: token.paddingLG, width: '100%', overflowX: 'auto' }}>
-      <Title level={4} style={{ margin: 0 }}>
-        {__('Others')}
-      </Title>
+      <Flex align="center" justify="space-between" wrap gap="middle">
+        <Title level={4} style={{ margin: 0 }}>
+          {__('More plugins from Bit Apps')}
+        </Title>
+        <PromoBanner />
+      </Flex>
       <Row gutter={[16, 16]}>
         {pluginsData.map(plugin => (
           <Col key={plugin.pluginUrl} xs={24} sm={24} md={12} lg={8} xl={8}>
@@ -32,7 +37,7 @@ export default function Others() {
                   >
                     <img
                       src={plugin.logo}
-                      alt={`${plugin.title} logo`}
+                      alt=""
                       style={{
                         width: 80,
                         height: 80,
@@ -64,11 +69,17 @@ export default function Others() {
 
                 <Flex justify="center" style={{ marginTop: 'auto' }}>
                   <Text type="secondary">
-                    {__('Active Installs')}: {plugin.activeInstalls}
+                    {__('Active installs')}: {plugin.activeInstalls}
                   </Text>
                 </Flex>
-                <Button key="go-to-plugin" type="link" href={plugin.pluginUrl} target="_blank">
-                  {__('Go to Plugin')}
+                <Button
+                  type="link"
+                  href={plugin.pluginUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${__('View plugin')}: ${plugin.title}`}
+                >
+                  {__('View plugin')}
                 </Button>
               </Flex>
             </Card>
