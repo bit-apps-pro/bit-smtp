@@ -2,6 +2,7 @@ import { type FieldMeta } from '@pages/Connections/types'
 import { Input } from 'antd'
 import FieldItem from './FieldItem'
 
+/** Renders a single-line text or email provider setting. */
 export default function TextField({ field }: { field: FieldMeta }) {
   return (
     <FieldItem field={field}>

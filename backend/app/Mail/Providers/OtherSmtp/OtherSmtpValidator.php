@@ -11,28 +11,28 @@ class OtherSmtpValidator implements ValidatorInterface
         $errors = [];
 
         if (!isset($settings['host']) || trim((string) $settings['host']) === '') {
-            $errors['host'] = 'Host is required.';
+            $errors['host'] = __('SMTP server is required.', 'bit-smtp');
         }
 
         $port = $settings['port'] ?? null;
 
         if (!is_numeric($port)) {
-            $errors['port'] = 'Port must be a number.';
+            $errors['port'] = __('Port must be a number.', 'bit-smtp');
         } elseif ((int) $port < 1 || (int) $port > 65535) {
-            $errors['port'] = 'Port must be between 1 and 65535.';
+            $errors['port'] = __('Port must be between 1 and 65535.', 'bit-smtp');
         }
 
         if (!\in_array($settings['encryption'] ?? '', ['none', 'ssl', 'tls'], true)) {
-            $errors['encryption'] = 'Encryption must be one of: none, ssl, tls.';
+            $errors['encryption'] = __('Choose a Security option.', 'bit-smtp');
         }
 
         if (!empty($settings['auth'])) {
             if (trim((string) ($settings['username'] ?? '')) === '') {
-                $errors['username'] = 'Username is required when authentication is enabled.';
+                $errors['username'] = __('Username is required when authentication is enabled.', 'bit-smtp');
             }
 
             if (trim((string) ($credentials['password'] ?? '')) === '') {
-                $errors['password'] = 'Password is required when authentication is enabled.';
+                $errors['password'] = __('Password is required when authentication is enabled.', 'bit-smtp');
             }
         }
 

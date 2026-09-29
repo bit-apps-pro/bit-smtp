@@ -1,7 +1,7 @@
 [
     {
         "key": "api_key",
-        "label": "Server API Token",
+        "label": "Server API token",
         "type": "password",
         "required": true,
         "secret": true,
@@ -10,9 +10,9 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "Copy the Server API token from your server's API Tokens tab, not the Account API token. The From address must be a confirmed sender signature or a verified domain.",
+            "text": "From your server's API Tokens tab. Use the Server token, not the Account token.",
             "url": "https://postmarkapp.com/support/article/1008-what-are-the-account-and-server-api-tokens",
-            "linkLabel": "Server vs Account API tokens"
+            "linkLabel": "Where do I find this?"
         }
     }
 ]

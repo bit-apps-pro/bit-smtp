@@ -6,6 +6,8 @@ import { type NamePath } from 'antd/es/form/interface'
 export interface MaskedSecretProps {
   /** False while the value is the mask sentinel, hiding the eye toggle — nothing real sits behind it. */
   visibilityToggle: boolean
+  /** True while a previously saved secret backs the field, even once it is cleared for re-entry. */
+  hasStoredSecret: boolean
   onFocus: () => void
   onBlur: () => void
 }
@@ -26,6 +28,7 @@ export default function useMaskedSecret(name: NamePath): MaskedSecretProps {
 
   return {
     visibilityToggle: !isMasked,
+    hasStoredSecret: hasStoredSecret.current || isMasked,
     onFocus: () => {
       isFocused.current = true
       if (isMasked) {

@@ -89,7 +89,7 @@ class SendGridProviderTest extends BaseUnitTestCase
         $field = $this->findField('api_key');
 
         $this->assertNotNull($field);
-        $this->assertSame('API Key', $field['label']);
+        $this->assertSame('API key', $field['label']);
     }
 
     public function testFieldExposesAllRenderMetadataKeys(): void

@@ -97,6 +97,14 @@ class DescriptorProvider implements ProviderInterface
     }
 
     /**
+     * Setup guide declared under the descriptor's 'guide' key.
+     */
+    public function guide(): array
+    {
+        return $this->descriptor->guide();
+    }
+
+    /**
      * @return array<int,array<string,mixed>>
      */
     private function requiredFields(): array

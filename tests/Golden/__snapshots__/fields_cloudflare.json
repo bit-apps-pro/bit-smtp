@@ -10,14 +10,14 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "Your 32-character Cloudflare account ID, shown in the dashboard account overview.",
+            "text": "The 32-character ID on your Cloudflare account home page.",
             "url": "https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/",
-            "linkLabel": "Find your account ID"
+            "linkLabel": "Where do I find this?"
         }
     },
     {
         "key": "api_token",
-        "label": "API Token",
+        "label": "API token",
         "type": "password",
         "required": true,
         "secret": true,
@@ -26,9 +26,9 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "Create an API token with the Email Sending: Edit permission. The From domain must be onboarded for Email Sending in the Cloudflare dashboard first.",
-            "url": "https://developers.cloudflare.com/email-service/get-started/send-emails/",
-            "linkLabel": "View Cloudflare Email Sending setup"
+            "text": "Create one under My Profile > API Tokens with the Email Sending permission.",
+            "url": "https://developers.cloudflare.com/fundamentals/api/get-started/create-token/",
+            "linkLabel": "Where do I find this?"
         }
     }
 ]

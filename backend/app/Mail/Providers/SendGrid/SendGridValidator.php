@@ -11,7 +11,7 @@ class SendGridValidator implements ValidatorInterface
         $errors = [];
 
         if (trim((string) ($credentials['api_key'] ?? '')) === '') {
-            $errors['api_key'] = 'API Key is required.';
+            $errors['api_key'] = __('API Key is required.', 'bit-smtp');
         }
 
         return $errors;

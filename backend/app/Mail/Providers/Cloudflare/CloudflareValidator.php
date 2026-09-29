@@ -23,13 +23,13 @@ final class CloudflareValidator implements ValidatorInterface
         $apiToken  = trim((string) ($credentials['api_token'] ?? ''));
 
         if ($accountId === '') {
-            $errors['account_id'] = 'Account ID is required.';
+            $errors['account_id'] = __('Account ID is required.', 'bit-smtp');
         } elseif (preg_match(self::ACCOUNT_ID_PATTERN, $accountId) !== 1) {
-            $errors['account_id'] = 'Account ID is invalid.';
+            $errors['account_id'] = __('Account ID is invalid.', 'bit-smtp');
         }
 
         if ($apiToken === '') {
-            $errors['api_token'] = 'API Token is required.';
+            $errors['api_token'] = __('API Token is required.', 'bit-smtp');
         }
 
         return $errors;

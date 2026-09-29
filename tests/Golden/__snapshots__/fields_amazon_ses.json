@@ -1,39 +1,7 @@
 [
     {
-        "key": "access_key",
-        "label": "Access Key ID",
-        "type": "text",
-        "required": true,
-        "secret": false,
-        "placeholder": "",
-        "default": "",
-        "options": [],
-        "dependsOn": null,
-        "help": {
-            "text": "Create an IAM user with a policy allowing ses:SendEmail and ses:SendRawEmail, then generate an access key for it. Your From address or domain must be a verified SES identity in the chosen region.",
-            "url": "https://docs.aws.amazon.com/ses/latest/dg/control-user-access.html",
-            "linkLabel": "View SES IAM permissions"
-        }
-    },
-    {
-        "key": "secret_key",
-        "label": "Secret Access Key",
-        "type": "password",
-        "required": true,
-        "secret": true,
-        "placeholder": "",
-        "default": "",
-        "options": [],
-        "dependsOn": null,
-        "help": {
-            "text": "Shown only once when the IAM access key is created; copy it immediately. If lost, delete the key and create a new one.",
-            "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html",
-            "linkLabel": "Manage IAM access keys"
-        }
-    },
-    {
         "key": "region",
-        "label": "Region",
+        "label": "SES region",
         "type": "select",
         "required": true,
         "secret": false,
@@ -42,38 +10,150 @@
         "options": [
             {
                 "value": "us-east-1",
-                "label": "US East (N. Virginia)"
+                "label": "US East (N. Virginia) — us-east-1"
             },
             {
                 "value": "us-east-2",
-                "label": "US East (Ohio)"
+                "label": "US East (Ohio) — us-east-2"
+            },
+            {
+                "value": "us-west-1",
+                "label": "US West (N. California) — us-west-1"
             },
             {
                 "value": "us-west-2",
-                "label": "US West (Oregon)"
+                "label": "US West (Oregon) — us-west-2"
             },
             {
-                "value": "eu-west-1",
-                "label": "EU (Ireland)"
-            },
-            {
-                "value": "eu-central-1",
-                "label": "EU (Frankfurt)"
+                "value": "af-south-1",
+                "label": "Africa (Cape Town) — af-south-1"
             },
             {
                 "value": "ap-south-1",
-                "label": "Asia Pacific (Mumbai)"
+                "label": "Asia Pacific (Mumbai) — ap-south-1"
+            },
+            {
+                "value": "ap-south-2",
+                "label": "Asia Pacific (Hyderabad) — ap-south-2"
+            },
+            {
+                "value": "ap-southeast-1",
+                "label": "Asia Pacific (Singapore) — ap-southeast-1"
             },
             {
                 "value": "ap-southeast-2",
-                "label": "Asia Pacific (Sydney)"
+                "label": "Asia Pacific (Sydney) — ap-southeast-2"
+            },
+            {
+                "value": "ap-southeast-3",
+                "label": "Asia Pacific (Jakarta) — ap-southeast-3"
+            },
+            {
+                "value": "ap-southeast-5",
+                "label": "Asia Pacific (Malaysia) — ap-southeast-5"
+            },
+            {
+                "value": "ap-northeast-1",
+                "label": "Asia Pacific (Tokyo) — ap-northeast-1"
+            },
+            {
+                "value": "ap-northeast-2",
+                "label": "Asia Pacific (Seoul) — ap-northeast-2"
+            },
+            {
+                "value": "ap-northeast-3",
+                "label": "Asia Pacific (Osaka) — ap-northeast-3"
+            },
+            {
+                "value": "ca-central-1",
+                "label": "Canada (Central) — ca-central-1"
+            },
+            {
+                "value": "ca-west-1",
+                "label": "Canada West (Calgary) — ca-west-1"
+            },
+            {
+                "value": "eu-central-1",
+                "label": "Europe (Frankfurt) — eu-central-1"
+            },
+            {
+                "value": "eu-central-2",
+                "label": "Europe (Zurich) — eu-central-2"
+            },
+            {
+                "value": "eu-west-1",
+                "label": "Europe (Ireland) — eu-west-1"
+            },
+            {
+                "value": "eu-west-2",
+                "label": "Europe (London) — eu-west-2"
+            },
+            {
+                "value": "eu-west-3",
+                "label": "Europe (Paris) — eu-west-3"
+            },
+            {
+                "value": "eu-south-1",
+                "label": "Europe (Milan) — eu-south-1"
+            },
+            {
+                "value": "eu-north-1",
+                "label": "Europe (Stockholm) — eu-north-1"
+            },
+            {
+                "value": "il-central-1",
+                "label": "Israel (Tel Aviv) — il-central-1"
+            },
+            {
+                "value": "me-south-1",
+                "label": "Middle East (Bahrain) — me-south-1"
+            },
+            {
+                "value": "me-central-1",
+                "label": "Middle East (UAE) — me-central-1"
+            },
+            {
+                "value": "sa-east-1",
+                "label": "South America (São Paulo) — sa-east-1"
             }
         ],
         "dependsOn": null,
         "help": {
-            "text": "Choose the region where your sending identity is verified; identities and sandbox status are per region. New accounts start in the sandbox and can only send to verified recipients until production access is granted.",
-            "url": "https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html",
-            "linkLabel": "Request SES production access"
+            "text": "Pick the region where you verified your domain in Amazon SES.",
+            "url": "https://docs.aws.amazon.com/ses/latest/dg/regions.html",
+            "linkLabel": "See SES regions"
+        }
+    },
+    {
+        "key": "access_key",
+        "label": "Access key ID",
+        "type": "text",
+        "required": true,
+        "secret": false,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null,
+        "help": {
+            "text": "From an AWS (IAM) user that is only allowed to send email.",
+            "url": "https://docs.aws.amazon.com/ses/latest/dg/control-user-access.html",
+            "linkLabel": "Set up a send-only user"
+        }
+    },
+    {
+        "key": "secret_key",
+        "label": "Secret access key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null,
+        "help": {
+            "text": "Shown once when you create the access key. Lost it? Create a new key.",
+            "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html",
+            "linkLabel": "Manage IAM access keys"
         }
     }
 ]

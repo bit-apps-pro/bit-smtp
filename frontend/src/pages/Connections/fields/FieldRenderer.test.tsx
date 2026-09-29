@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { MASK_SENTINEL } from '@pages/Connections/types'
+import { render, screen, waitFor } from '@testing-library/react'
 import { Form } from 'antd'
 import { describe, expect, it } from 'vitest'
 import FieldRenderer from './FieldRenderer'
@@ -134,7 +135,7 @@ describe('FieldRenderer', () => {
     )
 
     expect(screen.getByText('Copy the value from the app Overview page.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open Microsoft Entra' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^Open Microsoft Entra/ })).toHaveAttribute(
       'href',
       'https://entra.microsoft.com/'
     )
@@ -159,5 +160,68 @@ describe('FieldRenderer', () => {
       </Form>
     )
     expect(screen.getByLabelText('API Key')).toHaveAttribute('type', 'password')
+  })
+
+  describe('saved-secret note', () => {
+    const apiKey = {
+      key: 'api_key',
+      label: 'API key',
+      type: 'password' as const,
+      options: [],
+      required: true,
+      secret: true,
+      placeholder: '',
+      default: '',
+      dependsOn: null
+    }
+    const note = /Your saved key is encrypted and hidden/
+
+    it('explains the stored key is encrypted when editing a saved secret', () => {
+      render(
+        <Form initialValues={{ api_key: MASK_SENTINEL }}>
+          <FieldRenderer field={apiKey} />
+        </Form>
+      )
+      expect(screen.getByText(note)).toBeInTheDocument()
+    })
+
+    it('shows no storage note on a new connection with nothing saved yet', () => {
+      render(
+        <Form>
+          <FieldRenderer field={apiKey} />
+        </Form>
+      )
+      expect(screen.queryByText(note)).not.toBeInTheDocument()
+    })
+  })
+
+  it('marks a requiredWhen field required only while its condition holds', async () => {
+    const username = {
+      key: 'username',
+      label: 'Username',
+      type: 'text' as const,
+      options: [],
+      required: false,
+      secret: false,
+      placeholder: '',
+      default: '',
+      dependsOn: null,
+      requiredWhen: { field: 'auth', value: true }
+    }
+    const { rerender } = render(
+      <Form initialValues={{ auth: true }}>
+        <FieldRenderer field={username} />
+      </Form>
+    )
+    await waitFor(() =>
+      expect(screen.getByText('Username').closest('label')).toHaveClass('ant-form-item-required')
+    )
+
+    rerender(
+      <Form initialValues={{ auth: false }} key="off">
+        <FieldRenderer field={username} />
+      </Form>
+    )
+    expect(screen.getByText('Username').closest('label')).not.toHaveClass('ant-form-item-required')
   })
 })

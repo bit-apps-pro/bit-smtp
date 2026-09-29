@@ -1,7 +1,7 @@
 [
     {
         "key": "api_key",
-        "label": "API Key",
+        "label": "API key",
         "type": "password",
         "required": true,
         "secret": true,
@@ -10,14 +10,14 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "Create an API key in the Resend dashboard with Sending access (Full access also works). The From address must use a domain you have verified in Resend.",
-            "url": "https://resend.com/docs/api-reference/api-keys/create-api-key",
-            "linkLabel": "Create a Resend API key"
+            "text": "Create one under API Keys. Full access lets delivery tracking set itself up.",
+            "url": "https://resend.com/docs/dashboard/api-keys/introduction",
+            "linkLabel": "Where do I find this?"
         }
     },
     {
         "key": "webhook_signing_secret",
-        "label": "Webhook Signing Secret",
+        "label": "Webhook signing secret",
         "type": "password",
         "required": false,
         "secret": true,
@@ -25,10 +25,11 @@
         "default": "",
         "options": [],
         "dependsOn": null,
+        "section": "tracking",
         "help": {
-            "text": "Optional. Auto-filled when Bit SMTP registers the webhook for you; otherwise copy the signing secret from the webhook details page in Resend.",
-            "url": "https://resend.com/docs/webhooks/verify-webhooks-requests",
-            "linkLabel": "Find the signing secret"
+            "text": "Filled in for you. Only needed if you created the Resend webhook yourself.",
+            "url": "https://resend.com/docs/dashboard/webhooks/verify-webhooks-requests",
+            "linkLabel": "Where do I find this?"
         }
     }
 ]

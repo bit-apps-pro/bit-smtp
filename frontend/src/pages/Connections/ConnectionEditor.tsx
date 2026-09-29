@@ -1,21 +1,27 @@
-import { type ReactNode, useState } from 'react'
-import { __ } from '@common/helpers/i18nwrap'
-import request from '@common/helpers/request'
+import { type ReactNode, useId, useState } from 'react'
+import { __, sprintf } from '@common/helpers/i18nwrap'
+import useUnsavedChangesGuard from '@common/hooks/useUnsavedChangesGuard'
+import { HelpfulFormItem } from '@components/FieldHelp'
 import notify from '@components/Toaster/Toaster'
 import config from '@config/config'
-import { type Connection, type ProviderMeta, type WebhookProvisioning } from '@pages/Connections/types'
-import { Alert, Button, Flex, Form, Input, Switch, Typography, theme } from 'antd'
+import { type Connection, type FieldMeta, type ProviderMeta } from '@pages/Connections/types'
+import { Alert, Button, Flex, Form, Input, Modal, Switch, Typography, theme } from 'antd'
 import ConnectionTestButton, { ConnectionTestOutcome } from './ConnectionTestButton'
 import OAuthConnectButton from './OAuthConnectButton'
+import PrerequisitesPanel from './PrerequisitesPanel'
 import ProviderFields from './ProviderFields'
+import ProviderLogo from './ProviderLogo'
+import WebhookPanel from './WebhookPanel'
 import useSaveConnection from './data/useSaveConnection'
 import { type ConnectionTestResult } from './data/useTestConnection'
 import { getFieldHint } from './fields/FieldItem'
+import autoSetPatch from './fields/autoSet'
 import { getProviderVisual } from './providerVisuals'
 
 const { Text, Paragraph } = Typography
 
 const PROVIDER_BADGE_SIZE = 48
+const EDITOR_MAX_WIDTH = 640
 const OAUTH_HTTP_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /** Detects callback URLs that OAuth providers reject for lacking HTTPS. */
@@ -39,6 +45,8 @@ interface ConnectionFormValues {
   replyToEmail: string
   [settingKey: string]: unknown
 }
+
+type SaveResponse = Awaited<ReturnType<ReturnType<typeof useSaveConnection>['mutateAsync']>>
 
 /** Maps form values into the Connection payload shape: identity fields, non-secret settings, secret credentials, optional webhook flag. */
 function buildConnectionPayload(
@@ -79,68 +87,33 @@ function buildConnectionPayload(
   }
 }
 
-/** Provider badge (logo halo or initial tile) plus its label and blurb, heading the connection form. */
+/** Provider logo plus its label and one-line summary, heading the connection form. */
 function ProviderHeader({ provider }: { provider: ProviderMeta }) {
   const { token } = theme.useToken()
   const visual = getProviderVisual(provider.key, provider.label)
-  const haloSize = PROVIDER_BADGE_SIZE + 16
+  const tagline = provider.bestFor ?? visual.blurb
 
   return (
     <Flex align="center" gap={16} style={{ marginBottom: 16 }}>
-      <Flex
-        align="center"
-        justify="center"
-        aria-hidden="true"
-        style={{
-          width: haloSize,
-          height: haloSize,
-          borderRadius: '50%',
-          backgroundColor: `${visual.accent}1F`,
-          flexShrink: 0
-        }}
-      >
-        {visual.logo ? (
-          <img
-            src={visual.logo}
-            alt={provider.label}
-            width={PROVIDER_BADGE_SIZE}
-            height={PROVIDER_BADGE_SIZE}
-            style={{ objectFit: 'contain' }}
-          />
-        ) : (
-          <Flex
-            align="center"
-            justify="center"
-            style={{
-              width: PROVIDER_BADGE_SIZE,
-              height: PROVIDER_BADGE_SIZE,
-              borderRadius: token.borderRadius,
-              backgroundColor: visual.accent,
-              color: token.colorWhite,
-              fontWeight: token.fontWeightStrong,
-              fontSize: token.fontSizeLG
-            }}
-          >
-            {visual.initial}
-          </Flex>
-        )}
-      </Flex>
+      <ProviderLogo visual={visual} size={PROVIDER_BADGE_SIZE} />
       <Flex vertical gap={2}>
         <Text strong style={{ fontSize: token.fontSizeXL }}>
           {provider.label}
         </Text>
-        <Text type="secondary">{visual.blurb}</Text>
+        {tagline && tagline !== provider.label ? <Text type="secondary">{tagline}</Text> : null}
       </Flex>
     </Flex>
   )
 }
 
-/** Bordered card wrapper with a small title, grouping a related set of form fields. */
+/** Bordered card grouping a related set of form fields under an accessible heading. */
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
   const { token } = theme.useToken()
+  const headingId = useId()
 
   return (
-    <div
+    <section
+      aria-labelledby={headingId}
       style={{
         backgroundColor: token.colorBgContainer,
         border: `1px solid ${token.colorBorderSecondary}`,
@@ -150,179 +123,151 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
       }}
     >
       <Text
+        id={headingId}
         strong
-        style={{
-          display: 'block',
-          fontSize: token.fontSizeSM,
-          color: token.colorText,
-          marginBottom: 12
-        }}
+        style={{ display: 'block', fontSize: token.fontSize, color: token.colorText, marginBottom: 12 }}
       >
         {title}
       </Text>
       {children}
-    </div>
+    </section>
   )
 }
 
-/** Renders webhook health: provisioning outcome, verification state, and last received event. */
-function WebhookHealth({
-  provisioning,
-  verified,
-  lastEventAt,
-  providerLabel,
-  providerKey
-}: {
-  provisioning: WebhookProvisioning | null | undefined
-  verified: boolean
-  lastEventAt: string | undefined
-  providerLabel: string
-  providerKey: string
-}) {
-  const { token } = theme.useToken()
+/** Name, From and Reply-To inputs shared by every provider. */
+function SenderSection({ provider }: { provider: ProviderMeta }) {
+  const requiredRule = [{ required: true, message: __('This field is required') }]
 
-  switch (provisioning?.status) {
-    case 'registered':
-      return verified ? (
-        <>
-          <Text style={{ display: 'block', color: token.colorSuccess }}>
-            {__('✓ Webhook active — verified')}
-          </Text>
-          {lastEventAt ? (
-            <Text type="secondary" style={{ display: 'block', fontSize: '0.85em' }}>
-              {__('Last event: %s').replace('%s', lastEventAt)}
-            </Text>
-          ) : null}
-        </>
-      ) : (
-        <Text style={{ color: token.colorWarning }}>{__('Registered — awaiting first event')}</Text>
-      )
-    case 'failed':
-      return (
-        <Alert
-          type="warning"
-          showIcon
-          message={__('Webhook registration failed')}
-          description={`${provisioning.reason ?? __('Unknown error')} — ${__(
-            'Re-check the API key and save again.'
-          )}`}
-        />
-      )
-    case 'unsupported':
-      return (
-        <Alert
-          type="info"
-          showIcon
-          message={__('Manual setup needed for %s').replace('%s', providerLabel)}
-          description={
-            providerKey === 'amazon_ses'
-              ? __(
-                  'Amazon SES has no webhook API — subscribe an SNS topic (bounce/complaint/delivery) to the URL above to receive delivery status.'
-                )
-              : __(
-                  'Automatic registration isn’t available for this provider — register the URL above manually in the provider’s dashboard.'
-                )
-          }
-        />
-      )
-    case 'unavailable':
-      return (
-        <Alert
-          type="info"
-          showIcon
-          message={__('Delivery webhooks unavailable')}
-          description={__(
-            'Delivery webhooks require a public HTTPS site; delivery status will show Accepted only.'
-          )}
-        />
-      )
-    default:
-      return (
-        <Text style={{ color: verified ? token.colorSuccess : token.colorWarning }}>
-          {verified ? __('✓ Verified — receiving events') : __('Waiting for first event')}
-        </Text>
-      )
-  }
+  return (
+    <FormSection title={__('Sender')}>
+      <HelpfulFormItem
+        label={__('Connection name')}
+        name="name"
+        rules={requiredRule}
+        hint={__('Only you see this, for example “Brevo – receipts”.')}
+      >
+        <Input aria-label={__('Connection name')} />
+      </HelpfulFormItem>
+      <HelpfulFormItem
+        label={__('From email')}
+        name="fromEmail"
+        rules={[...requiredRule, { type: 'email', message: __('Enter a valid email address') }]}
+        hint={
+          provider.fromEmailHint ??
+          sprintf(__('Emails are sent from this address. %s must allow it.'), provider.label)
+        }
+      >
+        <Input type="email" aria-label={__('From email')} />
+      </HelpfulFormItem>
+      <HelpfulFormItem
+        label={__('From name')}
+        name="fromName"
+        hint={__('The sender name people see in their inbox, like your site name.')}
+      >
+        <Input aria-label={__('From name')} />
+      </HelpfulFormItem>
+      <HelpfulFormItem
+        label={__('Reply-to email')}
+        name="replyToEmail"
+        rules={[{ type: 'email', message: __('Enter a valid email address') }]}
+        hint={__('Where replies go, if not to the From address.')}
+      >
+        <Input type="email" aria-label={__('Reply-to email')} />
+      </HelpfulFormItem>
+    </FormSection>
+  )
 }
 
-/** Copyable webhook URL, its health status, and an optional "create webhook in provider" action. */
-function WebhookPanel({ connection, provider }: { connection: Connection; provider: ProviderMeta }) {
-  const { token } = theme.useToken()
-  const secret = (connection.settings?.webhook_secret as string | undefined) ?? ''
-  const webhookUrl =
-    connection.webhook_url || (secret ? `${config.ROOT_URL}/bit-smtp/${connection.id}/${secret}` : '')
-  const verified = Boolean(connection.settings?.webhook_verified)
-  const [creating, setCreating] = useState(false)
-
-  /** Calls the provider's webhook-create endpoint and toasts the outcome. */
-  const createProviderWebhook = async () => {
-    setCreating(true)
-    try {
-      const response = await request<{ created: boolean; id: string }>({
-        action: 'mail/connections/webhook/create',
-        data: { id: connection.id }
-      })
-      if (response.status === 'success') {
-        notify.success(response.message || __('Webhook ready'))
-      } else {
-        notify.error(response.message || __('Failed to create webhook'))
-      }
-    } catch {
-      notify.error(__('Failed to create webhook'))
-    } finally {
-      setCreating(false)
-    }
+/** Copyable OAuth redirect URI plus the HTTPS warning when the site can't satisfy the provider. */
+function OAuthRedirect({ url }: { url: string | undefined }) {
+  if (!url) {
+    return null
   }
 
   return (
-    <div
-      style={{
-        border: `1px solid ${token.colorBorderSecondary}`,
-        borderRadius: token.borderRadius,
-        padding: 12,
-        marginTop: 12
-      }}
-    >
-      <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-        {__('Paste this into %s → Settings → Webhooks.').replace('%s', provider.label)}
-      </Text>
-      {webhookUrl ? (
-        <Paragraph copyable={{ text: webhookUrl }} style={{ marginBottom: 8, wordBreak: 'break-all' }}>
-          {webhookUrl}
+    <>
+      <HelpfulFormItem
+        label={__('Redirect URI')}
+        hint={__('Add this exact address as an authorized redirect URI in your OAuth app.')}
+      >
+        <Paragraph copyable={{ text: url }} style={{ marginBottom: 0, wordBreak: 'break-all' }}>
+          {url}
         </Paragraph>
-      ) : (
-        <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-          {__('Save this connection to generate its webhook URL.')}
-        </Text>
-      )}
-      <WebhookHealth
-        provisioning={connection.webhook_provisioning}
-        verified={verified}
-        lastEventAt={connection.settings?.webhook_last_event_at as string | undefined}
-        providerLabel={provider.label}
-        providerKey={provider.key}
-      />
-      {provider.supports_webhook_provisioning === true && connection.id && (
-        <Button
-          type="primary"
-          size="small"
-          loading={creating}
-          onClick={createProviderWebhook}
-          style={{ marginTop: 10 }}
-        >
-          {__('Create webhook in %s').replace('%s', provider.label)}
-        </Button>
-      )}
-      <div>
-        <Text type="secondary" style={{ fontSize: '0.85em' }}>
-          {__('A provider’s “send test” won’t flip this — only a real tracked send does.')}
-        </Text>
-      </div>
-    </div>
+      </HelpfulFormItem>
+      {isInsecureOAuthRedirect(url) ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={__('Your site needs HTTPS to sign in')}
+          description={__(
+            'Google and Microsoft only accept secure (https://) addresses. Turn on HTTPS for your site, then add the new address.'
+          )}
+        />
+      ) : null}
+    </>
   )
 }
 
-/** Full connection edit/create form: identity fields, provider-specific settings, OAuth/webhook panels, test + save actions. */
+/** Delivery-tracking toggle and, when on, the webhook panel with its signing-secret fields. */
+function TrackingSection({
+  connection,
+  provider,
+  trackingFields,
+  enabled
+}: {
+  connection: Connection
+  provider: ProviderMeta
+  trackingFields: FieldMeta[]
+  enabled: boolean
+}) {
+  return (
+    <FormSection title={__('Delivery tracking')}>
+      <HelpfulFormItem
+        name="webhook_enabled"
+        label={__('Track delivery status')}
+        valuePropName="checked"
+        hint={sprintf(__('Get “delivered” and “bounced” updates from %s.'), provider.label)}
+      >
+        <Switch aria-label={__('Track delivery status')} />
+      </HelpfulFormItem>
+      {enabled ? (
+        <WebhookPanel connection={connection} provider={provider} trackingFields={trackingFields} />
+      ) : null}
+    </FormSection>
+  )
+}
+
+/** Each non-secret provider field's declared default, keyed by field, skipping fields that declare none. */
+function fieldDefaults(provider: ProviderMeta): Record<string, unknown> {
+  return Object.fromEntries(
+    provider.fields
+      .filter(field => !field.secret && field.type !== 'oauth' && field.default != null)
+      .map(field => [field.key, field.default])
+  )
+}
+
+/** Values a connection opens with: field defaults under its saved settings; new connections get the provider label as their name. */
+function initialFormValues(connection: Connection, provider: ProviderMeta): ConnectionFormValues {
+  const secretValues = Object.fromEntries(
+    provider.fields
+      .filter(field => field.secret && field.type !== 'oauth')
+      .map(field => [field.key, connection.credentials?.[field.key]?.value ?? ''])
+  )
+
+  return {
+    name: connection.name || provider.label,
+    fromEmail: connection.fromEmail,
+    fromName: connection.fromName,
+    replyToEmail: connection.replyToEmail,
+    webhook_enabled: connection.settings?.webhook_enabled ?? true,
+    ...fieldDefaults(provider),
+    ...connection.settings,
+    ...secretValues
+  }
+}
+
+/** Full connection create/edit form: provider credentials, sender, delivery tracking, test + save, and an unsaved-changes guard. */
 export default function ConnectionEditor({
   connection,
   provider,
@@ -337,49 +282,49 @@ export default function ConnectionEditor({
   const { mutateAsync, isPending } = useSaveConnection()
   const [testResult, setTestResult] = useState<ConnectionTestResult>()
   const [draftId, setDraftId] = useState(connection.id)
+  const [isDirty, setIsDirty] = useState(false)
+  const guard = useUnsavedChangesGuard(isDirty)
 
-  const secretValues = Object.fromEntries(
-    provider.fields
-      .filter(field => field.secret && field.type !== 'oauth')
-      .map(field => [field.key, connection.credentials?.[field.key]?.value ?? ''])
-  )
-
-  const initialValues: ConnectionFormValues = {
-    name: connection.name,
-    fromEmail: connection.fromEmail,
-    fromName: connection.fromName,
-    replyToEmail: connection.replyToEmail,
-    webhook_enabled: connection.settings?.webhook_enabled ?? true,
-    ...connection.settings,
-    ...secretValues
-  }
-
-  const fromEmail = Form.useWatch('fromEmail', form) ?? connection.fromEmail
+  const fromEmail = (Form.useWatch('fromEmail', form) as string | undefined) ?? connection.fromEmail
   const webhookEnabled =
     (Form.useWatch('webhook_enabled', form) as boolean | undefined) ??
     (connection.settings?.webhook_enabled as boolean | undefined) ??
     true
   const oauthField = provider.fields.find(field => field.type === 'oauth')
   const inputFields = provider.fields.filter(field => field.type !== 'oauth')
-  const insecureOAuthRedirect = isInsecureOAuthRedirect(provider.oauth_redirect_url)
+  const credentialFields = inputFields.filter(field => field.section !== 'tracking')
+  const trackingFields = inputFields.filter(field => field.section === 'tracking')
   const supportsWebhook = provider.supports_webhook === true
-  const hasProviderConfiguration =
-    inputFields.length > 0 ||
-    oauthField !== undefined ||
-    provider.oauth_redirect_url !== undefined ||
-    supportsWebhook
+  const hasCredentials =
+    credentialFields.length > 0 || oauthField !== undefined || provider.oauth_redirect_url !== undefined
 
   const draftConnection: Connection = { ...connection, id: draftId }
 
   const buildPayload = () => buildConnectionPayload(form.getFieldsValue(true), draftConnection, provider)
 
+  /** Pins backend per-field validation messages onto the matching inputs. */
+  const pinFieldErrors = (errors: Record<string, string>) => {
+    const fieldErrors = Object.entries(errors).filter(([key]) =>
+      inputFields.some(field => field.key === key)
+    )
+    form.setFields(fieldErrors.map(([name, message]) => ({ name, errors: [message] })))
+  }
+
+  /** Pins a rejected save's field errors and toasts its overall reason. */
+  const showSaveErrors = (response: SaveResponse | undefined) => {
+    pinFieldErrors((response?.data as { errors?: Record<string, string> } | undefined)?.errors ?? {})
+    notify.error(response?.message ?? __('Failed to save connection'))
+  }
+
   /** Always saves the current form first (so OAuth consent reads fresh, not stale, credentials) and reuses the minted id; returns '' to abort on failure. */
   const persistConnection = async (): Promise<string> => {
     const response = await mutateAsync(buildPayload())
     if (response?.status !== 'success') {
-      notify.error(__('Failed to prepare this connection for OAuth. Please try again.'))
+      showSaveErrors(response)
       return ''
     }
+
+    setIsDirty(false)
 
     const savedId = (response.data as { id?: string } | undefined)?.id ?? draftId
     if (savedId !== draftId) {
@@ -388,17 +333,34 @@ export default function ConnectionEditor({
     return savedId
   }
 
-  /** Pins backend per-field validation errors onto their inputs and toasts the overall failure reason. */
-  const showSaveErrors = (response: Awaited<ReturnType<typeof mutateAsync>> | undefined) => {
-    const errors = (response?.data as { errors?: Record<string, string> } | undefined)?.errors ?? {}
-    const fieldErrors = Object.entries(errors).filter(([key]) =>
-      inputFields.some(field => field.key === key)
-    )
-    form.setFields(fieldErrors.map(([name, message]) => ({ name, errors: [message] })))
-    notify.error(response?.message ?? __('Failed to save connection'))
+  /** Validates the whole form before a test send; resolves the payload, or undefined when invalid. */
+  const prepareTest = async (): Promise<Connection | undefined> => {
+    try {
+      await form.validateFields()
+    } catch {
+      return undefined
+    }
+    return buildPayload()
   }
 
-  /** Saves the form; on success toasts, surfaces any webhook-provisioning warning, and leaves the editor. */
+  /** Keeps the latest test result and pins any per-field validation messages it carries. */
+  const handleTestResult = (result: ConnectionTestResult | undefined) => {
+    setTestResult(result)
+    if (result?.fieldErrors) {
+      pinFieldErrors(result.fieldErrors)
+    }
+  }
+
+  /** Marks the form dirty and applies any declared auto-set (e.g. SMTP port from security). */
+  const handleValuesChange = (changed: Partial<ConnectionFormValues>, values: ConnectionFormValues) => {
+    setIsDirty(true)
+    const patch = Object.entries(autoSetPatch(changed, values, inputFields))
+    if (patch.length > 0) {
+      form.setFields(patch.map(([name, value]) => ({ name, value })))
+    }
+  }
+
+  /** Saves the form; on success toasts, surfaces any webhook set-up warning, and leaves the editor. */
   const handleFinish = async (values: ConnectionFormValues) => {
     const response = await mutateAsync(buildConnectionPayload(values, draftConnection, provider))
     if (response?.status !== 'success') {
@@ -406,6 +368,7 @@ export default function ConnectionEditor({
       return
     }
 
+    setIsDirty(false)
     notify.success(__('Connection saved'))
 
     const webhook = (response?.data as { webhook?: { status?: string; message?: string } } | undefined)
@@ -418,117 +381,101 @@ export default function ConnectionEditor({
   }
 
   return (
-    <>
+    <div style={{ maxWidth: EDITOR_MAX_WIDTH, width: '100%' }}>
       <ProviderHeader provider={provider} />
-      <Form form={form} layout="vertical" initialValues={initialValues} onFinish={handleFinish}>
-        <FormSection title={__('Identity')}>
-          <Form.Item
-            label={__('Name')}
-            name="name"
-            rules={[{ required: true, message: __('This field is required') }]}
-          >
-            <Input aria-label={__('Name')} />
-          </Form.Item>
-          <Form.Item
-            label={__('From Email')}
-            name="fromEmail"
-            rules={[{ required: true, message: __('This field is required') }]}
-          >
-            <Input type="email" aria-label={__('From Email')} />
-          </Form.Item>
-          <Form.Item label={__('From Name')} name="fromName">
-            <Input aria-label={__('From Name')} />
-          </Form.Item>
-          <Form.Item label={__('Reply-To Email')} name="replyToEmail">
-            <Input type="email" aria-label={__('Reply-To Email')} />
-          </Form.Item>
-        </FormSection>
+      <PrerequisitesPanel provider={provider} />
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={initialFormValues(connection, provider)}
+        onValuesChange={handleValuesChange}
+        onFinish={handleFinish}
+      >
+        {provider.kind === 'local' ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={__('Best used only as a backup')}
+            description={__(
+              "This uses your web server's built-in mail. Many hosts block it, and inboxes often mark it as spam."
+            )}
+          />
+        ) : null}
 
-        {hasProviderConfiguration ? (
-          <FormSection title={__('Credentials & settings')}>
-            {provider.oauth_redirect_url ? (
-              <Form.Item
-                label={__('Redirect URI')}
-                extra={__("Register this exact URI as a Web redirect URI in your provider's OAuth app.")}
-              >
-                <Paragraph
-                  copyable={{ text: provider.oauth_redirect_url }}
-                  style={{ marginBottom: 0, wordBreak: 'break-all' }}
-                >
-                  {provider.oauth_redirect_url}
-                </Paragraph>
-              </Form.Item>
-            ) : null}
-            {insecureOAuthRedirect ? (
-              <Alert
-                type="warning"
-                showIcon
-                message={__('HTTPS redirect URI required')}
-                description={__(
-                  'OAuth providers reject non-HTTPS redirect URIs unless the host is localhost. Enable HTTPS and register the updated URI before connecting.'
-                )}
-              />
-            ) : null}
-            <ProviderFields fields={inputFields} />
+        {hasCredentials ? (
+          <FormSection title={__('Account details')}>
+            <OAuthRedirect url={provider.oauth_redirect_url} />
+            <ProviderFields fields={credentialFields} />
             {oauthField ? (
-              <Form.Item label={oauthField.label} extra={getFieldHint(oauthField)}>
+              <HelpfulFormItem label={oauthField.label} hint={getFieldHint(oauthField)}>
                 <OAuthConnectButton
                   connectionId={draftId}
                   provider={provider.key}
                   connected={Boolean(connection.credentials?.refresh_token?.value)}
                   persistConnection={persistConnection}
                 />
-              </Form.Item>
-            ) : null}
-            {supportsWebhook ? (
-              <Form.Item
-                name="webhook_enabled"
-                label={__('Enable delivery webhook')}
-                valuePropName="checked"
-                extra={
-                  <Text type="secondary">
-                    {__('Track real delivery status (delivered/bounced) via provider webhooks.')}
-                  </Text>
-                }
-              >
-                <Switch />
-              </Form.Item>
-            ) : null}
-            {supportsWebhook && webhookEnabled ? (
-              <WebhookPanel connection={connection} provider={provider} />
+              </HelpfulFormItem>
             ) : null}
           </FormSection>
         ) : null}
 
+        <SenderSection provider={provider} />
+
+        {supportsWebhook ? (
+          <TrackingSection
+            connection={connection}
+            provider={provider}
+            trackingFields={trackingFields}
+            enabled={webhookEnabled}
+          />
+        ) : null}
+
         {testResult ? (
-          <div style={{ marginTop: token.margin }}>
-            <ConnectionTestOutcome result={testResult} />
+          <div style={{ marginBottom: token.margin }}>
+            <ConnectionTestOutcome
+              result={testResult}
+              providerLabel={provider.label}
+              testCaveat={provider.testCaveat}
+              visibleFieldKeys={inputFields.map(field => field.key)}
+            />
           </div>
         ) : null}
 
-        <Flex
-          gap="small"
-          justify="space-between"
-          align="center"
+        <div
           data-testid="connection-actions-bar"
           style={{
             position: 'sticky',
             bottom: 0,
-            width: '100%',
             backgroundColor: token.colorBgContainer,
-            borderTop: `1px solid ${token.colorBorderSecondary}`,
-            boxShadow: token.boxShadowSecondary,
+            borderTop: `1px solid ${token.colorBorder}`,
             padding: `${token.paddingSM}px ${token.padding}px`,
-            marginTop: token.margin,
             zIndex: 10
           }}
         >
-          <ConnectionTestButton getConnection={buildPayload} to={fromEmail} onResult={setTestResult} />
-          <Button type="primary" htmlType="submit" size="large" loading={isPending}>
-            {__('Save')}
-          </Button>
-        </Flex>
+          <ConnectionTestButton
+            prepare={prepareTest}
+            defaultRecipient={config.SEND_TO || fromEmail || ''}
+            onResult={handleTestResult}
+            trailingAction={
+              <Button type="primary" htmlType="submit" loading={isPending}>
+                {__('Save')}
+              </Button>
+            }
+          />
+        </div>
       </Form>
-    </>
+      <Modal
+        open={guard.isLeavePending}
+        title={__('Leave without saving?')}
+        okText={__('Leave without saving')}
+        okButtonProps={{ danger: true }}
+        cancelText={__('Keep editing')}
+        onOk={guard.leave}
+        onCancel={guard.stay}
+      >
+        {__("Your changes to this connection haven't been saved and will be lost.")}
+      </Modal>
+    </div>
   )
 }

@@ -8,29 +8,21 @@
         "fields": [
             {
                 "key": "host",
-                "label": "SMTP Host",
+                "label": "SMTP server",
                 "type": "text",
                 "required": true,
                 "secret": false,
                 "placeholder": "smtp.example.com",
                 "default": "",
                 "options": [],
-                "dependsOn": null
-            },
-            {
-                "key": "port",
-                "label": "SMTP Port",
-                "type": "number",
-                "required": true,
-                "secret": false,
-                "placeholder": "",
-                "default": 587,
-                "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Your email host's outgoing mail server, for example smtp.gmail.com."
+                }
             },
             {
                 "key": "encryption",
-                "label": "Encryption",
+                "label": "Security",
                 "type": "select",
                 "required": true,
                 "secret": false,
@@ -38,30 +30,60 @@
                 "default": "tls",
                 "options": [
                     {
-                        "value": "none",
-                        "label": "None"
+                        "value": "tls",
+                        "label": "STARTTLS (port 587, recommended)"
                     },
                     {
                         "value": "ssl",
-                        "label": "SSL"
+                        "label": "SSL/TLS (port 465)"
                     },
                     {
-                        "value": "tls",
-                        "label": "TLS"
+                        "value": "none",
+                        "label": "None (port 25, not encrypted)"
                     }
                 ],
-                "dependsOn": null
+                "dependsOn": null,
+                "autoSet": {
+                    "field": "port",
+                    "values": {
+                        "tls": 587,
+                        "ssl": 465,
+                        "none": 25
+                    }
+                },
+                "help": {
+                    "text": "Encrypts the connection. Pick STARTTLS unless your host tells you otherwise.",
+                    "url": "https://datatracker.ietf.org/doc/html/rfc8314",
+                    "linkLabel": "Which port should I use?"
+                }
+            },
+            {
+                "key": "port",
+                "label": "Port",
+                "type": "number",
+                "required": true,
+                "secret": false,
+                "placeholder": "",
+                "default": 587,
+                "options": [],
+                "dependsOn": null,
+                "help": {
+                    "text": "Filled in from Security. Change it only if your host tells you to."
+                }
             },
             {
                 "key": "auth",
-                "label": "Authentication",
+                "label": "My server requires a login",
                 "type": "switch",
                 "required": false,
                 "secret": false,
                 "placeholder": "",
                 "default": true,
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Keep this on unless your host lets this server send without a password."
+                }
             },
             {
                 "key": "username",
@@ -75,6 +97,13 @@
                 "dependsOn": {
                     "field": "auth",
                     "value": true
+                },
+                "requiredWhen": {
+                    "field": "auth",
+                    "value": true
+                },
+                "help": {
+                    "text": "Usually your full email address."
                 }
             },
             {
@@ -89,7 +118,32 @@
                 "dependsOn": {
                     "field": "auth",
                     "value": true
+                },
+                "requiredWhen": {
+                    "field": "auth",
+                    "value": true
+                },
+                "help": {
+                    "text": "Use 2-step sign-in, like Gmail? Paste an app password instead.",
+                    "url": "https://support.google.com/accounts/answer/185833",
+                    "linkLabel": "Create a Google app password"
                 }
+            }
+        ],
+        "group": "mailbox",
+        "bestFor": "Sending through a mailbox or mail server you already use.",
+        "fromEmailHint": "Use the address you log in with, or one your mail host lets you send as.",
+        "prerequisites": [
+            {
+                "id": "smtp_details",
+                "title": "Get your SMTP settings",
+                "body": "Find the server name, port and security type in your email host's setup guide."
+            },
+            {
+                "id": "app_password",
+                "title": "Create an app password if you use 2-step verification",
+                "body": "Hosts such as Google need an app password instead of your normal password when 2-step verification is on.",
+                "docUrl": "https://support.google.com/accounts/answer/185833"
             }
         ]
     },
@@ -99,7 +153,20 @@
         "kind": "local",
         "supports_webhook": false,
         "supports_webhook_provisioning": false,
-        "fields": []
+        "fields": [],
+        "group": "server",
+        "bestFor": "A last-resort backup when no other option is available.",
+        "docUrl": "https://www.php.net/manual/en/function.mail.php",
+        "fromEmailHint": "Use an address on this site's own domain; other domains are often marked as spam.",
+        "testCaveat": "A passing test only means your server accepted the email, so check the inbox too.",
+        "prerequisites": [
+            {
+                "id": "host_allows_mail",
+                "title": "Confirm your host allows PHP mail",
+                "body": "Many hosts block it, so ask your host first or pick an email service instead.",
+                "docUrl": "https://www.php.net/manual/en/function.mail.php"
+            }
+        ]
     },
     {
         "key": "sendgrid",
@@ -110,14 +177,37 @@
         "fields": [
             {
                 "key": "api_key",
-                "label": "API Key",
+                "label": "API key",
                 "type": "password",
                 "required": true,
                 "secret": true,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Create one under Settings > API Keys with at least Mail Send access.",
+                    "url": "https://www.twilio.com/docs/sendgrid/ui/account-and-settings/api-keys",
+                    "linkLabel": "Where do I find this?"
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "Transactional and marketing mail at any volume.",
+        "docUrl": "https://www.twilio.com/docs/sendgrid/ui/account-and-settings/api-keys",
+        "fromEmailHint": "Must be a verified single sender or on an authenticated domain in SendGrid.",
+        "prerequisites": [
+            {
+                "id": "sender_authentication",
+                "title": "Authenticate your domain or a single sender",
+                "body": "Verifying your whole domain works best; verifying one address is fine for small sites.",
+                "docUrl": "https://www.twilio.com/docs/sendgrid/ui/account-and-settings/how-to-set-up-domain-authentication"
+            },
+            {
+                "id": "api_key",
+                "title": "Create an API key",
+                "body": "Mail Send access is enough to send; delivery tracking needs more access.",
+                "docUrl": "https://www.twilio.com/docs/sendgrid/ui/account-and-settings/api-keys"
             }
         ]
     },
@@ -130,39 +220,78 @@
         "fields": [
             {
                 "key": "client_id",
-                "label": "Client ID",
+                "label": "OAuth client ID",
                 "type": "text",
                 "required": true,
                 "secret": false,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "From Google Cloud > Credentials > your \"Web application\" OAuth client.",
+                    "url": "https://developers.google.com/workspace/guides/create-credentials#oauth-client-id",
+                    "linkLabel": "Where do I find this?"
+                }
             },
             {
                 "key": "client_secret",
-                "label": "Client Secret",
+                "label": "OAuth client secret",
                 "type": "password",
                 "required": true,
                 "secret": true,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Shown next to the client ID. Paste the whole value.",
+                    "url": "https://developers.google.com/workspace/guides/create-credentials#oauth-client-id",
+                    "linkLabel": "Where do I find this?"
+                }
             },
             {
                 "key": "oauth",
-                "label": "Google / Google Workspace account",
+                "label": "Google account",
                 "type": "oauth",
                 "required": false,
                 "secret": false,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Sign in with the Google account you entered as From Email.",
+                    "url": "https://developers.google.com/workspace/guides/configure-oauth-consent",
+                    "linkLabel": "Configure the OAuth consent screen"
+                }
             }
         ],
-        "oauth_redirect_url": "http://example.org/bit-smtp/oauth/callback"
+        "oauth_redirect_url": "http://example.org/bit-smtp/oauth/callback",
+        "group": "mailbox",
+        "bestFor": "Low-volume mail from a Gmail or Google Workspace mailbox you already own.",
+        "docUrl": "https://developers.google.com/identity/protocols/oauth2/web-server",
+        "fromEmailHint": "Use the Google account you sign in with, or an alias set up in its Gmail settings.",
+        "prerequisites": [
+            {
+                "id": "enable_gmail_api",
+                "title": "Enable the Gmail API",
+                "body": "In Google Cloud, create or choose a project and enable the Gmail API for it.",
+                "docUrl": "https://support.google.com/googleapi/answer/6158841"
+            },
+            {
+                "id": "publish_consent_screen",
+                "title": "Publish the OAuth consent screen",
+                "body": "Set it to In production (or Internal for Workspace), or Google signs you out after 7 days.",
+                "docUrl": "https://support.google.com/cloud/answer/15549945"
+            },
+            {
+                "id": "create_oauth_client",
+                "title": "Create a Web application OAuth client",
+                "body": "Create a Web application client and add the Redirect URI shown below to it.",
+                "docUrl": "https://developers.google.com/identity/protocols/oauth2/web-server"
+            }
+        ]
     },
     {
         "key": "amazon_ses",
@@ -172,30 +301,8 @@
         "supports_webhook_provisioning": false,
         "fields": [
             {
-                "key": "access_key",
-                "label": "Access Key ID",
-                "type": "text",
-                "required": true,
-                "secret": false,
-                "placeholder": "",
-                "default": "",
-                "options": [],
-                "dependsOn": null
-            },
-            {
-                "key": "secret_key",
-                "label": "Secret Access Key",
-                "type": "password",
-                "required": true,
-                "secret": true,
-                "placeholder": "",
-                "default": "",
-                "options": [],
-                "dependsOn": null
-            },
-            {
                 "key": "region",
-                "label": "Region",
+                "label": "SES region",
                 "type": "select",
                 "required": true,
                 "secret": false,
@@ -204,34 +311,176 @@
                 "options": [
                     {
                         "value": "us-east-1",
-                        "label": "US East (N. Virginia)"
+                        "label": "US East (N. Virginia) — us-east-1"
                     },
                     {
                         "value": "us-east-2",
-                        "label": "US East (Ohio)"
+                        "label": "US East (Ohio) — us-east-2"
+                    },
+                    {
+                        "value": "us-west-1",
+                        "label": "US West (N. California) — us-west-1"
                     },
                     {
                         "value": "us-west-2",
-                        "label": "US West (Oregon)"
+                        "label": "US West (Oregon) — us-west-2"
                     },
                     {
-                        "value": "eu-west-1",
-                        "label": "EU (Ireland)"
-                    },
-                    {
-                        "value": "eu-central-1",
-                        "label": "EU (Frankfurt)"
+                        "value": "af-south-1",
+                        "label": "Africa (Cape Town) — af-south-1"
                     },
                     {
                         "value": "ap-south-1",
-                        "label": "Asia Pacific (Mumbai)"
+                        "label": "Asia Pacific (Mumbai) — ap-south-1"
+                    },
+                    {
+                        "value": "ap-south-2",
+                        "label": "Asia Pacific (Hyderabad) — ap-south-2"
+                    },
+                    {
+                        "value": "ap-southeast-1",
+                        "label": "Asia Pacific (Singapore) — ap-southeast-1"
                     },
                     {
                         "value": "ap-southeast-2",
-                        "label": "Asia Pacific (Sydney)"
+                        "label": "Asia Pacific (Sydney) — ap-southeast-2"
+                    },
+                    {
+                        "value": "ap-southeast-3",
+                        "label": "Asia Pacific (Jakarta) — ap-southeast-3"
+                    },
+                    {
+                        "value": "ap-southeast-5",
+                        "label": "Asia Pacific (Malaysia) — ap-southeast-5"
+                    },
+                    {
+                        "value": "ap-northeast-1",
+                        "label": "Asia Pacific (Tokyo) — ap-northeast-1"
+                    },
+                    {
+                        "value": "ap-northeast-2",
+                        "label": "Asia Pacific (Seoul) — ap-northeast-2"
+                    },
+                    {
+                        "value": "ap-northeast-3",
+                        "label": "Asia Pacific (Osaka) — ap-northeast-3"
+                    },
+                    {
+                        "value": "ca-central-1",
+                        "label": "Canada (Central) — ca-central-1"
+                    },
+                    {
+                        "value": "ca-west-1",
+                        "label": "Canada West (Calgary) — ca-west-1"
+                    },
+                    {
+                        "value": "eu-central-1",
+                        "label": "Europe (Frankfurt) — eu-central-1"
+                    },
+                    {
+                        "value": "eu-central-2",
+                        "label": "Europe (Zurich) — eu-central-2"
+                    },
+                    {
+                        "value": "eu-west-1",
+                        "label": "Europe (Ireland) — eu-west-1"
+                    },
+                    {
+                        "value": "eu-west-2",
+                        "label": "Europe (London) — eu-west-2"
+                    },
+                    {
+                        "value": "eu-west-3",
+                        "label": "Europe (Paris) — eu-west-3"
+                    },
+                    {
+                        "value": "eu-south-1",
+                        "label": "Europe (Milan) — eu-south-1"
+                    },
+                    {
+                        "value": "eu-north-1",
+                        "label": "Europe (Stockholm) — eu-north-1"
+                    },
+                    {
+                        "value": "il-central-1",
+                        "label": "Israel (Tel Aviv) — il-central-1"
+                    },
+                    {
+                        "value": "me-south-1",
+                        "label": "Middle East (Bahrain) — me-south-1"
+                    },
+                    {
+                        "value": "me-central-1",
+                        "label": "Middle East (UAE) — me-central-1"
+                    },
+                    {
+                        "value": "sa-east-1",
+                        "label": "South America (São Paulo) — sa-east-1"
                     }
                 ],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Pick the region where you verified your domain in Amazon SES.",
+                    "url": "https://docs.aws.amazon.com/ses/latest/dg/regions.html",
+                    "linkLabel": "See SES regions"
+                }
+            },
+            {
+                "key": "access_key",
+                "label": "Access key ID",
+                "type": "text",
+                "required": true,
+                "secret": false,
+                "placeholder": "",
+                "default": "",
+                "options": [],
+                "dependsOn": null,
+                "help": {
+                    "text": "From an AWS (IAM) user that is only allowed to send email.",
+                    "url": "https://docs.aws.amazon.com/ses/latest/dg/control-user-access.html",
+                    "linkLabel": "Set up a send-only user"
+                }
+            },
+            {
+                "key": "secret_key",
+                "label": "Secret access key",
+                "type": "password",
+                "required": true,
+                "secret": true,
+                "placeholder": "",
+                "default": "",
+                "options": [],
+                "dependsOn": null,
+                "help": {
+                    "text": "Shown once when you create the access key. Lost it? Create a new key.",
+                    "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html",
+                    "linkLabel": "Manage IAM access keys"
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "High volume at low cost, if you are comfortable with AWS.",
+        "docUrl": "https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html",
+        "fromEmailHint": "Must be an address or domain verified in SES, in the region selected below.",
+        "testCaveat": "In the SES sandbox this test can pass while emails to customers fail, so request production access.",
+        "prerequisites": [
+            {
+                "id": "verify_identity",
+                "title": "Verify your domain or sender address",
+                "body": "Verify it in the same AWS region you select here.",
+                "docUrl": "https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html"
+            },
+            {
+                "id": "production_access",
+                "title": "Request production access",
+                "body": "New accounts can only email verified addresses, up to 200 a day, until you ask AWS to lift this.",
+                "docUrl": "https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html"
+            },
+            {
+                "id": "iam_user",
+                "title": "Create a dedicated IAM user",
+                "body": "Give it permission to send email only, and never use your main (root) account keys.",
+                "docUrl": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
             }
         ]
     },
@@ -244,14 +493,44 @@
         "fields": [
             {
                 "key": "api_key",
-                "label": "Server API Token",
+                "label": "Server API token",
                 "type": "password",
                 "required": true,
                 "secret": true,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "From your server's API Tokens tab. Use the Server token, not the Account token.",
+                    "url": "https://postmarkapp.com/support/article/1008-what-are-the-account-and-server-api-tokens",
+                    "linkLabel": "Where do I find this?"
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "Fast, reliable delivery of receipts and password resets.",
+        "docUrl": "https://postmarkapp.com/support/article/1008-what-are-the-account-and-server-api-tokens",
+        "fromEmailHint": "Must be a confirmed Sender Signature or on a verified domain in Postmark.",
+        "testCaveat": "Until Postmark approves your account, this test can pass while emails to customers are blocked.",
+        "prerequisites": [
+            {
+                "id": "verify_domain",
+                "title": "Verify your sending domain",
+                "body": "Add the DKIM and Return-Path DNS records Postmark shows you.",
+                "docUrl": "https://postmarkapp.com/support/article/1046-how-do-i-verify-a-domain"
+            },
+            {
+                "id": "account_approval",
+                "title": "Get your account approved",
+                "body": "New accounts can only send to your own domains until Postmark approves them.",
+                "docUrl": "https://postmarkapp.com/support/article/1084-how-does-the-account-approval-process-work"
+            },
+            {
+                "id": "server_token",
+                "title": "Copy the Server API token",
+                "body": "Find it under Servers → your server → API Tokens; the Account token won't work.",
+                "docUrl": "https://postmarkapp.com/support/article/1008-what-are-the-account-and-server-api-tokens"
             }
         ]
     },
@@ -264,14 +543,36 @@
         "fields": [
             {
                 "key": "api_key",
-                "label": "API Key",
+                "label": "API key (v3)",
                 "type": "password",
                 "required": true,
                 "secret": true,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "From SMTP & API > API keys. Use an API key, not the SMTP key.",
+                    "url": "https://developers.brevo.com/docs/getting-started",
+                    "linkLabel": "Where do I find this?"
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "Transactional mail alongside Brevo newsletters and CRM.",
+        "docUrl": "https://developers.brevo.com/docs/getting-started",
+        "fromEmailHint": "Must be a sender or domain verified in Brevo.",
+        "prerequisites": [
+            {
+                "id": "verify_sender",
+                "title": "Verify a sender or domain",
+                "body": "Add the address or domain you send from and confirm it in Brevo."
+            },
+            {
+                "id": "api_key",
+                "title": "Create an API key, not an SMTP key",
+                "body": "Brevo shows SMTP keys and API keys side by side; only an API key works here.",
+                "docUrl": "https://developers.brevo.com/docs/getting-started"
             }
         ]
     },
@@ -291,18 +592,46 @@
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "The 32-character ID on your Cloudflare account home page.",
+                    "url": "https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/",
+                    "linkLabel": "Where do I find this?"
+                }
             },
             {
                 "key": "api_token",
-                "label": "API Token",
+                "label": "API token",
                 "type": "password",
                 "required": true,
                 "secret": true,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Create one under My Profile > API Tokens with the Email Sending permission.",
+                    "url": "https://developers.cloudflare.com/fundamentals/api/get-started/create-token/",
+                    "linkLabel": "Where do I find this?"
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "Sites whose domain is already on Cloudflare.",
+        "docUrl": "https://developers.cloudflare.com/email-service/",
+        "fromEmailHint": "Must be on a domain onboarded to Cloudflare Email Sending.",
+        "prerequisites": [
+            {
+                "id": "onboard_domain",
+                "title": "Onboard your sending domain",
+                "body": "Turn on Email Sending for your domain in the Cloudflare dashboard.",
+                "docUrl": "https://developers.cloudflare.com/email-service/get-started/send-emails/"
+            },
+            {
+                "id": "api_token",
+                "title": "Create an API token",
+                "body": "Give it the Email Sending: Edit permission, then copy the token right away.",
+                "docUrl": "https://developers.cloudflare.com/fundamentals/api/get-started/create-token/"
             }
         ]
     },
@@ -315,25 +644,54 @@
         "fields": [
             {
                 "key": "api_key",
-                "label": "API Key",
+                "label": "API key",
                 "type": "password",
                 "required": true,
                 "secret": true,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Create one under API Keys. Full access lets delivery tracking set itself up.",
+                    "url": "https://resend.com/docs/dashboard/api-keys/introduction",
+                    "linkLabel": "Where do I find this?"
+                }
             },
             {
                 "key": "webhook_signing_secret",
-                "label": "Webhook Signing Secret",
+                "label": "Webhook signing secret",
                 "type": "password",
                 "required": false,
                 "secret": true,
                 "placeholder": "whsec_...",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "section": "tracking",
+                "help": {
+                    "text": "Filled in for you. Only needed if you created the Resend webhook yourself.",
+                    "url": "https://resend.com/docs/dashboard/webhooks/verify-webhooks-requests",
+                    "linkLabel": "Where do I find this?"
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "Developer-friendly sending with a simple setup.",
+        "docUrl": "https://resend.com/docs/dashboard/api-keys/introduction",
+        "fromEmailHint": "Must be on a domain verified in Resend.",
+        "prerequisites": [
+            {
+                "id": "verify_domain",
+                "title": "Verify your sending domain",
+                "body": "Add the DNS records Resend shows you and wait until the domain shows as verified.",
+                "docUrl": "https://resend.com/docs/dashboard/domains/introduction"
+            },
+            {
+                "id": "api_key",
+                "title": "Create an API key",
+                "body": "Create one under API Keys in Resend and copy it right away.",
+                "docUrl": "https://resend.com/docs/dashboard/api-keys/introduction"
             }
         ]
     },
@@ -346,25 +704,53 @@
         "fields": [
             {
                 "key": "api_key",
-                "label": "API Key",
+                "label": "API key (public)",
                 "type": "password",
                 "required": true,
                 "secret": true,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "From Account settings > API Key Management in Mailjet.",
+                    "url": "https://dev.mailjet.com/email/guides/getting-started/",
+                    "linkLabel": "Where do I find this?"
+                }
             },
             {
                 "key": "secret_key",
-                "label": "Secret Key",
+                "label": "Secret key",
                 "type": "password",
                 "required": true,
                 "secret": true,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Shown next to the API key. Both must come from the same pair.",
+                    "url": "https://dev.mailjet.com/email/guides/getting-started/",
+                    "linkLabel": "Where do I find this?"
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "Transactional mail alongside Mailjet newsletters.",
+        "docUrl": "https://dev.mailjet.com/email/guides/",
+        "fromEmailHint": "Must be a validated sender or domain in Mailjet.",
+        "prerequisites": [
+            {
+                "id": "verify_sender",
+                "title": "Validate a sender or domain",
+                "body": "Add the address or domain you send from and confirm it in Mailjet.",
+                "docUrl": "https://dev.mailjet.com/email/guides/senders-and-domains/"
+            },
+            {
+                "id": "api_keys",
+                "title": "Copy your API key and secret key",
+                "body": "Find both under Account settings → REST API → API Key Management.",
+                "docUrl": "https://dev.mailjet.com/email/guides/"
             }
         ]
     },
@@ -376,30 +762,8 @@
         "supports_webhook_provisioning": false,
         "fields": [
             {
-                "key": "api_key",
-                "label": "Send Mail Token",
-                "type": "password",
-                "required": true,
-                "secret": true,
-                "placeholder": "",
-                "default": "",
-                "options": [],
-                "dependsOn": null
-            },
-            {
-                "key": "webhook_auth_key",
-                "label": "Webhook Authentication Key",
-                "type": "password",
-                "required": false,
-                "secret": true,
-                "placeholder": "",
-                "default": "",
-                "options": [],
-                "dependsOn": null
-            },
-            {
                 "key": "data_center",
-                "label": "Data Center",
+                "label": "Account data center",
                 "type": "select",
                 "required": false,
                 "secret": false,
@@ -419,7 +783,59 @@
                         "label": "India"
                     }
                 ],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Match your ZeptoMail web address: zeptomail.zoho.eu means EU."
+                }
+            },
+            {
+                "key": "api_key",
+                "label": "Send Mail token",
+                "type": "password",
+                "required": true,
+                "secret": true,
+                "placeholder": "",
+                "default": "",
+                "options": [],
+                "dependsOn": null,
+                "help": {
+                    "text": "From Mail Agents > SMTP/API. Paste it without the \"Zoho-enczapikey\" prefix.",
+                    "url": "https://www.zoho.com/zeptomail/help/api/email-sending.html",
+                    "linkLabel": "Where do I find this?"
+                }
+            },
+            {
+                "key": "webhook_auth_key",
+                "label": "Webhook authentication key",
+                "type": "password",
+                "required": false,
+                "secret": true,
+                "placeholder": "",
+                "default": "",
+                "options": [],
+                "dependsOn": null,
+                "section": "tracking",
+                "help": {
+                    "text": "Recommended: stops others faking delivery updates. Use the key set on your ZeptoMail webhook."
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "Transactional-only sending from Zoho.",
+        "docUrl": "https://www.zoho.com/zeptomail/help/api/email-sending.html",
+        "fromEmailHint": "Must be on a domain verified in your ZeptoMail Mail Agent.",
+        "prerequisites": [
+            {
+                "id": "verify_domain",
+                "title": "Add and verify your domain",
+                "body": "Add the domain to a Mail Agent and add the DNS records ZeptoMail shows.",
+                "docUrl": "https://www.zoho.com/zeptomail/help/domains.html"
+            },
+            {
+                "id": "send_mail_token",
+                "title": "Copy the Send Mail token",
+                "body": "Find it under Mail Agents → your agent → SMTP/API.",
+                "docUrl": "https://www.zoho.com/zeptomail/help/api/email-sending.html"
             }
         ]
     },
@@ -431,41 +847,8 @@
         "supports_webhook_provisioning": true,
         "fields": [
             {
-                "key": "api_key",
-                "label": "API Key",
-                "type": "password",
-                "required": true,
-                "secret": true,
-                "placeholder": "",
-                "default": "",
-                "options": [],
-                "dependsOn": null
-            },
-            {
-                "key": "webhook_signing_key",
-                "label": "Webhook Signing Key",
-                "type": "password",
-                "required": false,
-                "secret": true,
-                "placeholder": "",
-                "default": "",
-                "options": [],
-                "dependsOn": null
-            },
-            {
-                "key": "domain",
-                "label": "Domain",
-                "type": "text",
-                "required": true,
-                "secret": false,
-                "placeholder": "mg.example.com",
-                "default": "",
-                "options": [],
-                "dependsOn": null
-            },
-            {
                 "key": "region",
-                "label": "Region",
+                "label": "Account region",
                 "type": "select",
                 "required": false,
                 "secret": false,
@@ -481,7 +864,75 @@
                         "label": "EU"
                     }
                 ],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Where your Mailgun account lives. A wrong choice looks like a bad API key."
+                }
+            },
+            {
+                "key": "domain",
+                "label": "Sending domain",
+                "type": "text",
+                "required": true,
+                "secret": false,
+                "placeholder": "mg.example.com",
+                "default": "",
+                "options": [],
+                "dependsOn": null,
+                "help": {
+                    "text": "Your sending domain exactly as Mailgun shows it, for example mg.example.com.",
+                    "url": "https://documentation.mailgun.com/docs/mailgun/quickstart/",
+                    "linkLabel": "Where do I find this?"
+                }
+            },
+            {
+                "key": "api_key",
+                "label": "API key",
+                "type": "password",
+                "required": true,
+                "secret": true,
+                "placeholder": "",
+                "default": "",
+                "options": [],
+                "dependsOn": null,
+                "help": {
+                    "text": "Your private API key from Mailgun's API Security page.",
+                    "url": "https://documentation.mailgun.com/docs/mailgun/quickstart/",
+                    "linkLabel": "Where do I find this?"
+                }
+            },
+            {
+                "key": "webhook_signing_key",
+                "label": "Webhook signing key",
+                "type": "password",
+                "required": false,
+                "secret": true,
+                "placeholder": "",
+                "default": "",
+                "options": [],
+                "dependsOn": null,
+                "section": "tracking",
+                "help": {
+                    "text": "Recommended: stops others faking delivery updates. Find it on Mailgun's API Security page."
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "High-volume sending with detailed logs.",
+        "docUrl": "https://documentation.mailgun.com/docs/mailgun/user-manual/get-started/",
+        "fromEmailHint": "Must be on the sending domain you enter below.",
+        "prerequisites": [
+            {
+                "id": "verify_domain",
+                "title": "Add and verify a sending domain",
+                "body": "Add the DNS records Mailgun shows, in the same region (US or EU) you pick below.",
+                "docUrl": "https://documentation.mailgun.com/docs/mailgun/user-manual/domains/domains-verify/"
+            },
+            {
+                "id": "api_key",
+                "title": "Create an API key",
+                "body": "Create one in your Mailgun account settings and copy it right away.",
+                "docUrl": "https://documentation.mailgun.com/docs/mailgun/user-manual/get-started/"
             }
         ]
     },
@@ -493,19 +944,8 @@
         "supports_webhook_provisioning": true,
         "fields": [
             {
-                "key": "api_key",
-                "label": "API Key",
-                "type": "password",
-                "required": true,
-                "secret": true,
-                "placeholder": "",
-                "default": "",
-                "options": [],
-                "dependsOn": null
-            },
-            {
                 "key": "region",
-                "label": "Region",
+                "label": "Account region",
                 "type": "select",
                 "required": false,
                 "secret": false,
@@ -521,7 +961,44 @@
                         "label": "EU"
                     }
                 ],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Where your SparkPost account lives. A wrong choice looks like a bad API key."
+                }
+            },
+            {
+                "key": "api_key",
+                "label": "API key",
+                "type": "password",
+                "required": true,
+                "secret": true,
+                "placeholder": "",
+                "default": "",
+                "options": [],
+                "dependsOn": null,
+                "help": {
+                    "text": "Create one under API Keys and allow it to send email (Transmissions).",
+                    "url": "https://support.sparkpost.com/docs/getting-started/create-api-keys",
+                    "linkLabel": "Where do I find this?"
+                }
+            }
+        ],
+        "group": "transactional",
+        "bestFor": "High-volume sending with detailed analytics.",
+        "docUrl": "https://support.sparkpost.com/docs/getting-started/create-api-keys",
+        "fromEmailHint": "Must be on a verified SparkPost sending domain.",
+        "prerequisites": [
+            {
+                "id": "sending_domain",
+                "title": "Add and verify a sending domain",
+                "body": "Add the DNS records SparkPost shows for your domain.",
+                "docUrl": "https://support.sparkpost.com/docs/getting-started/setting-up-domains"
+            },
+            {
+                "id": "api_key",
+                "title": "Create an API key",
+                "body": "Allow it to send email, and to manage webhooks if you want delivery tracking.",
+                "docUrl": "https://support.sparkpost.com/docs/getting-started/create-api-keys"
             }
         ]
     },
@@ -541,18 +1018,28 @@
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "From your app's Overview page in Microsoft Entra.",
+                    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app",
+                    "linkLabel": "Where do I find this?"
+                }
             },
             {
                 "key": "client_secret",
-                "label": "Client Secret",
+                "label": "Client secret value",
                 "type": "password",
                 "required": true,
                 "secret": true,
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Copy the secret's Value, not its ID. Sending stops when it expires.",
+                    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-credentials#add-a-client-secret",
+                    "linkLabel": "Where do I find this?"
+                }
             },
             {
                 "key": "tenant",
@@ -563,7 +1050,12 @@
                 "placeholder": "common",
                 "default": "common",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Work or school account: paste your tenant ID. Personal Outlook.com: keep \"common\".",
+                    "url": "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade",
+                    "linkLabel": "Open Microsoft Entra"
+                }
             },
             {
                 "key": "oauth",
@@ -574,9 +1066,49 @@
                 "placeholder": "",
                 "default": "",
                 "options": [],
-                "dependsOn": null
+                "dependsOn": null,
+                "help": {
+                    "text": "Sign in with the Microsoft mailbox you entered as From Email.",
+                    "url": "https://learn.microsoft.com/en-us/graph/api/user-sendmail",
+                    "linkLabel": "Which accounts work?"
+                }
             }
         ],
-        "oauth_redirect_url": "http://example.org/bit-smtp/oauth/callback"
+        "oauth_redirect_url": "http://example.org/bit-smtp/oauth/callback",
+        "group": "mailbox",
+        "bestFor": "Low-volume mail from a Microsoft 365 or Outlook.com mailbox you already own.",
+        "docUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app",
+        "fromEmailHint": "Use the mailbox you sign in with, or an address it has Send As rights for.",
+        "prerequisites": [
+            {
+                "id": "register_app",
+                "title": "Register an app in Microsoft Entra",
+                "body": "Add a Web platform redirect URI using the Redirect URI shown below.",
+                "docUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app"
+            },
+            {
+                "id": "graph_permissions",
+                "title": "Add Microsoft Graph delegated permissions",
+                "body": "Under API permissions, add Mail.Send, offline_access, openid and email.",
+                "docUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-access-web-apis"
+            },
+            {
+                "id": "admin_approval",
+                "title": "Admin approval (some organizations)",
+                "body": "If your organization only lets admins approve apps, ask an admin to approve this app again. It now also asks to see which account signed in."
+            },
+            {
+                "id": "client_secret",
+                "title": "Create a client secret",
+                "body": "Copy the secret's Value (not its ID) and note its expiry date, because sending stops then.",
+                "docUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-credentials"
+            },
+            {
+                "id": "mailbox",
+                "title": "Sign in with an account that has a mailbox",
+                "body": "The account needs an Exchange Online or Outlook.com mailbox; accounts without one can't send.",
+                "docUrl": "https://learn.microsoft.com/en-us/graph/api/user-sendmail"
+            }
+        ]
     }
 ]

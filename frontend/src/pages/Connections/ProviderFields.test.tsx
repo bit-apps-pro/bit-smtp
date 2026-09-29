@@ -25,7 +25,8 @@ const fields: FieldMeta[] = [
     placeholder: '',
     default: '',
     options: [],
-    dependsOn: { field: 'auth', value: true }
+    dependsOn: { field: 'auth', value: true },
+    requiredWhen: { field: 'auth', value: true }
   }
 ]
 
@@ -49,5 +50,16 @@ describe('ProviderFields', () => {
     )
 
     expect(await screen.findByText('Username')).toBeInTheDocument()
+  })
+
+  it('treats a truthy non-boolean value as on for both visibility and required-ness', async () => {
+    render(
+      <Form initialValues={{ auth: 1 }}>
+        <ProviderFields fields={fields} />
+      </Form>
+    )
+
+    const label = await screen.findByText('Username')
+    expect(label.closest('label')).toHaveClass('ant-form-item-required')
   })
 })

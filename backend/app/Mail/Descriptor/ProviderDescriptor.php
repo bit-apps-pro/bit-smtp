@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Descriptor;
 
+use BitApps\SMTP\Mail\Providers\ProviderGuide;
 use InvalidArgumentException;
 
 /**
  * Immutable, validated wrapper around a declarative provider config array (spec §4.3).
+ *
+ * @phpstan-import-type Guide from ProviderGuide
  */
 final class ProviderDescriptor
 {
@@ -48,7 +51,13 @@ final class ProviderDescriptor
     private array $tracking;
 
     /**
+     * @var Guide|array{}
+     */
+    private array $guide;
+
+    /**
      * @param array{equals?: array<string,mixed>, requiredNonEmptyStringPaths?: list<string>} $semanticSuccess
+     * @param Guide|array{}                                                                   $guide
      */
     private function __construct(
         string $key,
@@ -65,7 +74,8 @@ final class ProviderDescriptor
         array $errorDetectPaths,
         ?callable $payloadBuilder,
         string $messageIdPath,
-        array $tracking
+        array $tracking,
+        array $guide
     ) {
         $this->key              = $key;
         $this->label            = $label;
@@ -82,6 +92,7 @@ final class ProviderDescriptor
         $this->payloadBuilder   = $payloadBuilder;
         $this->messageIdPath    = $messageIdPath;
         $this->tracking         = $tracking;
+        $this->guide            = $guide;
     }
 
     public static function fromArray(array $config): self
@@ -109,7 +120,8 @@ final class ProviderDescriptor
             $config['errorDetectPaths'] ?? [],
             $config['payloadBuilder']   ?? null,
             (string) ($config['messageIdPath'] ?? ''),
-            $config['tracking']         ?? []
+            $config['tracking']         ?? [],
+            $config['guide']            ?? []
         );
     }
 
@@ -203,6 +215,16 @@ final class ProviderDescriptor
     public function tracking(): array
     {
         return $this->tracking;
+    }
+
+    /**
+     * Setup guide shown in the provider picker, or [] when the descriptor declares none.
+     *
+     * @return Guide|array{}
+     */
+    public function guide(): array
+    {
+        return $this->guide;
     }
 
     private static function validatedAuth(array $config): array

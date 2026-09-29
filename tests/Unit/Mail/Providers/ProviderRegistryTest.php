@@ -163,6 +163,7 @@ class ProviderRegistryTest extends BaseUnitTestCase
         $mock->shouldReceive('label')->andReturn($label);
         $mock->shouldReceive('kind')->andReturn($kind);
         $mock->shouldReceive('authConfig')->andReturn(['type' => $authType, 'params' => []]);
+        $mock->shouldReceive('guide')->andReturn([]);
         $mock->shouldReceive('fields')->andReturn([
             ['key' => 'host', 'label' => 'Host', 'type' => 'text', 'required' => true, 'secret' => false],
         ]);

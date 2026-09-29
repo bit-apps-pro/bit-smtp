@@ -63,7 +63,9 @@ class ProviderRegistry
     }
 
     /**
-     * @return array<int, array{key: string, label: string, kind: string, supports_webhook: bool, supports_webhook_provisioning: bool, oauth_redirect_url?: string, fields: array}>
+     * REST provider list: identity, capabilities, fields, and the provider's own setup guide.
+     *
+     * @return array<int, array<string, mixed>>
      */
     public function metadata(): array
     {
@@ -81,7 +83,7 @@ class ProviderRegistry
                 $metadata['oauth_redirect_url'] = OAuthCallbackUrl::get();
             }
 
-            return $metadata;
+            return $metadata + $provider->guide();
         }, $this->providers));
     }
 }

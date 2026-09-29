@@ -8,6 +8,7 @@ use BitApps\SMTP\Mail\Auth\AuthorizationResolver;
 use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
 use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\Providers\ProviderGuide;
 
 /**
  * Brevo, wired entirely through the descriptor engine (spec §5/§11).
@@ -27,12 +28,12 @@ final class BrevoProvider extends DescriptorProvider
             'kind'   => 'api',
             'fields' => [
                 [
-                    'key'         => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'secret' => true,
+                    'key'         => 'api_key', 'label' => __('API key (v3)', 'bit-smtp'), 'type' => 'password', 'required' => true, 'secret' => true,
                     'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                     'help'        => [
-                        'text'      => 'In Brevo, generate an API key under your account\'s API keys settings (an API key, not an SMTP key) and copy it right away, as it is shown only once. The From address must be a verified sender in Brevo.',
-                        'url'       => 'https://developers.brevo.com/docs/quickstart',
-                        'linkLabel' => 'Get a Brevo API key',
+                        'text'      => __('From SMTP & API > API keys. Use an API key, not the SMTP key.', 'bit-smtp'),
+                        'url'       => 'https://developers.brevo.com/docs/getting-started',
+                        'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                     ],
                 ],
             ],
@@ -56,6 +57,25 @@ final class BrevoProvider extends DescriptorProvider
             'errorPaths'    => ['message'],
             'messageIdPath' => 'messageId',
             'tracking'      => ['channel' => 'header', 'key' => 'X-Mailin-custom'],
+            'guide'         => ProviderGuide::make(
+                group: ProviderGuide::GROUP_TRANSACTIONAL,
+                bestFor: __('Transactional mail alongside Brevo newsletters and CRM.', 'bit-smtp'),
+                docUrl: 'https://developers.brevo.com/docs/getting-started',
+                fromEmailHint: __('Must be a sender or domain verified in Brevo.', 'bit-smtp'),
+                prerequisites: [
+                    ProviderGuide::step(
+                        'verify_sender',
+                        __('Verify a sender or domain', 'bit-smtp'),
+                        __('Add the address or domain you send from and confirm it in Brevo.', 'bit-smtp')
+                    ),
+                    ProviderGuide::step(
+                        'api_key',
+                        __('Create an API key, not an SMTP key', 'bit-smtp'),
+                        __('Brevo shows SMTP keys and API keys side by side; only an API key works here.', 'bit-smtp'),
+                        'https://developers.brevo.com/docs/getting-started'
+                    ),
+                ],
+            ),
         ]);
     }
 }

@@ -774,6 +774,64 @@ final class MailConfigServiceTest extends IntegrationTestCase
         $this->assertSame($connId, $this->freshService()->load()->getDefaultConnectionId());
     }
 
+    public function testSaveOAuthGrantStoresTokensAndAccountInOneWrite(): void
+    {
+        $connId = $this->oauthDraftId();
+        $writes = 0;
+        $count  = static function () use (&$writes): void {
+            ++$writes;
+        };
+        add_action('update_option_' . Config::withPrefix('options'), $count);
+
+        try {
+            $saved = $this->freshService()->saveOAuthGrant($this->oauthGrant($connId, 'at-1', 'owner@example.com'));
+        } finally {
+            remove_action('update_option_' . Config::withPrefix('options'), $count);
+        }
+
+        $this->assertTrue($saved);
+        $this->assertSame(1, $writes);
+        $stored = $this->freshService()->connectionById($connId);
+        $this->assertNotNull($stored);
+        $this->assertSame('at-1', $stored->getCredentials()['access_token']['value']);
+        $this->assertSame('rt-1', $stored->getCredentials()['refresh_token']['value']);
+        $this->assertSame('owner@example.com', $stored->setting('oauth_account'));
+        $this->assertSame($connId, $this->freshService()->load()->getDefaultConnectionId());
+    }
+
+    public function testSaveOAuthGrantTreatsAnUnchangedStoredGrantAsSaved(): void
+    {
+        $connId = $this->oauthDraftId();
+        $grant  = $this->oauthGrant($connId, 'at-1', 'owner@example.com');
+        $this->assertTrue($this->freshService()->saveOAuthGrant($grant));
+
+        $this->assertTrue($this->withOptionWritesDiscarded(fn (): bool => $this->freshService()->saveOAuthGrant($grant)));
+    }
+
+    public function testSaveOAuthGrantReportsFailureWhenTheGrantWasNotStored(): void
+    {
+        $connId = $this->oauthDraftId();
+
+        $saved = $this->withOptionWritesDiscarded(fn (): bool => $this->freshService()->saveOAuthGrant($this->oauthGrant($connId, 'at-1', 'owner@example.com')));
+
+        $this->assertFalse($saved);
+        $stored = $this->freshService()->connectionById($connId);
+        $this->assertNotNull($stored);
+        $this->assertArrayNotHasKey('access_token', $stored->getCredentials());
+    }
+
+    public function testRegularConnectionSaveStillCannotSpoofTheOAuthAccount(): void
+    {
+        $connId = $this->oauthDraftId();
+        $this->assertTrue($this->freshService()->saveOAuthGrant($this->oauthGrant($connId, 'at-1', 'owner@example.com')));
+
+        $this->freshService()->saveConnection($this->oauthGrant($connId, 'at-1', 'attacker@example.com'));
+
+        $stored = $this->freshService()->connectionById($connId);
+        $this->assertNotNull($stored);
+        $this->assertSame('owner@example.com', $stored->setting('oauth_account'));
+    }
+
     public function testTokenlessOAuthDraftDoesNotStealDefaultFromAWorkingConnection(): void
     {
         $service = $this->freshService();
@@ -1030,5 +1088,64 @@ final class MailConfigServiceTest extends IntegrationTestCase
     private function freshService(): MailConfigService
     {
         return new MailConfigService();
+    }
+
+    /**
+     * Store a tokenless Gmail OAuth draft and return its id.
+     */
+    private function oauthDraftId(): string
+    {
+        $connId = $this->freshService()->upsertConnection($this->oauthGrant('', '', ''));
+        $this->assertNotNull($connId);
+
+        return $connId;
+    }
+
+    /**
+     * Gmail connection payload as the OAuth callback builds it; an empty access token yields a tokenless draft.
+     *
+     * @return array<string,mixed>
+     */
+    private function oauthGrant(string $connId, string $accessToken, string $account): array
+    {
+        $credentials = ['client_secret' => ['source' => 'database', 'value' => 'cs']];
+        if ($accessToken !== '') {
+            $credentials['access_token']  = ['source' => 'database', 'value' => $accessToken];
+            $credentials['refresh_token'] = ['source' => 'database', 'value' => 'rt-1'];
+        }
+
+        return [
+            'id'           => $connId,
+            'provider'     => 'gmail',
+            'kind'         => 'api',
+            'name'         => 'Gmail',
+            'enabled'      => true,
+            'fromEmail'    => 'a@example.com',
+            'fromName'     => 'A',
+            'replyToEmail' => '',
+            'settings'     => ['client_id' => 'abc.apps.googleusercontent.com', 'oauth_account' => $account],
+            'credentials'  => $credentials,
+        ];
+    }
+
+    /**
+     * Run a callback while every write to the mail-config option is discarded, as update_option() does for a no-op or failed write.
+     *
+     * @template T
+     *
+     * @param callable(): T $callback
+     *
+     * @return T
+     */
+    private function withOptionWritesDiscarded(callable $callback)
+    {
+        $keepOld = static fn ($value, $old) => $old;
+        add_filter('pre_update_option_' . Config::withPrefix('options'), $keepOld, 10, 2);
+
+        try {
+            return $callback();
+        } finally {
+            remove_filter('pre_update_option_' . Config::withPrefix('options'), $keepOld, 10);
+        }
     }
 }

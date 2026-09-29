@@ -97,10 +97,27 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->assertSame(self::SCOPE, $query['scope']);
         $this->assertSame('offline', $query['access_type']);
         $this->assertSame('consent', $query['prompt']);
+        $this->assertArrayNotHasKey('login_hint', $query);
 
         $decoded = OAuthStateCodec::decode($query['state']);
         $this->assertSame('conn_1', $decoded['connection_id']);
         $this->assertSame('gmail', $decoded['provider']);
+    }
+
+    public function testAuthorizeSendsAValidFromEmailAsLoginHint(): void
+    {
+        $connection = $this->gmailConnection(['fromEmail' => 'owner@example.com']);
+
+        $this->registerGmailTransport();
+        $this->transport->shouldReceive('authUrl')->andReturn(self::AUTH_URL);
+        $this->transport->shouldReceive('scopes')->andReturn([self::SCOPE]);
+        $this->transport->shouldReceive('extraAuthParams')->andReturn([]);
+        $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($connection);
+
+        $this->controller->authorize($this->request(['connection_id' => 'conn_1', 'provider' => 'gmail']));
+
+        parse_str(parse_url(((array) Response::getData())['url'], PHP_URL_QUERY), $query);
+        $this->assertSame('owner@example.com', $query['login_hint']);
     }
 
     public function testAuthorizeRejectsWhenCapabilityMissing(): void
@@ -171,18 +188,22 @@ class OAuthControllerTest extends BaseUnitTestCase
                 'access_token'  => 'access-token-value',
                 'refresh_token' => 'refresh-token-value',
                 'expires_in'    => 3600,
+                'id_token'      => self::idToken(['email' => 'owner@example.com']),
             ]));
 
         $before = time();
-        $this->config->shouldReceive('saveConnection')
+        $this->config->shouldReceive('saveOAuthGrant')
             ->once()
             ->with(Mockery::on(function (array $saved) use ($before): bool {
                 return $saved['credentials']['refresh_token'] === ['source' => 'database', 'value' => 'refresh-token-value']
                     && $saved['credentials']['access_token']  === ['source' => 'database', 'value' => 'access-token-value']
+                    && $saved['settings']['oauth_account']    === 'owner@example.com'
                     && $saved['settings']['token_expires_at'] >= $before + 3600
                     && $saved['settings']['token_expires_at'] <= time()  + 3600;
             }))
             ->andReturn(true);
+        $this->config->shouldNotReceive('saveConnection');
+        $this->config->shouldNotReceive('updateConnectionSettings');
 
         $this->controller->callback($this->request(['code' => 'AUTH-CODE', 'state' => $state]));
 
@@ -205,29 +226,32 @@ class OAuthControllerTest extends BaseUnitTestCase
             'refresh_token' => 'refresh-token-value',
             'expires_in'    => 3600,
         ]));
-        $this->config->shouldReceive('saveConnection')->once()->andReturn(false);
+        $this->config->shouldReceive('saveOAuthGrant')->once()->andReturn(false);
+        $this->config->shouldNotReceive('updateConnectionSettings');
 
         $this->controller->callback($this->request(['code' => 'AUTH-CODE', 'state' => $state]));
 
         $this->assertSame(1, $this->controller->emitCount);
         $this->assertStringContainsString('"status":"error"', $this->controller->emittedHtml);
+        $this->assertStringContainsString('"reason":"save_failed"', $this->controller->emittedHtml);
     }
 
     public function testCallbackRejectsInvalidStateWithoutExchangeOrSave(): void
     {
         $this->apiClient->shouldNotReceive('postForm');
-        $this->config->shouldNotReceive('saveConnection');
+        $this->config->shouldNotReceive('saveOAuthGrant');
         $this->config->shouldNotReceive('connectionById');
 
         $this->controller->callback($this->request(['code' => 'AUTH-CODE', 'state' => 'tampered.state']));
 
         $this->assertSame(1, $this->controller->emitCount);
+        $this->assertStringContainsString('"reason":"invalid_state"', $this->controller->emittedHtml);
     }
 
     public function testCallbackRejectsProviderErrorParamWithoutSave(): void
     {
         $this->apiClient->shouldNotReceive('postForm');
-        $this->config->shouldNotReceive('saveConnection');
+        $this->config->shouldNotReceive('saveOAuthGrant');
         $this->config->shouldNotReceive('connectionById');
 
         $this->controller->callback($this->request([
@@ -236,6 +260,15 @@ class OAuthControllerTest extends BaseUnitTestCase
         ]));
 
         $this->assertSame(1, $this->controller->emitCount);
+        $this->assertStringContainsString('"reason":"access_denied"', $this->controller->emittedHtml);
+    }
+
+    public function testCallbackNeverReflectsAnUnknownProviderErrorValue(): void
+    {
+        $this->controller->callback($this->request(['error' => 'evil</script><script>x()', 'state' => '']));
+
+        $this->assertStringContainsString('"reason":"unknown"', $this->controller->emittedHtml);
+        $this->assertStringNotContainsString('evil', $this->controller->emittedHtml);
     }
 
     public function testCallbackDoesNotSaveWhenTokenExchangeFails(): void
@@ -247,11 +280,36 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($this->gmailConnection());
 
         $this->apiClient->shouldReceive('postForm')->once()->andReturn(new ApiResponse(400, ['error' => 'invalid_grant']));
-        $this->config->shouldNotReceive('saveConnection');
+        $this->config->shouldNotReceive('saveOAuthGrant');
 
         $this->controller->callback($this->request(['code' => 'AUTH-CODE', 'state' => $state]));
 
         $this->assertSame(1, $this->controller->emitCount);
+        $this->assertStringContainsString('"reason":"invalid_grant"', $this->controller->emittedHtml);
+    }
+
+    public function testCallbackReportsAWrongClientSecretAsInvalidClient(): void
+    {
+        $state = OAuthStateCodec::encode('conn_1', 'gmail');
+
+        $this->registerGmailTransport();
+        $this->transport->shouldReceive('tokenUrl')->andReturn(self::TOKEN_URL);
+        $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn($this->gmailConnection());
+        $this->apiClient->shouldReceive('postForm')->once()->andReturn(new ApiResponse(401, ['error' => 'invalid_client']));
+
+        $this->controller->callback($this->request(['code' => 'AUTH-CODE', 'state' => $state]));
+
+        $this->assertStringContainsString('"reason":"invalid_client"', $this->controller->emittedHtml);
+    }
+
+    public function testCallbackReportsAMissingConnection(): void
+    {
+        $this->config->shouldReceive('connectionById')->with('conn_1')->andReturn(null);
+        $this->apiClient->shouldNotReceive('postForm');
+
+        $this->controller->callback($this->request(['code' => 'AUTH-CODE', 'state' => OAuthStateCodec::encode('conn_1', 'gmail')]));
+
+        $this->assertStringContainsString('"reason":"connection_not_found"', $this->controller->emittedHtml);
     }
 
     public function testDisconnectClearsTokensAndReturnsSuccess(): void
@@ -302,15 +360,30 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->registry->shouldReceive('get')->with('gmail')->andReturn($provider);
     }
 
-    private function gmailConnection(): Connection
+    /**
+     * @param array<string,mixed> $overrides
+     */
+    private function gmailConnection(array $overrides = []): Connection
     {
-        return Connection::fromArray([
+        return Connection::fromArray($overrides + [
             'id'          => 'conn_1',
             'provider'    => 'gmail',
             'kind'        => 'api',
             'settings'    => ['client_id' => 'CLIENT-123'],
             'credentials' => ['client_secret' => ['source' => 'database', 'value' => 'SECRET-XYZ']],
         ]);
+    }
+
+    /**
+     * Unsigned id_token carrying the given claims.
+     *
+     * @param array<string,string> $claims
+     */
+    private static function idToken(array $claims): string
+    {
+        $encode = static fn (string $json): string => rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
+
+        return $encode('{"alg":"none"}') . '.' . $encode((string) json_encode($claims)) . '.sig';
     }
 
     /**

@@ -41,11 +41,11 @@ describe('NewConnectionPage', () => {
     ;(useProviders as Mock).mockReturnValue({ data: [otherSmtpMeta], isPending: false })
   })
 
-  it('renders a blank editor for the requested provider', () => {
+  it('renders a new editor for the requested provider, named after it', () => {
     searchParamsString = 'provider=other_smtp'
     renderWithProviders(<NewConnectionPage />)
 
-    expect(screen.getByLabelText('Name')).toHaveValue('')
+    expect(screen.getByLabelText('Connection name')).toHaveValue('Other SMTP')
     expect(screen.getByLabelText('SMTP Host')).toBeInTheDocument()
   })
 

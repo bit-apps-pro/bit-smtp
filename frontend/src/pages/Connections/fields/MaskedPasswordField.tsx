@@ -8,7 +8,7 @@ export default function MaskedPasswordField({ field }: { field: FieldMeta }) {
   const mask = useMaskedSecret(field.key)
 
   return (
-    <FieldItem field={field}>
+    <FieldItem field={field} hasStoredSecret={mask.hasStoredSecret}>
       <Input.Password
         aria-label={field.label}
         placeholder={field.placeholder}

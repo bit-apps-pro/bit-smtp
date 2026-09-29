@@ -19,18 +19,18 @@ class SesValidator implements ValidatorInterface
         $errors = [];
 
         if (trim((string) ($settings['access_key'] ?? '')) === '') {
-            $errors['access_key'] = 'Access Key ID is required.';
+            $errors['access_key'] = __('Access Key ID is required.', 'bit-smtp');
         }
 
         if (trim((string) ($credentials['secret_key'] ?? '')) === '') {
-            $errors['secret_key'] = 'Secret Access Key is required.';
+            $errors['secret_key'] = __('Secret Access Key is required.', 'bit-smtp');
         }
 
         $region = trim((string) ($settings['region'] ?? ''));
         if ($region === '') {
-            $errors['region'] = 'Region is required.';
+            $errors['region'] = __('Region is required.', 'bit-smtp');
         } elseif (!preg_match('/^[a-z0-9-]+$/', $region)) {
-            $errors['region'] = 'Region is invalid.';
+            $errors['region'] = __('Region is invalid.', 'bit-smtp');
         }
 
         return $errors;

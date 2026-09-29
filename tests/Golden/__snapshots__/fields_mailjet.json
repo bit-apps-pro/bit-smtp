@@ -1,7 +1,7 @@
 [
     {
         "key": "api_key",
-        "label": "API Key",
+        "label": "API key (public)",
         "type": "password",
         "required": true,
         "secret": true,
@@ -10,14 +10,14 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "Copy the API Key from the API key management page of your Mailjet account, and paste the matching Secret Key in the next field. The From address must be a validated sender or domain.",
+            "text": "From Account settings > API Key Management in Mailjet.",
             "url": "https://dev.mailjet.com/email/guides/getting-started/",
-            "linkLabel": "Mailjet getting started"
+            "linkLabel": "Where do I find this?"
         }
     },
     {
         "key": "secret_key",
-        "label": "Secret Key",
+        "label": "Secret key",
         "type": "password",
         "required": true,
         "secret": true,
@@ -26,9 +26,9 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "The Secret Key belongs to the same key pair as the API Key above; use both from the same pair.",
+            "text": "Shown next to the API key. Both must come from the same pair.",
             "url": "https://dev.mailjet.com/email/guides/getting-started/",
-            "linkLabel": "Mailjet getting started"
+            "linkLabel": "Where do I find this?"
         }
     }
 ]

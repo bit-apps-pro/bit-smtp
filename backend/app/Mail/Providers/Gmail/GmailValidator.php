@@ -11,15 +11,15 @@ class GmailValidator implements ValidatorInterface
         $errors = [];
 
         if (trim((string) ($settings['client_id'] ?? '')) === '') {
-            $errors['client_id'] = 'Client ID is required.';
+            $errors['client_id'] = __('Client ID is required.', 'bit-smtp');
         }
 
         if (trim((string) ($credentials['client_secret'] ?? '')) === '') {
-            $errors['client_secret'] = 'Client Secret is required.';
+            $errors['client_secret'] = __('Client Secret is required.', 'bit-smtp');
         }
 
         if (trim((string) ($credentials['refresh_token'] ?? '')) === '') {
-            $errors['refresh_token'] = 'Google account is not connected.';
+            $errors['refresh_token'] = __('Google account is not connected.', 'bit-smtp');
         }
 
         return $errors;

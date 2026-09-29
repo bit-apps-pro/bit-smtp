@@ -11,15 +11,15 @@ class Microsoft365Validator implements ValidatorInterface
         $errors = [];
 
         if (trim((string) ($settings['client_id'] ?? '')) === '') {
-            $errors['client_id'] = 'Application (client) ID is required.';
+            $errors['client_id'] = __('Application (client) ID is required.', 'bit-smtp');
         }
 
         if (trim((string) ($credentials['client_secret'] ?? '')) === '') {
-            $errors['client_secret'] = 'Client Secret is required.';
+            $errors['client_secret'] = __('Client Secret is required.', 'bit-smtp');
         }
 
         if (trim((string) ($credentials['refresh_token'] ?? '')) === '') {
-            $errors['refresh_token'] = 'Microsoft account is not connected.';
+            $errors['refresh_token'] = __('Microsoft account is not connected.', 'bit-smtp');
         }
 
         return $errors;

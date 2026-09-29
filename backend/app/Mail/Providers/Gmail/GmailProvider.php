@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Mail\Providers\Gmail;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
+use BitApps\SMTP\Mail\Providers\ProviderGuide;
 
 class GmailProvider implements ProviderInterface
 {
@@ -68,32 +69,65 @@ class GmailProvider implements ProviderInterface
     {
         return [
             [
-                'key'         => 'client_id', 'label' => 'Client ID', 'type' => 'text', 'required' => true, 'secret' => false,
+                'key'         => 'client_id', 'label' => __('OAuth client ID', 'bit-smtp'), 'type' => 'text', 'required' => true, 'secret' => false,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                 'help'        => [
-                    'text'      => 'In Google Cloud, enable the Gmail API, configure the OAuth consent screen, then create an OAuth client ID of type Web application. Add the redirect URL shown in this form as an authorized redirect URI.',
+                    'text'      => __('From Google Cloud > Credentials > your "Web application" OAuth client.', 'bit-smtp'),
                     'url'       => 'https://developers.google.com/workspace/guides/create-credentials#oauth-client-id',
-                    'linkLabel' => 'Create an OAuth client ID',
+                    'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                 ],
             ],
             [
-                'key'         => 'client_secret', 'label' => 'Client Secret', 'type' => 'password', 'required' => true, 'secret' => true,
+                'key'         => 'client_secret', 'label' => __('OAuth client secret', 'bit-smtp'), 'type' => 'password', 'required' => true, 'secret' => true,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                 'help'        => [
-                    'text'      => 'Copy the client secret from the same OAuth client in Google Cloud Credentials.',
+                    'text'      => __('Shown next to the client ID. Paste the whole value.', 'bit-smtp'),
                     'url'       => 'https://developers.google.com/workspace/guides/create-credentials#oauth-client-id',
-                    'linkLabel' => 'Create OAuth credentials',
+                    'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                 ],
             ],
             [
-                'key'         => 'oauth', 'label' => 'Google / Google Workspace account', 'type' => 'oauth', 'required' => false, 'secret' => false,
+                'key'         => 'oauth', 'label' => __('Google account', 'bit-smtp'), 'type' => 'oauth', 'required' => false, 'secret' => false,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                 'help'        => [
-                    'text'      => 'Sign in with the Google account you send from and approve the gmail.send permission. While the consent screen is in Testing mode, add this account as a test user first.',
+                    'text'      => __('Sign in with the Google account you entered as From Email.', 'bit-smtp'),
                     'url'       => 'https://developers.google.com/workspace/guides/configure-oauth-consent',
-                    'linkLabel' => 'Configure the OAuth consent screen',
+                    'linkLabel' => __('Configure the OAuth consent screen', 'bit-smtp'),
                 ],
             ],
         ];
+    }
+
+    /**
+     * Setup guide shown when choosing and configuring this provider.
+     */
+    public function guide(): array
+    {
+        return ProviderGuide::make(
+            group: ProviderGuide::GROUP_MAILBOX,
+            bestFor: __('Low-volume mail from a Gmail or Google Workspace mailbox you already own.', 'bit-smtp'),
+            docUrl: 'https://developers.google.com/identity/protocols/oauth2/web-server',
+            fromEmailHint: __('Use the Google account you sign in with, or an alias set up in its Gmail settings.', 'bit-smtp'),
+            prerequisites: [
+                ProviderGuide::step(
+                    'enable_gmail_api',
+                    __('Enable the Gmail API', 'bit-smtp'),
+                    __('In Google Cloud, create or choose a project and enable the Gmail API for it.', 'bit-smtp'),
+                    'https://support.google.com/googleapi/answer/6158841'
+                ),
+                ProviderGuide::step(
+                    'publish_consent_screen',
+                    __('Publish the OAuth consent screen', 'bit-smtp'),
+                    __('Set it to In production (or Internal for Workspace), or Google signs you out after 7 days.', 'bit-smtp'),
+                    'https://support.google.com/cloud/answer/15549945'
+                ),
+                ProviderGuide::step(
+                    'create_oauth_client',
+                    __('Create a Web application OAuth client', 'bit-smtp'),
+                    __('Create a Web application client and add the Redirect URI shown below to it.', 'bit-smtp'),
+                    'https://developers.google.com/identity/protocols/oauth2/web-server'
+                ),
+            ],
+        );
     }
 }

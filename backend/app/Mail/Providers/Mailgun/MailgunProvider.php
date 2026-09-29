@@ -9,6 +9,7 @@ use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
 use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\Providers\ProviderGuide;
 
 /**
  * Mailgun provider wired via descriptor engine with form encoding and region-mapped host.
@@ -27,37 +28,37 @@ final class MailgunProvider extends DescriptorProvider
             'label'  => 'Mailgun',
             'kind'   => 'api',
             'fields' => [
-                [
-                    'key'         => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true,  'secret' => true,
-                    'placeholder' => '', 'default' => '',   'options' => [], 'dependsOn' => null,
-                    'help'        => [
-                        'text'      => 'Use your Mailgun Private API key, found under Settings > API Security in the Mailgun dashboard. It must belong to the same account as the sending domain.',
-                        'url'       => 'https://documentation.mailgun.com/docs/mailgun/quickstart/',
-                        'linkLabel' => 'View Mailgun quickstart',
-                    ],
-                ],
-                [
-                    'key'         => 'webhook_signing_key', 'label' => 'Webhook Signing Key', 'type' => 'password', 'required' => false, 'secret' => true,
-                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
-                    'help'        => [
-                        'text'      => 'Optional. Copy the HTTP webhook signing key from Settings > API Security so Bit SMTP can verify delivery events sent by Mailgun.',
-                    ],
-                ],
-                [
-                    'key'         => 'domain', 'label' => 'Domain',  'type' => 'text',     'required' => true,  'secret' => false,
-                    'placeholder' => 'mg.example.com', 'default' => '', 'options' => [], 'dependsOn' => null,
-                    'help'        => [
-                        'text'      => 'The sending domain you added and verified in Mailgun (Sending > Domains), for example mg.example.com. The sandbox domain only delivers to authorized recipients.',
-                        'url'       => 'https://documentation.mailgun.com/docs/mailgun/quickstart/',
-                        'linkLabel' => 'View Mailgun quickstart',
-                    ],
-                ],
-                ['key' => 'region',  'label' => 'Region',  'type' => 'select',   'required' => false, 'secret' => false, 'placeholder' => '', 'default' => 'us', 'options' => [
-                    ['value' => 'us', 'label' => 'US'],
-                    ['value' => 'eu', 'label' => 'EU'],
+                ['key' => 'region', 'label' => __('Account region', 'bit-smtp'), 'type' => 'select', 'required' => false, 'secret' => false, 'placeholder' => '', 'default' => 'us', 'options' => [
+                    ['value' => 'us', 'label' => __('US', 'bit-smtp')],
+                    ['value' => 'eu', 'label' => __('EU', 'bit-smtp')],
                 ], 'dependsOn' => null,
                     'help'        => [
-                        'text'      => 'Choose the region your domain was created in (shown next to it in Mailgun); sending through the wrong region fails.',
+                        'text' => __('Where your Mailgun account lives. A wrong choice looks like a bad API key.', 'bit-smtp'),
+                    ],
+                ],
+                [
+                    'key'         => 'domain', 'label' => __('Sending domain', 'bit-smtp'), 'type' => 'text', 'required' => true, 'secret' => false,
+                    'placeholder' => 'mg.example.com', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => __('Your sending domain exactly as Mailgun shows it, for example mg.example.com.', 'bit-smtp'),
+                        'url'       => 'https://documentation.mailgun.com/docs/mailgun/quickstart/',
+                        'linkLabel' => __('Where do I find this?', 'bit-smtp'),
+                    ],
+                ],
+                [
+                    'key'         => 'api_key', 'label' => __('API key', 'bit-smtp'), 'type' => 'password', 'required' => true, 'secret' => true,
+                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => __('Your private API key from Mailgun\'s API Security page.', 'bit-smtp'),
+                        'url'       => 'https://documentation.mailgun.com/docs/mailgun/quickstart/',
+                        'linkLabel' => __('Where do I find this?', 'bit-smtp'),
+                    ],
+                ],
+                [
+                    'key'         => 'webhook_signing_key', 'label' => __('Webhook signing key', 'bit-smtp'), 'type' => 'password', 'required' => false, 'secret' => true,
+                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null, 'section' => 'tracking',
+                    'help'        => [
+                        'text' => __('Recommended: stops others faking delivery updates. Find it on Mailgun\'s API Security page.', 'bit-smtp'),
                     ],
                 ],
             ],
@@ -86,6 +87,26 @@ final class MailgunProvider extends DescriptorProvider
             'errorPaths'    => ['message'],
             'messageIdPath' => 'id',
             'tracking'      => ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY],
+            'guide'         => ProviderGuide::make(
+                group: ProviderGuide::GROUP_TRANSACTIONAL,
+                bestFor: __('High-volume sending with detailed logs.', 'bit-smtp'),
+                docUrl: 'https://documentation.mailgun.com/docs/mailgun/user-manual/get-started/',
+                fromEmailHint: __('Must be on the sending domain you enter below.', 'bit-smtp'),
+                prerequisites: [
+                    ProviderGuide::step(
+                        'verify_domain',
+                        __('Add and verify a sending domain', 'bit-smtp'),
+                        __('Add the DNS records Mailgun shows, in the same region (US or EU) you pick below.', 'bit-smtp'),
+                        'https://documentation.mailgun.com/docs/mailgun/user-manual/domains/domains-verify/'
+                    ),
+                    ProviderGuide::step(
+                        'api_key',
+                        __('Create an API key', 'bit-smtp'),
+                        __('Create one in your Mailgun account settings and copy it right away.', 'bit-smtp'),
+                        'https://documentation.mailgun.com/docs/mailgun/user-manual/get-started/'
+                    ),
+                ],
+            ),
         ]);
     }
 }

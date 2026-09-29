@@ -14,6 +14,7 @@ use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionAuthorization;
 use BitApps\SMTP\Mail\Credentials\CredentialCipher;
+use BitApps\SMTP\Mail\Credentials\CredentialValues;
 use BitApps\SMTP\Mail\Exceptions\AlertSettingsConflictException;
 use BitApps\SMTP\Mail\Exceptions\CredentialCipherException;
 use BitApps\SMTP\Mail\Exceptions\InvalidAlertChannelException;
@@ -28,6 +29,11 @@ use Throwable;
  */
 class MailConfigService
 {
+    /**
+     * Connection setting holding the OAuth-signed-in account's email (display only; never a secret).
+     */
+    public const OAUTH_ACCOUNT_SETTING = 'oauth_account';
+
     private const OPTION = 'options';
 
     private const LEGACY_BACKUP_OPTION = 'options_v1_backup';
@@ -39,6 +45,8 @@ class MailConfigService
         'webhook_verified', 'webhook_last_event_at', 'webhook_signature_enabled', 'webhook_public_key', 'webhook_provisioned_url',
         'webhook_provisioning_status', 'webhook_provisioning_reason', 'webhook_provisioning_updated_at', 'webhook_sns_account_id',
     ];
+
+    private const MANAGED_OAUTH_SETTING_KEYS = [self::OAUTH_ACCOUNT_SETTING];
 
     /**
      * @var null|MailSettings
@@ -158,64 +166,20 @@ class MailConfigService
      */
     public function upsertConnection(array $connection): ?string
     {
-        $current     = $this->load();
-        $data        = $current->toArray();
-        $connections = $data['connections'];
+        return $this->upsertWithManagedSettings($connection, []);
+    }
 
-        $incomingId      = $connection['id'] ?? '';
-        $isNew           = true;
-        $savedConnection = [];
+    /**
+     * Persist an OAuth consent grant (tokens, expiry, signed-in account) in one write; a grant already stored unchanged counts as saved.
+     *
+     * @param array<string,mixed> $connection connection payload carrying the fresh tokens and settings[OAUTH_ACCOUNT_SETTING]
+     */
+    public function saveOAuthGrant(array $connection): bool
+    {
+        $account = (string) ($connection['settings'][self::OAUTH_ACCOUNT_SETTING] ?? '');
 
-        foreach ($connections as $i => $existing) {
-            if ($existing['id'] === $incomingId && $incomingId !== '') {
-                $resolved     = MaskedSecretResolver::apply(
-                    ['connections' => [$connection]],
-                    $current
-                );
-                $resolvedConn    = $resolved['connections'][0];
-                $connections[$i] = $resolvedConn;
-                $savedConnection = $resolvedConn;
-                $isNew           = false;
-
-                break;
-            }
-        }
-
-        if ($isNew) {
-            $connection['id'] = 'conn_' . wp_generate_uuid4();
-            $empty            = MailSettings::fromArray([
-                'schema_version'          => 2,
-                'enabled'                 => false,
-                'default_connection_id'   => '',
-                'fallback_connection_ids' => [],
-                'connections'             => [],
-                'features'                => [],
-            ]);
-            $resolved      = MaskedSecretResolver::apply(
-                ['connections' => [$connection]],
-                $empty
-            );
-            $savedConnection = $resolved['connections'][0];
-            $connections[]   = $savedConnection;
-        }
-
-        $currentDefaultId = $data['default_connection_id'];
-        $noDefaultYet     = \count($connections) === 1 || $currentDefaultId === '';
-        $sendable         = ConnectionAuthorization::isSendable(
-            $savedConnection,
-            $this->requiresOAuthConsent((string) ($savedConnection['provider'] ?? ''))
-        );
-        if ($noDefaultYet && $sendable) {
-            $data['default_connection_id'] = $savedConnection['id'];
-        }
-
-        $data['connections'] = $this->withPreservedWebhookFields($connections, $current);
-
-        $sanitized = MailSettingsSanitizer::sanitize($data);
-        $stored    = $this->store(MailSettings::fromArray($sanitized));
-        $this->reload();
-
-        return $stored ? $savedConnection['id'] : null;
+        return $this->upsertWithManagedSettings($connection, [self::OAUTH_ACCOUNT_SETTING => $account]) !== null
+            || $this->isOAuthGrantStored($connection, $account);
     }
 
     /**
@@ -362,6 +326,9 @@ class MailConfigService
                 unset($data['connections'][$i]['credentials'][$tokenKey]);
             }
             unset($data['connections'][$i]['settings']['token_expires_at']);
+            foreach (self::MANAGED_OAUTH_SETTING_KEYS as $managed) {
+                unset($data['connections'][$i]['settings'][$managed]);
+            }
 
             break;
         }
@@ -442,6 +409,78 @@ class MailConfigService
     }
 
     /**
+     * Upsert a connection, then overlay server-trusted managed settings that a client payload can never set.
+     *
+     * @param array<string,mixed> $connection
+     * @param array<string,mixed> $managedSettings
+     */
+    private function upsertWithManagedSettings(array $connection, array $managedSettings): ?string
+    {
+        $current     = $this->load();
+        $data        = $current->toArray();
+        $connections = $data['connections'];
+
+        $incomingId      = $connection['id'] ?? '';
+        $isNew           = true;
+        $savedConnection = [];
+
+        foreach ($connections as $i => $existing) {
+            if ($existing['id'] === $incomingId && $incomingId !== '') {
+                $resolved     = MaskedSecretResolver::apply(
+                    ['connections' => [$connection]],
+                    $current
+                );
+                $resolvedConn    = $resolved['connections'][0];
+                $connections[$i] = $resolvedConn;
+                $savedConnection = $resolvedConn;
+                $isNew           = false;
+
+                break;
+            }
+        }
+
+        if ($isNew) {
+            $connection['id'] = 'conn_' . wp_generate_uuid4();
+            $empty            = MailSettings::fromArray([
+                'schema_version'          => 2,
+                'enabled'                 => false,
+                'default_connection_id'   => '',
+                'fallback_connection_ids' => [],
+                'connections'             => [],
+                'features'                => [],
+            ]);
+            $resolved      = MaskedSecretResolver::apply(
+                ['connections' => [$connection]],
+                $empty
+            );
+            $savedConnection = $resolved['connections'][0];
+            $connections[]   = $savedConnection;
+        }
+
+        $currentDefaultId = $data['default_connection_id'];
+        $noDefaultYet     = \count($connections) === 1 || $currentDefaultId === '';
+        $sendable         = ConnectionAuthorization::isSendable(
+            $savedConnection,
+            $this->requiresOAuthConsent((string) ($savedConnection['provider'] ?? ''))
+        );
+        if ($noDefaultYet && $sendable) {
+            $data['default_connection_id'] = $savedConnection['id'];
+        }
+
+        $data['connections'] = $this->withManagedSettings(
+            $this->withPreservedWebhookFields($connections, $current),
+            $savedConnection['id'],
+            $managedSettings
+        );
+
+        $sanitized = MailSettingsSanitizer::sanitize($data);
+        $stored    = $this->store(MailSettings::fromArray($sanitized));
+        $this->reload();
+
+        return $stored ? $savedConnection['id'] : null;
+    }
+
+    /**
      * Build settings from stored option (migrate legacy, normalize alerts, decrypt).
      *
      * @param mixed $stored
@@ -508,7 +547,7 @@ class MailConfigService
     }
 
     /**
-     * Mint/preserve server-managed webhook fields (strip-restore per save, SSRF guard).
+     * Mint/preserve server-managed webhook and OAuth-account fields (strip-restore per save, SSRF guard).
      *
      * @param array<int,array<string,mixed>> $connections
      *
@@ -523,7 +562,7 @@ class MailConfigService
             $priorConn     = $prior->getConnections()->byId($connection['id'] ?? '');
             $priorSettings = $priorConn !== null ? $priorConn->getSettings() : [];
 
-            foreach (self::MANAGED_WEBHOOK_SETTING_KEYS as $managed) {
+            foreach ([...self::MANAGED_WEBHOOK_SETTING_KEYS, ...self::MANAGED_OAUTH_SETTING_KEYS] as $managed) {
                 unset($settings[$managed]);
                 if (\array_key_exists($managed, $priorSettings)) {
                     $settings[$managed] = $priorSettings[$managed];
@@ -545,6 +584,52 @@ class MailConfigService
         }
 
         return $connections;
+    }
+
+    /**
+     * Overlay server-trusted managed settings onto one connection, after client-supplied managed keys were stripped.
+     *
+     * @param array<int,array<string,mixed>> $connections
+     * @param array<string,mixed>            $managedSettings
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function withManagedSettings(array $connections, string $connectionId, array $managedSettings): array
+    {
+        if ($managedSettings === []) {
+            return $connections;
+        }
+
+        foreach ($connections as $i => $connection) {
+            if (($connection['id'] ?? '') === $connectionId) {
+                $connections[$i]['settings'] = array_merge($connection['settings'] ?? [], $managedSettings);
+            }
+        }
+
+        return $connections;
+    }
+
+    /**
+     * Whether the stored connection already holds this grant's tokens and account, so a write update_option() reported as a no-op still succeeded.
+     *
+     * @param array<string,mixed> $connection
+     */
+    private function isOAuthGrantStored(array $connection, string $account): bool
+    {
+        $stored = $this->reload()->connectionById((string) ($connection['id'] ?? ''));
+        if ($stored === null) {
+            return false;
+        }
+
+        $tokenKeys = array_flip(ConnectionAuthorization::OAUTH_TOKEN_KEYS);
+        $expected  = CredentialValues::flatten(array_intersect_key($connection['credentials'] ?? [], $tokenKeys));
+        $actual    = array_intersect_key(CredentialValues::flatten($stored->getCredentials()), $expected);
+        ksort($expected);
+        ksort($actual);
+
+        return $expected !== []
+            && $actual                                                    === $expected
+            && (string) $stored->setting(self::OAUTH_ACCOUNT_SETTING, '') === $account;
     }
 
     /**

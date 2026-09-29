@@ -35,4 +35,19 @@ describe('useOAuthAuthorize', () => {
     })
     expect(result.current.data).toBe('https://accounts.google.com/o/oauth2/v2/auth?client_id=abc')
   })
+
+  it("rejects with the server's message when the consent url can't be built", async () => {
+    ;(request as Mock).mockResolvedValue({
+      status: 'error',
+      code: 'ERROR',
+      message: 'This connection is missing its Client ID',
+      data: []
+    })
+
+    const { result } = renderHook(() => useOAuthAuthorize(), { wrapper })
+
+    await expect(
+      result.current.mutateAsync({ connectionId: 'conn_1', provider: 'gmail' })
+    ).rejects.toThrow('This connection is missing its Client ID')
+  })
 })

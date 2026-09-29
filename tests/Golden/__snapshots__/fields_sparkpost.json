@@ -1,23 +1,7 @@
 [
     {
-        "key": "api_key",
-        "label": "API Key",
-        "type": "password",
-        "required": true,
-        "secret": true,
-        "placeholder": "",
-        "default": "",
-        "options": [],
-        "dependsOn": null,
-        "help": {
-            "text": "Create an API key in your SparkPost account under Account > API Keys, with at least the Transmissions Read/Write permission. Sending also requires a verified sending domain.",
-            "url": "https://developers.sparkpost.com/api/#header-authentication",
-            "linkLabel": "View SparkPost authentication docs"
-        }
-    },
-    {
         "key": "region",
-        "label": "Region",
+        "label": "Account region",
         "type": "select",
         "required": false,
         "secret": false,
@@ -35,9 +19,23 @@
         ],
         "dependsOn": null,
         "help": {
-            "text": "SparkPost US and EU accounts are separate. Pick the region your account was created in, or the API key will be rejected.",
-            "url": "https://developers.sparkpost.com/api/#header-authentication",
-            "linkLabel": "View SparkPost authentication docs"
+            "text": "Where your SparkPost account lives. A wrong choice looks like a bad API key."
+        }
+    },
+    {
+        "key": "api_key",
+        "label": "API key",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "placeholder": "",
+        "default": "",
+        "options": [],
+        "dependsOn": null,
+        "help": {
+            "text": "Create one under API Keys and allow it to send email (Transmissions).",
+            "url": "https://support.sparkpost.com/docs/getting-started/create-api-keys",
+            "linkLabel": "Where do I find this?"
         }
     }
 ]

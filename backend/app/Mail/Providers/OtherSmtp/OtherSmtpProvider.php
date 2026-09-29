@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Mail\Providers\OtherSmtp;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
+use BitApps\SMTP\Mail\Providers\ProviderGuide;
 
 class OtherSmtpProvider implements ProviderInterface
 {
@@ -65,65 +66,92 @@ class OtherSmtpProvider implements ProviderInterface
         return [];
     }
 
+    /**
+     * Define SMTP fields; security drives the port, and login fields are required only while auth is on.
+     */
     public function fields(): array
     {
-        $dependsOnAuth = ['field' => 'auth', 'value' => true];
+        $whenAuthOn = ['field' => 'auth', 'value' => true];
 
         return [
             [
-                'key'         => 'host', 'label' => 'SMTP Host', 'type' => 'text', 'required' => true, 'secret' => false,
+                'key'         => 'host', 'label' => __('SMTP server', 'bit-smtp'), 'type' => 'text', 'required' => true, 'secret' => false,
                 'placeholder' => 'smtp.example.com', 'default' => '', 'options' => [], 'dependsOn' => null,
                 'help'        => [
-                    'text'      => 'The outgoing (SMTP) server address from your email provider or host, for example smtp.example.com.',
+                    'text' => __('Your email host\'s outgoing mail server, for example smtp.gmail.com.', 'bit-smtp'),
                 ],
             ],
             [
-                'key'         => 'port', 'label' => 'SMTP Port', 'type' => 'number', 'required' => true, 'secret' => false,
-                'placeholder' => '', 'default' => 587, 'options' => [], 'dependsOn' => null,
-                'help'        => [
-                    'text'      => 'Use 587 with TLS (STARTTLS) or 465 with SSL (implicit TLS); use 25 only if your provider requires it.',
-                    'url'       => 'https://datatracker.ietf.org/doc/html/rfc8314',
-                    'linkLabel' => 'About SMTP submission ports',
-                ],
-            ],
-            [
-                'key'         => 'encryption', 'label' => 'Encryption', 'type' => 'select', 'required' => true, 'secret' => false,
+                'key'         => 'encryption', 'label' => __('Security', 'bit-smtp'), 'type' => 'select', 'required' => true, 'secret' => false,
                 'placeholder' => '', 'default' => 'tls',
                 'options'     => [
-                    ['value' => 'none', 'label' => 'None'],
-                    ['value' => 'ssl', 'label' => 'SSL'],
-                    ['value' => 'tls', 'label' => 'TLS'],
+                    ['value' => 'tls', 'label' => __('STARTTLS (port 587, recommended)', 'bit-smtp')],
+                    ['value' => 'ssl', 'label' => __('SSL/TLS (port 465)', 'bit-smtp')],
+                    ['value' => 'none', 'label' => __('None (port 25, not encrypted)', 'bit-smtp')],
                 ],
-                'dependsOn'   => null,
-                'help'        => [
-                    'text'      => 'Match the port: TLS for 587, SSL for 465. Choose None only for trusted local relays, since credentials are sent unencrypted.',
+                'dependsOn' => null,
+                'autoSet'   => ['field' => 'port', 'values' => ['tls' => 587, 'ssl' => 465, 'none' => 25]],
+                'help'      => [
+                    'text'      => __('Encrypts the connection. Pick STARTTLS unless your host tells you otherwise.', 'bit-smtp'),
                     'url'       => 'https://datatracker.ietf.org/doc/html/rfc8314',
-                    'linkLabel' => 'About SMTP submission ports',
+                    'linkLabel' => __('Which port should I use?', 'bit-smtp'),
                 ],
             ],
             [
-                'key'         => 'auth', 'label' => 'Authentication', 'type' => 'switch', 'required' => false, 'secret' => false,
+                'key'         => 'port', 'label' => __('Port', 'bit-smtp'), 'type' => 'number', 'required' => true, 'secret' => false,
+                'placeholder' => '', 'default' => 587, 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text' => __('Filled in from Security. Change it only if your host tells you to.', 'bit-smtp'),
+                ],
+            ],
+            [
+                'key'         => 'auth', 'label' => __('My server requires a login', 'bit-smtp'), 'type' => 'switch', 'required' => false, 'secret' => false,
                 'placeholder' => '', 'default' => true, 'options' => [], 'dependsOn' => null,
                 'help'        => [
-                    'text'      => 'Turn on if your server requires a login, which most providers do. Turn off only for open or IP-allowlisted relays.',
+                    'text' => __('Keep this on unless your host lets this server send without a password.', 'bit-smtp'),
                 ],
             ],
             [
-                'key'         => 'username', 'label' => 'Username', 'type' => 'text', 'required' => false, 'secret' => false,
-                'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => $dependsOnAuth,
+                'key'         => 'username', 'label' => __('Username', 'bit-smtp'), 'type' => 'text', 'required' => false, 'secret' => false,
+                'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => $whenAuthOn, 'requiredWhen' => $whenAuthOn,
                 'help'        => [
-                    'text'      => 'Usually your full email address or a provider-issued SMTP username.',
+                    'text' => __('Usually your full email address.', 'bit-smtp'),
                 ],
             ],
             [
-                'key'         => 'password', 'label' => 'Password', 'type' => 'password', 'required' => false, 'secret' => true,
-                'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => $dependsOnAuth,
+                'key'         => 'password', 'label' => __('Password', 'bit-smtp'), 'type' => 'password', 'required' => false, 'secret' => true,
+                'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => $whenAuthOn, 'requiredWhen' => $whenAuthOn,
                 'help'        => [
-                    'text'      => 'Your mailbox or SMTP password. Providers with 2-step verification, such as Gmail, require an app password instead of your normal password.',
+                    'text'      => __('Use 2-step sign-in, like Gmail? Paste an app password instead.', 'bit-smtp'),
                     'url'       => 'https://support.google.com/accounts/answer/185833',
-                    'linkLabel' => 'Create a Google app password',
+                    'linkLabel' => __('Create a Google app password', 'bit-smtp'),
                 ],
             ],
         ];
+    }
+
+    /**
+     * Setup guide shown when choosing and configuring this provider.
+     */
+    public function guide(): array
+    {
+        return ProviderGuide::make(
+            group: ProviderGuide::GROUP_MAILBOX,
+            bestFor: __('Sending through a mailbox or mail server you already use.', 'bit-smtp'),
+            fromEmailHint: __('Use the address you log in with, or one your mail host lets you send as.', 'bit-smtp'),
+            prerequisites: [
+                ProviderGuide::step(
+                    'smtp_details',
+                    __('Get your SMTP settings', 'bit-smtp'),
+                    __('Find the server name, port and security type in your email host\'s setup guide.', 'bit-smtp')
+                ),
+                ProviderGuide::step(
+                    'app_password',
+                    __('Create an app password if you use 2-step verification', 'bit-smtp'),
+                    __('Hosts such as Google need an app password instead of your normal password when 2-step verification is on.', 'bit-smtp'),
+                    'https://support.google.com/accounts/answer/185833'
+                ),
+            ],
+        );
     }
 }

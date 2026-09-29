@@ -34,9 +34,12 @@ class GmailTransport extends AbstractOAuth2Transport
         return 'https://oauth2.googleapis.com/token';
     }
 
+    /**
+     * Send-only Gmail access plus OpenID email, so the UI can show which account signed in.
+     */
     public function scopes(): array
     {
-        return ['https://www.googleapis.com/auth/gmail.send'];
+        return ['https://www.googleapis.com/auth/gmail.send', 'openid', 'email'];
     }
 
     /**

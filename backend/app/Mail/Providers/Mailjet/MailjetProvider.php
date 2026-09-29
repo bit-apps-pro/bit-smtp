@@ -9,6 +9,7 @@ use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
 use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\Providers\ProviderGuide;
 
 /**
  * Mailjet, wired entirely through the descriptor engine (spec §5/§11).
@@ -31,21 +32,21 @@ final class MailjetProvider extends DescriptorProvider
             'kind'   => 'api',
             'fields' => [
                 [
-                    'key'         => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'secret' => true,
+                    'key'         => 'api_key', 'label' => __('API key (public)', 'bit-smtp'), 'type' => 'password', 'required' => true, 'secret' => true,
                     'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                     'help'        => [
-                        'text'      => 'Copy the API Key from the API key management page of your Mailjet account, and paste the matching Secret Key in the next field. The From address must be a validated sender or domain.',
+                        'text'      => __('From Account settings > API Key Management in Mailjet.', 'bit-smtp'),
                         'url'       => 'https://dev.mailjet.com/email/guides/getting-started/',
-                        'linkLabel' => 'Mailjet getting started',
+                        'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                     ],
                 ],
                 [
-                    'key'         => 'secret_key', 'label' => 'Secret Key', 'type' => 'password', 'required' => true, 'secret' => true,
+                    'key'         => 'secret_key', 'label' => __('Secret key', 'bit-smtp'), 'type' => 'password', 'required' => true, 'secret' => true,
                     'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                     'help'        => [
-                        'text'      => 'The Secret Key belongs to the same key pair as the API Key above; use both from the same pair.',
+                        'text'      => __('Shown next to the API key. Both must come from the same pair.', 'bit-smtp'),
                         'url'       => 'https://dev.mailjet.com/email/guides/getting-started/',
-                        'linkLabel' => 'Mailjet getting started',
+                        'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                     ],
                 ],
             ],
@@ -71,6 +72,26 @@ final class MailjetProvider extends DescriptorProvider
             'errorPaths'       => ['Messages.0.Errors.0.ErrorMessage', 'Errors.0.ErrorMessage', 'ErrorMessage'],
             'errorDetectPaths' => ['Messages.0.Errors.0.ErrorMessage', 'Errors.0.ErrorMessage', 'ErrorMessage'],
             'tracking'         => ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY],
+            'guide'            => ProviderGuide::make(
+                group: ProviderGuide::GROUP_TRANSACTIONAL,
+                bestFor: __('Transactional mail alongside Mailjet newsletters.', 'bit-smtp'),
+                docUrl: 'https://dev.mailjet.com/email/guides/',
+                fromEmailHint: __('Must be a validated sender or domain in Mailjet.', 'bit-smtp'),
+                prerequisites: [
+                    ProviderGuide::step(
+                        'verify_sender',
+                        __('Validate a sender or domain', 'bit-smtp'),
+                        __('Add the address or domain you send from and confirm it in Mailjet.', 'bit-smtp'),
+                        'https://dev.mailjet.com/email/guides/senders-and-domains/'
+                    ),
+                    ProviderGuide::step(
+                        'api_keys',
+                        __('Copy your API key and secret key', 'bit-smtp'),
+                        __('Find both under Account settings → REST API → API Key Management.', 'bit-smtp'),
+                        'https://dev.mailjet.com/email/guides/'
+                    ),
+                ],
+            ),
         ]);
     }
 }

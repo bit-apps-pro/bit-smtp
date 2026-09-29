@@ -9,6 +9,7 @@ use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
 use BitApps\SMTP\Mail\Dispatch\TrackingIdStamper;
 use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\Providers\ProviderGuide;
 
 /**
  * Resend, wired entirely through the descriptor engine (spec §5/§11).
@@ -28,21 +29,21 @@ final class ResendProvider extends DescriptorProvider
             'kind'   => 'api',
             'fields' => [
                 [
-                    'key'         => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'secret' => true,
+                    'key'         => 'api_key', 'label' => __('API key', 'bit-smtp'), 'type' => 'password', 'required' => true, 'secret' => true,
                     'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                     'help'        => [
-                        'text'      => 'Create an API key in the Resend dashboard with Sending access (Full access also works). The From address must use a domain you have verified in Resend.',
-                        'url'       => 'https://resend.com/docs/api-reference/api-keys/create-api-key',
-                        'linkLabel' => 'Create a Resend API key',
+                        'text'      => __('Create one under API Keys. Full access lets delivery tracking set itself up.', 'bit-smtp'),
+                        'url'       => 'https://resend.com/docs/dashboard/api-keys/introduction',
+                        'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                     ],
                 ],
                 [
-                    'key'         => 'webhook_signing_secret', 'label' => 'Webhook Signing Secret', 'type' => 'password', 'required' => false, 'secret' => true,
-                    'placeholder' => 'whsec_...', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'key'         => 'webhook_signing_secret', 'label' => __('Webhook signing secret', 'bit-smtp'), 'type' => 'password', 'required' => false, 'secret' => true,
+                    'placeholder' => 'whsec_...', 'default' => '', 'options' => [], 'dependsOn' => null, 'section' => 'tracking',
                     'help'        => [
-                        'text'      => 'Optional. Auto-filled when Bit SMTP registers the webhook for you; otherwise copy the signing secret from the webhook details page in Resend.',
-                        'url'       => 'https://resend.com/docs/webhooks/verify-webhooks-requests',
-                        'linkLabel' => 'Find the signing secret',
+                        'text'      => __('Filled in for you. Only needed if you created the Resend webhook yourself.', 'bit-smtp'),
+                        'url'       => 'https://resend.com/docs/dashboard/webhooks/verify-webhooks-requests',
+                        'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                     ],
                 ],
             ],
@@ -66,6 +67,26 @@ final class ResendProvider extends DescriptorProvider
             'errorPaths'    => ['message'],
             'messageIdPath' => 'id',
             'tracking'      => ['channel' => 'metadata', 'key' => TrackingIdStamper::METADATA_KEY],
+            'guide'         => ProviderGuide::make(
+                group: ProviderGuide::GROUP_TRANSACTIONAL,
+                bestFor: __('Developer-friendly sending with a simple setup.', 'bit-smtp'),
+                docUrl: 'https://resend.com/docs/dashboard/api-keys/introduction',
+                fromEmailHint: __('Must be on a domain verified in Resend.', 'bit-smtp'),
+                prerequisites: [
+                    ProviderGuide::step(
+                        'verify_domain',
+                        __('Verify your sending domain', 'bit-smtp'),
+                        __('Add the DNS records Resend shows you and wait until the domain shows as verified.', 'bit-smtp'),
+                        'https://resend.com/docs/dashboard/domains/introduction'
+                    ),
+                    ProviderGuide::step(
+                        'api_key',
+                        __('Create an API key', 'bit-smtp'),
+                        __('Create one under API Keys in Resend and copy it right away.', 'bit-smtp'),
+                        'https://resend.com/docs/dashboard/api-keys/introduction'
+                    ),
+                ],
+            ),
         ]);
     }
 }

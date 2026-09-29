@@ -35,17 +35,22 @@ class Microsoft365Transport extends AbstractOAuth2Transport implements OAuth2Pro
         return $this->tenantBaseUrl($connection) . '/oauth2/v2.0/token';
     }
 
+    /**
+     * Mail.Send with a refresh token, plus OpenID email so the UI can show which account signed in.
+     */
     public function scopes(): array
     {
-        return ['https://graph.microsoft.com/Mail.Send', 'offline_access'];
+        return ['https://graph.microsoft.com/Mail.Send', 'offline_access', 'openid', 'email'];
     }
 
     /**
+     * Always show the account picker so a browser already signed in elsewhere can't connect the wrong mailbox.
+     *
      * @return array<string,string>
      */
     public function extraAuthParams(): array
     {
-        return [];
+        return ['prompt' => 'select_account'];
     }
 
     protected function endpoint(Connection $connection): string

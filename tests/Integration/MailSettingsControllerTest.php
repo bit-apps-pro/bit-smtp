@@ -57,9 +57,18 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $fieldsByKey = array_column($otherSmtp['fields'], null, 'key');
 
         $this->assertSame(
-            [['value' => 'none', 'label' => 'None'], ['value' => 'ssl', 'label' => 'SSL'], ['value' => 'tls', 'label' => 'TLS']],
+            [
+                ['value' => 'tls', 'label' => 'STARTTLS (port 587, recommended)'],
+                ['value' => 'ssl', 'label' => 'SSL/TLS (port 465)'],
+                ['value' => 'none', 'label' => 'None (port 25, not encrypted)'],
+            ],
             $fieldsByKey['encryption']['options']
         );
+        $this->assertSame(
+            ['field' => 'port', 'values' => ['tls' => 587, 'ssl' => 465, 'none' => 25]],
+            $fieldsByKey['encryption']['autoSet']
+        );
+        $this->assertSame(['field' => 'auth', 'value' => true], $fieldsByKey['password']['requiredWhen']);
         $this->assertTrue($fieldsByKey['password']['secret']);
     }
 

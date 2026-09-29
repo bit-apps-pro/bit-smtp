@@ -27,6 +27,19 @@ export interface FieldMeta {
   options: FieldOption[]
   dependsOn: FieldDependency | null
   help?: FieldHelpMeta
+  /** Makes the field required while another field holds the given value (e.g. SMTP login when auth is on). */
+  requiredWhen?: FieldDependency | null
+  /** Editor section the field renders in; `tracking` fields live in the delivery-webhook panel. */
+  section?: FieldSection
+  /** When this field changes, sets another field to the mapped value if that field still holds one of the mapped defaults. */
+  autoSet?: FieldAutoSet
+}
+
+export type FieldSection = 'credentials' | 'tracking'
+
+export interface FieldAutoSet {
+  field: string
+  values: Record<string, string | number | boolean>
 }
 
 export interface ProviderMeta {
@@ -37,6 +50,27 @@ export interface ProviderMeta {
   supports_webhook_provisioning?: boolean
   oauth_redirect_url?: string
   fields: FieldMeta[]
+  /** Provider-specific rule for which From addresses are accepted (provider guide registry). */
+  fromEmailHint?: string
+  /** What a passing test does not prove for this provider, e.g. sandbox limits (provider guide registry). */
+  testCaveat?: string
+  /** Provider-picker group (provider guide registry). */
+  group?: ProviderGroup
+  /** One-line "best for" summary shown in the picker (provider guide registry). */
+  bestFor?: string
+  /** Official setup documentation (provider guide registry). */
+  docUrl?: string
+  /** Steps to finish in the provider's dashboard before connecting (provider guide registry). */
+  prerequisites?: ProviderPrerequisite[]
+}
+
+export type ProviderGroup = 'mailbox' | 'transactional' | 'server'
+
+export interface ProviderPrerequisite {
+  id: string
+  title: string
+  body: string
+  docUrl?: string
 }
 
 export interface ConnectionCredential {

@@ -9,6 +9,7 @@ use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
 use BitApps\SMTP\Mail\Descriptor\DescriptorProvider;
 use BitApps\SMTP\Mail\Descriptor\ProviderDescriptor;
 use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\Providers\ProviderGuide;
 
 /**
  * Cloudflare Email Sending provider using its account-scoped structured-builder endpoint.
@@ -33,21 +34,21 @@ final class CloudflareProvider extends DescriptorProvider
             'kind'   => 'api',
             'fields' => [
                 [
-                    'key'         => 'account_id', 'label' => 'Account ID', 'type' => 'text', 'required' => true, 'secret' => false,
+                    'key'         => 'account_id', 'label' => __('Account ID', 'bit-smtp'), 'type' => 'text', 'required' => true, 'secret' => false,
                     'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                     'help'        => [
-                        'text'      => 'Your 32-character Cloudflare account ID, shown in the dashboard account overview.',
+                        'text'      => __('The 32-character ID on your Cloudflare account home page.', 'bit-smtp'),
                         'url'       => 'https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/',
-                        'linkLabel' => 'Find your account ID',
+                        'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                     ],
                 ],
                 [
-                    'key'         => 'api_token', 'label' => 'API Token', 'type' => 'password', 'required' => true, 'secret' => true,
+                    'key'         => 'api_token', 'label' => __('API token', 'bit-smtp'), 'type' => 'password', 'required' => true, 'secret' => true,
                     'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                     'help'        => [
-                        'text'      => 'Create an API token with the Email Sending: Edit permission. The From domain must be onboarded for Email Sending in the Cloudflare dashboard first.',
-                        'url'       => 'https://developers.cloudflare.com/email-service/get-started/send-emails/',
-                        'linkLabel' => 'View Cloudflare Email Sending setup',
+                        'text'      => __('Create one under My Profile > API Tokens with the Email Sending permission.', 'bit-smtp'),
+                        'url'       => 'https://developers.cloudflare.com/fundamentals/api/get-started/create-token/',
+                        'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                     ],
                 ],
             ],
@@ -78,6 +79,26 @@ final class CloudflareProvider extends DescriptorProvider
             ],
             'errorPaths'      => ['errors.0.message'],
             'messageIdPath'   => 'result.message_id',
+            'guide'           => ProviderGuide::make(
+                group: ProviderGuide::GROUP_TRANSACTIONAL,
+                bestFor: __('Sites whose domain is already on Cloudflare.', 'bit-smtp'),
+                docUrl: 'https://developers.cloudflare.com/email-service/',
+                fromEmailHint: __('Must be on a domain onboarded to Cloudflare Email Sending.', 'bit-smtp'),
+                prerequisites: [
+                    ProviderGuide::step(
+                        'onboard_domain',
+                        __('Onboard your sending domain', 'bit-smtp'),
+                        __('Turn on Email Sending for your domain in the Cloudflare dashboard.', 'bit-smtp'),
+                        'https://developers.cloudflare.com/email-service/get-started/send-emails/'
+                    ),
+                    ProviderGuide::step(
+                        'api_token',
+                        __('Create an API token', 'bit-smtp'),
+                        __('Give it the Email Sending: Edit permission, then copy the token right away.', 'bit-smtp'),
+                        'https://developers.cloudflare.com/fundamentals/api/get-started/create-token/'
+                    ),
+                ],
+            ),
         ]);
     }
 }

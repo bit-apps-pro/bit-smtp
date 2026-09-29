@@ -64,6 +64,34 @@ final class RequiredFieldsValidatorTest extends BaseUnitTestCase
         $this->assertArrayNotHasKey('api_key', $errors);
     }
 
+    public function testRequiredWhenFieldIsRequiredOnlyWhileConditionHolds(): void
+    {
+        $v = new RequiredFieldsValidator([
+            ['key' => 'username', 'label' => 'Username', 'required' => false, 'secret' => false, 'type' => 'text', 'requiredWhen' => ['field' => 'auth', 'value' => true]],
+            ['key' => 'password', 'label' => 'Password', 'required' => false, 'secret' => true, 'type' => 'password', 'requiredWhen' => ['field' => 'auth', 'value' => true]],
+        ]);
+
+        $this->assertSame(
+            ['username' => 'Username is required.', 'password' => 'Password is required.'],
+            $v->validate(['auth' => true], [])
+        );
+        $this->assertSame([], $v->validate(['auth' => false], []));
+        $this->assertSame([], $v->validate(['auth' => true, 'username' => 'u'], ['password' => 'p']));
+    }
+
+    public function testABooleanRequiredWhenMatchesByTruthinessAndAnyOtherValueStrictly(): void
+    {
+        $v = new RequiredFieldsValidator([
+            ['key' => 'username', 'label' => 'Username', 'required' => false, 'secret' => false, 'type' => 'text', 'requiredWhen' => ['field' => 'auth', 'value' => true]],
+            ['key' => 'region', 'label' => 'Region', 'required' => false, 'secret' => false, 'type' => 'text', 'requiredWhen' => ['field' => 'mode', 'value' => 'custom']],
+        ]);
+
+        $this->assertArrayHasKey('username', $v->validate(['auth' => '1'], []));
+        $this->assertArrayNotHasKey('username', $v->validate(['auth' => 0], []));
+        $this->assertArrayHasKey('region', $v->validate(['mode' => 'custom'], []));
+        $this->assertArrayNotHasKey('region', $v->validate(['mode' => 'Custom'], []));
+    }
+
     private function fields(): array
     {
         return [

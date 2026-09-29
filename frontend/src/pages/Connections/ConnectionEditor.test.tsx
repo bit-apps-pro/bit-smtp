@@ -1,8 +1,9 @@
 import { type ReactNode } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import notify from '@components/Toaster/Toaster'
 import { type Connection, type ProviderMeta } from '@pages/Connections/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { render as rtlRender, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import ConnectionEditor from './ConnectionEditor'
@@ -17,14 +18,20 @@ vi.mock('@components/Toaster/Toaster', () => ({
   default: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 }))
 
-/** Renders with a fresh, retry-disabled QueryClientProvider for tests that use TanStack Query hooks. */
-function renderWithQueryClient(ui: React.ReactElement) {
+/** Renders inside a router (the unsaved-changes guard navigates) with a fresh, retry-disabled QueryClientProvider. */
+function render(ui: React.ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   function wrapper({ children }: { children: ReactNode }) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    return (
+      <MemoryRouter>
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      </MemoryRouter>
+    )
   }
-  return render(ui, { wrapper })
+  return rtlRender(ui, { wrapper })
 }
+
+const renderWithQueryClient = render
 
 const otherSmtpMeta: ProviderMeta = {
   key: 'other_smtp',
@@ -66,7 +73,8 @@ const otherSmtpMeta: ProviderMeta = {
         { value: 'ssl', label: 'SSL' },
         { value: 'tls', label: 'TLS' }
       ],
-      dependsOn: null
+      dependsOn: null,
+      autoSet: { field: 'port', values: { tls: 587, ssl: 465, none: 25 } }
     },
     {
       key: 'auth',
@@ -88,7 +96,8 @@ const otherSmtpMeta: ProviderMeta = {
       placeholder: '',
       default: '',
       options: [],
-      dependsOn: { field: 'auth', value: true }
+      dependsOn: { field: 'auth', value: true },
+      requiredWhen: { field: 'auth', value: true }
     },
     {
       key: 'password',
@@ -99,7 +108,8 @@ const otherSmtpMeta: ProviderMeta = {
       placeholder: '',
       default: '',
       options: [],
-      dependsOn: { field: 'auth', value: true }
+      dependsOn: { field: 'auth', value: true },
+      requiredWhen: { field: 'auth', value: true }
     }
   ]
 }
@@ -110,7 +120,7 @@ const connection: Connection = {
   kind: 'smtp',
   name: 'Primary',
   enabled: true,
-  fromEmail: 'a@b.c',
+  fromEmail: 'a@example.com',
   fromName: 'A',
   replyToEmail: '',
   settings: { host: 'smtp.x', port: 587, encryption: 'tls', auth: true, username: 'u' },
@@ -165,7 +175,7 @@ const gmailConnection: Connection = {
   kind: 'api',
   name: 'Gmail',
   enabled: true,
-  fromEmail: 'a@b.c',
+  fromEmail: 'a@example.com',
   fromName: 'A',
   replyToEmail: '',
   settings: { client_id: 'abc.apps.googleusercontent.com' },
@@ -212,7 +222,7 @@ const sendGridConnection: Connection = {
   kind: 'api',
   name: 'SendGrid',
   enabled: true,
-  fromEmail: 'a@b.c',
+  fromEmail: 'a@example.com',
   fromName: 'A',
   replyToEmail: '',
   settings: { region: 'global' },
@@ -253,7 +263,7 @@ describe('ConnectionEditor', () => {
 
     render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /test connection/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send test email' }))
 
     const alert = screen.getByRole('alert')
     const actionsBar = screen.getByTestId('connection-actions-bar')
@@ -275,7 +285,7 @@ describe('ConnectionEditor', () => {
         provider: 'other_smtp',
         kind: 'smtp',
         name: 'Primary',
-        fromEmail: 'a@b.c',
+        fromEmail: 'a@example.com',
         settings: expect.objectContaining({ host: 'smtp.x', encryption: 'tls' }),
         credentials: { password: { source: 'database', value: '********' } }
       })
@@ -389,7 +399,7 @@ describe('ConnectionEditor', () => {
       <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
     )
 
-    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
     expect(screen.queryByLabelText('Google account')).not.toBeInTheDocument()
   })
 
@@ -415,7 +425,7 @@ describe('ConnectionEditor', () => {
       <ConnectionEditor connection={gmailConnection} provider={provider} onSaved={() => {}} />
     )
     expect(screen.getByText('Connect the mailbox that will send email.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open Microsoft account' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^Open Microsoft account/ })).toHaveAttribute(
       'href',
       'https://account.microsoft.com/'
     )
@@ -439,9 +449,9 @@ describe('ConnectionEditor', () => {
     expect(screen.getByText(redirectUrl)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument()
     expect(
-      screen.getByText("Register this exact URI as a Web redirect URI in your provider's OAuth app.")
+      screen.getByText('Add this exact address as an authorized redirect URI in your OAuth app.')
     ).toBeInTheDocument()
-    expect(screen.queryByText('HTTPS redirect URI required')).not.toBeInTheDocument()
+    expect(screen.queryByText('Your site needs HTTPS to sign in')).not.toBeInTheDocument()
   })
 
   it('warns when an OAuth redirect URI uses HTTP outside localhost', () => {
@@ -456,10 +466,8 @@ describe('ConnectionEditor', () => {
       <ConnectionEditor connection={gmailConnection} provider={oauthProvider} onSaved={() => {}} />
     )
 
-    expect(screen.getByText('HTTPS redirect URI required')).toBeInTheDocument()
-    expect(
-      screen.getByText(/OAuth providers reject non-HTTPS redirect URIs unless the host is localhost/)
-    ).toBeInTheDocument()
+    expect(screen.getByText('Your site needs HTTPS to sign in')).toBeInTheDocument()
+    expect(screen.getByText(/only accept secure/)).toBeInTheDocument()
   })
 
   it('does not offer delivery webhooks for Gmail', () => {
@@ -470,8 +478,8 @@ describe('ConnectionEditor', () => {
       <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
     )
 
-    expect(screen.queryByLabelText('Enable delivery webhook')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Settings → Webhooks/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Track delivery status')).not.toBeInTheDocument()
+    expect(screen.queryByText('Delivery tracking')).not.toBeInTheDocument()
   })
 
   it('shows Reconnect and a Connected tag when a refresh_token credential is present', () => {
@@ -488,7 +496,7 @@ describe('ConnectionEditor', () => {
       <ConnectionEditor connection={connectedGmail} provider={gmailMeta} onSaved={() => {}} />
     )
 
-    expect(screen.getByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument()
     expect(screen.getByText('Connected')).toBeInTheDocument()
   })
 
@@ -497,7 +505,7 @@ describe('ConnectionEditor', () => {
 
     render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />)
 
-    expect(screen.getByAltText('Other SMTP')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-logo')).toBeInTheDocument()
     expect(screen.getByText('Other SMTP')).toBeInTheDocument()
   })
 
@@ -529,7 +537,7 @@ describe('ConnectionEditor', () => {
       />
     )
 
-    expect(screen.queryByText('Credentials & settings')).not.toBeInTheDocument()
+    expect(screen.queryByText('Account details')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /save/i }))
 
     expect(save).toHaveBeenCalledWith(
@@ -560,7 +568,7 @@ describe('ConnectionEditor', () => {
 
       render(<ConnectionEditor connection={conn} provider={sendGridMeta} onSaved={() => {}} />)
 
-      expect(screen.getByText(/verified/i)).toBeInTheDocument()
+      expect(screen.getByText(/delivery updates are arriving/i)).toBeInTheDocument()
       expect(screen.getByText(/2026-08-15 10:00:00/)).toBeInTheDocument()
     })
 
@@ -572,8 +580,8 @@ describe('ConnectionEditor', () => {
 
       render(<ConnectionEditor connection={conn} provider={sendGridMeta} onSaved={() => {}} />)
 
-      expect(screen.getByText(/awaiting first event/i)).toBeInTheDocument()
-      expect(screen.queryByText(/webhook active/i)).not.toBeInTheDocument()
+      expect(screen.getByText(/waiting for the first delivery update/i)).toBeInTheDocument()
+      expect(screen.queryByText(/delivery updates are arriving/i)).not.toBeInTheDocument()
     })
 
     it('renders a warning alert with the redacted failure reason and a re-check hint', () => {
@@ -586,7 +594,7 @@ describe('ConnectionEditor', () => {
 
       const alert = screen.getByRole('alert')
       expect(alert).toHaveTextContent('Invalid API key')
-      expect(alert).toHaveTextContent(/re-check|re-save/i)
+      expect(alert).toHaveTextContent(/save again/i)
     })
 
     it('renders an info notice naming the provider for unsupported auto-provisioning', () => {
@@ -600,7 +608,7 @@ describe('ConnectionEditor', () => {
       const alert = screen.getByRole('alert')
       expect(alert).toHaveClass('ant-alert-info')
       expect(within(alert).getByText(/SendGrid/)).toBeInTheDocument()
-      expect(alert).toHaveTextContent(/manually/i)
+      expect(alert).toHaveTextContent(/copy the address/i)
     })
 
     it('shows the public-HTTPS notice mentioning Accepted-only status when unavailable', () => {
@@ -615,8 +623,8 @@ describe('ConnectionEditor', () => {
 
       render(<ConnectionEditor connection={conn} provider={sendGridMeta} onSaved={() => {}} />)
 
-      expect(screen.getByText(/HTTPS/)).toBeInTheDocument()
-      expect(screen.getByText(/Accepted/)).toBeInTheDocument()
+      expect(screen.getByText('Delivery tracking needs a public HTTPS site')).toBeInTheDocument()
+      expect(screen.getByText(/Accepted by provider/)).toBeInTheDocument()
     })
 
     it('falls back to the plain verified/waiting text when webhook_provisioning is absent (pre-#35 connections)', () => {
@@ -624,7 +632,7 @@ describe('ConnectionEditor', () => {
         <ConnectionEditor connection={sendGridConnection} provider={sendGridMeta} onSaved={() => {}} />
       )
 
-      expect(screen.getByText(/waiting for first event/i)).toBeInTheDocument()
+      expect(screen.getByText(/waiting for the first delivery update/i)).toBeInTheDocument()
     })
   })
 
@@ -647,7 +655,7 @@ describe('ConnectionEditor', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: '', provider: 'gmail' }))
     expect(authorize).toHaveBeenCalledWith({ connectionId: 'conn_new_123', provider: 'gmail' })
@@ -672,7 +680,7 @@ describe('ConnectionEditor', () => {
     await userEvent.clear(clientIdInput)
     await userEvent.type(clientIdInput, 'new-client.apps.googleusercontent.com')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -698,11 +706,58 @@ describe('ConnectionEditor', () => {
       <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
     expect(save).toHaveBeenCalled()
     expect(authorize).not.toHaveBeenCalled()
     expect(notify.error).toHaveBeenCalled()
+  })
+
+  it('shows the save rejection reason and pins field errors when the pre-authorize save fails', async () => {
+    const save = vi.fn().mockResolvedValue({
+      status: 'error',
+      code: 'ERROR',
+      message: 'Please fix the highlighted fields.',
+      data: { errors: { client_id: 'Client ID is required.' } }
+    })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+    ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+
+    renderWithQueryClient(
+      <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(notify.error).toHaveBeenCalledWith('Please fix the highlighted fields.')
+    expect(await screen.findByText('Client ID is required.')).toBeInTheDocument()
+  })
+
+  it('does not warn about unsaved changes after a successful save-and-sign-in', async () => {
+    const save = vi.fn().mockResolvedValue({
+      status: 'success',
+      code: 'SUCCESS',
+      message: 'Connection saved',
+      data: { id: 'conn_gmail' }
+    })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+    ;(useOAuthAuthorize as Mock).mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue(undefined),
+      isPending: false
+    })
+
+    renderWithQueryClient(
+      <>
+        <a href="#/logs">Go to logs</a>
+        <ConnectionEditor connection={gmailConnection} provider={gmailMeta} onSaved={() => {}} />
+      </>
+    )
+
+    await userEvent.type(screen.getByLabelText('Client ID'), 'x')
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
+    await userEvent.click(screen.getByText('Go to logs'))
+
+    expect(screen.queryByText('Leave without saving?')).not.toBeInTheDocument()
   })
 
   it('clicking Save after Connect updates the same draft record instead of creating a duplicate', async () => {
@@ -726,10 +781,197 @@ describe('ConnectionEditor', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
     await userEvent.click(screen.getByRole('button', { name: /save/i }))
 
     expect(save).toHaveBeenCalledTimes(2)
     expect(save.mock.calls[1][0]).toEqual(expect.objectContaining({ id: 'conn_new_123' }))
+  })
+
+  describe('form UX (group E)', () => {
+    const mailgunMeta: ProviderMeta = {
+      key: 'mailgun',
+      label: 'Mailgun',
+      kind: 'api',
+      supports_webhook: true,
+      testCaveat: 'Sandbox domains only reach authorized recipients.',
+      fields: [
+        { ...sendGridMeta.fields[1] },
+        {
+          key: 'webhook_signing_key',
+          label: 'Webhook signing key',
+          type: 'password',
+          required: false,
+          secret: true,
+          placeholder: '',
+          default: '',
+          options: [],
+          dependsOn: null,
+          section: 'tracking'
+        }
+      ]
+    }
+    const mailgunConnection: Connection = {
+      ...sendGridConnection,
+      id: 'conn_mailgun',
+      provider: 'mailgun',
+      settings: { webhook_enabled: true },
+      credentials: {}
+    }
+
+    beforeEach(() => {
+      ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    })
+
+    it('prefills a new connection name from the provider label', () => {
+      render(
+        <ConnectionEditor
+          connection={{ ...phpSendmailConnection, id: '', name: '' }}
+          provider={phpSendmailMeta}
+          onSaved={() => {}}
+        />
+      )
+
+      expect(screen.getByLabelText('Connection name')).toHaveValue('PHP Sendmail')
+    })
+
+    it('starts a new connection with every provider field default applied', () => {
+      render(
+        <ConnectionEditor
+          connection={{ ...connection, id: '', name: '', settings: {}, credentials: {} }}
+          provider={otherSmtpMeta}
+          onSaved={() => {}}
+        />
+      )
+
+      expect(screen.getByLabelText('SMTP Port')).toHaveValue('587')
+      expect(
+        screen.getByRole('combobox', { name: 'Encryption' }).closest('.ant-select')
+      ).toHaveTextContent('TLS')
+      expect(screen.getByLabelText('Authentication')).toBeChecked()
+      expect(screen.getByLabelText('Username')).toBeInTheDocument()
+    })
+
+    it('keeps saved settings over provider defaults when editing', () => {
+      render(
+        <ConnectionEditor
+          connection={{ ...connection, settings: { ...connection.settings, port: 2525, auth: false } }}
+          provider={otherSmtpMeta}
+          onSaved={() => {}}
+        />
+      )
+
+      expect(screen.getByLabelText('SMTP Port')).toHaveValue('2525')
+      expect(screen.getByLabelText('Authentication')).not.toBeChecked()
+    })
+
+    it('validates the form before sending a test email', async () => {
+      const mutate = vi.fn()
+      ;(useTestConnection as Mock).mockReturnValue({ mutate, isPending: false })
+
+      render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />)
+
+      await userEvent.clear(screen.getByLabelText('SMTP Host'))
+      await userEvent.click(screen.getByRole('button', { name: 'Send test email' }))
+
+      expect(await screen.findByText('This field is required')).toBeInTheDocument()
+      expect(mutate).not.toHaveBeenCalled()
+    })
+
+    it('pins server validation errors from a test onto their fields', async () => {
+      const result = {
+        ok: false,
+        to: 'a@example.com',
+        debug: [],
+        fieldErrors: { host: 'SMTP server is required.' }
+      }
+      const mutate = vi.fn((_payload, opts) => opts.onSuccess(result))
+      ;(useTestConnection as Mock).mockReturnValue({ mutate, isPending: false })
+
+      render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />)
+      await userEvent.click(screen.getByRole('button', { name: 'Send test email' }))
+
+      expect(await screen.findByText('SMTP server is required.')).toBeInTheDocument()
+    })
+
+    it('requires the SMTP username only while login is on', async () => {
+      const save = vi.fn().mockResolvedValue({ status: 'success', data: { id: 'conn_1' } })
+      ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+
+      render(
+        <ConnectionEditor
+          connection={{ ...connection, settings: { ...connection.settings, username: '' } }}
+          provider={otherSmtpMeta}
+          onSaved={() => {}}
+        />
+      )
+      await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+      expect(await screen.findByText('This field is required')).toBeInTheDocument()
+      expect(save).not.toHaveBeenCalled()
+
+      await userEvent.click(screen.getByLabelText('Authentication'))
+      await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+      expect(save).toHaveBeenCalled()
+    })
+
+    it('moves the port with the security choice while the port is still a default', async () => {
+      render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />)
+
+      await userEvent.click(screen.getByRole('combobox', { name: 'Encryption' }))
+      await userEvent.click(await screen.findByTitle('SSL'))
+
+      expect(screen.getByLabelText('SMTP Port')).toHaveValue('465')
+    })
+
+    it('keeps a custom port when the security choice changes', async () => {
+      render(
+        <ConnectionEditor
+          connection={{ ...connection, settings: { ...connection.settings, port: 2525 } }}
+          provider={otherSmtpMeta}
+          onSaved={() => {}}
+        />
+      )
+
+      await userEvent.click(screen.getByRole('combobox', { name: 'Encryption' }))
+      await userEvent.click(await screen.findByTitle('SSL'))
+
+      expect(screen.getByLabelText('SMTP Port')).toHaveValue('2525')
+    })
+
+    it('shows webhook signing secrets in the tracking panel only while tracking is on', async () => {
+      render(
+        <ConnectionEditor connection={mailgunConnection} provider={mailgunMeta} onSaved={() => {}} />
+      )
+
+      const tracking = screen.getByRole('region', { name: 'Delivery tracking' })
+      expect(within(tracking).getByLabelText('Webhook signing key')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByLabelText('Track delivery status'))
+
+      expect(screen.queryByLabelText('Webhook signing key')).not.toBeInTheDocument()
+    })
+
+    it('asks before leaving with unsaved changes', async () => {
+      render(
+        <>
+          <a href="#/logs">Go to logs</a>
+          <ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />
+        </>
+      )
+
+      await userEvent.type(screen.getByLabelText('SMTP Host'), 'x')
+      await userEvent.click(screen.getByText('Go to logs'))
+
+      expect(await screen.findByText('Leave without saving?')).toBeInTheDocument()
+    })
+
+    it('makes Save the only primary action', () => {
+      render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={() => {}} />)
+
+      expect(screen.getByRole('button', { name: 'Send test email' })).not.toHaveClass('ant-btn-primary')
+      expect(screen.getByRole('button', { name: /save/i })).toHaveClass('ant-btn-primary')
+    })
   })
 })

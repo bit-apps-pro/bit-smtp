@@ -1,7 +1,7 @@
 [
     {
         "key": "client_id",
-        "label": "Client ID",
+        "label": "OAuth client ID",
         "type": "text",
         "required": true,
         "secret": false,
@@ -10,14 +10,14 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "In Google Cloud, enable the Gmail API, configure the OAuth consent screen, then create an OAuth client ID of type Web application. Add the redirect URL shown in this form as an authorized redirect URI.",
+            "text": "From Google Cloud > Credentials > your \"Web application\" OAuth client.",
             "url": "https://developers.google.com/workspace/guides/create-credentials#oauth-client-id",
-            "linkLabel": "Create an OAuth client ID"
+            "linkLabel": "Where do I find this?"
         }
     },
     {
         "key": "client_secret",
-        "label": "Client Secret",
+        "label": "OAuth client secret",
         "type": "password",
         "required": true,
         "secret": true,
@@ -26,14 +26,14 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "Copy the client secret from the same OAuth client in Google Cloud Credentials.",
+            "text": "Shown next to the client ID. Paste the whole value.",
             "url": "https://developers.google.com/workspace/guides/create-credentials#oauth-client-id",
-            "linkLabel": "Create OAuth credentials"
+            "linkLabel": "Where do I find this?"
         }
     },
     {
         "key": "oauth",
-        "label": "Google / Google Workspace account",
+        "label": "Google account",
         "type": "oauth",
         "required": false,
         "secret": false,
@@ -42,7 +42,7 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "Sign in with the Google account you send from and approve the gmail.send permission. While the consent screen is in Testing mode, add this account as a test user first.",
+            "text": "Sign in with the Google account you entered as From Email.",
             "url": "https://developers.google.com/workspace/guides/configure-oauth-consent",
             "linkLabel": "Configure the OAuth consent screen"
         }

@@ -49,7 +49,7 @@ class GmailTransportTest extends BaseUnitTestCase
 
     public function testScopesReturnsGmailSendScope(): void
     {
-        $this->assertSame(['https://www.googleapis.com/auth/gmail.send'], $this->transport->scopes());
+        $this->assertSame(['https://www.googleapis.com/auth/gmail.send', 'openid', 'email'], $this->transport->scopes());
     }
 
     public function testExtraAuthParamsForcesOfflineAccessAndConsent(): void

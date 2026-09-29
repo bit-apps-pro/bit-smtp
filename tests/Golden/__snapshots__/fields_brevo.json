@@ -1,7 +1,7 @@
 [
     {
         "key": "api_key",
-        "label": "API Key",
+        "label": "API key (v3)",
         "type": "password",
         "required": true,
         "secret": true,
@@ -10,9 +10,9 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "In Brevo, generate an API key under your account's API keys settings (an API key, not an SMTP key) and copy it right away, as it is shown only once. The From address must be a verified sender in Brevo.",
-            "url": "https://developers.brevo.com/docs/quickstart",
-            "linkLabel": "Get a Brevo API key"
+            "text": "From SMTP & API > API keys. Use an API key, not the SMTP key.",
+            "url": "https://developers.brevo.com/docs/getting-started",
+            "linkLabel": "Where do I find this?"
         }
     }
 ]

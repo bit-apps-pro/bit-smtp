@@ -12,6 +12,8 @@ use BitApps\SMTP\Mail\Config\MaskedSecretResolver;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Contracts\MessageStatusCheckerInterface;
 use BitApps\SMTP\Mail\Contracts\ValidatorInterface;
+use BitApps\SMTP\Mail\Credentials\CredentialValues;
+use BitApps\SMTP\Mail\Dispatch\FailureClassifier;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Status\DeliveryStatus;
@@ -140,10 +142,12 @@ class ConnectionController
             $detail = $result->getError();
             $detail = ($detail !== null && $detail !== '') ? $detail : __('Connection test failed', 'bit-smtp');
 
-            return Response::message($detail)
-                ->error($result->getDebug() ?: [$detail]);
+            return Response::message($detail)->error([
+                'debug'         => $result->getDebug() ?: [$detail],
+                'failure_class' => (new FailureClassifier())->classify($result),
+            ]);
         } catch (Throwable $e) {
-            return Response::message($e->getMessage())->error([$e->getMessage()]);
+            return Response::message($e->getMessage())->error(['debug' => [$e->getMessage()]]);
         }
     }
 
@@ -234,11 +238,7 @@ class ConnectionController
      */
     private function validateConnection(array $resolved, ValidatorInterface $validator): ?Response
     {
-        $credentials = array_map(static function ($credential) {
-            return $credential['value'] ?? '';
-        }, $resolved['credentials'] ?? []);
-
-        $errors = $validator->validate($resolved['settings'] ?? [], $credentials);
+        $errors = $validator->validate($resolved['settings'] ?? [], CredentialValues::flatten($resolved['credentials'] ?? []));
 
         if ($errors === []) {
             return null;

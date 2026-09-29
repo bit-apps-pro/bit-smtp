@@ -1,3 +1,4 @@
+import { __ } from '@common/helpers/i18nwrap'
 import amazonSesLogo from '@resource/img/providers/amazon_ses.svg'
 import brevoLogo from '@resource/img/providers/brevo.svg'
 import gmailLogo from '@resource/img/providers/gmail.svg'
@@ -20,79 +21,80 @@ export interface ProviderVisual {
 interface ProviderEntry {
   logo: string | null
   accent: string
-  blurb: string
+  /** Deferred so the text is translated at render time, after translations load. */
+  blurb: () => string
 }
 
 const providers: Record<string, ProviderEntry> = {
   other_smtp: {
     logo: otherSmtpLogo,
     accent: '#64748b',
-    blurb: 'Any SMTP server'
+    blurb: () => __('Any SMTP server')
   },
   php_sendmail: {
     logo: null,
     accent: '#475569',
-    blurb: 'PHP mail() / server sendmail'
+    blurb: () => __('PHP mail() / server sendmail')
   },
   sendgrid: {
     logo: sendgridLogo,
     accent: '#1A82E2',
-    blurb: 'SendGrid API'
+    blurb: () => __('SendGrid API')
   },
   gmail: {
     logo: gmailLogo,
     accent: '#EA4335',
-    blurb: 'Gmail / Google Workspace'
+    blurb: () => __('Gmail / Google Workspace')
   },
   amazon_ses: {
     logo: amazonSesLogo,
     accent: '#FF9900',
-    blurb: 'Amazon SES API'
+    blurb: () => __('Amazon SES API')
   },
   postmark: {
     logo: null,
     accent: '#E8912B',
-    blurb: 'Postmark API'
+    blurb: () => __('Postmark API')
   },
   brevo: {
     logo: brevoLogo,
     accent: '#0B996E',
-    blurb: 'Brevo (Sendinblue) API'
+    blurb: () => __('Brevo (Sendinblue) API')
   },
   cloudflare: {
     logo: null,
     accent: '#F6821F',
-    blurb: 'Cloudflare Email Sender API'
+    blurb: () => __('Cloudflare Email Sender API')
   },
   resend: {
     logo: resendLogo,
     accent: '#0A0A0A',
-    blurb: 'Resend API'
+    blurb: () => __('Resend API')
   },
   mailjet: {
     logo: mailjetLogo,
     accent: '#F5A623',
-    blurb: 'Mailjet API'
+    blurb: () => __('Mailjet API')
   },
   zeptomail: {
     logo: zeptomailLogo,
     accent: '#E42527',
-    blurb: 'Zoho ZeptoMail API'
+    blurb: () => __('Zoho ZeptoMail API')
   },
   mailgun: {
     logo: mailgunLogo,
     accent: '#C02126',
-    blurb: 'Mailgun API'
+    blurb: () => __('Mailgun API')
   },
   sparkpost: {
     logo: sparkpostLogo,
     accent: '#FA6423',
-    blurb: 'SparkPost (Bird) API'
+    blurb: () => __('SparkPost (Bird) API')
   },
   microsoft365: {
     logo: microsoft365Logo,
     accent: '#0F6CBD',
-    blurb: 'Microsoft 365 / Outlook'
+    blurb: () => __('Microsoft 365 / Outlook')
   }
 }
 
@@ -107,7 +109,7 @@ export function getProviderVisual(key: string, label?: string): ProviderVisual {
       logo: entry.logo,
       initial,
       accent: entry.accent,
-      blurb: entry.blurb
+      blurb: entry.blurb()
     }
   }
 
@@ -115,6 +117,6 @@ export function getProviderVisual(key: string, label?: string): ProviderVisual {
     logo: null,
     initial,
     accent: '#4f46e5',
-    blurb: 'Custom mail provider'
+    blurb: __('Custom mail provider')
   }
 }

@@ -104,17 +104,17 @@ class Microsoft365TransportTest extends BaseUnitTestCase
         $this->assertStringNotContainsString('?x=1', $url);
     }
 
-    public function testScopesRequestMailSendAndOfflineAccess(): void
+    public function testScopesRequestMailSendOfflineAccessAndOpenIdEmail(): void
     {
         $this->assertSame(
-            ['https://graph.microsoft.com/Mail.Send', 'offline_access'],
+            ['https://graph.microsoft.com/Mail.Send', 'offline_access', 'openid', 'email'],
             $this->transport->scopes()
         );
     }
 
-    public function testExtraAuthParamsAreEmpty(): void
+    public function testExtraAuthParamsForceTheAccountPicker(): void
     {
-        $this->assertSame([], $this->transport->extraAuthParams());
+        $this->assertSame(['prompt' => 'select_account'], $this->transport->extraAuthParams());
     }
 
     public function testSendPostsBase64MimeAsBearerAndDoesNotRefreshAValidToken(): void

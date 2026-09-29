@@ -71,9 +71,10 @@ class OtherSmtpProviderTest extends BaseUnitTestCase
     public function testEachFieldExposesAllRenderMetadataKeys(): void
     {
         $expectedKeys = ['key', 'label', 'type', 'required', 'secret', 'placeholder', 'default', 'options', 'dependsOn', 'help'];
+        $optionalKeys = ['requiredWhen', 'autoSet'];
 
         foreach ($this->provider->fields() as $field) {
-            $this->assertSame($expectedKeys, array_keys($field), "Field '{$field['key']}' must expose exactly the render-metadata keys");
+            $this->assertSame($expectedKeys, array_values(array_diff(array_keys($field), $optionalKeys)), "Field '{$field['key']}' must expose exactly the render-metadata keys");
             $this->assertNotSame('', $field['help']['text']);
         }
     }
@@ -88,13 +89,21 @@ class OtherSmtpProviderTest extends BaseUnitTestCase
 
         self::assertSame('select', $byKey['encryption']['type']);
         self::assertSame(
-            [['value' => 'none', 'label' => 'None'], ['value' => 'ssl', 'label' => 'SSL'], ['value' => 'tls', 'label' => 'TLS']],
+            [
+                ['value' => 'tls', 'label' => 'STARTTLS (port 587, recommended)'],
+                ['value' => 'ssl', 'label' => 'SSL/TLS (port 465)'],
+                ['value' => 'none', 'label' => 'None (port 25, not encrypted)'],
+            ],
             $byKey['encryption']['options']
         );
+        self::assertSame(['field' => 'port', 'values' => ['tls' => 587, 'ssl' => 465, 'none' => 25]], $byKey['encryption']['autoSet']);
         self::assertSame('switch', $byKey['auth']['type']);
         self::assertTrue($byKey['password']['secret']);
         self::assertSame(['field' => 'auth', 'value' => true], $byKey['password']['dependsOn']);
         self::assertSame(['field' => 'auth', 'value' => true], $byKey['username']['dependsOn']);
+        self::assertSame(['field' => 'auth', 'value' => true], $byKey['username']['requiredWhen']);
+        self::assertSame(['field' => 'auth', 'value' => true], $byKey['password']['requiredWhen']);
+        self::assertSame(['host', 'encryption', 'port', 'auth', 'username', 'password'], array_keys($byKey));
         self::assertSame('number', $byKey['port']['type']);
         self::assertSame(587, $byKey['port']['default']);
     }

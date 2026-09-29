@@ -1,7 +1,7 @@
 [
     {
         "key": "api_key",
-        "label": "API Key",
+        "label": "API key",
         "type": "password",
         "required": true,
         "secret": true,
@@ -10,9 +10,9 @@
         "options": [],
         "dependsOn": null,
         "help": {
-            "text": "Create a key under Settings > API Keys with at least the Mail Send permission, then paste it here; it is shown only once. Your From address must also be a verified Single Sender or authenticated domain.",
+            "text": "Create one under Settings > API Keys with at least Mail Send access.",
             "url": "https://www.twilio.com/docs/sendgrid/ui/account-and-settings/api-keys",
-            "linkLabel": "Create a SendGrid API key"
+            "linkLabel": "Where do I find this?"
         }
     }
 ]

@@ -48,7 +48,7 @@ class SesProviderTest extends BaseUnitTestCase
     {
         $keys = array_column($this->provider->fields(), 'key');
 
-        $this->assertSame(['access_key', 'secret_key', 'region'], $keys);
+        $this->assertSame(['region', 'access_key', 'secret_key'], $keys);
     }
 
     public function testAccessKeyFieldIsRequiredTextAndNotSecret(): void
@@ -71,7 +71,7 @@ class SesProviderTest extends BaseUnitTestCase
         $this->assertSame('password', $field['type']);
     }
 
-    public function testRegionFieldIsSelectWithCommonSesRegionsAndDefaultsToUsEast1(): void
+    public function testRegionFieldIsSelectWithEverySesRegionAndDefaultsToUsEast1(): void
     {
         $field = $this->findField('region');
 
@@ -82,10 +82,14 @@ class SesProviderTest extends BaseUnitTestCase
         $this->assertSame('us-east-1', $field['default']);
 
         $optionValues = array_column($field['options'], 'value');
-        $this->assertSame(
-            ['us-east-1', 'us-east-2', 'us-west-2', 'eu-west-1', 'eu-central-1', 'ap-south-1', 'ap-southeast-2'],
-            $optionValues
-        );
+        $this->assertCount(27, $optionValues);
+        $this->assertSame('us-east-1', $optionValues[0]);
+        foreach (['us-west-1', 'eu-west-2', 'ap-northeast-1', 'sa-east-1', 'me-central-1'] as $region) {
+            $this->assertContains($region, $optionValues);
+        }
+        foreach ($optionValues as $region) {
+            $this->assertMatchesRegularExpression('/^[a-z0-9-]+$/', $region, 'options must pass SesValidator');
+        }
     }
 
     public function testFieldExposesAllRenderMetadataKeys(): void

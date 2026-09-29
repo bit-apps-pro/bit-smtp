@@ -47,6 +47,7 @@ describe('useTestConnection', () => {
     })
     expect(result.current.data).toEqual({
       ok: true,
+      to: 'test@example.com',
       debug: ['Connected', 'Message sent'],
       delivery: null,
       error: undefined
@@ -72,6 +73,7 @@ describe('useTestConnection', () => {
 
     expect(result.current.data).toEqual({
       ok: true,
+      to: 'test@example.com',
       debug: { status: 201, body: { messageId: 'abc' } },
       delivery: { state: 'delivered', detail: '' },
       error: undefined
@@ -94,9 +96,36 @@ describe('useTestConnection', () => {
 
     expect(result.current.data).toEqual({
       ok: false,
+      to: 'test@example.com',
       debug: ['SMTP connect() failed'],
       delivery: null,
       error: 'Connection test failed'
+    })
+  })
+
+  it('surfaces the failure class and per-field validation errors of a rejected test', async () => {
+    ;(request as Mock).mockResolvedValue({
+      status: 'error',
+      code: 'ERROR',
+      message: 'Validation failed',
+      data: {
+        debug: ['401 Unauthorized'],
+        failure_class: 'auth',
+        errors: { api_key: 'API key is required.' }
+      }
+    })
+
+    const { result } = renderHook(() => useTestConnection(), { wrapper })
+
+    result.current.mutate({ connection, to: 'test@example.com' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(result.current.data).toMatchObject({
+      ok: false,
+      failureClass: 'auth',
+      fieldErrors: { api_key: 'API key is required.' },
+      error: 'Validation failed'
     })
   })
 })

@@ -1,12 +1,12 @@
 import { type FieldMeta } from '@pages/Connections/types'
-import { Form, Switch } from 'antd'
-import { getFieldHint } from './FieldItem'
+import { Switch } from 'antd'
+import FieldItem from './FieldItem'
 
 /** Renders a boolean provider setting as a labelled toggle with its guidance. */
 export default function SwitchField({ field }: { field: FieldMeta }) {
   return (
-    <Form.Item label={field.label} name={field.key} valuePropName="checked" extra={getFieldHint(field)}>
+    <FieldItem field={field} valuePropName="checked">
       <Switch aria-label={field.label} />
-    </Form.Item>
+    </FieldItem>
   )
 }

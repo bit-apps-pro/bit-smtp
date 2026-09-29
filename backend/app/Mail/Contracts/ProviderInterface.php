@@ -2,6 +2,13 @@
 
 namespace BitApps\SMTP\Mail\Contracts;
 
+use BitApps\SMTP\Mail\Providers\ProviderGuide;
+
+/**
+ * A mail provider: identity, connection fields, validation, transport, auth, tracking and setup guide.
+ *
+ * @phpstan-import-type Guide from ProviderGuide
+ */
 interface ProviderInterface
 {
     /**
@@ -36,4 +43,11 @@ interface ProviderInterface
      * Webhook correlation token carrier: 'metadata'|'header' channel, or [] if unsupported.
      */
     public function tracking(): array;
+
+    /**
+     * Setup guide merged into the REST provider metadata; build it with ProviderGuide::make(), [] for none.
+     *
+     * @return Guide|array{}
+     */
+    public function guide(): array;
 }

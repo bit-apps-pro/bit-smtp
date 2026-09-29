@@ -9,14 +9,21 @@ export interface ConnectionDeliveryStatus {
 
 export interface ConnectionTestResult {
   ok: boolean
+  to: string
   debug: unknown
   delivery?: ConnectionDeliveryStatus | null
   error?: string
+  /** Backend `FailureCategory` of a failed send, when the provider was reached. */
+  failureClass?: string
+  /** Per-field validation messages keyed by provider field key. */
+  fieldErrors?: Record<string, string>
 }
 
 interface ConnectionTestResponseData {
   debug?: unknown
   delivery?: ConnectionDeliveryStatus | null
+  failure_class?: string
+  errors?: Record<string, string>
 }
 
 export interface ConnectionTestPayload {
@@ -24,6 +31,27 @@ export interface ConnectionTestPayload {
   to: string
 }
 
+/** Normalises the test endpoint's envelope (legacy bare debug arrays included) into a ConnectionTestResult. */
+function toTestResult(
+  to: string,
+  status: 'success' | 'error',
+  message: string | undefined,
+  raw: ConnectionTestResponseData | unknown[] | undefined
+): ConnectionTestResult {
+  const data = Array.isArray(raw) ? { debug: raw } : raw ?? {}
+
+  return {
+    ok: status === 'success',
+    to,
+    debug: data.debug ?? [],
+    delivery: data.delivery ?? null,
+    error: status === 'error' ? message : undefined,
+    failureClass: data.failure_class,
+    fieldErrors: data.errors
+  }
+}
+
+/** Sends a test email through an unsaved connection and reports the outcome. */
 export default function useTestConnection() {
   return useMutation({
     mutationFn: async ({ connection, to }: ConnectionTestPayload): Promise<ConnectionTestResult> => {
@@ -32,16 +60,7 @@ export default function useTestConnection() {
         data: { ...connection, to }
       })
 
-      const raw = response.data
-      const debug = Array.isArray(raw) ? raw : raw?.debug ?? []
-      const delivery = Array.isArray(raw) ? null : raw?.delivery ?? null
-
-      return {
-        ok: response.status === 'success',
-        debug,
-        delivery,
-        error: response.status === 'error' ? response.message : undefined
-      }
+      return toTestResult(to, response.status, response.message, response.data)
     }
   })
 }

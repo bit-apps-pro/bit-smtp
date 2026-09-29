@@ -1,0 +1,36 @@
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.recipient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recipient .recipientInput {
+  width: 240px;
+}
+
+.actions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .recipient {
+    flex-basis: 100%;
+  }
+
+  .recipient .recipientInput {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+}

@@ -9,13 +9,16 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Contracts\OAuth2ProviderInterface;
+use BitApps\SMTP\Mail\Exceptions\OAuthCallbackException;
+use BitApps\SMTP\Mail\Exceptions\OAuthStateException;
 use BitApps\SMTP\Mail\Http\ApiClient;
+use BitApps\SMTP\Mail\OAuth\IdTokenAccount;
 use BitApps\SMTP\Mail\OAuth\OAuthCallbackUrl;
+use BitApps\SMTP\Mail\OAuth\OAuthFailureReason;
 use BitApps\SMTP\Mail\OAuth\OAuthStateCodec;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Plugin;
 use InvalidArgumentException;
-use RuntimeException;
 use Throwable;
 
 /**
@@ -88,7 +91,7 @@ class OAuthController
             'response_type' => 'code',
             'scope'         => implode(' ', $transport->scopes()),
             'state'         => OAuthStateCodec::encode($connectionId, $provider),
-        ], $transport->extraAuthParams());
+        ], $transport->extraAuthParams(), $this->loginHint($connection));
 
         $consentUrl = $transport->authUrl($connection) . '?' . http_build_query($queryParams);
 
@@ -128,7 +131,7 @@ class OAuthController
         $state = (string) $request->get('state', '');
 
         if ($error !== '') {
-            $this->emit($this->errorPage());
+            $this->emit($this->errorPage(OAuthFailureReason::fromProviderError($error)));
 
             return;
         }
@@ -136,8 +139,16 @@ class OAuthController
         try {
             $decoded = OAuthStateCodec::decode($state);
             $this->exchangeAndStore($decoded['connection_id'], $decoded['provider'], $code);
+        } catch (OAuthStateException $e) {
+            $this->emit($this->errorPage(OAuthFailureReason::INVALID_STATE));
+
+            return;
+        } catch (OAuthCallbackException $e) {
+            $this->emit($this->errorPage($e->reason()));
+
+            return;
         } catch (Throwable $e) {
-            $this->emit($this->errorPage());
+            $this->emit($this->errorPage(OAuthFailureReason::UNKNOWN));
 
             return;
         }
@@ -160,15 +171,28 @@ class OAuthController
         exit;
     }
 
+    /**
+     * Only a well-formed From address is sent as login_hint, so the provider pre-selects the sending mailbox.
+     *
+     * @return array<string,string>
+     */
+    private function loginHint(Connection $connection): array
+    {
+        $fromEmail = $connection->getFromEmail();
+
+        return filter_var($fromEmail, FILTER_VALIDATE_EMAIL) !== false ? ['login_hint' => $fromEmail] : [];
+    }
+
+    /**
+     * Swap the authorization code for tokens and persist them plus the signed-in account's email in one write.
+     *
+     * @throws OAuthCallbackException with a safe OAuthFailureReason code
+     */
     private function exchangeAndStore(string $connectionId, string $provider, string $code): void
     {
         $connection = $this->config()->connectionById($connectionId);
-        if ($connection === null) {
-            throw new RuntimeException('Connection not found for callback.');
-        }
-
-        if ($provider !== $connection->getProvider()) {
-            throw new RuntimeException('Provider does not match this connection.');
+        if ($connection === null || $provider !== $connection->getProvider()) {
+            throw OAuthCallbackException::because(OAuthFailureReason::CONNECTION_NOT_FOUND);
         }
 
         $transport    = $this->oauth2Transport($provider);
@@ -185,16 +209,18 @@ class OAuthController
 
         $body = $response->getBody();
         if (!$response->isOk() || !\is_array($body) || empty($body['access_token'])) {
-            throw new RuntimeException('OAuth token exchange failed.');
+            throw OAuthCallbackException::because(OAuthFailureReason::fromTokenResponse($body));
         }
 
-        if (!$this->config()->saveConnection($this->withTokens($connection, $body))) {
-            throw new RuntimeException('Failed to persist OAuth tokens.');
+        if (!$this->config()->saveOAuthGrant($this->withTokens($connection, $body))) {
+            throw OAuthCallbackException::because(OAuthFailureReason::SAVE_FAILED);
         }
     }
 
     /**
-     * @param array<string,mixed> $body
+     * Connection payload carrying the granted tokens, their expiry and the signed-in account's email.
+     *
+     * @param array<string,mixed> $body token endpoint response
      *
      * @return array<string,mixed>
      */
@@ -206,8 +232,11 @@ class OAuthController
             $updated['credentials']['refresh_token'] = ['source' => 'database', 'value' => (string) $body['refresh_token']];
         }
 
-        $updated['credentials']['access_token']  = ['source' => 'database', 'value' => (string) $body['access_token']];
-        $updated['settings']['token_expires_at'] = time() + (int) ($body['expires_in'] ?? 0);
+        $updated['credentials']['access_token'] = ['source' => 'database', 'value' => (string) $body['access_token']];
+        $updated['settings']                    = array_merge($updated['settings'] ?? [], [
+            'token_expires_at'                       => time() + (int) ($body['expires_in'] ?? 0),
+            MailConfigService::OAUTH_ACCOUNT_SETTING => IdTokenAccount::email($body),
+        ]);
 
         return $updated;
     }
@@ -241,11 +270,15 @@ class OAuthController
         ]);
     }
 
-    private function errorPage(): string
+    /**
+     * Popup page reporting failure with a safe OAuthFailureReason code (never raw provider text).
+     */
+    private function errorPage(string $reason): string
     {
-        return $this->page(__('Authorization failed. Please close this window and try again.', 'bit-smtp'), [
+        return $this->page(__('Sign-in did not finish. Close this window and try again.', 'bit-smtp'), [
             'type'   => 'bit-smtp-oauth',
             'status' => 'error',
+            'reason' => $reason,
         ]);
     }
 
