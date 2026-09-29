@@ -388,9 +388,24 @@ export default function ConnectionEditor({
     return savedId
   }
 
-  /** Saves the form, toasts success, and surfaces any non-fatal webhook-provisioning warning. */
+  /** Pins backend per-field validation errors onto their inputs and toasts the overall failure reason. */
+  const showSaveErrors = (response: Awaited<ReturnType<typeof mutateAsync>> | undefined) => {
+    const errors = (response?.data as { errors?: Record<string, string> } | undefined)?.errors ?? {}
+    const fieldErrors = Object.entries(errors).filter(([key]) =>
+      inputFields.some(field => field.key === key)
+    )
+    form.setFields(fieldErrors.map(([name, message]) => ({ name, errors: [message] })))
+    notify.error(response?.message ?? __('Failed to save connection'))
+  }
+
+  /** Saves the form; on success toasts, surfaces any webhook-provisioning warning, and leaves the editor. */
   const handleFinish = async (values: ConnectionFormValues) => {
     const response = await mutateAsync(buildConnectionPayload(values, draftConnection, provider))
+    if (response?.status !== 'success') {
+      showSaveErrors(response)
+      return
+    }
+
     notify.success(__('Connection saved'))
 
     const webhook = (response?.data as { webhook?: { status?: string; message?: string } } | undefined)

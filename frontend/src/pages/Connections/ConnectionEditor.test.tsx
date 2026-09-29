@@ -283,7 +283,9 @@ describe('ConnectionEditor', () => {
   })
 
   it('calls onSaved after a successful save', async () => {
-    const save = vi.fn().mockResolvedValue({})
+    const save = vi
+      .fn()
+      .mockResolvedValue({ status: 'success', code: 'SUCCESS', data: { id: 'conn_1' } })
     ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
     const onSaved = vi.fn()
 
@@ -292,6 +294,26 @@ describe('ConnectionEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: /save/i }))
 
     expect(onSaved).toHaveBeenCalled()
+  })
+
+  it('stays on the form and pins backend field errors when the save is rejected', async () => {
+    const save = vi.fn().mockResolvedValue({
+      status: 'error',
+      code: 'ERROR',
+      message: 'Validation failed',
+      data: { errors: { host: 'Host is required.' } }
+    })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+    const onSaved = vi.fn()
+
+    render(<ConnectionEditor connection={connection} provider={otherSmtpMeta} onSaved={onSaved} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(await screen.findByText('Host is required.')).toBeInTheDocument()
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(notify.success).not.toHaveBeenCalled()
+    expect(notify.error).toHaveBeenCalledWith('Validation failed')
   })
 
   it('submits an edited password as the new value', async () => {
