@@ -1,5 +1,5 @@
 import { type ReactNode, useId } from 'react'
-import { Checkbox, Flex, Radio, type RadioChangeEvent, Typography } from 'antd'
+import { Checkbox, Flex, Radio, type RadioChangeEvent, Typography, theme } from 'antd'
 
 const { Text } = Typography
 
@@ -49,7 +49,7 @@ function optionNote<V extends OptionValue>(option: DescribedOption<V>, groupDisa
   return disabled && option.disabledReason ? option.disabledReason : option.description
 }
 
-/** Renders each option's control (checkbox or radio) with its description linked via aria-describedby. */
+/** Renders each option's control (checkbox or radio) with its description linked via aria-describedby; disabled labels stay readable (AA) instead of antd's faint disabled text. */
 function OptionList<V extends OptionValue>({
   idPrefix,
   options,
@@ -61,17 +61,20 @@ function OptionList<V extends OptionValue>({
   groupDisabled: boolean
   Control: typeof Checkbox | typeof Radio
 }) {
+  const { token } = theme.useToken()
+
   return options.map((option, index) => {
     const note = optionNote(option, groupDisabled)
     const noteId = `${idPrefix}-${index}`
+    const disabled = groupDisabled || option.disabled
     return (
       <Flex key={String(option.value)} vertical>
-        <Control
-          value={option.value}
-          disabled={groupDisabled || option.disabled}
-          aria-describedby={note ? noteId : undefined}
-        >
-          {option.label}
+        <Control value={option.value} disabled={disabled} aria-describedby={note ? noteId : undefined}>
+          {disabled ? (
+            <span style={{ color: token.colorTextSecondary }}>{option.label}</span>
+          ) : (
+            option.label
+          )}
         </Control>
         {note && (
           <Text id={noteId} type="secondary" style={{ paddingInlineStart: DESCRIPTION_INDENT }}>

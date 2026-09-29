@@ -2,8 +2,9 @@ import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
 import { Button, Flex, Popover, type PopoverProps, Typography } from 'antd'
+import NewTabLink from './NewTabLink'
 
-const { Text, Link } = Typography
+const { Text } = Typography
 
 const CONTENT_MAX_WIDTH = 320
 
@@ -20,6 +21,8 @@ export interface HelpPopoverProps {
   label: string
   details: HelpDetails
   placement?: PopoverProps['placement']
+  /** Visible content (e.g. a status tag) that shares the trigger with the ⓘ, so either opens the help. */
+  children?: ReactNode
 }
 
 /** Popover body: title, text, muted example block and an optional "Learn more" link. */
@@ -36,17 +39,13 @@ function HelpContent({ id, details }: { id: string; details: HelpDetails }) {
           {details.example}
         </Text>
       )}
-      {details.docUrl && (
-        <Link href={details.docUrl} target="_blank" rel="noopener noreferrer">
-          {__('Learn more')} ↗
-        </Link>
-      )}
+      {details.docUrl && <NewTabLink href={details.docUrl}>{__('Learn more')}</NewTabLink>}
     </Flex>
   )
 }
 
-/** Click-triggered ⓘ button that opens help content; Esc closes it and returns focus to the button. */
-export default function HelpPopover({ label, details, placement = 'top' }: HelpPopoverProps) {
+/** Click-triggered ⓘ button (optionally with visible content) that opens help content; Esc closes it and returns focus to the button. */
+export default function HelpPopover({ label, details, placement = 'top', children }: HelpPopoverProps) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const contentId = useId()
@@ -78,10 +77,14 @@ export default function HelpPopover({ label, details, placement = 'top' }: HelpP
         type="text"
         size="small"
         icon={<InfoCircleOutlined />}
+        iconPosition="end"
         aria-label={label}
         aria-expanded={open}
         aria-controls={open ? contentId : undefined}
-      />
+        style={children ? { height: 'auto', paddingInline: 2 } : undefined}
+      >
+        {children}
+      </Button>
     </Popover>
   )
 }

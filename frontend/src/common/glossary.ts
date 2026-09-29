@@ -49,53 +49,39 @@ export type HealthStatusKey = (typeof HEALTH_STATUS_KEYS)[number]
 export const FAILURE_CLASSES: Readonly<Record<FailureClass, FailureClassEntry>> = {
   transient: {
     label: __('Temporary server or network problem'),
-    hint: __('The mail server was unreachable or asked us to try later. Usually fixes itself.'),
-    example: __(
-      'Your SMTP host times out during maintenance, or Gmail replies "421 try again later" (greylisting).'
-    ),
-    next: __(
-      "Retried automatically. If it persists, check the host/port and your server's outbound firewall."
-    ),
+    hint: __('The mail server was busy or unreachable. This usually fixes itself.'),
+    example: __('Your email host is down for a few minutes of maintenance.'),
+    next: __('We try again automatically. If it keeps happening, check your host and port.'),
     retryable: true
   },
   rate_limited: {
     label: __('Sending limit reached'),
-    hint: __('Your provider is throttling you for sending too much, too fast.'),
-    example: __(
-      'A WooCommerce sale sends 800 receipts in a minute and Brevo answers "429 Too Many Requests".'
-    ),
+    hint: __('You sent too many emails too quickly for your plan.'),
+    example: __('A big sale sends hundreds of order emails in one minute.'),
     next: __(
-      "Retried after a pause. If it's frequent, raise your plan's limit or add a backup connection."
+      'We try again after a short wait. If it happens often, upgrade your plan or add a backup connection.'
     ),
     retryable: true
   },
   auth: {
     label: __('Login or API key rejected'),
-    hint: __("The provider refused your credentials. Retrying won't help until you fix them."),
-    example: __(
-      'Someone rotated the SendGrid API key, or the Gmail app password was revoked ("535 authentication failed").'
-    ),
-    next: __(
-      'Not retried. The connection is marked Unhealthy immediately. Update credentials or reconnect OAuth.'
-    ),
+    hint: __('Your email service did not accept your login details.'),
+    example: __('Someone changed or deleted the API key or password.'),
+    next: __("Trying again won't help. Update the login details or reconnect your account."),
     retryable: false
   },
   invalid_recipient: {
     label: __("Recipient address doesn't exist"),
-    hint: __("The receiving server says this mailbox isn't there. Failover is skipped too."),
-    example: __('A customer typed jon@gmial.com, and the server replies "550 user unknown".'),
-    next: __('Not retried and no failover. Correct the address, then use Edit and resend.'),
+    hint: __('The email address you sent to is not a real mailbox.'),
+    example: __('A customer typed jon@gmial.com instead of jon@gmail.com.'),
+    next: __('Fix the address, then resend the email from its log.'),
     retryable: false
   },
   permanent: {
     label: __('Rejected by provider'),
-    hint: __('The message was refused for policy, content or reputation reasons.'),
-    example: __(
-      'Your sending domain is on a blocklist, or the provider flags the content as spam ("554 policy rejection").'
-    ),
-    next: __(
-      "Not retried. Check SPF/DKIM/DMARC, the from-domain verification, and the provider's dashboard."
-    ),
+    hint: __('Your email service refused this email and will not send it.'),
+    example: __('Your domain is not verified, or the email looks like spam.'),
+    next: __("Trying again won't help. Check your email service's dashboard for the reason."),
     retryable: false
   }
 }
@@ -103,68 +89,62 @@ export const FAILURE_CLASSES: Readonly<Record<FailureClass, FailureClassEntry>> 
 export const DELIVERY_STATUSES: Readonly<Record<DeliveryStatusKey, GlossaryEntry>> = {
   delivered: {
     label: __('Delivered'),
-    hint: __("The recipient's mail server confirmed it received the message.")
+    hint: __("Reached the recipient's mail server.")
   },
   accepted: {
     label: __('Accepted by provider'),
-    hint: __('Your provider took the message and is delivering it. No final report yet.')
+    hint: __('Your email service has it and is delivering it.')
   },
   deferred: {
     label: __('Deferred'),
-    hint: __("The recipient's server asked to try later. The provider is still retrying."),
-    next: __(
-      "Usually clears on its own. If it stays deferred for hours, check the provider's dashboard."
-    )
+    hint: __("Delayed by the recipient's server. Your email service keeps trying."),
+    next: __('This usually clears up on its own within a few hours.')
   },
   bounced: {
     label: __('Bounced'),
-    hint: __("The recipient's server rejected the message permanently."),
+    hint: __("The recipient's server refused it."),
     example: __("The mailbox doesn't exist or is full."),
-    next: __('Check the recipient address, then use Edit and resend.')
+    next: __('Check the address, then resend the email from its log.')
   },
   spam: {
     label: __('Marked as spam'),
-    hint: __('The recipient or their mail system reported this message as spam.'),
-    next: __('Make sure recipients expect your emails, and check SPF/DKIM/DMARC.')
+    hint: __('The recipient reported it as spam.'),
+    next: __('Only email people who expect to hear from you.')
   },
   blocked: {
     label: __('Blocked'),
-    hint: __(
-      'The provider refused to send to this address, usually because it bounced or complained before.'
-    ),
-    next: __("If the address is valid, remove it from the provider's suppression list.")
+    hint: __('Not sent, because this address failed before.'),
+    next: __("If the address is correct, remove it from your email service's blocked list.")
   },
   pending: {
     label: __('Awaiting report'),
-    hint: __("Delivery tracking is on, but the provider hasn't reported on this message yet.")
+    hint: __('No update from your email service yet.')
   },
   unknown: {
     label: __('Status unavailable'),
-    hint: __("The provider didn't return a recognizable delivery status."),
-    next: __("Check the message in your provider's dashboard.")
+    hint: __("We couldn't read the status your email service sent."),
+    next: __("Check this email in your email service's dashboard.")
   },
   not_tracked: {
     label: __('Not tracked'),
-    hint: __("This connection doesn't report delivery, so only the send result is known."),
-    next: __(
-      'Use a provider with delivery webhooks (for example Brevo, Postmark or SES) to see inbox delivery.'
-    )
+    hint: __("This connection can't report inbox delivery."),
+    next: __('To see inbox delivery, use a service like Brevo, Postmark or Amazon SES.')
   }
 }
 
 export const SEND_RESULTS: Readonly<Record<SendResult, GlossaryEntry>> = {
   sent: {
     label: __('Sent'),
-    hint: __('Your mail provider accepted the message for delivery.')
+    hint: __('Your email service accepted the email.')
   },
   failed: {
     label: __('Failed'),
-    hint: __('Every connection that was tried refused the message.'),
-    next: __('Open the log to see the error and failure type, fix the cause, then resend.')
+    hint: __('The email could not be sent through any of your connections.'),
+    next: __('Open the log to see why, fix the problem, then resend.')
   },
   failover_recovered: {
     label: __('Sent via failover'),
-    hint: __('An earlier connection failed, and a backup connection sent the message.'),
+    hint: __('Your primary connection failed, so a backup sent the email.'),
     next: __('Check the connection that failed on the Connections page.')
   }
 }
@@ -172,24 +152,22 @@ export const SEND_RESULTS: Readonly<Record<SendResult, GlossaryEntry>> = {
 export const HEALTH_STATUSES: Readonly<Record<HealthStatusKey, GlossaryEntry>> = {
   healthy: {
     label: __('Healthy'),
-    hint: __('Last send or check succeeded.')
+    hint: __('Working normally.')
   },
   degraded: {
     label: __('Degraded'),
-    hint: __('A recent send or check failed. Sending keeps being retried.'),
-    next: __("If it doesn't recover, check connection health and review the last error.")
+    hint: __('Some recent emails failed. We keep trying.'),
+    next: __("If it doesn't recover soon, look at the last error.")
   },
   unhealthy: {
     label: __('Unhealthy'),
-    hint: __('Failing repeatedly or credentials rejected. A fix is required.'),
-    next: __(
-      'Review the last error, update credentials or reconnect OAuth, then check connection health.'
-    )
+    hint: __('Emails keep failing on this connection. It needs your attention.'),
+    next: __('Look at the last error, then update the login details or reconnect.')
   },
   unknown: {
     label: __('Not checked yet'),
-    hint: __('No send or health check has run for this connection yet.'),
-    next: __('Check connection health or send a test email.')
+    hint: __("We haven't checked this connection yet."),
+    next: __('Click “Check connection health” or send a test email.')
   }
 }
 
