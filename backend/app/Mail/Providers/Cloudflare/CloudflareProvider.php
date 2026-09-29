@@ -32,8 +32,24 @@ final class CloudflareProvider extends DescriptorProvider
             'label'  => 'Cloudflare',
             'kind'   => 'api',
             'fields' => [
-                ['key' => 'account_id', 'label' => 'Account ID', 'type' => 'text', 'required' => true, 'secret' => false, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
-                ['key' => 'api_token', 'label' => 'API Token', 'type' => 'password', 'required' => true, 'secret' => true, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
+                [
+                    'key'         => 'account_id', 'label' => 'Account ID', 'type' => 'text', 'required' => true, 'secret' => false,
+                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Your 32-character Cloudflare account ID, shown in the dashboard account overview.',
+                        'url'       => 'https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/',
+                        'linkLabel' => 'Find your account ID',
+                    ],
+                ],
+                [
+                    'key'         => 'api_token', 'label' => 'API Token', 'type' => 'password', 'required' => true, 'secret' => true,
+                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Create an API token with the Email Sending: Edit permission. The From domain must be onboarded for Email Sending in the Cloudflare dashboard first.',
+                        'url'       => 'https://developers.cloudflare.com/email-service/get-started/send-emails/',
+                        'linkLabel' => 'View Cloudflare Email Sending setup',
+                    ],
+                ],
             ],
             'auth'     => ['type' => 'bearer', 'params' => ['credentialKey' => 'api_token']],
             'endpoint' => [

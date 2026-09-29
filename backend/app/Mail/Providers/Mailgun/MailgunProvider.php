@@ -27,13 +27,39 @@ final class MailgunProvider extends DescriptorProvider
             'label'  => 'Mailgun',
             'kind'   => 'api',
             'fields' => [
-                ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true,  'secret' => true,  'placeholder' => '', 'default' => '',   'options' => [], 'dependsOn' => null],
-                ['key' => 'webhook_signing_key', 'label' => 'Webhook Signing Key', 'type' => 'password', 'required' => false, 'secret' => true, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
-                ['key' => 'domain',  'label' => 'Domain',  'type' => 'text',     'required' => true,  'secret' => false, 'placeholder' => 'mg.example.com', 'default' => '', 'options' => [], 'dependsOn' => null],
+                [
+                    'key'         => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true,  'secret' => true,
+                    'placeholder' => '', 'default' => '',   'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Use your Mailgun Private API key, found under Settings > API Security in the Mailgun dashboard. It must belong to the same account as the sending domain.',
+                        'url'       => 'https://documentation.mailgun.com/docs/mailgun/quickstart/',
+                        'linkLabel' => 'View Mailgun quickstart',
+                    ],
+                ],
+                [
+                    'key'         => 'webhook_signing_key', 'label' => 'Webhook Signing Key', 'type' => 'password', 'required' => false, 'secret' => true,
+                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Optional. Copy the HTTP webhook signing key from Settings > API Security so Bit SMTP can verify delivery events sent by Mailgun.',
+                    ],
+                ],
+                [
+                    'key'         => 'domain', 'label' => 'Domain',  'type' => 'text',     'required' => true,  'secret' => false,
+                    'placeholder' => 'mg.example.com', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'The sending domain you added and verified in Mailgun (Sending > Domains), for example mg.example.com. The sandbox domain only delivers to authorized recipients.',
+                        'url'       => 'https://documentation.mailgun.com/docs/mailgun/quickstart/',
+                        'linkLabel' => 'View Mailgun quickstart',
+                    ],
+                ],
                 ['key' => 'region',  'label' => 'Region',  'type' => 'select',   'required' => false, 'secret' => false, 'placeholder' => '', 'default' => 'us', 'options' => [
                     ['value' => 'us', 'label' => 'US'],
                     ['value' => 'eu', 'label' => 'EU'],
-                ], 'dependsOn' => null],
+                ], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Choose the region your domain was created in (shown next to it in Mailgun); sending through the wrong region fails.',
+                    ],
+                ],
             ],
             'auth'     => ['type' => 'basic', 'params' => ['userExpr' => 'api', 'passExpr' => '{api_key}']],
             'endpoint' => [

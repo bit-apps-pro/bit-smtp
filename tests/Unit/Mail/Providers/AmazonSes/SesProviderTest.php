@@ -90,10 +90,11 @@ class SesProviderTest extends BaseUnitTestCase
 
     public function testFieldExposesAllRenderMetadataKeys(): void
     {
-        $expectedKeys = ['key', 'label', 'type', 'required', 'secret', 'placeholder', 'default', 'options', 'dependsOn'];
+        $expectedKeys = ['key', 'label', 'type', 'required', 'secret', 'placeholder', 'default', 'options', 'dependsOn', 'help'];
 
         foreach ($this->provider->fields() as $field) {
             $this->assertSame($expectedKeys, array_keys($field), "Field '{$field['key']}' must expose exactly the render-metadata keys");
+            $this->assertNotSame('', $field['help']['text']);
         }
     }
 

@@ -27,13 +27,31 @@ final class ZeptoProvider extends DescriptorProvider
             'label'  => 'ZeptoMail',
             'kind'   => 'api',
             'fields' => [
-                ['key' => 'api_key',     'label' => 'Send Mail Token', 'type' => 'password', 'required' => true,  'secret' => true,  'placeholder' => '', 'default' => '',   'options' => [], 'dependsOn' => null],
-                ['key' => 'webhook_auth_key', 'label' => 'Webhook Authentication Key', 'type' => 'password', 'required' => false, 'secret' => true, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
+                [
+                    'key'         => 'api_key', 'label' => 'Send Mail Token', 'type' => 'password', 'required' => true,  'secret' => true,
+                    'placeholder' => '', 'default' => '',   'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Copy the Send Mail token from your Mail Agent under SMTP/API. The From address must belong to a domain verified in ZeptoMail.',
+                        'url'       => 'https://www.zoho.com/zeptomail/help/api/email-sending.html',
+                        'linkLabel' => 'View ZeptoMail API docs',
+                    ],
+                ],
+                [
+                    'key'         => 'webhook_auth_key', 'label' => 'Webhook Authentication Key', 'type' => 'password', 'required' => false, 'secret' => true,
+                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Optional. Enter the authentication key configured for your ZeptoMail webhook so Bit SMTP can verify incoming delivery events.',
+                    ],
+                ],
                 ['key' => 'data_center', 'label' => 'Data Center',     'type' => 'select',   'required' => false, 'secret' => false, 'placeholder' => '', 'default' => 'us', 'options' => [
                     ['value' => 'us', 'label' => 'US'],
                     ['value' => 'eu', 'label' => 'EU'],
                     ['value' => 'in', 'label' => 'India'],
-                ], 'dependsOn' => null],
+                ], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Match the data center your ZeptoMail account lives in (US, EU or India); a token only works on its own data center.',
+                    ],
+                ],
             ],
             'auth'     => ['type' => 'api_key', 'params' => ['headerName' => 'Authorization', 'valueTemplate' => 'Zoho-enczapikey {api_key}']],
             'endpoint' => [

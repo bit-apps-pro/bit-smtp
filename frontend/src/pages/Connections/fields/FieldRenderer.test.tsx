@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { Form } from 'antd'
 import { describe, expect, it } from 'vitest'
 import FieldRenderer from './FieldRenderer'
@@ -110,7 +109,7 @@ describe('FieldRenderer', () => {
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
   })
 
-  it('shows linked provider guidance in the field tooltip', async () => {
+  it('shows linked provider guidance as a visible hint', () => {
     render(
       <Form>
         <FieldRenderer
@@ -134,9 +133,7 @@ describe('FieldRenderer', () => {
       </Form>
     )
 
-    await userEvent.hover(screen.getByRole('img', { name: 'question-circle' }))
-
-    expect(await screen.findByText('Copy the value from the app Overview page.')).toBeInTheDocument()
+    expect(screen.getByText('Copy the value from the app Overview page.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open Microsoft Entra' })).toHaveAttribute(
       'href',
       'https://entra.microsoft.com/'

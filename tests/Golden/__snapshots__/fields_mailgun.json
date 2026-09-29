@@ -8,7 +8,12 @@
         "placeholder": "",
         "default": "",
         "options": [],
-        "dependsOn": null
+        "dependsOn": null,
+        "help": {
+            "text": "Use your Mailgun Private API key, found under Settings > API Security in the Mailgun dashboard. It must belong to the same account as the sending domain.",
+            "url": "https://documentation.mailgun.com/docs/mailgun/quickstart/",
+            "linkLabel": "View Mailgun quickstart"
+        }
     },
     {
         "key": "webhook_signing_key",
@@ -19,7 +24,10 @@
         "placeholder": "",
         "default": "",
         "options": [],
-        "dependsOn": null
+        "dependsOn": null,
+        "help": {
+            "text": "Optional. Copy the HTTP webhook signing key from Settings > API Security so Bit SMTP can verify delivery events sent by Mailgun."
+        }
     },
     {
         "key": "domain",
@@ -30,7 +38,12 @@
         "placeholder": "mg.example.com",
         "default": "",
         "options": [],
-        "dependsOn": null
+        "dependsOn": null,
+        "help": {
+            "text": "The sending domain you added and verified in Mailgun (Sending > Domains), for example mg.example.com. The sandbox domain only delivers to authorized recipients.",
+            "url": "https://documentation.mailgun.com/docs/mailgun/quickstart/",
+            "linkLabel": "View Mailgun quickstart"
+        }
     },
     {
         "key": "region",
@@ -50,6 +63,9 @@
                 "label": "EU"
             }
         ],
-        "dependsOn": null
+        "dependsOn": null,
+        "help": {
+            "text": "Choose the region your domain was created in (shown next to it in Mailgun); sending through the wrong region fails."
+        }
     }
 ]

@@ -12,8 +12,8 @@ export interface FieldDependency {
 
 export interface FieldHelpMeta {
   text: string
-  url: string
-  linkLabel: string
+  url?: string
+  linkLabel?: string
 }
 
 export interface FieldMeta {

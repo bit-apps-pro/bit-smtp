@@ -27,11 +27,25 @@ final class SparkPostProvider extends DescriptorProvider
             'label'  => 'SparkPost',
             'kind'   => 'api',
             'fields' => [
-                ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true,  'secret' => true,  'placeholder' => '', 'default' => '',   'options' => [], 'dependsOn' => null],
+                [
+                    'key'         => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true,  'secret' => true,
+                    'placeholder' => '', 'default' => '',   'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Create an API key in your SparkPost account under Account > API Keys, with at least the Transmissions Read/Write permission. Sending also requires a verified sending domain.',
+                        'url'       => 'https://developers.sparkpost.com/api/#header-authentication',
+                        'linkLabel' => 'View SparkPost authentication docs',
+                    ],
+                ],
                 ['key' => 'region',  'label' => 'Region',  'type' => 'select',   'required' => false, 'secret' => false, 'placeholder' => '', 'default' => 'us', 'options' => [
                     ['value' => 'us', 'label' => 'US'],
                     ['value' => 'eu', 'label' => 'EU'],
-                ], 'dependsOn' => null],
+                ], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'SparkPost US and EU accounts are separate. Pick the region your account was created in, or the API key will be rejected.',
+                        'url'       => 'https://developers.sparkpost.com/api/#header-authentication',
+                        'linkLabel' => 'View SparkPost authentication docs',
+                    ],
+                ],
             ],
             'auth'     => ['type' => 'api_key', 'params' => ['headerName' => 'Authorization', 'valueTemplate' => '{api_key}']],
             'endpoint' => [

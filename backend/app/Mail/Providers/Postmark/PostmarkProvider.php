@@ -27,7 +27,15 @@ final class PostmarkProvider extends DescriptorProvider
             'label'  => 'Postmark',
             'kind'   => 'api',
             'fields' => [
-                ['key' => 'api_key', 'label' => 'Server API Token', 'type' => 'password', 'required' => true, 'secret' => true, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
+                [
+                    'key'         => 'api_key', 'label' => 'Server API Token', 'type' => 'password', 'required' => true, 'secret' => true,
+                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Copy the Server API token from your server\'s API Tokens tab, not the Account API token. The From address must be a confirmed sender signature or a verified domain.',
+                        'url'       => 'https://postmarkapp.com/support/article/1008-what-are-the-account-and-server-api-tokens',
+                        'linkLabel' => 'Server vs Account API tokens',
+                    ],
+                ],
             ],
             'auth'     => ['type' => 'api_key', 'params' => ['headerName' => 'X-Postmark-Server-Token', 'valueTemplate' => '{api_key}']],
             'endpoint' => ['host' => 'api.postmarkapp.com', 'path' => '/email'],

@@ -26,7 +26,15 @@ final class BrevoProvider extends DescriptorProvider
             'label'  => 'Brevo',
             'kind'   => 'api',
             'fields' => [
-                ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'secret' => true, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
+                [
+                    'key'         => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'secret' => true,
+                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'In Brevo, generate an API key under your account\'s API keys settings (an API key, not an SMTP key) and copy it right away, as it is shown only once. The From address must be a verified sender in Brevo.',
+                        'url'       => 'https://developers.brevo.com/docs/quickstart',
+                        'linkLabel' => 'Get a Brevo API key',
+                    ],
+                ],
             ],
             'auth'     => ['type' => 'api_key', 'params' => ['headerName' => 'api-key', 'valueTemplate' => '{api_key}']],
             'endpoint' => ['host' => 'api.brevo.com', 'path' => '/v3/smtp/email'],

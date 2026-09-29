@@ -68,6 +68,11 @@ class SendGridProvider implements ProviderInterface
             [
                 'key'         => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'secret' => true,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'Create a key under Settings > API Keys with at least the Mail Send permission, then paste it here; it is shown only once. Your From address must also be a verified Single Sender or authenticated domain.',
+                    'url'       => 'https://www.twilio.com/docs/sendgrid/ui/account-and-settings/api-keys',
+                    'linkLabel' => 'Create a SendGrid API key',
+                ],
             ],
         ];
     }

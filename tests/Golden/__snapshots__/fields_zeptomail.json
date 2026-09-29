@@ -8,7 +8,12 @@
         "placeholder": "",
         "default": "",
         "options": [],
-        "dependsOn": null
+        "dependsOn": null,
+        "help": {
+            "text": "Copy the Send Mail token from your Mail Agent under SMTP/API. The From address must belong to a domain verified in ZeptoMail.",
+            "url": "https://www.zoho.com/zeptomail/help/api/email-sending.html",
+            "linkLabel": "View ZeptoMail API docs"
+        }
     },
     {
         "key": "webhook_auth_key",
@@ -19,7 +24,10 @@
         "placeholder": "",
         "default": "",
         "options": [],
-        "dependsOn": null
+        "dependsOn": null,
+        "help": {
+            "text": "Optional. Enter the authentication key configured for your ZeptoMail webhook so Bit SMTP can verify incoming delivery events."
+        }
     },
     {
         "key": "data_center",
@@ -43,6 +51,9 @@
                 "label": "India"
             }
         ],
-        "dependsOn": null
+        "dependsOn": null,
+        "help": {
+            "text": "Match the data center your ZeptoMail account lives in (US, EU or India); a token only works on its own data center."
+        }
     }
 ]

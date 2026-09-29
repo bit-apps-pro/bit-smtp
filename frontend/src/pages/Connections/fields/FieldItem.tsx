@@ -3,18 +3,25 @@ import { __ } from '@common/helpers/i18nwrap'
 import { type FieldMeta } from '@pages/Connections/types'
 import { Form, Typography } from 'antd'
 
-/** Builds linked provider guidance for a form-item tooltip. */
-export function getFieldTooltip(field: FieldMeta): ReactNode {
+/** Builds visible, linked provider guidance shown beneath a form field. */
+export function getFieldHint(field: FieldMeta): ReactNode {
   if (!field.help) {
     return undefined
   }
 
+  const { text, url, linkLabel } = field.help
+
   return (
     <span>
-      {field.help.text}{' '}
-      <Typography.Link href={field.help.url} target="_blank" rel="noopener noreferrer">
-        {field.help.linkLabel}
-      </Typography.Link>
+      {text}
+      {url && linkLabel && (
+        <>
+          {' '}
+          <Typography.Link href={url} target="_blank" rel="noopener noreferrer">
+            {linkLabel}
+          </Typography.Link>
+        </>
+      )}
     </span>
   )
 }
@@ -25,7 +32,7 @@ export default function FieldItem({ field, children }: { field: FieldMeta; child
     <Form.Item
       label={field.label}
       name={field.key}
-      tooltip={getFieldTooltip(field)}
+      extra={getFieldHint(field)}
       rules={field.required ? [{ required: true, message: __('This field is required') }] : undefined}
     >
       {children}

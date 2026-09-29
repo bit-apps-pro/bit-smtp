@@ -10,7 +10,7 @@ import OAuthConnectButton from './OAuthConnectButton'
 import ProviderFields from './ProviderFields'
 import useSaveConnection from './data/useSaveConnection'
 import { type ConnectionTestResult } from './data/useTestConnection'
-import { getFieldTooltip } from './fields/FieldItem'
+import { getFieldHint } from './fields/FieldItem'
 import { getProviderVisual } from './providerVisuals'
 
 const { Text, Paragraph } = Typography
@@ -456,7 +456,7 @@ export default function ConnectionEditor({
             ) : null}
             <ProviderFields fields={inputFields} />
             {oauthField ? (
-              <Form.Item label={oauthField.label} tooltip={getFieldTooltip(oauthField)}>
+              <Form.Item label={oauthField.label} extra={getFieldHint(oauthField)}>
                 <OAuthConnectButton
                   connectionId={draftId}
                   provider={provider.key}

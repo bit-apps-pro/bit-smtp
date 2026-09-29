@@ -371,7 +371,7 @@ describe('ConnectionEditor', () => {
     expect(screen.queryByLabelText('Google account')).not.toBeInTheDocument()
   })
 
-  it('shows linked guidance for the OAuth connect field', async () => {
+  it('shows linked guidance for the OAuth connect field', () => {
     ;(useOAuthAuthorize as Mock).mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
     const provider = {
       ...gmailMeta,
@@ -392,9 +392,7 @@ describe('ConnectionEditor', () => {
     renderWithQueryClient(
       <ConnectionEditor connection={gmailConnection} provider={provider} onSaved={() => {}} />
     )
-    await userEvent.hover(screen.getByRole('img', { name: 'question-circle' }))
-
-    expect(await screen.findByText('Connect the mailbox that will send email.')).toBeInTheDocument()
+    expect(screen.getByText('Connect the mailbox that will send email.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open Microsoft account' })).toHaveAttribute(
       'href',
       'https://account.microsoft.com/'

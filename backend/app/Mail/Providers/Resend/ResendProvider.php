@@ -27,8 +27,24 @@ final class ResendProvider extends DescriptorProvider
             'label'  => 'Resend',
             'kind'   => 'api',
             'fields' => [
-                ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'secret' => true, 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null],
-                ['key' => 'webhook_signing_secret', 'label' => 'Webhook Signing Secret', 'type' => 'password', 'required' => false, 'secret' => true, 'placeholder' => 'whsec_...', 'default' => '', 'options' => [], 'dependsOn' => null],
+                [
+                    'key'         => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'secret' => true,
+                    'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Create an API key in the Resend dashboard with Sending access (Full access also works). The From address must use a domain you have verified in Resend.',
+                        'url'       => 'https://resend.com/docs/api-reference/api-keys/create-api-key',
+                        'linkLabel' => 'Create a Resend API key',
+                    ],
+                ],
+                [
+                    'key'         => 'webhook_signing_secret', 'label' => 'Webhook Signing Secret', 'type' => 'password', 'required' => false, 'secret' => true,
+                    'placeholder' => 'whsec_...', 'default' => '', 'options' => [], 'dependsOn' => null,
+                    'help'        => [
+                        'text'      => 'Optional. Auto-filled when Bit SMTP registers the webhook for you; otherwise copy the signing secret from the webhook details page in Resend.',
+                        'url'       => 'https://resend.com/docs/webhooks/verify-webhooks-requests',
+                        'linkLabel' => 'Find the signing secret',
+                    ],
+                ],
             ],
             'auth'     => ['type' => 'bearer', 'params' => ['credentialKey' => 'api_key']],
             'endpoint' => ['host' => 'api.resend.com', 'path' => '/emails'],

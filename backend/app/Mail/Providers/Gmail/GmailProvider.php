@@ -70,14 +70,29 @@ class GmailProvider implements ProviderInterface
             [
                 'key'         => 'client_id', 'label' => 'Client ID', 'type' => 'text', 'required' => true, 'secret' => false,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'In Google Cloud, enable the Gmail API, configure the OAuth consent screen, then create an OAuth client ID of type Web application. Add the redirect URL shown in this form as an authorized redirect URI.',
+                    'url'       => 'https://developers.google.com/workspace/guides/create-credentials#oauth-client-id',
+                    'linkLabel' => 'Create an OAuth client ID',
+                ],
             ],
             [
                 'key'         => 'client_secret', 'label' => 'Client Secret', 'type' => 'password', 'required' => true, 'secret' => true,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'Copy the client secret from the same OAuth client in Google Cloud Credentials.',
+                    'url'       => 'https://developers.google.com/workspace/guides/create-credentials#oauth-client-id',
+                    'linkLabel' => 'Create OAuth credentials',
+                ],
             ],
             [
                 'key'         => 'oauth', 'label' => 'Google / Google Workspace account', 'type' => 'oauth', 'required' => false, 'secret' => false,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'Sign in with the Google account you send from and approve the gmail.send permission. While the consent screen is in Testing mode, add this account as a test user first.',
+                    'url'       => 'https://developers.google.com/workspace/guides/configure-oauth-consent',
+                    'linkLabel' => 'Configure the OAuth consent screen',
+                ],
             ],
         ];
     }

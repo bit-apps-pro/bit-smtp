@@ -67,10 +67,20 @@ class SesProvider implements ProviderInterface
             [
                 'key'         => 'access_key', 'label' => 'Access Key ID', 'type' => 'text', 'required' => true, 'secret' => false,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'Create an IAM user with a policy allowing ses:SendEmail and ses:SendRawEmail, then generate an access key for it. Your From address or domain must be a verified SES identity in the chosen region.',
+                    'url'       => 'https://docs.aws.amazon.com/ses/latest/dg/control-user-access.html',
+                    'linkLabel' => 'View SES IAM permissions',
+                ],
             ],
             [
                 'key'         => 'secret_key', 'label' => 'Secret Access Key', 'type' => 'password', 'required' => true, 'secret' => true,
                 'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
+                'help'        => [
+                    'text'      => 'Shown only once when the IAM access key is created; copy it immediately. If lost, delete the key and create a new one.',
+                    'url'       => 'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html',
+                    'linkLabel' => 'Manage IAM access keys',
+                ],
             ],
             [
                 'key'         => 'region', 'label' => 'Region', 'type' => 'select', 'required' => true, 'secret' => false,
@@ -84,7 +94,12 @@ class SesProvider implements ProviderInterface
                     ['value' => 'ap-south-1', 'label' => 'Asia Pacific (Mumbai)'],
                     ['value' => 'ap-southeast-2', 'label' => 'Asia Pacific (Sydney)'],
                 ],
-                'dependsOn' => null,
+                'dependsOn'   => null,
+                'help'        => [
+                    'text'      => 'Choose the region where your sending identity is verified; identities and sandbox status are per region. New accounts start in the sandbox and can only send to verified recipients until production access is granted.',
+                    'url'       => 'https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html',
+                    'linkLabel' => 'Request SES production access',
+                ],
             ],
         ];
     }
