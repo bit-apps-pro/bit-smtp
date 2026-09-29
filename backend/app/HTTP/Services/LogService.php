@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\HTTP\Services;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\Deps\BitApps\WPDatabase\QueryBuilder;
 use BitApps\SMTP\Deps\BitApps\WPKit\Helpers\Arr;
 use BitApps\SMTP\Mail\Analytics\SubjectPatternNormalizer;
@@ -58,6 +59,14 @@ class LogService
     private const ENGAGEMENT_TYPE_FLAGS = [
         EngagementRecorder::TYPE_OPEN  => 'opened',
         EngagementRecorder::TYPE_CLICK => 'clicked',
+    ];
+
+    /**
+     * Child tables keyed by `log_id` that carry recipient PII and must be purged with their parent log.
+     */
+    private const PII_CHILD_MODELS = [
+        LogDeliveryEvent::class,
+        LogEngagementEvent::class,
     ];
 
     public function __construct()
@@ -459,13 +468,17 @@ class LogService
     }
 
     /**
-     * Delete logs; ON DELETE CASCADE removes child rows (delivery/engagement with PII).
+     * Delete logs child-first so PII rows go even on upgraded schemas lacking the FK cascade; keep parents if that fails.
      */
     public function delete(array $ids)
     {
         $ids = $this->normalizeLogIds($ids);
         if ($ids === []) {
             return true;
+        }
+
+        if (!$this->deleteChildrenOfLogs($ids)) {
+            return false;
         }
 
         $deleted = Log::whereIn('id', $ids)->delete();
@@ -490,7 +503,7 @@ class LogService
     }
 
     /**
-     * Delete logs older than the retention window using set-based DELETE to avoid unbounded PHP collection.
+     * Delete expired logs set-based and child-first (no hydration, no id list); keep parents if child cleanup fails.
      */
     public function deleteOlder()
     {
@@ -503,6 +516,10 @@ class LogService
 
         $dateToDelete = date_sub($currentDate, date_interval_create_from_date_string($logRetention . ' days'));
         $dateToDelete = date_format($dateToDelete, QueryBuilder::TIME_FORMAT);
+
+        if (!$this->deleteChildrenOfLogsOlderThan($dateToDelete)) {
+            return false;
+        }
 
         $deleted = Log::where('created_at', '<', $dateToDelete)->delete();
         if ($deleted === false) {
@@ -718,6 +735,45 @@ class LogService
     private function sanitizeSender(string $sender): string
     {
         return SenderFormatter::sanitize(wp_check_invalid_utf8($sender));
+    }
+
+    /**
+     * Delete PII child rows for the given normalized log ids via prepared WHERE IN; false on any DB error.
+     *
+     * @param array<int,int> $ids
+     */
+    private function deleteChildrenOfLogs(array $ids): bool
+    {
+        foreach (self::PII_CHILD_MODELS as $childModel) {
+            if ($childModel::whereIn('log_id', $ids)->delete() === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Delete PII child rows of logs created before the cutoff with one prepared JOIN delete per table (model-derived identifiers).
+     */
+    private function deleteChildrenOfLogsOlderThan(string $cutoff): bool
+    {
+        $logsTable = (new Log())->getTable();
+        foreach (self::PII_CHILD_MODELS as $childModel) {
+            $childTable = (new $childModel())->getTable();
+            $sql        = Connection::__callStatic('prepare', [
+                'DELETE `' . $childTable . '` FROM `' . $childTable . '` '
+                . 'INNER JOIN `' . $logsTable . '` ON `' . $childTable . '`.`log_id` = `' . $logsTable . '`.`id` '
+                . 'WHERE `' . $logsTable . '`.`created_at` < %s',
+                [$cutoff],
+            ]);
+
+            if (Connection::__callStatic('query', [$sql]) === false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

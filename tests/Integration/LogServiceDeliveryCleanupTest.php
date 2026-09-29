@@ -7,9 +7,10 @@ use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
+use BitApps\SMTP\Model\LogEngagementEvent;
 
 /**
- * Verifies delivery-event children cascade with parent logs on deletion and retention cleanup.
+ * Verifies PII child rows are removed with parent logs on deletion and retention cleanup, with or without the FK cascade.
  *
  * @internal
  *
@@ -23,12 +24,15 @@ final class LogServiceDeliveryCleanupTest extends IntegrationTestCase
 
     private string $eventsTable;
 
+    private string $engagementTable;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->logsTable   = (new Log())->getTable();
-        $this->eventsTable = (new LogDeliveryEvent())->getTable();
-        $this->truncateTables($this->eventsTable, $this->logsTable);
+        $this->logsTable       = (new Log())->getTable();
+        $this->eventsTable     = (new LogDeliveryEvent())->getTable();
+        $this->engagementTable = (new LogEngagementEvent())->getTable();
+        $this->truncateTables($this->eventsTable, $this->engagementTable, $this->logsTable);
         Config::deleteOption('log_retention');
         Config::deleteOption('log_deleted_at');
         $this->service = new LogService();
@@ -156,6 +160,73 @@ final class LogServiceDeliveryCleanupTest extends IntegrationTestCase
             $wpdb->suppress_errors($previousSuppressErrors);
             self::assertNotFalse($wpdb->query("RENAME TABLE `{$offlineTable}` TO `{$this->eventsTable}`"));
         }
+    }
+
+    public function testDeleteAndRetentionRemoveChildRowsOnAnUpgradedSchemaWithoutForeignKeys(): void
+    {
+        $restoreForeignKeys = $this->dropLogIdForeignKeys($this->eventsTable, $this->engagementTable);
+
+        try {
+            $deletedLogId = $this->createLog('Manually deleted on upgraded schema');
+            $expiredLogId = $this->createLog('Expired on upgraded schema', gmdate('Y-m-d H:i:s', time() - (DAY_IN_SECONDS * 3)));
+            $currentLogId = $this->createLog('Current on upgraded schema', gmdate('Y-m-d H:i:s', time() - HOUR_IN_SECONDS));
+            foreach ([$deletedLogId, $expiredLogId, $currentLogId] as $logId) {
+                $this->createEvent($logId, 'upgraded-' . $logId . '@example.test');
+                $this->createEngagement($logId);
+            }
+            Config::updateOption('log_retention', 1, true);
+
+            self::assertTrue($this->service->delete([$deletedLogId]));
+            self::assertNotFalse($this->service->deleteOlder());
+
+            foreach ([$deletedLogId, $expiredLogId] as $removedLogId) {
+                self::assertEmpty(Log::where('id', $removedLogId)->first());
+                self::assertSame(0, LogDeliveryEvent::where('log_id', $removedLogId)->count());
+                self::assertSame(0, LogEngagementEvent::where('log_id', $removedLogId)->count());
+            }
+            self::assertSame(1, LogDeliveryEvent::where('log_id', $currentLogId)->count());
+            self::assertSame(1, LogEngagementEvent::where('log_id', $currentLogId)->count());
+        } finally {
+            $this->truncateTables($this->eventsTable, $this->engagementTable, $this->logsTable);
+            $restoreForeignKeys();
+        }
+    }
+
+    /**
+     * Drop the log_id FK on each child table to mimic a pre-FK upgraded install; returns a restorer.
+     */
+    private function dropLogIdForeignKeys(string ...$childTables): callable
+    {
+        global $wpdb;
+        $dropped = [];
+        foreach ($childTables as $childTable) {
+            $constraint = $wpdb->get_var($wpdb->prepare(
+                'SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE'
+                . ' WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s AND REFERENCED_TABLE_NAME = %s',
+                $childTable,
+                'log_id',
+                $this->logsTable
+            ));
+            self::assertIsString($constraint, 'Fresh test schema must carry the log_id FK on ' . $childTable);
+            self::assertNotFalse($wpdb->query("ALTER TABLE `{$childTable}` DROP FOREIGN KEY `{$constraint}`"));
+            $dropped[$childTable] = $constraint;
+        }
+
+        return function () use ($dropped): void {
+            global $wpdb;
+            foreach ($dropped as $childTable => $constraint) {
+                self::assertNotFalse($wpdb->query(
+                    "ALTER TABLE `{$childTable}` ADD CONSTRAINT `{$constraint}` FOREIGN KEY (`log_id`)"
+                    . " REFERENCES `{$this->logsTable}` (`id`) ON DELETE CASCADE"
+                ));
+            }
+        };
+    }
+
+    private function createEngagement(int $logId): void
+    {
+        $this->service->recordEngagement($logId, 'click', 'https://example.test/' . $logId, false);
+        self::assertSame(1, LogEngagementEvent::where('log_id', $logId)->count());
     }
 
     private function createLog(string $subject, ?string $createdAt = null): int
