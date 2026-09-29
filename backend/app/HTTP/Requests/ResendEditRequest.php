@@ -9,7 +9,12 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
  */
 class ResendEditRequest extends Request
 {
-    public function rules()
+    /**
+     * Validation rules for an edited resend.
+     *
+     * @return array<string,string[]>
+     */
+    public function rules(): array
     {
         return [
             'id'            => ['required', 'integer'],
@@ -21,7 +26,12 @@ class ResendEditRequest extends Request
         ];
     }
 
-    public function messages()
+    /**
+     * Error messages for failed rules.
+     *
+     * @return array<string,string>
+     */
+    public function messages(): array
     {
         return [
             'id.required'            => 'A log id is required',

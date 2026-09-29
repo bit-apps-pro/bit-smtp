@@ -1593,12 +1593,6 @@ parameters:
 			path: backend/app/Mail/Providers/PhpSendmail/PhpSendmailValidator.php
 
 		-
-			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\ProviderRegistry\:\:metadata\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: backend/app/Mail/Providers/ProviderRegistry.php
-
-		-
 			message: '#^Method BitApps\\SMTP\\Mail\\Providers\\SendGrid\\SendGridProvider\:\:authConfig\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

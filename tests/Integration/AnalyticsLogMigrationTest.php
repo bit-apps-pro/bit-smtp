@@ -169,9 +169,9 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertSame('idx_connection_id_created_utc', $plan->key);
     }
 
-    public function testDbVersionConstantIsTwoPointSix(): void
+    public function testDbVersionConstantIsAtLeastTheAnalyticsSchemaVersion(): void
     {
-        $this->assertSame('2.6', Config::DB_VERSION);
+        $this->assertTrue(version_compare(Config::DB_VERSION, '2.6', '>='), 'the analytics log schema shipped at DB 2.6');
     }
 
     public function testCcAndBccColumnsAreAddedIdempotentlyAndNullable(): void
@@ -665,6 +665,9 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $this->assertSame(1, $inserted);
     }
 
+    /**
+     * Seed an orphan delivery event as a pre-FK install would hold it, bypassing the log_id foreign key.
+     */
     private function seedDeliveryEvent(int $logId, string $hashSuffix): void
     {
         $event             = new LogDeliveryEvent();
@@ -675,7 +678,9 @@ final class AnalyticsLogMigrationTest extends IntegrationTestCase
         $event->detail     = 'Provider recipient detail';
         $event->event_hash = hash('sha256', $hashSuffix);
 
-        self::assertTrue((bool) $event->save());
+        $this->withoutForeignKeyChecks(static function () use ($event): void {
+            self::assertTrue((bool) $event->save());
+        });
     }
 
     private function tableName(): string

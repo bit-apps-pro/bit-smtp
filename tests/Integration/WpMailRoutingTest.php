@@ -262,24 +262,40 @@ final class WpMailRoutingTest extends IntegrationTestCase
         return Log::desc()->get()->all();
     }
 
+    /**
+     * Swap the source detector on the bridge and its routing planner, returning the bridge's previous one.
+     */
     private function replaceSourceDetector(object $bridge, MailSourceDetector $detector): MailSourceDetector
     {
-        $property = (new ReflectionClass($bridge))->getProperty('sourceDetector');
-        $property->setAccessible(true);
-        $previous = $property->getValue($bridge);
-        $property->setValue($bridge, $detector);
+        $planner  = (new ReflectionClass($bridge))->getProperty('routingPlanner')->getValue($bridge);
+        $previous = $this->swapProperty($bridge, 'sourceDetector', $detector);
+        $this->swapProperty($planner, 'sourceDetector', $detector);
 
         return $previous;
     }
 
-    private function replaceLoggingEnabled(object $bridge, bool $enabled): bool
+    /**
+     * Set a private property via reflection and return its prior value.
+     *
+     * @param mixed $value
+     *
+     * @return mixed
+     */
+    private function swapProperty(object $target, string $name, $value)
     {
-        $property = (new ReflectionClass($bridge))->getProperty('loggingEnabled');
-        $property->setAccessible(true);
-        $previous = $property->getValue($bridge);
-        $property->setValue($bridge, $enabled);
+        $property = (new ReflectionClass($target))->getProperty($name);
+        $previous = $property->getValue($target);
+        $property->setValue($target, $value);
 
         return $previous;
+    }
+
+    /**
+     * Override the bridge's logging flag, returning its previous value.
+     */
+    private function replaceLoggingEnabled(object $bridge, bool $enabled): bool
+    {
+        return (bool) $this->swapProperty($bridge, 'loggingEnabled', $enabled);
     }
 
     private function configureNativeMailpit(): callable

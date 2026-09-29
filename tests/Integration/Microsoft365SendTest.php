@@ -158,8 +158,12 @@ final class Microsoft365SendTest extends IntegrationTestCase
     private function cachedTokenConfig(string $accessToken): array
     {
         return $this->config([
-            'settings'    => ['token_expires_at' => time() + 3600, 'tenant' => 'common'],
-            'credentials' => ['access_token' => ['source' => 'database', 'value' => $accessToken]],
+            'settings'    => ['token_expires_at' => time() + 3600, 'tenant' => 'common', 'client_id' => 'client-id-123'],
+            'credentials' => [
+                'access_token'  => ['source' => 'database', 'value' => $accessToken],
+                'refresh_token' => ['source' => 'database', 'value' => 'M.cached-refresh-token'],
+                'client_secret' => ['source' => 'database', 'value' => 'client-secret-xyz'],
+            ],
         ]);
     }
 

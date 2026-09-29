@@ -124,6 +124,24 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
+     * Runs callback with FK checks off, restoring them even on exception; tests still assert real CASCADE.
+     *
+     * @param callable(wpdb):void $callback
+     */
+    protected function withoutForeignKeyChecks(callable $callback): void
+    {
+        global $wpdb;
+
+        $wpdb->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        try {
+            $callback($wpdb);
+        } finally {
+            $wpdb->query('SET FOREIGN_KEY_CHECKS = 1');
+        }
+    }
+
+    /**
      * Precedes cascade parents with their child tables to prevent orphaned rows.
      *
      * @param array<int,string> $tables
@@ -158,23 +176,5 @@ abstract class IntegrationTestCase extends TestCase
         global $wpdb;
 
         return (string) $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
-    }
-
-    /**
-     * Runs callback with FK checks off, restoring them even on exception; tests still assert real CASCADE.
-     *
-     * @param callable(wpdb):void $callback
-     */
-    private function withoutForeignKeyChecks(callable $callback): void
-    {
-        global $wpdb;
-
-        $wpdb->query('SET FOREIGN_KEY_CHECKS = 0');
-
-        try {
-            $callback($wpdb);
-        } finally {
-            $wpdb->query('SET FOREIGN_KEY_CHECKS = 1');
-        }
     }
 }
