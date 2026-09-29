@@ -1,4 +1,4 @@
-import { type ThemeConfig } from 'antd'
+import { type MappingAlgorithm, type ThemeConfig } from 'antd'
 import { INDICATOR, type ModePalette, PRIMARY_SEED, SEMANTIC } from './palette'
 
 const fontFamily =
@@ -60,9 +60,14 @@ function accentTokens(p: ModePalette): ThemeConfig['token'] {
   }
 }
 
+/** Wraps the mode algorithm to pin the primary fill to the palette; antd's dark algorithm otherwise dims the seed. */
+function withPinnedPrimary(modeAlgorithm: MappingAlgorithm, p: ModePalette): MappingAlgorithm {
+  return seed => ({ ...modeAlgorithm(seed), colorPrimary: p.primary })
+}
+
 const indicatorOverride = { colorPrimary: INDICATOR.base, colorPrimaryHover: INDICATOR.hover }
 
-/** Component overrides: AA text for status Tags and selected Tabs, AA primary/danger Button states, and logo-blue indicators. */
+/** Component overrides: AA text for status Tags, selected Tabs and the active page, AA primary/danger Button states, and logo-blue indicators. */
 function componentOverrides(p: ModePalette): ThemeConfig['components'] {
   return {
     Switch: indicatorOverride,
@@ -72,6 +77,10 @@ function componentOverrides(p: ModePalette): ThemeConfig['components'] {
       itemSelectedColor: p.accentText,
       itemHoverColor: p.accentTextHover,
       itemActiveColor: p.accentTextActive
+    },
+    Pagination: {
+      itemActiveColor: p.accentText,
+      itemActiveColorHover: p.accentTextHover
     },
     Tag: {
       colorSuccess: p.success.text,
@@ -96,9 +105,10 @@ function componentOverrides(p: ModePalette): ThemeConfig['components'] {
   }
 }
 
-/** Builds a complete light or dark ThemeConfig from a mode palette layered over the shared seed tokens. */
-export function buildModeTheme(p: ModePalette): ThemeConfig {
+/** Builds a complete light or dark ThemeConfig from a mode palette and its antd algorithm, layered over the shared seed tokens. */
+export function buildModeTheme(p: ModePalette, modeAlgorithm: MappingAlgorithm): ThemeConfig {
   return {
+    algorithm: withPinnedPrimary(modeAlgorithm, p),
     token: {
       ...commonConfig.token,
       colorTextBase: p.textBase,

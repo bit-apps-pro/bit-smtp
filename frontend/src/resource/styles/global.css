@@ -3,7 +3,7 @@
 /* Vars for legacy .css/.module.css files that can't reach antd's ConfigProvider tokens; values mirror config/themes/palette.ts and follow the [data-theme] attribute ThemeProvider sets. */
 :root {
   --font-family: 'Roboto', sans-serif;
-  --accent-color: #0b76da;
+  --accent-color: #0b71d0;
   --bg: #fff;
   --bg-layout: #f3f6fa;
   --bg-5: #eef2f7;
@@ -108,42 +108,4 @@ a:focus {
 
 textarea {
   width: 400px !important;
-}
-
-/*--Ant-Popup Confirm--*/
-
-.telemetry-popconfirm .ant-popover-content .ant-popover-inner {
-  width: 450px;
-}
-
-.telemetry-popconfirm .ant-popconfirm-buttons {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 15px;
-  flex-flow: row-reverse;
-}
-
-.telemetry-popconfirm .ant-popconfirm-buttons .ant-btn-default {
-  background: #1677ff;
-  box-shadow: none;
-  border-color: transparent !important;
-  color: white;
-}
-
-.telemetry-popconfirm .ant-popconfirm-buttons .ant-btn-default:hover {
-  background: #4096ff !important;
-  color: #fff !important;
-  border-color: none;
-}
-
-.telemetry-popconfirm .ant-popconfirm-buttons .ant-btn-primary {
-  background: none;
-  border: none;
-  box-shadow: none;
-  color: #776d6d;
-}
-
-.telemetry-popconfirm .ant-popconfirm-buttons .ant-btn-primary:hover {
-  background: none !important;
-  color: #534e4e !important;
 }

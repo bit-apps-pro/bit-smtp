@@ -1,5 +1,5 @@
 import { type DeliveryStatusKey } from '@common/glossary'
-import { SEMANTIC } from '@config/themes/palette'
+import { type StatusMarks, modePalette } from '@config/themes/palette'
 
 /** Dataviz categorical palette opening on the logo-blue hue; the order is the CVD-safety mechanism (validated adjacent-pair ΔE ≥ 8 in both modes), never reassigned. */
 export const CATEGORICAL_LIGHT = [
@@ -25,50 +25,52 @@ export const CATEGORICAL_DARK = [
 ] as const
 
 const BLUE = 0
-const AQUA = 2
-const RED = 7
 
 /** Brand-tinted neutral ink for aggregate series (totals) so they read as context, not as another category. */
 const INK = { light: '#4a5a70', dark: '#a9b8cc' } as const
 
-/** Reserved status scale sharing the theme's semantic seeds - fixed meaning, always paired with an icon + label. */
-export const STATUS = {
-  good: SEMANTIC.success,
-  warning: SEMANTIC.warning,
-  serious: SEMANTIC.serious,
-  critical: SEMANTIC.error
-} as const
+export type StatusKey = keyof StatusMarks
 
-export type StatusKey = keyof typeof STATUS
+/** Vermilion for the Failed series: >=3:1 on the surface and >=10 ΔE from the teal Delivered series under protan/deutan. */
+const FAILED_SERIES = { light: '#c8481c', dark: '#e8692c' } as const
 
-/** The de-emphasis / "Other" gray, brand-tinted - a residual bucket, never a categorical identity slot (same in both modes). */
-export const OTHER_GRAY = '#8a95a5'
+/** Dash pattern for the Failed series, a shape cue so it never relies on color alone. */
+export const FAILED_SERIES_DASH = '6 4'
 
-/** Fixed identity colors for the volume-over-time metrics: neutral total, then blue/aqua/red (all-pairs CVD-validated trio). */
+/** The de-emphasis / "Other" gray, brand-tinted - a residual bucket, never a categorical identity slot; darker in dark mode to stay apart from the teal good mark under deutan. */
+const OTHER_GRAY = { light: '#8a95a5', dark: '#6b778a' } as const
+
+/** The "Other" gray for the active mode (>=3:1 on the card surface). */
+export function otherGray(isDark: boolean): string {
+  return OTHER_GRAY[isDark ? 'dark' : 'light']
+}
+
+/** Fixed identity colors for the volume-over-time metrics: neutral total, brand blue, teal delivered, vermilion failed (all-pairs CVD-validated). */
 export function volumeSeriesColors(isDark: boolean) {
-  const c = isDark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT
+  const mode = isDark ? 'dark' : 'light'
   return {
-    total: isDark ? INK.dark : INK.light,
-    accepted: c[BLUE],
-    delivered: c[AQUA],
-    failed: c[RED]
+    total: INK[mode],
+    accepted: (isDark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT)[BLUE],
+    delivered: modePalette(isDark).statusMark.good,
+    failed: FAILED_SERIES[mode]
   }
 }
 
 /** Reserved status color for each delivery-breakdown row; blocked and spam share "serious" by design. */
-export function deliveryStatusColor(row: DeliveryStatusKey): string {
+export function deliveryStatusColor(row: DeliveryStatusKey, isDark: boolean): string {
+  const status = modePalette(isDark).statusMark
   switch (row) {
     case 'delivered':
-      return STATUS.good
+      return status.good
     case 'deferred':
-      return STATUS.warning
+      return status.warning
     case 'bounced':
-      return STATUS.critical
+      return status.critical
     case 'blocked':
     case 'spam':
-      return STATUS.serious
+      return status.serious
     default:
-      return OTHER_GRAY
+      return otherGray(isDark)
   }
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { type DeliveryStatusKey, deliveryStatusEntry } from '@common/glossary'
 import { __ } from '@common/helpers/i18nwrap'
+import { useTheme } from '@config/themes/theme.provider'
 import { formatExactNumber, formatPercent } from '@pages/Analytics/format'
 import { type LogsFilter, cleanLogsFilter } from '@pages/Analytics/logsFilter'
 import { deliveryStatusColor } from '@pages/Analytics/palette'
@@ -41,7 +42,7 @@ interface BreakdownRow {
 }
 
 /** `delivery.delayed` is the API field name for what the product calls "Deferred" everywhere else. */
-function rowsFrom(delivery: DeliveryStats): Array<BreakdownRow> {
+function rowsFrom(delivery: DeliveryStats, isDark: boolean): Array<BreakdownRow> {
   const values: Record<Row, number> = {
     delivered: delivery.delivered,
     deferred: delivery.delayed,
@@ -55,7 +56,7 @@ function rowsFrom(delivery: DeliveryStats): Array<BreakdownRow> {
     key,
     label: deliveryStatusEntry(key).label,
     value: values[key],
-    color: deliveryStatusColor(key)
+    color: deliveryStatusColor(key, isDark)
   }))
 }
 
@@ -87,10 +88,11 @@ interface DeliveryBreakdownProps {
   dateTo: string
 }
 
-/** Horizontal bars, reserved status colors, icon/dot + label mitigate the sub-3:1 warning/serious hues. */
+/** Horizontal bars in reserved per-mode status colors, each paired with a dot + label so identity never rests on color alone. */
 export default function DeliveryBreakdown({ delivery, dateFrom, dateTo }: DeliveryBreakdownProps) {
   const { token } = theme.useToken()
-  const rows = rowsFrom(delivery)
+  const { isDark } = useTheme()
+  const rows = rowsFrom(delivery, isDark)
   const max = Math.max(1, ...rows.map(row => row.value))
   const [detail, setDetail] = useState<DetailState | null>(null)
 

@@ -1,7 +1,6 @@
 import type React from 'react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { type ThemeConfig } from 'antd'
-import { ConfigProvider, theme } from 'antd'
+import { ConfigProvider } from 'antd'
 import darkTheme from './theme.dark'
 import lightTheme from './theme.light'
 
@@ -58,14 +57,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={contextValue}>
-      <ConfigProvider
-        theme={{
-          ...(appliedTheme as ThemeConfig),
-          algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm
-        }}
-      >
-        {children}
-      </ConfigProvider>
+      <ConfigProvider theme={appliedTheme}>{children}</ConfigProvider>
     </ThemeContext.Provider>
   )
 }

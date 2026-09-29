@@ -1,9 +1,11 @@
 import { type CSSProperties } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
+import { modePalette } from '@config/themes/palette'
+import { useTheme } from '@config/themes/theme.provider'
 import { type Direction, describeObservation } from '@pages/Analytics/anomalies'
 import { type StatusKey } from '@pages/Analytics/palette'
 import { type Anomalies } from '@pages/Analytics/types'
-import { Flex, Tag, Typography, theme } from 'antd'
+import { Flex, Tag, type TagProps, Typography, theme } from 'antd'
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, Info } from 'lucide-react'
 import cls from './AnomaliesList.module.css'
 import ChartCard from './ChartCard'
@@ -19,11 +21,23 @@ const SEVERITY_ICON: Record<StatusKey, typeof AlertTriangle> = {
 }
 
 /** Themed Tag preset per severity, so the pill text meets AA on its tint instead of white-on-hex. */
-const SEVERITY_TAG: Record<StatusKey, string> = {
+const SEVERITY_PRESET: Record<Exclude<StatusKey, 'serious'>, string> = {
   good: 'success',
   warning: 'warning',
-  serious: 'volcano',
   critical: 'error'
+}
+
+const PILL_STYLE: CSSProperties = { width: 'fit-content' }
+
+/** Tag color props for a severity: an antd status preset, or the palette's serious surface, which antd has no preset for. */
+function severityTagProps(
+  severity: StatusKey | null,
+  isDark: boolean
+): Pick<TagProps, 'color' | 'style'> {
+  if (severity === null) return { style: PILL_STYLE }
+  if (severity !== 'serious') return { color: SEVERITY_PRESET[severity], style: PILL_STYLE }
+  const { bg, border, text } = modePalette(isDark).serious
+  return { style: { ...PILL_STYLE, background: bg, borderColor: border, color: text } }
 }
 
 const SEVERITY_LABEL: Record<StatusKey, string> = {
@@ -45,6 +59,7 @@ type CardVars = CSSProperties & Record<`--card-${string}`, string>
 /** Current-vs-prior-period observations as cards: direction arrow + label, severity icon+label (never color alone). */
 export default function AnomaliesList({ anomalies }: { anomalies: Anomalies }) {
   const { token } = theme.useToken()
+  const { isDark } = useTheme()
   const cardVars: CardVars = { '--card-border': token.colorBorderSecondary }
 
   if (!anomalies.comparison_coverage.complete) {
@@ -85,8 +100,8 @@ export default function AnomaliesList({ anomalies }: { anomalies: Anomalies }) {
           const described = describeObservation(observation)
           const DirectionIcon = directionIcon(described.direction)
           const SeverityIcon = described.severity ? SEVERITY_ICON[described.severity] : Info
-          const severityColor = described.severity ? SEVERITY_TAG[described.severity] : undefined
           const severityLabel = described.severity ? SEVERITY_LABEL[described.severity] : __('Info')
+          const severityTag = severityTagProps(described.severity, isDark)
 
           return (
             // eslint-disable-next-line react/no-array-index-key
@@ -104,8 +119,8 @@ export default function AnomaliesList({ anomalies }: { anomalies: Anomalies }) {
               </Text>
               <Tag
                 icon={<SeverityIcon size={12} style={{ marginRight: 2 }} />}
-                color={severityColor}
-                style={{ width: 'fit-content' }}
+                color={severityTag.color}
+                style={severityTag.style}
               >
                 {severityLabel}
               </Tag>

@@ -2,6 +2,8 @@ import { type CSSProperties, type ReactNode, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { __ } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
+import { modePalette } from '@config/themes/palette'
+import { useTheme } from '@config/themes/theme.provider'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import TabLabel, { StatusDot } from '@pages/Settings/components/TabLabel'
@@ -92,6 +94,7 @@ function toTabItem({ key, icon, label, enabled, content }: SectionDefinition) {
 /** Global settings screen: one Save action spanning the preferences and mail-settings alerts stores. */
 export default function SettingsPage() {
   const { token } = theme.useToken()
+  const { isDark } = useTheme()
   const [prefsForm] = Form.useForm<PreferencesFormValues>()
   const [alertsForm] = Form.useForm<NotificationFormValues>()
   const [isSaving, setIsSaving] = useState(false)
@@ -277,7 +280,7 @@ export default function SettingsPage() {
           <Flex align="center" gap="middle">
             {isDirty && (
               <Flex align="center" gap={8}>
-                <StatusDot active activeColor={token.colorWarning} />
+                <StatusDot active activeColor={modePalette(isDark).statusMark.warning} />
                 <Text>{__('You have unsaved changes')}</Text>
               </Flex>
             )}

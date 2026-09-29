@@ -120,7 +120,7 @@ button.check {
 .media-modal textarea:focus,
 .media-modal select:focus {
   border-color: var(--accent-color) !important;
-  box-shadow: 0 0 0 0 var(--accent-color), 0 0 0 4px rgba(11, 118, 218, 16%) !important;
+  box-shadow: 0 0 0 0 var(--accent-color), 0 0 0 4px rgba(11, 113, 208, 16%) !important;
 }
 
 input[type='checkbox']:disabled:checked::before,

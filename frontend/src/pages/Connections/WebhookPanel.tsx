@@ -46,7 +46,7 @@ function WebhookHealth({
     case 'registered':
       return verified ? (
         <>
-          <Text style={{ display: 'block', color: token.colorSuccess }}>
+          <Text style={{ display: 'block', color: token.colorSuccessText }}>
             {__('✓ Working — delivery updates are arriving')}
           </Text>
           {lastEventAt ? (
@@ -56,7 +56,7 @@ function WebhookHealth({
           ) : null}
         </>
       ) : (
-        <Text style={{ color: token.colorWarning }}>
+        <Text style={{ color: token.colorWarningText }}>
           {__('Set up — waiting for the first delivery update')}
         </Text>
       )
@@ -96,7 +96,7 @@ function WebhookHealth({
       )
     default:
       return (
-        <Text style={{ color: verified ? token.colorSuccess : token.colorWarning }}>
+        <Text style={{ color: verified ? token.colorSuccessText : token.colorWarningText }}>
           {verified
             ? __('✓ Working — delivery updates are arriving')
             : __('Waiting for the first delivery update')}

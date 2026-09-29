@@ -4,7 +4,7 @@ import { useTheme } from '@config/themes/theme.provider'
 import { formatExactNumber, formatPercent } from '@pages/Analytics/format'
 import usePrefersReducedMotion from '@pages/Analytics/hooks/usePrefersReducedMotion'
 import { type LogsFilter, cleanLogsFilter } from '@pages/Analytics/logsFilter'
-import { volumeSeriesColors } from '@pages/Analytics/palette'
+import { FAILED_SERIES_DASH, volumeSeriesColors } from '@pages/Analytics/palette'
 import { type SeriesBucket } from '@pages/Analytics/types'
 import { METRICS, METRICS_LEGEND } from '@pages/Analytics/vocabulary'
 import { Typography, theme } from 'antd'
@@ -29,6 +29,7 @@ interface SeriesDef {
   key: 'total' | 'accepted' | 'delivered' | 'failed'
   name: string
   color: string
+  dash?: string
 }
 
 interface VolumeSeriesColors {
@@ -92,7 +93,7 @@ interface VolumeChartProps {
   dateTo: string
 }
 
-/** Volume-over-time: total/accepted/delivered/failed as 2px lines on one shared axis, per dataviz marks. */
+/** Volume-over-time: total/accepted/delivered/failed as 2px lines on one shared axis, Failed dashed as a non-color cue. */
 export default function VolumeChart({ series, dateFrom, dateTo }: VolumeChartProps) {
   const { token } = theme.useToken()
   const { isDark } = useTheme()
@@ -104,7 +105,7 @@ export default function VolumeChart({ series, dateFrom, dateTo }: VolumeChartPro
     { key: 'total', name: METRICS.total.label, color: colors.total },
     { key: 'accepted', name: METRICS.sent.label, color: colors.accepted },
     { key: 'delivered', name: METRICS.delivered.label, color: colors.delivered },
-    { key: 'failed', name: METRICS.failed.label, color: colors.failed }
+    { key: 'failed', name: METRICS.failed.label, color: colors.failed, dash: FAILED_SERIES_DASH }
   ]
 
   const last = series[series.length - 1]
@@ -152,6 +153,7 @@ export default function VolumeChart({ series, dateFrom, dateTo }: VolumeChartPro
               dataKey={def.key}
               name={def.name}
               stroke={def.color}
+              strokeDasharray={def.dash}
               strokeWidth={2}
               strokeLinecap="round"
               strokeLinejoin="round"

@@ -3,7 +3,7 @@ import { __ } from '@common/helpers/i18nwrap'
 import { useTheme } from '@config/themes/theme.provider'
 import { formatExactNumber } from '@pages/Analytics/format'
 import { type LogsFilter, cleanLogsFilter } from '@pages/Analytics/logsFilter'
-import { OTHER_GRAY, rankingHue } from '@pages/Analytics/palette'
+import { otherGray, rankingHue } from '@pages/Analytics/palette'
 import { type DimensionGroup } from '@pages/Analytics/types'
 import { Flex, Typography, theme } from 'antd'
 import ChartCard from './ChartCard'
@@ -168,7 +168,7 @@ export default function TopList({
                   style={{
                     width: `${(row.total / max) * 100}%`,
                     height: '100%',
-                    background: row.isOther ? OTHER_GRAY : hue,
+                    background: row.isOther ? otherGray(isDark) : hue,
                     borderRadius: '0 4px 4px 0'
                   }}
                 />
