@@ -6,6 +6,9 @@ import { Form } from 'antd'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import PrivacyData from './PrivacyData'
 
+vi.mock('@common/helpers/request', () => ({
+  default: vi.fn().mockResolvedValue({ status: 'success', data: { answered: true, allowed: false } })
+}))
 vi.mock('@pages/Settings/data/usePreferences', () => ({
   useExportPreferences: vi.fn(),
   useImportPreferences: vi.fn()

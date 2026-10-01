@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { __ } from '@common/helpers/i18nwrap'
 import { OnboardingChecklist } from '@components/Onboarding'
+import { TelemetryConsentModal } from '@components/TelemetryConsent'
 import { Layout as AntLayout, Flex, Typography, theme } from 'antd'
 import Header from './Header'
 import useWpSubmenuHighlight from './useWpSubmenuHighlight'
@@ -24,7 +25,7 @@ function Footer() {
   )
 }
 
-/** App shell: header, first-run checklist on Connections, the routed page, and a footer. */
+/** App shell: header, first-run checklist on Connections, the routed page, a footer and the one-time sharing question. */
 function Layout() {
   const { token } = theme.useToken()
   const { pathname } = useLocation()
@@ -55,6 +56,7 @@ function Layout() {
         <Outlet />
       </div>
       <Footer />
+      <TelemetryConsentModal />
     </AntLayout>
   )
 }

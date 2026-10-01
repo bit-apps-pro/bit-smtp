@@ -71,4 +71,27 @@ describe('Layout shell', () => {
     expect(screen.getByText('Other page')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Get started with Bit SMTP' })).not.toBeInTheDocument()
   })
+
+  it('asks the one-time sharing question from the shell on any page', async () => {
+    vi.mocked(request).mockImplementation((async ({ action }: { action: string }) =>
+      action === 'telemetry/status'
+        ? {
+            status: 'success',
+            code: 'SUCCESS',
+            message: undefined,
+            data: { answered: false, allowed: false }
+          }
+        : {
+            status: 'success',
+            code: 'SUCCESS',
+            message: undefined,
+            data: { settings: { connections: [], features: {} } }
+          }) as never)
+
+    renderShellAt('#/logs')
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Help us make Bit SMTP better?' })
+    ).toBeInTheDocument()
+  })
 })

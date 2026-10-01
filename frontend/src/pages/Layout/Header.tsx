@@ -86,7 +86,7 @@ export default function Header() {
       }}
     >
       <div className={cls.bar} style={{ borderBottom: `${token.colorBorder} 0.5px solid` }}>
-        <Flex className={cls.brand} align="center" aria-label="Bit SMTP" role="img">
+        <Flex className={cls.brand} align="center" aria-label="Bit SMTP" role="img" gap={6}>
           <LogoIcon size={44} />
           <LogoText h={44} w={120} />
         </Flex>

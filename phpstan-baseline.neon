@@ -206,36 +206,6 @@ parameters:
 			path: backend/app/HTTP/Controllers/SMTPController.php
 
 		-
-			message: '#^Access to an undefined property BitApps\\SMTP\\Deps\\BitApps\\WPKit\\Http\\Request\\Request\:\:\$isChecked\.$#'
-			identifier: property.notFound
-			count: 1
-			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
-
-		-
-			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\TelemetryPopupController\:\:filterTrackingData\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
-
-		-
-			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\TelemetryPopupController\:\:filterTrackingData\(\) has parameter \$additional_data with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
-
-		-
-			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\TelemetryPopupController\:\:handleTelemetryPermission\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
-
-		-
-			message: '#^Method BitApps\\SMTP\\HTTP\\Controllers\\TelemetryPopupController\:\:isPopupDisabled\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: backend/app/HTTP/Controllers/TelemetryPopupController.php
-
-		-
 			message: '#^Method BitApps\\SMTP\\HTTP\\Middleware\\CapabilityCheckerMiddleware\:\:handle\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -342,13 +312,6 @@ parameters:
 			identifier: missingType.return
 			count: 1
 			path: backend/app/HTTP/Requests/MailTestRequest.php
-
-		-
-			message: '#^Method BitApps\\SMTP\\HTTP\\Requests\\TelemetryAccessRequest\:\:rules\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: backend/app/HTTP/Requests/TelemetryAccessRequest.php
-
 
 		-
 			message: '#^Method BitApps\\SMTP\\HTTP\\Services\\LogService\:\:all\(\) has no return type specified\.$#'

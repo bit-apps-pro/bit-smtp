@@ -17,7 +17,7 @@ use BitApps\SMTP\HTTP\Controllers\PreferencesController;
 use BitApps\SMTP\HTTP\Controllers\ProviderController;
 use BitApps\SMTP\HTTP\Controllers\RetryController;
 use BitApps\SMTP\HTTP\Controllers\SMTPController;
-use BitApps\SMTP\HTTP\Controllers\TelemetryPopupController;
+use BitApps\SMTP\HTTP\Controllers\TelemetryController;
 
 Route::group(function () {
     Route::post('mail/config/save', [SMTPController::class, 'saveMailConfig']);
@@ -26,8 +26,8 @@ Route::group(function () {
     Route::post('mail/resend', [SMTPController::class, 'resend']);
     Route::post('mail/resend-edit', [SMTPController::class, 'resendEdit']);
 
-    Route::post('telemetry/handle-permission', [TelemetryPopupController::class, 'handleTelemetryPermission']);
-    Route::get('telemetry/popup-status', [TelemetryPopupController::class, 'isPopupDisabled']);
+    Route::get('telemetry/status', [TelemetryController::class, 'status']);
+    Route::post('telemetry/consent', [TelemetryController::class, 'saveConsent']);
 
     Route::post('logs/all', [LogController::class, 'all']);
     Route::post('logs/export', [LogController::class, 'export']);

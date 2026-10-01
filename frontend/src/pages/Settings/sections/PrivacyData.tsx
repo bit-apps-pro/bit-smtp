@@ -7,6 +7,7 @@ import SettingsPanel, { PanelDivider } from '@pages/Settings/components/Settings
 import { useExportPreferences, useImportPreferences } from '@pages/Settings/data/usePreferences'
 import { Button, Flex, Form, Popconfirm, Switch, Typography } from 'antd'
 import { Download, Upload } from 'lucide-react'
+import UsageSharingField from './UsageSharingField'
 
 const { Text } = Typography
 const EXPORT_FILENAME = 'bit-smtp-preferences.json'
@@ -115,6 +116,8 @@ export default function PrivacyData() {
       >
         <Switch />
       </HelpfulFormItem>
+      <PanelDivider />
+      <UsageSharingField />
       <PanelDivider />
       <Flex gap="small" wrap>
         <Button
