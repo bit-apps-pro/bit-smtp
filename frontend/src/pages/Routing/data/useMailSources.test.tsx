@@ -13,13 +13,14 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('useMailSources', () => {
-  it('GETs mail/routing/sources and returns the detected source list', async () => {
+  it('GETs mail/routing/sources and splits seen senders from other installed plugins', async () => {
     ;(request as Mock).mockResolvedValue({
       status: 'success',
       code: 'SUCCESS',
       message: undefined,
       data: {
-        sources: [{ value: 'woocommerce', label: 'WooCommerce' }]
+        sources: [{ value: 'woocommerce', label: 'WooCommerce' }],
+        installed: [{ value: 'bit-crm', label: 'Bit CRM' }]
       }
     })
 
@@ -28,7 +29,9 @@ describe('useMailSources', () => {
     await waitFor(() => expect(result.current.isPending).toBe(false))
 
     expect(request).toHaveBeenCalledWith({ action: 'mail/routing/sources', method: 'GET' })
-    expect(result.current.data?.[0]?.value).toBe('woocommerce')
-    expect(result.current.data?.[0]?.label).toBe('WooCommerce')
+    expect(result.current.data).toEqual({
+      seen: [{ value: 'woocommerce', label: 'WooCommerce' }],
+      installed: [{ value: 'bit-crm', label: 'Bit CRM' }]
+    })
   })
 })

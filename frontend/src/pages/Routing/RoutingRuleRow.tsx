@@ -9,7 +9,7 @@ import { type Connection } from '@pages/Connections/types'
 import {
   type EditableRoutingCondition,
   type EditableRoutingRule,
-  type MailSource
+  type MailSourceCatalog
 } from '@pages/Routing/types'
 import { Alert, Button, Card, Flex, Popconfirm, Select, Typography, theme } from 'antd'
 import ConditionEditor from './ConditionEditor'
@@ -43,7 +43,7 @@ export default function RoutingRuleRow({
 }: {
   rule: EditableRoutingRule
   connections: Connection[]
-  sources: MailSource[]
+  sources: MailSourceCatalog
   priority?: number
   onChange: (rule: EditableRoutingRule) => void
   onRemove: () => void

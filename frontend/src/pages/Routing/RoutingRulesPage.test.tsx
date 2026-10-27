@@ -96,7 +96,9 @@ describe('RoutingRulesPage', () => {
     capturedItems.current = []
     ;(useMailSettings as Mock).mockReturnValue({ data: settings, isPending: false })
     ;(useUpdateSettings as Mock).mockReturnValue({ mutate: updateSettingsMutate, isPending: false })
-    ;(useMailSources as Mock).mockReturnValue({ data: [{ value: 'woocommerce', label: 'WooCommerce' }] })
+    ;(useMailSources as Mock).mockReturnValue({
+      data: { seen: [{ value: 'woocommerce', label: 'WooCommerce' }], installed: [] }
+    })
   })
 
   it('shows a loading spinner while settings are pending', () => {

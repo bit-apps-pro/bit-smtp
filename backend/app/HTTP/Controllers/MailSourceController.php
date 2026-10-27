@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\HTTP\Controllers;
 
+use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
 use BitApps\SMTP\Mail\Routing\MailSourceLabeler;
@@ -23,7 +24,7 @@ class MailSourceController
     }
 
     /**
-     * Returns detected source plugins as { sources: [{ value: <slug>, label: <name> }] }.
+     * Returns { sources, installed }: plugins seen sending mail, then other installed plugins, as { value, label }.
      */
     public function index(): Response
     {
@@ -32,7 +33,13 @@ class MailSourceController
             return Response::error(__('Failed to load mail sources', 'bit-smtp'));
         }
 
-        return Response::success(['sources' => (new MailSourceLabeler())->options($slugs)]);
+        $labeler = new MailSourceLabeler();
+        $ownSlug = \dirname(Config::get('BASENAME'));
+
+        return Response::success([
+            'sources'   => $labeler->options($slugs),
+            'installed' => $labeler->installed([...$slugs, $ownSlug]),
+        ]);
     }
 
     /**

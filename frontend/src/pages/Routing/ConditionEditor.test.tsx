@@ -1,4 +1,4 @@
-import { type EditableRoutingCondition, type MailSource } from '@pages/Routing/types'
+import { type EditableRoutingCondition, type MailSourceCatalog } from '@pages/Routing/types'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -11,10 +11,13 @@ const condition: EditableRoutingCondition = {
   value: 'a@b.com'
 }
 
-const sources: MailSource[] = [
-  { value: 'woocommerce', label: 'WooCommerce' },
-  { value: 'bit-form', label: 'Bit Form' }
-]
+const sources: MailSourceCatalog = {
+  seen: [
+    { value: 'woocommerce', label: 'WooCommerce' },
+    { value: 'bit-form', label: 'Bit Form' }
+  ],
+  installed: []
+}
 
 describe('ConditionEditor', () => {
   it('renders the field, operator and value bound to the condition', () => {
@@ -96,6 +99,29 @@ describe('ConditionEditor', () => {
 
     expect(await screen.findByTitle('WooCommerce (woocommerce)')).toBeInTheDocument()
     expect(screen.getByTitle('Bit Form (bit-form)')).toBeInTheDocument()
+  })
+
+  it('offers installed plugins that have not sent mail yet under their own group', async () => {
+    const sourceCondition: EditableRoutingCondition = {
+      id: 'condition-2',
+      field: 'source_plugin',
+      operator: 'equals',
+      value: ''
+    }
+    render(
+      <ConditionEditor
+        condition={sourceCondition}
+        sources={{ ...sources, installed: [{ value: 'bit-crm', label: 'Bit CRM' }] }}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Value' }))
+
+    expect(await screen.findByText('Has sent mail')).toBeInTheDocument()
+    expect(screen.getByText('Other installed plugins')).toBeInTheDocument()
+    expect(screen.getByTitle('Bit CRM (bit-crm)')).toBeInTheDocument()
   })
 
   it('emits the plugin slug when a source is picked from the autocomplete', async () => {

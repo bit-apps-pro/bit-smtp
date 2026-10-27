@@ -5,6 +5,7 @@ import { type HelpDetails, HelpPopover, IconButton } from '@components/FieldHelp
 import {
   type EditableRoutingCondition,
   type MailSource,
+  type MailSourceCatalog,
   type RoutingField,
   type RoutingOperator
 } from '@pages/Routing/types'
@@ -93,12 +94,20 @@ function matchesSource(input: string, option?: { value?: string; label?: unknown
   )
 }
 
-/** Source options labelled "Friendly name (slug)" so the stored slug stays visible. */
-function sourceOptions(sources: MailSource[]): MailSource[] {
-  return sources.map(source => ({
+/** Labels a source "Friendly name (slug)" so the stored slug stays visible. */
+function labelWithSlug(source: MailSource): MailSource {
+  return {
     value: source.value,
     label: source.label === source.value ? source.label : `${source.label} (${source.value})`
-  }))
+  }
+}
+
+/** Grouped picker options: plugins seen sending mail first, then other installed plugins; empty groups dropped. */
+function sourceOptions({ seen, installed }: MailSourceCatalog) {
+  return [
+    { label: __('Has sent mail'), options: seen.map(labelWithSlug) },
+    { label: __('Other installed plugins'), options: installed.map(labelWithSlug) }
+  ].filter(group => group.options.length > 0)
 }
 
 /** One match condition row: field, operator, and value inputs, plus remove. */
@@ -109,7 +118,7 @@ export default function ConditionEditor({
   onRemove
 }: {
   condition: EditableRoutingCondition
-  sources: MailSource[]
+  sources: MailSourceCatalog
   onChange: (condition: EditableRoutingCondition) => void
   onRemove: () => void
 }) {

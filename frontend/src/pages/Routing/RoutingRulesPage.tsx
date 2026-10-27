@@ -24,11 +24,13 @@ import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type MailSettings } from '@pages/Connections/types'
 import useMailSources from '@pages/Routing/data/useMailSources'
 import { readRoutingRules, sameStoredRules, toStoredRules } from '@pages/Routing/routingRules'
-import { type EditableRoutingRule, type MailSource } from '@pages/Routing/types'
+import { type EditableRoutingRule, type MailSourceCatalog } from '@pages/Routing/types'
 import { Button, Flex, Modal, Spin, Typography, theme } from 'antd'
 import RoutingRuleRow from './RoutingRuleRow'
 
 const { Title, Text } = Typography
+
+const EMPTY_SOURCES: MailSourceCatalog = { seen: [], installed: [] }
 
 let nextRuleId = 0
 /** Client-side-only id for a newly added rule or condition. */
@@ -97,7 +99,7 @@ function SortableRuleRow({
 }: {
   rule: EditableRoutingRule
   connections: MailSettings['connections']
-  sources: MailSource[]
+  sources: MailSourceCatalog
   priority: number
   onChange: (rule: EditableRoutingRule) => void
   onRemove: () => void
@@ -261,7 +263,7 @@ export default function RoutingRulesPage() {
                     key={rule.id}
                     rule={rule}
                     connections={settings.connections}
-                    sources={sources ?? []}
+                    sources={sources ?? EMPTY_SOURCES}
                     priority={index + 1}
                     onChange={updated => updateRule(index, updated)}
                     onRemove={() => removeRule(index)}

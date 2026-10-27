@@ -46,4 +46,41 @@ class MailSourceLabelerTest extends BaseUnitTestCase
 
         self::assertSame([['value' => 'no-name', 'label' => 'no-name']], $labeler->options(['no-name']));
     }
+
+    public function testInstalledListsFolderPluginsSortedByLabelWithoutExcludedSlugs(): void
+    {
+        $labeler = new MailSourceLabeler([
+            'woocommerce/woocommerce.php' => ['Name' => 'WooCommerce'],
+            'bit-crm/bit-crm.php'         => ['Name' => 'Bit CRM'],
+            'bit-smtp/bit_smtp.php'       => ['Name' => 'Bit SMTP'],
+            'bit-form/bit-form.php'       => ['Name' => 'Bit Form'],
+            'akismet/akismet.php'         => ['Name' => 'akismet Anti-spam'],
+        ]);
+
+        self::assertSame([
+            ['value' => 'akismet', 'label' => 'akismet Anti-spam'],
+            ['value' => 'bit-crm', 'label' => 'Bit CRM'],
+            ['value' => 'woocommerce', 'label' => 'WooCommerce'],
+        ], $labeler->installed(['bit-smtp', 'bit-form']));
+    }
+
+    public function testInstalledSkipsSingleFilePluginsTheDetectorCannotAttribute(): void
+    {
+        $labeler = new MailSourceLabeler([
+            'hello.php'           => ['Name' => 'Hello Dolly'],
+            'bit-crm/bit-crm.php' => ['Name' => 'Bit CRM'],
+        ]);
+
+        self::assertSame([['value' => 'bit-crm', 'label' => 'Bit CRM']], $labeler->installed([]));
+    }
+
+    public function testInstalledListsAMultiFilePluginDirectoryOnce(): void
+    {
+        $labeler = new MailSourceLabeler([
+            'bit-pi/bit-pi.php'     => ['Name' => 'Bit Flows'],
+            'bit-pi/bit-pi-pro.php' => ['Name' => 'Bit Flows Pro'],
+        ]);
+
+        self::assertSame([['value' => 'bit-pi', 'label' => 'Bit Flows']], $labeler->installed([]));
+    }
 }

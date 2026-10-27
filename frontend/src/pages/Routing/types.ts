@@ -4,6 +4,12 @@ export interface MailSource {
   label: string
 }
 
+/** Source picker options: plugins already seen sending mail, then other installed plugins. */
+export interface MailSourceCatalog {
+  seen: MailSource[]
+  installed: MailSource[]
+}
+
 export type RoutingField = 'recipient' | 'from' | 'subject' | 'source_plugin'
 export type RoutingOperator = 'equals' | 'contains' | 'domain' | 'matches'
 

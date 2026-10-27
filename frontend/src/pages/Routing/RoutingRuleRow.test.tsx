@@ -1,5 +1,5 @@
 import { type Connection } from '@pages/Connections/types'
-import { type EditableRoutingRule, type MailSource } from '@pages/Routing/types'
+import { type EditableRoutingRule, type MailSourceCatalog } from '@pages/Routing/types'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -38,7 +38,10 @@ const rule: EditableRoutingRule = {
   conditions: [{ id: 'condition-1', field: 'recipient', operator: 'equals', value: 'a@b.com' }]
 }
 
-const sources: MailSource[] = [{ value: 'woocommerce', label: 'WooCommerce' }]
+const sources: MailSourceCatalog = {
+  seen: [{ value: 'woocommerce', label: 'WooCommerce' }],
+  installed: []
+}
 
 describe('RoutingRuleRow', () => {
   it('renders the target connection and one ConditionEditor per condition', () => {

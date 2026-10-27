@@ -37,7 +37,22 @@ final class MailSourceLabeler
     }
 
     /**
-     * Indexes get_plugins() by the plugin directory slug MailSourceDetector emits.
+     * Picker options for every installed folder plugin not in $exclude, sorted by label.
+     *
+     * @param array<int,string> $exclude slugs to leave out (already-seen sources, this plugin)
+     *
+     * @return array<int,array{value:string,label:string}>
+     */
+    public function installed(array $exclude): array
+    {
+        $options = $this->options(array_keys(array_diff_key($this->directory, array_flip($exclude))));
+        usort($options, static fn (array $a, array $b): int => strnatcasecmp($a['label'], $b['label']));
+
+        return $options;
+    }
+
+    /**
+     * Indexes folder plugins by the directory slug MailSourceDetector emits; single-file plugins are unattributable.
      *
      * @param array<string,array<string,mixed>> $plugins
      *
@@ -48,8 +63,12 @@ final class MailSourceLabeler
         $directory = [];
         foreach ($plugins as $file => $data) {
             $slash = strpos($file, '/');
-            $dir   = $slash === false ? $file : substr($file, 0, $slash);
-            $name  = isset($data['Name']) && $data['Name'] !== '' ? (string) $data['Name'] : $dir;
+            if ($slash === false) {
+                continue;
+            }
+
+            $dir  = substr($file, 0, $slash);
+            $name = isset($data['Name']) && $data['Name'] !== '' ? (string) $data['Name'] : $dir;
 
             if (!isset($directory[$dir])) {
                 $directory[$dir] = $name;

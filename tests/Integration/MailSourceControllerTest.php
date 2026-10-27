@@ -57,6 +57,26 @@ final class MailSourceControllerTest extends IntegrationTestCase
         }
     }
 
+    public function testControllerListsInstalledPluginsExceptSeenSourcesAndItself(): void
+    {
+        $installed = array_values(array_unique(array_map(
+            static fn (string $file): string => \dirname($file),
+            array_filter(array_keys(get_plugins()), static fn (string $file): bool => str_contains($file, '/'))
+        )));
+        $seen = array_values(array_diff($installed, ['bit-smtp']))[0] ?? null;
+        if ($seen === null) {
+            self::markTestSkipped('Needs at least one installed plugin besides Bit SMTP.');
+        }
+        $this->seed($seen);
+
+        (new MailSourceController(new MailAnalyticsRepository()))->index();
+        $values = array_column(((array) Response::getData())['installed'], 'value');
+
+        self::assertNotContains($seen, $values);
+        self::assertNotContains('bit-smtp', $values);
+        self::assertEqualsCanonicalizing(array_values(array_diff($installed, [$seen, 'bit-smtp'])), $values);
+    }
+
     public function testRoutingSourcesRouteIsRegisteredUnderTheAdminGuardedApi(): void
     {
         if (!\defined('REST_REQUEST')) {
