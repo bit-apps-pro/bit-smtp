@@ -17,7 +17,10 @@ const CONNECTIONS = [
   { id: 'conn_1', name: 'Primary SMTP' },
   { id: 'conn_2', name: 'Backup SMTP' }
 ]
-const SOURCES = [{ value: 'woocommerce', label: 'WooCommerce' }]
+const SOURCES = {
+  seen: [{ value: 'woocommerce', label: 'WooCommerce' }],
+  installed: [{ value: 'bit-crm', label: 'Bit CRM' }]
+}
 
 /** Selects an antd combobox option by its accessible combobox name and the option's visible text. */
 async function selectOption(

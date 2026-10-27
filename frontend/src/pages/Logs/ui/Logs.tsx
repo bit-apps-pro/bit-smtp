@@ -10,6 +10,7 @@ import useFetchLogs from '@pages/Logs/data/useFetchLogs'
 import useResendLogs from '@pages/Logs/data/useResendLogs'
 import useMailSources from '@pages/Routing/data/useMailSources'
 import {
+  type Breakpoint,
   Button,
   Card,
   DatePicker,
@@ -60,7 +61,9 @@ const FILTER_CHIP_KEYS = [
 type FilterChipKey = (typeof FILTER_CHIP_KEYS)[number]
 type DateRangeValue = [Dayjs, Dayjs] | null
 
-const FILTER_CONTROL_WIDTH = 180
+/** Fluid filter widths: grow to fill each wrapped row, stack full-width on phones. */
+const FILTER_CONTROL_STYLE = { flex: '1 1 160px', minWidth: 0 }
+const DATE_RANGE_STYLE = { flex: '2 1 280px', minWidth: 0 }
 const MAX_CHIP_ID_LENGTH = 12
 
 /** Send-result filter options; the backend maps these to its internal success/error log status. */
@@ -134,32 +137,56 @@ function renderRetries(retryCount: number) {
   )
 }
 
+/**
+ * Minimum viewport breakpoint at which each lower-priority column appears, keyed by column key;
+ * an unlisted column always shows. antd breakpoints: xs <576, sm ≥576, md ≥768, lg ≥992, xl ≥1200, xxl ≥1600.
+ */
+const COLUMN_BREAKPOINTS: Record<string, Breakpoint[]> = {
+  retry_count: ['xxl'],
+  to_addr: ['xxl'],
+  connection: ['xl'],
+  subject: ['md']
+}
+
+/** Narrowest the table may shrink to before it scrolls inside its card instead of crushing Subject. */
+const TABLE_MIN_WIDTH = 720
+
+/** Attaches each column's responsive breakpoints so narrow screens keep only the columns that matter most. */
+function withBreakpoints(cols: TableColumnsType<LogType>): TableColumnsType<LogType> {
+  return cols.map(column => ({ ...column, responsive: COLUMN_BREAKPOINTS[String(column.key)] }))
+}
+
 const columns: TableColumnsType<LogType> = [
   {
     title: <LegendTitle label={__('Result')} entries={Object.values(SEND_RESULTS)} />,
     key: 'result',
+    width: 120,
     render: (_, record) => <SendResultTag log={record} />
   },
   {
     title: <LegendTitle label={__('Delivery')} entries={Object.values(DELIVERY_STATUSES)} />,
     key: 'delivery',
+    width: 150,
     render: (_, record) => renderDelivery(record)
   },
   {
     title: __('Connection'),
     dataIndex: 'connection',
     key: 'connection',
+    width: 160,
+    ellipsis: true,
     render: (connection: string | null) => connection || '—'
   },
-  { title: __('Subject'), dataIndex: 'subject', key: 'subject' },
-  { title: __('To'), dataIndex: 'to_addr', key: 'to_addr' },
+  { title: __('Subject'), dataIndex: 'subject', key: 'subject', ellipsis: true },
+  { title: __('To'), dataIndex: 'to_addr', key: 'to_addr', width: 220, ellipsis: true },
   {
     title: __('Retries'),
     dataIndex: 'retry_count',
     key: 'retry_count',
+    width: 80,
     render: (retryCount: number) => renderRetries(retryCount)
   },
-  { title: __('Sent at'), dataIndex: 'created_at', key: 'created_at' }
+  { title: __('Sent at'), dataIndex: 'created_at', key: 'created_at', width: 160 }
 ]
 
 /** Logs list page: filterable, paginated log table with export, confirmed resend/delete, and logging status. */
@@ -187,17 +214,21 @@ export default function Logs() {
     value: connection.id,
     label: connection.name
   }))
-  const sourceOptions = (mailSources ?? []).map(source => ({ value: source.value, label: source.label }))
+  const sourceOptions = (mailSources?.seen ?? []).map(source => ({
+    value: source.value,
+    label: source.label
+  }))
   const connectionNameById = labelLookup(connectionOptions)
   const sourceLabelByValue = labelLookup(sourceOptions)
 
   const tableColumns = useMemo<TableColumnsType<LogType>>(() => {
     if (!trackingEnabled) {
-      return columns
+      return withBreakpoints(columns)
     }
     const trackingColumn: TableColumnsType<LogType>[number] = {
       title: __('Tracking'),
       key: 'tracking',
+      width: 120,
       render: (_, record) => {
         if (!record.opened && !record.clicked) {
           return <Text type="secondary">—</Text>
@@ -210,7 +241,7 @@ export default function Logs() {
         )
       }
     }
-    return [...columns.slice(0, -1), trackingColumn, ...columns.slice(-1)]
+    return withBreakpoints([...columns.slice(0, -1), trackingColumn, ...columns.slice(-1)])
   }, [trackingEnabled])
 
   /** Removes a filter param from the URL without touching unrelated params or pushing a history entry. */
@@ -422,10 +453,10 @@ export default function Logs() {
             value={toAddrInput}
             onChange={handleToAddrChange}
             allowClear
-            style={{ width: 260 }}
+            style={{ flex: '1 1 220px', maxWidth: 320 }}
             enterButton={false}
           />
-          <Flex align="center" gap="small">
+          <Flex align="center" gap="small" wrap>
             <Button icon={<Download size={16} />} onClick={handleExport} loading={exportLogs.isPending}>
               {__('Export CSV')}
             </Button>
@@ -440,7 +471,7 @@ export default function Logs() {
             allowClear
             value={query.status}
             options={SEND_STATUS_OPTIONS}
-            style={{ width: FILTER_CONTROL_WIDTH }}
+            style={FILTER_CONTROL_STYLE}
             onChange={value => setFilterParam('status', value)}
           />
           <Select
@@ -449,7 +480,7 @@ export default function Logs() {
             allowClear
             value={query.delivery_status}
             options={DELIVERY_STATUS_OPTIONS}
-            style={{ width: FILTER_CONTROL_WIDTH }}
+            style={FILTER_CONTROL_STYLE}
             onChange={value => setFilterParam('delivery_status', value)}
           />
           <Select
@@ -461,7 +492,7 @@ export default function Logs() {
             loading={isConnectionsLoading}
             value={query.connection_id}
             options={connectionOptions}
-            style={{ width: FILTER_CONTROL_WIDTH }}
+            style={FILTER_CONTROL_STYLE}
             onChange={value => setFilterParam('connection_id', value)}
           />
           <Select
@@ -473,7 +504,7 @@ export default function Logs() {
             loading={isSourcesLoading}
             value={query.source_plugin}
             options={sourceOptions}
-            style={{ width: FILTER_CONTROL_WIDTH }}
+            style={FILTER_CONTROL_STYLE}
             onChange={value => setFilterParam('source_plugin', value)}
           />
           <RangePicker
@@ -481,7 +512,7 @@ export default function Logs() {
             allowClear
             value={dateRangeValue}
             onChange={handleDateRangeChange}
-            style={{ width: FILTER_CONTROL_WIDTH * 1.6 }}
+            style={DATE_RANGE_STYLE}
           />
         </Flex>
 
@@ -545,6 +576,7 @@ export default function Logs() {
           columns={tableColumns}
           rowSelection={rowSelection}
           dataSource={logs}
+          scroll={{ x: TABLE_MIN_WIDTH }}
           onRow={onRowClick}
           loading={isLoading || isLogsFetching}
           locale={{

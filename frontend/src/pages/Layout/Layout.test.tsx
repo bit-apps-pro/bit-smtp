@@ -47,6 +47,18 @@ describe('Layout shell', () => {
     ).toEqual(['Connections', 'Routing', 'Logs', 'Analytics', 'Test email', 'Settings'])
   })
 
+  it.each([
+    ['#/logs/42', 'Logs'],
+    ['#/connection/edit/abc', 'Connections'],
+    ['#/', 'Connections']
+  ])('highlights the owning section for %s', (hash, section) => {
+    renderShellAt(hash)
+
+    const nav = screen.getByRole('navigation', { name: 'Bit SMTP sections' })
+    const selected = nav.querySelectorAll('.ant-menu-item-selected')
+    expect([...selected].map(item => item.textContent)).toEqual([section])
+  })
+
   it('moves the cross-promo page to a footer link', () => {
     renderShellAt('#/')
 

@@ -1,21 +1,19 @@
-import { type CSSProperties, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { MoonOutlined, SunOutlined } from '@ant-design/icons'
+import { DownOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
-import useHorizontalOverflow from '@common/hooks/useHorizontalOverflow'
 import { IconButton } from '@components/FieldHelp'
 import { useTheme } from '@config/themes/theme.provider'
 import LogoIcon from '@icons/LogoIcon'
 import LogoText from '@icons/LogoText'
-import { Layout as AntLayout, Flex, theme } from 'antd'
+import { Layout as AntLayout, Flex, Menu, theme } from 'antd'
 import cls from './Layout.module.css'
 
-type NavVars = CSSProperties & Record<`--nav-${string}`, string>
+const ROOT_PATH = '/'
 
 /** Primary nav in setup order: connect, route, observe, test, configure. */
 function navItems() {
   return [
-    { label: __('Connections'), path: '/' },
+    { label: __('Connections'), path: ROOT_PATH },
     { label: __('Routing'), path: '/routing' },
     { label: __('Logs'), path: '/logs' },
     { label: __('Analytics'), path: '/analytics' },
@@ -24,48 +22,42 @@ function navItems() {
   ]
 }
 
-/** Primary nav links; scrolls sideways on narrow screens with edge fades and keeps the current page in view. */
-function PrimaryNav() {
-  const { pathname } = useLocation()
-  const { token } = theme.useToken()
-  const { ref, overflowStart, overflowEnd } = useHorizontalOverflow<HTMLElement>()
-  const isConnectionSubpage = pathname.startsWith('/connection')
-
-  useEffect(() => {
-    ref.current
-      ?.querySelector<HTMLElement>(`.${cls.navLinkActive}`)
-      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
-  }, [pathname, ref])
-
-  const navStyle: NavVars = {
-    '--nav-inactive-color': token.colorTextSecondary,
-    '--nav-hover-color': token.colorText,
-    '--nav-active-color': token.colorPrimaryText,
-    '--nav-underline': `linear-gradient(90deg, ${token.colorPrimary}, ${token.colorInfo})`
+/** Nav path owning the current route: section subpages light their parent, connection subpages light Connections. */
+function activeNavPath(pathname: string): string {
+  if (pathname === ROOT_PATH || pathname.startsWith('/connection')) {
+    return ROOT_PATH
   }
 
+  const match = navItems().find(
+    item => item.path !== ROOT_PATH && (pathname === item.path || pathname.startsWith(`${item.path}/`))
+  )
+  return match?.path ?? ''
+}
+
+/** Primary nav; links that don't fit the header width collapse into a "More" menu instead of scrolling. */
+function PrimaryNav() {
+  const { pathname } = useLocation()
+
   return (
-    <nav
-      ref={ref}
-      className={cls.nav}
-      style={navStyle}
-      data-overflow-start={overflowStart}
-      data-overflow-end={overflowEnd}
-      aria-label={__('Bit SMTP sections')}
-    >
-      {navItems().map(item => (
-        <NavLink
-          key={item.path}
-          to={item.path}
-          end={item.path === '/'}
-          className={({ isActive }) => {
-            const active = item.path === '/' ? isActive || isConnectionSubpage : isActive
-            return `${cls.navLink} ${active ? cls.navLinkActive : ''}`.trim()
-          }}
-        >
-          {item.label}
-        </NavLink>
-      ))}
+    <nav className={cls.nav} aria-label={__('Bit SMTP sections')}>
+      <Menu
+        mode="horizontal"
+        className={cls.navMenu}
+        selectedKeys={[activeNavPath(pathname)]}
+        overflowedIndicator={
+          <span>
+            {__('More')} <DownOutlined />
+          </span>
+        }
+        items={navItems().map(item => ({
+          key: item.path,
+          label: (
+            <NavLink to={item.path} end={item.path === ROOT_PATH}>
+              {item.label}
+            </NavLink>
+          )
+        }))}
+      />
     </nav>
   )
 }
