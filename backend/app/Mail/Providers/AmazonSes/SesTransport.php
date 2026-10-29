@@ -25,6 +25,7 @@ class SesTransport extends AbstractApiTransport
     protected function endpoint(Connection $connection): string
     {
         return \sprintf(
+            // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- SES API endpoint, not an asset.
             'https://email.%s.amazonaws.com/v2/email/outbound-emails',
             (string) $connection->setting('region', '')
         );

@@ -15,6 +15,23 @@ describe('sprintf', () => {
   it('fills every placeholder in order without wp-i18n', () => {
     expect(sprintf('%s of %s', '1', '2')).toBe('1 of 2')
   })
+
+  it('fills positional placeholders when wp-i18n is loaded', () => {
+    vi.stubGlobal('wp', { i18n: {} })
+
+    expect(sprintf('%2$d of %1$d', 10, 3)).toBe('3 of 10')
+  })
+
+  it('fills positional placeholders without wp-i18n', () => {
+    expect(sprintf('%2$d of %1$d', 10, 3)).toBe('3 of 10')
+    expect(sprintf('%1$s, health details for %2$s', 'Healthy', 'Brevo')).toBe(
+      'Healthy, health details for Brevo'
+    )
+  })
+
+  it('leaves a placeholder untouched when its value is missing', () => {
+    expect(sprintf('%1$d to %2$d', 5)).toBe('5 to %2$d')
+  })
 })
 
 describe('_n', () => {

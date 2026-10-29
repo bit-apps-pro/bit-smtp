@@ -7,6 +7,7 @@ namespace BitApps\SMTP\HTTP\OAuth;
 use BitApps\SMTP\Config;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\Router;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Router\StaticRouter;
+use BitApps\SMTP\HTTP\ServerRequest;
 use Closure;
 use UnexpectedValueException;
 
@@ -55,17 +56,19 @@ final class OAuthCallbackRouter
         add_action('template_redirect', [$this, 'dispatch'], 10);
     }
 
+    /**
+     * Serve the OAuth callback through the static router when the request targets its path.
+     */
     public function dispatch(): void
     {
         $hasRequestUri = \array_key_exists('REQUEST_URI', $_SERVER);
-        $requestUri    = $_SERVER['REQUEST_URI'] ?? null;
-        $routerUri     = self::staticRouterUri(\is_string($requestUri) ? $requestUri : null);
+        $routerUri     = self::staticRouterUri(ServerRequest::path() ?? '');
 
         if (!self::isCallbackPath($routerUri)) {
             return;
         }
 
-        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+        if (ServerRequest::method() !== 'GET') {
             status_header(405);
             ($this->terminate)();
 
@@ -73,6 +76,8 @@ final class OAuthCallbackRouter
         }
 
         status_header(200);
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized,WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Saved only to restore verbatim below.
+        $requestUri             = $_SERVER['REQUEST_URI'] ?? null;
         $_SERVER['REQUEST_URI'] = $routerUri;
 
         try {
@@ -97,9 +102,11 @@ final class OAuthCallbackRouter
         return \is_string($path) ? $path : '';
     }
 
-    private static function staticRouterUri(?string $requestUri): string
+    /**
+     * Request path relative to the site's home path, as the static router expects it.
+     */
+    private static function staticRouterUri(string $path): string
     {
-        $path     = self::pathOnlyUri($requestUri);
         $homePath = rtrim(self::pathOnlyUri(home_url('/')), '/');
 
         if ($homePath === '') {

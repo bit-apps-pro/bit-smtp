@@ -14,12 +14,6 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Utils\Capabilities;
  */
 class Layout
 {
-    public const FONT_URL = 'https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap';
-
-    private const FONT_CSS_HOST = 'https://fonts.googleapis.com';
-
-    private const FONT_FILE_HOST = 'https://fonts.gstatic.com';
-
     public function __construct()
     {
         Hooks::addAction('in_admin_header', [$this, 'RemoveAdminNotices']);
@@ -68,14 +62,11 @@ class Layout
         $version = Config::VERSION;
         $slug    = Config::SLUG;
 
-        Hooks::addFilter('wp_resource_hints', [$this, 'fontResourceHints'], 10, 2);
-        wp_enqueue_style('font', self::FONT_URL, [], $version);
-
         if (Config::isDev()) {
-            wp_enqueue_script($slug . '-MODULE-vite-client-helper', Config::devUrl() . '/config/devHotModule.js', [], null);
-            wp_enqueue_script($slug . '-MODULE-index', Config::devUrl() . '/main.tsx', [], null);
+            wp_enqueue_script($slug . '-MODULE-vite-client-helper', Config::devUrl() . '/config/devHotModule.js', [], $version, false);
+            wp_enqueue_script($slug . '-MODULE-index', Config::devUrl() . '/main.tsx', [], $version, false);
         } else {
-            wp_enqueue_script($slug . '-MODULE-index', Config::get('ASSET_URI') . '/main.' . Config::VERSION . '.js', [], $version);
+            wp_enqueue_script($slug . '-MODULE-index', Config::get('ASSET_URI') . '/main.' . Config::VERSION . '.js', [], $version, false);
             wp_enqueue_style($slug . '-styles', Config::get('ASSET_URI') . '/main.' . Config::VERSION . '.css', null, $version, 'screen');
         }
 
@@ -107,26 +98,6 @@ class Layout
     }
 
     /**
-     * Adds preconnect hints for the Google Fonts hosts; font files are fetched with CORS, so that host needs crossorigin.
-     *
-     * @param array<int, array<string, string>|string> $urls         resource hints collected so far
-     * @param string                                   $relationType hint relation, e.g. "preconnect"
-     *
-     * @return array<int, array<string, string>|string>
-     */
-    public function fontResourceHints($urls, $relationType)
-    {
-        if ($relationType !== 'preconnect') {
-            return $urls;
-        }
-
-        $urls[] = ['href' => self::FONT_CSS_HOST];
-        $urls[] = ['href' => self::FONT_FILE_HOST, 'crossorigin' => 'anonymous'];
-
-        return $urls;
-    }
-
-    /**
      * Modify script tags.
      *
      * @param string $html   script tag
@@ -145,9 +116,13 @@ class Layout
         return $newTag;
     }
 
+    /**
+     * Build the filtered config object handed to the admin app, including translations when available.
+     */
     public function createConfigVariable()
     {
         $frontendVars = apply_filters(
+            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Prefixed by Config::withPrefix().
             Config::withPrefix('localized_script'),
             [
                 'nonce'         => wp_create_nonce('wp_rest'),
@@ -167,8 +142,10 @@ class Layout
             ]
         );
         if (get_locale() !== 'en_US' && file_exists(Config::get('BASEDIR') . '/languages/generatedString.php')) {
-            include_once Config::get('BASEDIR') . '/languages/generatedString.php';
-            $frontendVars['translations'] = $i18n_strings;
+            $translations = include Config::get('BASEDIR') . '/languages/generatedString.php';
+            if (\is_array($translations)) {
+                $frontendVars['translations'] = $translations;
+            }
         }
 
         return $frontendVars;

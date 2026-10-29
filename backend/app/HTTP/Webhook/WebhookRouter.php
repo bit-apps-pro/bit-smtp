@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\HTTP\Webhook;
 
 use BitApps\SMTP\HTTP\Controllers\WebhookController;
+use BitApps\SMTP\HTTP\ServerRequest;
 use BitApps\SMTP\Mail\Webhook\WebhookRequest;
 
 /**
@@ -49,23 +50,19 @@ final class WebhookRouter
      */
     public function match(): void
     {
-        $path     = wp_parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
         $homePath = wp_parse_url(home_url('/', 'relative'), PHP_URL_PATH);
-        $matched  = self::parse(
-            \is_string($path) ? $path : null,
-            \is_string($homePath) ? $homePath : '/'
-        );
+        $matched  = self::parse(ServerRequest::path(), \is_string($homePath) ? $homePath : '/');
         if ($matched === null) {
             return;
         }
 
-        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        if (ServerRequest::method() !== 'POST') {
             status_header(405);
 
             exit;
         }
 
-        if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > self::MAX_BODY_BYTES) {
+        if (ServerRequest::contentLength() > self::MAX_BODY_BYTES) {
             status_header(413);
 
             exit;

@@ -7,7 +7,7 @@ use BitApps\SMTP\Views\Layout;
 use ReflectionClass;
 
 /**
- * Pins the Google Fonts connection hints the admin page emits instead of fake stylesheet links.
+ * Pins how the admin page marks its Vite bundles as ES modules.
  *
  * @internal
  *
@@ -16,28 +16,23 @@ use ReflectionClass;
 final class LayoutTest extends BaseUnitTestCase
 {
     /**
-     * Preconnects to both font hosts, the file host with CORS so the font fetch can reuse it.
+     * Adds type="module" to the plugin's own module script tags.
      */
-    public function testAddsPreconnectHintsForFontHosts(): void
+    public function testMarksPluginModuleScriptsAsModules(): void
     {
-        $hints = $this->layout()->fontResourceHints(['https://example.test'], 'preconnect');
+        $tag = $this->layout()->scriptTagFilter('<script src="main.js"></script>', 'bit-smtp-MODULE-index', 'main.js');
 
-        self::assertSame(
-            [
-                'https://example.test',
-                ['href' => 'https://fonts.googleapis.com'],
-                ['href' => 'https://fonts.gstatic.com', 'crossorigin' => 'anonymous'],
-            ],
-            $hints
-        );
+        self::assertSame('<script type="module" src="main.js"></script>', $tag);
     }
 
     /**
-     * Leaves every other hint relation untouched.
+     * Leaves every other script tag untouched.
      */
-    public function testLeavesOtherRelationTypesUnchanged(): void
+    public function testLeavesOtherScriptTagsUnchanged(): void
     {
-        self::assertSame(['https://example.test'], $this->layout()->fontResourceHints(['https://example.test'], 'dns-prefetch'));
+        $tag = '<script src="jquery.js"></script>';
+
+        self::assertSame($tag, $this->layout()->scriptTagFilter($tag, 'jquery', 'jquery.js'));
     }
 
     /**

@@ -7,6 +7,7 @@ use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Mail\Exceptions\CredentialCipherException;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Model\RetryQueueEntry;
+use BitApps\SMTP\Support\DebugLog;
 use InvalidArgumentException;
 
 /**
@@ -189,8 +190,7 @@ class RetryQueue
             ];
         } catch (CredentialCipherException | InvalidArgumentException $e) {
             $this->delete((int) $row['id']);
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- degrade gracefully per row
-            error_log('Bit SMTP: retry queue row ' . $row['id'] . ' could not be decoded, deleted.');
+            DebugLog::error('retry queue row ' . $row['id'] . ' could not be decoded, deleted.');
 
             return null;
         }

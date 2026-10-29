@@ -55,7 +55,7 @@ export default function GeneralLogging({ form }: { form: FormInstance<Preference
           name="log_retention_days"
           label={__('Keep logs for (days)')}
           hint={sprintf(
-            __('Older logs are deleted automatically. Choose %d to %d days.'),
+            __('Older logs are deleted automatically. Choose %1$d to %2$d days.'),
             RETENTION_MIN,
             RETENTION_MAX
           )}
@@ -65,7 +65,7 @@ export default function GeneralLogging({ form }: { form: FormInstance<Preference
               required: true,
               min: RETENTION_MIN,
               max: RETENTION_MAX,
-              message: sprintf(__('Enter %d to %d days.'), RETENTION_MIN, RETENTION_MAX)
+              message: sprintf(__('Enter %1$d to %2$d days.'), RETENTION_MIN, RETENTION_MAX)
             }
           ]}
         >

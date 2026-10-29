@@ -22,6 +22,7 @@ use BitApps\SMTP\Mail\Health\ConnectionHealthStore;
 use BitApps\SMTP\Mail\Notifications\AlertDeliveryStatus;
 use BitApps\SMTP\Mail\Webhook\WebhookAdapterFactory;
 use BitApps\SMTP\Plugin;
+use BitApps\SMTP\Support\DebugLog;
 use Throwable;
 
 /**
@@ -512,8 +513,7 @@ class MailConfigService
         try {
             Plugin::instance()->app()->make(ConnectionHealthStore::class)->delete($id);
         } catch (Throwable $e) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without failing the delete
-            error_log('Bit SMTP: failed to clear connection health on delete: ' . $e->getMessage());
+            DebugLog::write('failed to clear connection health on delete: ' . $e->getMessage());
         }
     }
 
@@ -525,8 +525,7 @@ class MailConfigService
         try {
             Plugin::instance()->webhookProvisioningService()->deregisterFor($connection);
         } catch (Throwable $e) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without failing the delete
-            error_log('Bit SMTP: failed to deregister connection webhook on delete: ' . $e->getMessage());
+            DebugLog::write('failed to deregister connection webhook on delete: ' . $e->getMessage());
         }
     }
 
@@ -677,8 +676,7 @@ class MailConfigService
         try {
             return CredentialCipher::decrypt($value);
         } catch (CredentialCipherException $e) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface a lost credential without fataling the request
-            error_log('Bit SMTP: ' . $e->getMessage());
+            DebugLog::error($e->getMessage());
 
             return '';
         }

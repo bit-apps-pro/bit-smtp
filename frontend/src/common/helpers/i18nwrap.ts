@@ -26,15 +26,24 @@ const __ = (text: string, domain = 'bitapp') => localTranslation(text) ?? i18n_(
 const _n = (single: string, plural: string, count: number, domain = 'bitapp') =>
   localTranslation(count === 1 ? single : plural) ?? i18nN(single, plural, count, domain)
 
+const PLACEHOLDER_PATTERN = /%(?:(\d+)\$)?[sducoxXbgGeEfF]/g
+
+/** Minimal sprintf for when wp-i18n is unavailable: fills sequential (%s) and positional (%1$s) placeholders. */
+const fallbackSprintf = (text: string, vars: any[]) => {
+  let nextIndex = 0
+  return text.replace(PLACEHOLDER_PATTERN, (placeholder: string, position?: string) => {
+    const index = position ? Number(position) - 1 : nextIndex
+    if (!position) {
+      nextIndex += 1
+    }
+    return index >= 0 && index < vars.length ? String(vars[index]) : placeholder
+  })
+}
+
 /** sprintf-style interpolation with typeof guard to prevent ReferenceError when wp-i18n is unavailable. */
 const sprintf = (text: string, ...vars: any) => {
   if (typeof wp === 'undefined' || !wp?.i18n) {
-    const matches: any = text.match(/%[s d u c o x X bg G e E f F]/g)
-    let str = text
-    vars.map((val: any, idx: number) => {
-      str = str.replace(matches[idx], val)
-    })
-    return str
+    return fallbackSprintf(text, vars)
   }
   return i18nsprintf(text, ...vars)
 }

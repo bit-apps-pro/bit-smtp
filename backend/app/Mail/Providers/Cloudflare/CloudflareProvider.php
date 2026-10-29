@@ -38,6 +38,7 @@ final class CloudflareProvider extends DescriptorProvider
                     'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                     'help'        => [
                         'text'      => __('The 32-character ID on your Cloudflare account home page.', 'bit-smtp'),
+                        // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Documentation link, not an asset.
                         'url'       => 'https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/',
                         'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                     ],
@@ -47,6 +48,7 @@ final class CloudflareProvider extends DescriptorProvider
                     'placeholder' => '', 'default' => '', 'options' => [], 'dependsOn' => null,
                     'help'        => [
                         'text'      => __('Create one under My Profile > API Tokens with the Email Sending permission.', 'bit-smtp'),
+                        // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Documentation link, not an asset.
                         'url'       => 'https://developers.cloudflare.com/fundamentals/api/get-started/create-token/',
                         'linkLabel' => __('Where do I find this?', 'bit-smtp'),
                     ],
@@ -82,6 +84,7 @@ final class CloudflareProvider extends DescriptorProvider
             'guide'           => ProviderGuide::make(
                 group: ProviderGuide::GROUP_TRANSACTIONAL,
                 bestFor: __('Sites whose domain is already on Cloudflare.', 'bit-smtp'),
+                // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Documentation link, not an asset.
                 docUrl: 'https://developers.cloudflare.com/email-service/',
                 fromEmailHint: __('Must be on a domain onboarded to Cloudflare Email Sending.', 'bit-smtp'),
                 prerequisites: [
@@ -89,12 +92,14 @@ final class CloudflareProvider extends DescriptorProvider
                         'onboard_domain',
                         __('Onboard your sending domain', 'bit-smtp'),
                         __('Turn on Email Sending for your domain in the Cloudflare dashboard.', 'bit-smtp'),
+                        // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Documentation link, not an asset.
                         'https://developers.cloudflare.com/email-service/get-started/send-emails/'
                     ),
                     ProviderGuide::step(
                         'api_token',
                         __('Create an API token', 'bit-smtp'),
                         __('Give it the Email Sending: Edit permission, then copy the token right away.', 'bit-smtp'),
+                        // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Documentation link, not an asset.
                         'https://developers.cloudflare.com/fundamentals/api/get-started/create-token/'
                     ),
                 ],

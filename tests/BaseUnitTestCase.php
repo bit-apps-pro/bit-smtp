@@ -25,6 +25,9 @@ abstract class BaseUnitTestCase extends TestCase
         Functions\when('wp_parse_url')->alias(static fn (...$args) => parse_url(...$args));
         Functions\when('sanitize_text_field')->alias(static fn ($string) => trim(strip_tags((string) $string)));
         Functions\when('wp_strip_all_tags')->alias(static fn ($string) => strip_tags((string) $string));
+        Functions\when('wp_unslash')->alias(static fn ($value) => \is_string($value) ? stripslashes($value) : $value);
+        Functions\when('sanitize_url')->returnArg(1);
+        Functions\when('absint')->alias(static fn ($value) => abs((int) $value));
     }
 
     protected function tearDown(): void

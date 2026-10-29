@@ -10,6 +10,7 @@ use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Providers\ProviderRegistry;
 use BitApps\SMTP\Mail\Providers\WebhookProvisionerFactory;
 use BitApps\SMTP\Mail\Webhook\WebhookUrl;
+use BitApps\SMTP\Support\DebugLog;
 use RuntimeException;
 use Throwable;
 
@@ -111,8 +112,7 @@ final class WebhookProvisioningService
                 $provisioner->deregister($connection);
             }
         } catch (Throwable $e) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without blocking the delete
-            error_log('Bit SMTP: webhook deregister failed: ' . $this->redact($e->getMessage(), $connection));
+            DebugLog::write('webhook deregister failed: ' . $this->redact($e->getMessage(), $connection));
         }
     }
 
@@ -174,8 +174,7 @@ final class WebhookProvisioningService
      */
     private function warning(Connection $connection, Throwable $e): array
     {
-        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- best-effort provisioning: record the failure without failing the save
-        error_log('Bit SMTP webhook auto-provision failed: ' . $this->redact($e->getMessage(), $connection));
+        DebugLog::write('webhook auto-provision failed: ' . $this->redact($e->getMessage(), $connection));
 
         return [
             'status'  => 'warning',

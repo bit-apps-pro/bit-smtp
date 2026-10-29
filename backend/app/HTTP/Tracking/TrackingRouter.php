@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\HTTP\Tracking;
 
+use BitApps\SMTP\HTTP\ServerRequest;
 use BitApps\SMTP\Mail\Tracking\ClickTracker;
 use BitApps\SMTP\Mail\Tracking\OpenTracker;
 use BitApps\SMTP\Mail\Tracking\TrackingRoutes;
@@ -67,17 +68,13 @@ final class TrackingRouter
      */
     public function match(): void
     {
-        $path     = wp_parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
         $homePath = wp_parse_url(home_url('/', 'relative'), PHP_URL_PATH);
-        $matched  = self::parse(
-            \is_string($path) ? $path : null,
-            \is_string($homePath) ? $homePath : '/'
-        );
+        $matched  = self::parse(ServerRequest::path(), \is_string($homePath) ? $homePath : '/');
         if ($matched === null) {
             return;
         }
 
-        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+        if (ServerRequest::method() !== 'GET') {
             status_header(405);
 
             exit;
@@ -98,34 +95,32 @@ final class TrackingRouter
             ? (new ClickTracker())->handle($token, $this->clientSignals())
             : ClickTracker::destination($token);
 
+        // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- Destination is HMAC-verified (TokenSigner).
         wp_redirect($destination ?? home_url('/'));
 
         exit;
     }
 
     /**
-     * Raw client signals used only to classify a fire as human vs automated.
+     * Client signals used only to classify a fire as human vs automated.
      *
      * @return array{ip: string|null, user_agent: string}
      */
     private function clientSignals(): array
     {
-        $ip = $_SERVER['REMOTE_ADDR']     ?? null;
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-
         return [
-            'ip'         => \is_string($ip) ? $ip : null,
-            'user_agent' => \is_string($ua) ? $ua : '',
+            'ip'         => ServerRequest::clientIp(),
+            'user_agent' => ServerRequest::userAgent(),
         ];
     }
 
     /**
-     * Check if connecting IP has exceeded write budget; bucket on hashed REMOTE_ADDR (not forwarded headers).
+     * Check if the client IP has exceeded its write budget; bucket on the hashed, validated IP.
      */
     private function throttled(): bool
     {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-        if (!\is_string($ip) || $ip === '') {
+        $ip = ServerRequest::clientIp();
+        if ($ip === null) {
             return false;
         }
 
@@ -152,6 +147,7 @@ final class TrackingRouter
         header('Content-Length: ' . \strlen($gif));
         header('Cache-Control: no-store, no-cache, must-revalidate, private');
         header('Pragma: no-cache');
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Constant 1x1 GIF binary, not HTML.
         echo $gif;
 
         exit;

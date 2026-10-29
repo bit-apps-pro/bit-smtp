@@ -192,6 +192,7 @@ class OAuthController
     {
         $connection = $this->config()->connectionById($connectionId);
         if ($connection === null || $provider !== $connection->getProvider()) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Enumerated reason code; message is never output.
             throw OAuthCallbackException::because(OAuthFailureReason::CONNECTION_NOT_FOUND);
         }
 
@@ -209,10 +210,12 @@ class OAuthController
 
         $body = $response->getBody();
         if (!$response->isOk() || !\is_array($body) || empty($body['access_token'])) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Enumerated reason code; message is never output.
             throw OAuthCallbackException::because(OAuthFailureReason::fromTokenResponse($body));
         }
 
         if (!$this->config()->saveOAuthGrant($this->withTokens($connection, $body))) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Enumerated reason code; message is never output.
             throw OAuthCallbackException::because(OAuthFailureReason::SAVE_FAILED);
         }
     }

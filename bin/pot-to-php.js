@@ -14,9 +14,12 @@ const TAB = '    '
 const NEWLINE = '\n'
 const args = process.argv.slice(2)
 const fileHeader =
-  ['<?php', '/* THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY. */', '$i18n_strings = array('].join(
-    NEWLINE
-  ) + NEWLINE
+  [
+    '<?php',
+    '/* THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY. */',
+    "defined('ABSPATH') || exit;",
+    'return array('
+  ].join(NEWLINE) + NEWLINE
 
 const fileFooter =
   NEWLINE + [');', '/* THIS IS THE END OF THE GENERATED FILE */'].join(NEWLINE) + NEWLINE

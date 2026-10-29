@@ -4,10 +4,17 @@ declare(strict_types=1);
 
 namespace BitApps\SMTP\Mail\Routing;
 
+/**
+ * Attribute an outgoing email to the plugin, mu-plugin, or theme that called wp_mail().
+ */
 class MailSourceDetector
 {
+    /**
+     * Source of the first non-core, non-Bit-SMTP caller: plugin slug, 'mu:<file>', 'theme:<slug>', or 'unknown'.
+     */
     public function detect(?array $frames = null, ?string $selfDir = null): string
     {
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- Attributes mail to the calling plugin.
         $frames  = $frames ?? debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
         $selfDir = $this->normalize($selfDir ?? \dirname(__DIR__, 4));
 

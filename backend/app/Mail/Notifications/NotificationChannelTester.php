@@ -37,6 +37,7 @@ final class NotificationChannelTester
         $sanitized = AlertChannelSettings::sanitize($type, $resolved);
         $missing   = AlertChannelSettings::missingRequirement($type, $sanitized);
         if ($missing !== null) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Plain-text JSON message; React escapes on render.
             throw InvalidAlertChannelException::incomplete($missing);
         }
 

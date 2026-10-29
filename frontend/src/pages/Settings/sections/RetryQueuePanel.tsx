@@ -147,7 +147,8 @@ export default function RetryQueuePanel() {
             loading={isLoading}
             footer={
               depth > items.length
-                ? () => sprintf(__('Showing the first %d of %d waiting emails.'), items.length, depth)
+                ? () =>
+                    sprintf(__('Showing the first %1$d of %2$d waiting emails.'), items.length, depth)
                 : undefined
             }
           />

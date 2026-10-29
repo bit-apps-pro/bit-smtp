@@ -2335,9 +2335,3 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: backend/app/Views/Layout.php
-
-		-
-			message: '#^Variable \$i18n_strings might not be defined\.$#'
-			identifier: variable.undefined
-			count: 1
-			path: backend/app/Views/Layout.php

@@ -32,7 +32,7 @@ export function formatMinutes(minutes: number): string {
   if (hours === 0) {
     return sprintf(__('%d min'), rest)
   }
-  return rest === 0 ? sprintf(__('%d h'), hours) : sprintf(__('%d h %d min'), hours, rest)
+  return rest === 0 ? sprintf(__('%d h'), hours) : sprintf(__('%1$d h %2$d min'), hours, rest)
 }
 
 /** Joins durations as a readable list in the page language, e.g. "5 min, 15 min and 35 min". */

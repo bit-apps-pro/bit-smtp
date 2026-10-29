@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BitApps\SMTP\Mail\Config;
 
 use BitApps\SMTP\Plugin;
+use BitApps\SMTP\Support\DebugLog;
 use Throwable;
 
 final class MailSettingsSanitizer
@@ -359,8 +360,7 @@ final class MailSettingsSanitizer
         try {
             $fields = $plugin->providerRegistry()->get($provider)->fields();
         } catch (Throwable $e) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log -- surface without fataling the save
-            error_log('BIT SMTP: secret-key resolution failed: ' . $e->getMessage());
+            DebugLog::write('secret-key resolution failed: ' . $e->getMessage());
 
             return [];
         }

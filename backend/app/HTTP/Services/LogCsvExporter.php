@@ -18,6 +18,7 @@ final class LogCsvExporter
      */
     public function toCsv(array $rows): string
     {
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- In-memory stream for fputcsv; no file is touched.
         $handle = fopen('php://temp', 'r+b');
         if ($handle === false) {
             return '';
@@ -35,6 +36,7 @@ final class LogCsvExporter
 
         rewind($handle);
         $csv = stream_get_contents($handle);
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closes the in-memory stream above.
         fclose($handle);
 
         return $csv === false ? '' : $csv;

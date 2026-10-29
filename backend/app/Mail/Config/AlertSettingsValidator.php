@@ -88,6 +88,7 @@ final class AlertSettingsValidator
 
             $message = AlertChannelSettings::incompleteChannelMessage($channel['type'], $channel['name'], $channel['settings']);
             if ($message !== null) {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Plain-text JSON message; React escapes on render.
                 throw InvalidAlertChannelException::incomplete($message);
             }
         }

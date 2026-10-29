@@ -4,12 +4,11 @@
 
 namespace BitApps\SMTP;
 
+use BitApps\SMTP\HTTP\ServerRequest;
 use BitApps\SMTP\Views\Layout;
 use DateTimeImmutable;
 
-if (!\defined('ABSPATH')) {
-    exit;
-}
+\defined('ABSPATH') || exit();
 
 /**
  * Provides App configurations.
@@ -214,7 +213,7 @@ class Config
             return Config::get('ASSET_URI');
         }
 
-        if (($_SERVER['HTTP_X_BIT_SMTP_DEV_PROXY'] ?? '') === '1') {
+        if (ServerRequest::value('HTTP_X_BIT_SMTP_DEV_PROXY') === '1') {
             return home_url('/__vite');
         }
 

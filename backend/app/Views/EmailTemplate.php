@@ -28,7 +28,7 @@ class EmailTemplate
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>' . esc_html($title) . '</title>
-    <style type="text/css" rel="stylesheet">
+    <style type="text/css">
         /* Media Queries */
         @media only screen and (max-width: 600px) {
             .email-body_inner,

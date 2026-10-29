@@ -50,7 +50,7 @@ export default function HealthBadge({
   const entry = healthStatusEntry(health.status)
   const color = TAG_COLOR[health.status] ?? TAG_COLOR.unknown
   const helpLabel = connectionName
-    ? sprintf(__('%s, health details for %s'), entry.label, connectionName)
+    ? sprintf(__('%1$s, health details for %2$s'), entry.label, connectionName)
     : sprintf(__('%s, health details'), entry.label)
 
   const body = (

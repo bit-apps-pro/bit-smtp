@@ -81,7 +81,7 @@ export default function Reliability({ form, cronDisabled = false }: ReliabilityP
           name="send_timeout_seconds"
           label={__('Send timeout (seconds)')}
           hint={sprintf(
-            __('How long to wait for your email provider to answer. Choose %d to %d seconds.'),
+            __('How long to wait for your email provider to answer. Choose %1$d to %2$d seconds.'),
             TIMEOUT_MIN,
             TIMEOUT_MAX
           )}
@@ -91,7 +91,7 @@ export default function Reliability({ form, cronDisabled = false }: ReliabilityP
               required: true,
               min: TIMEOUT_MIN,
               max: TIMEOUT_MAX,
-              message: sprintf(__('Enter %d to %d seconds.'), TIMEOUT_MIN, TIMEOUT_MAX)
+              message: sprintf(__('Enter %1$d to %2$d seconds.'), TIMEOUT_MIN, TIMEOUT_MAX)
             }
           ]}
         >
@@ -123,7 +123,7 @@ export default function Reliability({ form, cronDisabled = false }: ReliabilityP
             name="retry_max_attempts"
             label={__('Number of tries')}
             hint={sprintf(
-              __('How many times to try again before giving up. Choose %d to %d.'),
+              __('How many times to try again before giving up. Choose %1$d to %2$d.'),
               ATTEMPTS_MIN,
               ATTEMPTS_MAX
             )}
@@ -133,7 +133,7 @@ export default function Reliability({ form, cronDisabled = false }: ReliabilityP
                 required: retryEnabled,
                 min: ATTEMPTS_MIN,
                 max: ATTEMPTS_MAX,
-                message: sprintf(__('Enter a number from %d to %d.'), ATTEMPTS_MIN, ATTEMPTS_MAX)
+                message: sprintf(__('Enter a number from %1$d to %2$d.'), ATTEMPTS_MIN, ATTEMPTS_MAX)
               }
             ]}
           >
