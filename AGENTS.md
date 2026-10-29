@@ -68,10 +68,11 @@
 
 ## Dependencies
 
-- `bitapps/wp-kit` is pinned in `composer.json` by commit sha (`dev-feat/static-router#<sha>`) and
-  imposter-scoped into `BitApps\SMTP\Deps\BitApps\WPKit\`. To pick up wp-kit changes: bump the sha in
-  `composer.json`, then `composer update bitapps/wp-kit` (re-runs Imposter). wp-kit's own floor is PHP
-  8.0; this plugin's is 8.1 — don't rely on 8.1+ syntax inside wp-kit-authored code.
+- `bitapps/wp-kit` is required by stable tag (`^2.5`) and imposter-scoped into
+  `BitApps\SMTP\Deps\BitApps\WPKit\`. To pick up wp-kit changes: `composer update bitapps/wp-kit`
+  (re-runs Imposter). Unit-test spies subclass wp-kit classes (e.g. `StaticRouter`), so a wp-kit
+  signature change surfaces as a unit-suite fatal. wp-kit's own floor is PHP 8.0; this plugin's is
+  8.1 — don't rely on 8.1+ syntax inside wp-kit-authored code.
 - `composer.lock` is in `.prettierignore` — the `lefthook.yml` `pretty` pre-commit hook runs
   `pretty-quick --staged` with no glob filter, and prettier's JSON formatting fights composer's own.
 - `php-cs-fixer` (`composer lint`) reformats `backend/app/Mail/MailMessage.php` when run under PHP
