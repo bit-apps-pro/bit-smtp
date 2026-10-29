@@ -1,239 +1,188 @@
 === Bit SMTP – Easy SMTP Solution with Email Logs ===
 Contributors: bitpressadmin, akaioum
-Tags: email logs, smtp, email, gmail smtp, wp mail smtp
+Tags: email logs, smtp, email, gmail smtp, transactional email
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.1
 Stable tag: 1.3.0
 License: GPLv2 or later
 
-SMTP plugin for reliable, secure email delivery. Connect Gmail, Outlook, SendGrid, Brevo, Mailgun, Amazon SES, Postmark, Cloudflare Email Sending, and more via API, OAuth, or SMTP.
+Fix WordPress email delivery. Send through Gmail, Microsoft 365, SendGrid, Amazon SES, Brevo and more by API, OAuth, or SMTP, with fallback and logs.
 
 == Description ==
 
-## SMTP Plugin for WordPress for Reliable and Secure Email Delivery | Complete Free SMTP Solution with Detailed Email Logs
+**Easily fix WordPress email delivery. Connect Gmail, Outlook/Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Cloudflare Email Sending, and more — over their fast API, secure OAuth, or classic SMTP.**
 
-**Easily fix WordPress email delivery issues. Connect with Gmail, Outlook/Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Cloudflare Email Sending, and more — over their fast API, secure OAuth, or classic SMTP — to keep your site communication dependable and secure.**
+Add several sending connections, set a priority order so delivery automatically **falls back** to the next provider if one fails, see the **real delivery status** (delivered / bounced) of each email, and get **alerts** when sending fails — all free.
 
-Add multiple sending connections, set a priority order so delivery automatically **falls back** to the next provider if one fails, track the **real delivery status** (delivered / bounced) of each email, and get **alerts** when sending fails — all free.
+### Is your WordPress not sending emails, or are they going to spam?
 
-## Is your WordPress not sending emails, or are they going to spam?
+The default PHP `mail()` function is often blocked by hosts or filtered as spam. Bit SMTP sends your WordPress email through an authenticated provider instead, so receiving mail servers can trust that it really comes from you.
 
-Solve your email delivery problems with Bit SMTP. The perfect WP Mail SMTP plugin. SMTP helps you send WordPress emails safely and reliably.
+### Key features
 
-When you use Bit SMTP, your emails get delivered perfectly because they are sent from an authenticated source. Many WordPress sites have problems with email. The standard PHP mail function is often blocked or filtered as spam. Bit SMTP solves this issue. It lets you connect your WordPress site to any real **SMTP server.**
+- **Dedicated provider integrations:** SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, Zoho CPaaS (ZeptoMail), SparkPost, and Cloudflare Email Sending over their own APIs — plus Gmail and Microsoft 365, any SMTP server, and PHP mail().
+- **Secure OAuth for Gmail & Microsoft 365:** authorize with one click; Bit SMTP stores tokens, never your account password.
+- **Multiple connections with automatic fallback:** if the top connection fails, the next one sends the email.
+- **Automatic retries:** temporary failures (timeouts, rate limits) are queued and retried with backoff.
+- **Smart routing:** send matching mail through a chosen connection by recipient, from address, subject, or the plugin that sent it.
+- **Real delivery tracking:** provider webhooks record each email's outcome — Delivered, Bounced, Blocked, Deferred — separately from "accepted by the provider". Webhooks are set up for you when you save a supported connection.
+- **Connection health checks and alerts:** get told by email, webhook, Slack, Discord, or Telegram when sending starts failing or a connection becomes unhealthy.
+- **Detailed email logs:** every email with its send result, delivery status, and recipients (To/Cc/Bcc). Search, filter, preview, resend, delete, or export to CSV, with automatic clean-up after the retention period you choose.
+- **Analytics dashboard:** volume, delivery outcomes, and sending trends by plugin and connection. Optional open and click tracking, off by default.
+- **Encrypted credentials:** API keys and secrets are stored with AES-256-GCM, or kept out of the database entirely as `wp-config.php` constants.
+- **WP-CLI:** send test emails, read and export logs, manage the retry queue, run health checks, and import from other SMTP plugins.
+- **Easy switching:** import connections from WP Mail SMTP or Easy WP SMTP with WP-CLI.
+- **Multisite ready**, with a dark mode and an accessible, plain-language interface.
+- **Free and fully functional:** no premium plan required.
 
-## Easily track and manage all your WordPress email logs with Bit SMTP.
+### Set up in minutes
 
-Bit SMTP is a **free plugin.** All of the features are completely free. So you don’t need to spend on SMTP configuration
+1. **Sign up with an email provider:** Gmail, Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Cloudflare Email Sending, or any SMTP server.
+2. **Add a connection:** go to **Bit SMTP ▸ Connections**, click **Add connection**, and pick your provider.
+3. **Enter your credentials:** paste the provider's API key (or SMTP host, port, username, and password). For Gmail and Microsoft 365, click **Connect** to authorize over OAuth.
+4. **Set the sender:** the From email (an address verified with the provider), the From name, and an optional Reply-To.
+5. **Send a test:** click **Test** to confirm delivery. Add more connections and drag them into a priority order for fallback.
 
-Let’s explore the main reasons to use Bit SMTP and how you can set it up easily.
+Every field has help text that explains what it is and where to find it in your provider's dashboard.
 
-== Easily Setup Mail SMTP in Minutes ==
+### Supported email services
 
-Using an SMTP server authenticates your website's emails, proving they are from a trusted source. This tells the recipient’s mail system that your email is genuine. It is like presenting your ID before entering a secure building.
-
-Getting started with Bit SMTP is simple:
-
-1. **Sign up with an email provider:** Choose Gmail, Outlook/Microsoft 365, SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Cloudflare Email Sending, or any SMTP server.
-2. **Add a connection:** In the Bit SMTP dashboard click **Add connection** and pick your provider from the grid.
-3. **Enter your credentials:** Paste the provider's API key (or SMTP host/port/username/password). For Gmail and Microsoft 365, click **Connect** to authorize securely over OAuth — no password stored.
-4. **Send a test email:** Run **Test** to confirm delivery. Your credentials are encrypted at rest before they're saved.
-5. **Enable email logs:** View detailed logs — including each email's real delivery status — from the Bit SMTP dashboard.
-
-Your provider handles delivery, ensuring your WordPress emails arrive securely every time.
-
-## ⚡Key Features of Bit SMTP ⚡
-
-[Bit SMTP](https://bitapps.pro/bit-smtp/) gives you all the tools you need to send emails from WordPress safely and reliably.
-
-- **Dedicated Provider Integrations:** Send over each provider's own API — SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost, Cloudflare Email Sending — plus Gmail and Microsoft 365, any SMTP server, and PHP mail().
-- **Secure OAuth for Gmail & Microsoft 365:** Authorize with one click; the plugin stores refresh tokens, never your account password.
-- **Multiple Connections with Automatic Fallback:** Add several connections and set a priority order. If the top provider fails, Bit SMTP automatically retries the next one so your mail still goes out.
-- **Smart Routing:** Route mail to a specific connection by recipient, from address, subject, or the sending plugin.
-- **Real Delivery Tracking:** Provider webhooks report each email's true outcome — Delivered, Bounced, Blocked, Deferred — shown in a separate Delivery column, not just "accepted".
-- **Failure Alerts:** Get notified by email, webhook, Slack, or Telegram when sending starts failing, so a broken provider never goes unnoticed.
-- **Encrypted Credentials at Rest:** API keys and secrets are stored with authenticated AES-256-GCM encryption.
-- **Customizable Reply-To:** Set a custom Reply-To address for managing responses.
-- **Quick Setup:** Pick a provider, paste a key (or click Connect), and send — configured in minutes.
-- **Free and Fully Functional:** All features are completely free. No premium plan required.
-- **Detailed Email Logs:** View a log of every email sent, with delivery status and per-recipient detail. Set a retention period and search logs by email address; resend or delete records.
-- **Dark Mode Interface:** Bit SMTP comes with a clean dark mode that’s easy on the eyes and makes your dashboard look great.
-
-## Simple Setup for SMTP Configuration in WordPress
-
-Get Bit SMTP running in minutes. Just go to **Bit SMTP ▸ Configuration** in your WordPress dashboard and click **Add connection**.
-
-Every connection asks for an identity:
-
-* **From Email Address:** Set the sender’s email (must be an address you've verified with the provider)
-* **From Name:** Name to show as sender
-* **Reply-To Email Address:** Add if you want replies somewhere specific
-
-Then enter the provider's credentials:
-
-* **API providers** (SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost, Cloudflare Email Sending): paste the API key (SES and Mailgun also take a region/domain; Cloudflare also needs its Account ID).
-* **Gmail / Microsoft 365:** enter the Client ID and Secret, then click **Connect** to authorize over OAuth.
-* **Other SMTP:** enter **SMTP Host**, **Port** (usually 465 or 587), **Encryption** (SSL/TLS), and **Username / Password**.
-
-Save, run **Test**, and you're done. Add more connections and drag them into a priority order for automatic fallback.
-
-## Supported Email Services and SMTP Providers
-
-Bit SMTP ships **dedicated integrations** for the major email services — using each provider's own fast API or secure OAuth — and also works with **any SMTP server**. Most providers offer a free tier, so you can pick the best option for your needs and budget.
-
-**Dedicated API integrations** (paste an API key):
+**API integrations** (paste an API key):
 
 * **SendGrid** — great deliverability; free tier available.
 * **Amazon SES** — best for large volumes; enter Access Key, Secret, and region.
-* **Mailgun** — enter the sending API key, domain, and region (US/EU).
+* **Mailgun** — sending API key, domain, and region (US/EU).
 * **Postmark** — fast transactional delivery (Server API Token).
 * **Brevo (Sendinblue)** — generous free daily tier.
 * **Resend** — modern developer email API.
 * **Mailjet** — API Key + Secret Key.
-* **ZeptoMail (Zoho)** — transactional mail with a Send Mail Token and data center.
-* **SparkPost** — classic Transmissions API (US/EU).
-* **Cloudflare Email Sending (Beta)** — send outbound email through Cloudflare's Email Sending API. Configure the sender address and domain in Cloudflare first; sending to general recipients requires a Workers Paid plan. This is an API integration; use **Other SMTP** with an SMTP provider when SMTP is the better fit.
+* **Zoho CPaaS (ZeptoMail)** — transactional mail with a Send Mail Token and data center.
+* **SparkPost** — Transmissions API (US/EU).
+* **Cloudflare Email Sending (Beta)** — configure the sender address and domain in Cloudflare first; sending to general recipients requires a Workers Paid plan.
 
-**OAuth integrations** (one-click Connect, no password stored):
+**OAuth integrations** (one-click Connect, no password stored): **Gmail / Google Workspace** and **Microsoft 365 / Outlook**.
 
-* **Gmail / Google Workspace**
-* **Microsoft 365 / Outlook**
-
-**Any SMTP server** — use the **Other SMTP** provider for your host, or for Yahoo, Zoho Mail, or any mailbox. Common settings:
+**Any SMTP server** — use **Other SMTP** for your host, Yahoo, Zoho Mail, or any mailbox. Common settings:
 
 * **Gmail SMTP:** smtp.gmail.com · TLS · 587
 * **Outlook SMTP:** smtp-mail.outlook.com · TLS · 587
 * **Yahoo SMTP:** smtp.mail.yahoo.com · SSL · 465
 * **Zoho Mail SMTP:** smtp.zoho.com · TLS · 587
 
-You can also use **PHP Sendmail** (the server's local mail()) when no external provider is configured.
+You can also use **PHP mail()** (the server's own mailer) when no external provider is configured.
 
-## Test Your Connection
+### Failure alerts: email, webhook, Slack, Discord, and Telegram
 
-Bit SMTP includes a tool for this:
+Open **Bit SMTP ▸ Settings** to add alert channels. Bit SMTP sends one alert when a failure streak starts and one when it recovers, so an outage does not flood your inbox or channel.
 
-1. Open a connection and click **Test Connection**, or visit **Bit SMTP ▸ Test** for a full test message.
-2. Add the recipient’s address, your subject, and a brief message.
-3. Click **Send**. The plugin sends a real email through that connection and shows success or the provider's error.
+* **Slack:** create an app with **Incoming Webhooks** and paste its `https://hooks.slack.com/services/...` URL.
+* **Discord:** create a channel webhook and paste its URL.
+* **Telegram:** create a bot with **@BotFather**, message it from the destination chat, then enter the bot token and that chat's numeric ID.
+* **Webhook:** any HTTPS URL; requests are signed so you can verify they came from your site.
 
-If you receive the email, you’re setup is correct. To make things even easier, check out our video tutorial:
+Use **Test notification** to check a saved channel. Webhook URLs and bot tokens are encrypted and shown masked. Alerts are best effort: each request has a five-second limit and can never change the outcome of the email that triggered it.
 
-https://youtu.be/1dnw6v2E2y8
+### Works with every plugin that sends email
 
-## Failure Notifications: Email, Webhook, Slack, and Telegram
+Bit SMTP handles any email sent through WordPress's `wp_mail()` — WooCommerce, core notifications, and form plugins such as [Bit Form](https://wordpress.org/plugins/bit-form/), Contact Form 7, Gravity Forms, WPForms, Ninja Forms, Forminator, Fluent Forms, Formidable Forms, Everest Forms, Elementor Forms, and more.
 
-Open **Bit SMTP ▸ Notifications** to configure failure alerts. Bit SMTP sends one alert when a sending failure streak starts; a successful send resets the streak, so a continuing outage does not flood your inbox or channel.
+### Explore our other products
 
-* **Slack:** In your Slack workspace, create or open an app, enable **Incoming Webhooks**, add a webhook for the destination channel, and paste its `https://hooks.slack.com/services/...` URL into the Slack notification field.
-* **Telegram:** Create a bot with **@BotFather**, add or message the bot from the destination chat, then enter the bot token and that chat's signed numeric chat ID in the Telegram notification fields.
-* **Test safely:** Save the settings, then use the channel's **Test notification** button to check the saved configuration. Test sends use the saved channel only and do not change the failure-alert streak.
+* [**Bit Form**](https://bit-form.com/): multi-step and conversational form builder with 50+ built-in integrations.
+* [**Bit Integrations**](https://bit-integrations.com/): no-code automation connecting 300+ apps and services.
+* [**Bit Assist**](https://bitassist.co/): one button for all your support channels — chat, WhatsApp, email, SMS, Telegram, Messenger, and more.
+* [**Bit Social**](https://bit-social.com/): auto-post and schedule to 12+ social platforms.
+* [**Bit Flows**](https://bit-flows.com/): multi-step automation with routers, iterators, and built-in AI integrations.
+* [**Bit File Manager**](https://wordpress.org/plugins/file-manager/): manage files from your WordPress dashboard.
 
-Slack webhook URLs and Telegram bot tokens are encrypted at rest and returned to the settings screen as masked values. Delivery is best effort: each provider request has a five-second limit, does not follow redirects, and can never change the outcome of the email that triggered an alert. WhatsApp notifications are not included in this release.
+Join our [**Bit Apps Community**](https://www.facebook.com/groups/bitapps) for updates. The full source code is on [GitHub](https://github.com/Bit-Apps-Pro/bit-smtp); contributions are welcome.
 
-## Compatible with All the Top Form Plugins
+== External services ==
 
-If you use forms, you want to make sure notifications are delivered every time. Bit SMTP works with all leading form plugins on WordPress.
+Bit SMTP delivers your site's email through the provider you choose, so it connects to third-party services. Except for the optional deactivation feedback described below, nothing is contacted until you set up the matching feature. Your email content only ever goes to the email provider you configured.
 
-Supported plugins include:
+= Email providers =
 
-* [**Bit Form**](https://wordpress.org/plugins/bit-form/)
-* **Gravity Form**
-* **Contact Form 7**
-* **WPForms Pro**
-* **Ninja Forms**
-* **Forminator Forms**
-* **Fluent Forms**
-* **Formidable Forms**
-* **Everest Forms**
-* **WS Forms**
-* **Happy Forms**
-* **weForms**
-* **Kali Forms**
-* **WPForm Lite**
-* **PlanSo Forms**
-* **Form Maker by 10Web**
-* **Elementor Form**
-* **FormCraft**
-* **Quform WordPress Form Builder**
-* **Caldera Contact Forms**
+When you add a connection, every email sent through it — including test emails, resends, and retries — is sent to that provider. Each request contains the full message (sender, To/Cc/Bcc recipients, Reply-To, subject, body, attachments, and headers) and is authenticated with the API key, SMTP login, or OAuth token you entered.
 
-And all other plugins that rely on WordPress's wp_mail to send emails
+For providers that support it, saving a connection with **Track delivery status** turned on (the default) also registers your site's webhook address (`https://your-site/bit-smtp/...`) with the provider through its API, so it can report delivery events back to your site. Deleting the connection removes that webhook. Turn **Track delivery status** off to skip this.
 
-## Strong Security for Your WordPress Emails
+* **SendGrid (Twilio)** — `api.sendgrid.com`. [Terms](https://www.twilio.com/en-us/legal/tos), [Privacy](https://www.twilio.com/en-us/legal/privacy).
+* **Amazon SES (Amazon Web Services)** — `email.<region>.amazonaws.com`. If you subscribe your webhook address to Amazon SNS for delivery events, Bit SMTP also confirms that subscription and downloads the SNS signing certificate from `sns.<region>.amazonaws.com`. [Customer Agreement](https://aws.amazon.com/agreement/), [Service Terms](https://aws.amazon.com/service-terms/), [Privacy](https://aws.amazon.com/privacy/).
+* **Mailgun (Sinch)** — `api.mailgun.net` or `api.eu.mailgun.net`. [Terms](https://www.mailgun.com/legal/terms/), [Privacy](https://www.mailgun.com/legal/privacy-policy/).
+* **Postmark (ActiveCampaign)** — `api.postmarkapp.com`. [Terms](https://postmarkapp.com/terms-of-service), [Privacy](https://www.activecampaign.com/legal/privacy-policy).
+* **Brevo** — `api.brevo.com`. After a successful connection test, Bit SMTP also reads that test email's delivery events from Brevo's statistics API. [Terms](https://www.brevo.com/legal/termsofuse/), [Privacy](https://www.brevo.com/legal/privacypolicy/).
+* **Resend** — `api.resend.com`. [Terms](https://resend.com/legal/terms-of-service), [Privacy](https://resend.com/legal/privacy-policy).
+* **Mailjet (Sinch)** — `api.mailjet.com`. [Terms](https://www.mailjet.com/legal/terms/), [Privacy](https://www.mailjet.com/legal/privacy-policy/).
+* **Zoho CPaaS (ZeptoMail)** — `api.zeptomail.com`, `api.zeptomail.eu`, or `api.zeptomail.in`, depending on the data center you pick. [Terms](https://www.zoho.com/cpaas/terms.html), [Privacy](https://www.zoho.com/privacy.html).
+* **SparkPost (Bird)** — `api.sparkpost.com` or `api.eu.sparkpost.com`. [Terms](https://bird.com/legal/terms), [Privacy](https://bird.com/legal/privacy).
+* **Cloudflare Email Sending** — `api.cloudflare.com`. [Terms](https://www.cloudflare.com/terms/), [Privacy](https://www.cloudflare.com/privacypolicy/).
+* **Gmail / Google Workspace (Google)** — when you click **Connect**, your browser opens Google's sign-in page (`accounts.google.com`) with your Client ID and From address; Bit SMTP then exchanges the authorization code, and later refreshes the access token, with `oauth2.googleapis.com` using your Client ID and Secret. Email is sent through the Gmail API (`gmail.googleapis.com`). [Terms](https://policies.google.com/terms), [Privacy](https://policies.google.com/privacy), [API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy).
+* **Microsoft 365 / Outlook (Microsoft)** — the same OAuth flow with `login.microsoftonline.com`; email is sent through Microsoft Graph (`graph.microsoft.com`). [Services Agreement](https://www.microsoft.com/en-us/servicesagreement), [Privacy](https://www.microsoft.com/en-us/privacy/privacystatement).
+* **Other SMTP** — the SMTP server you enter, under that host's own terms.
 
-Bit SMTP follows best security practices. Many providers, like **Gmail SMTP**, **SendGrid**, or **Mailgun**, provide secure SMTP configuration credentials. You can connect using the SMTP credentials, not by typing your main login into WordPress. This keeps your data safe and ensures a higher level of security.
+= Failure and health alerts =
 
-## **Reliable WordPress Mail SMTP for Every User**
+Only used when you add an alert channel in **Settings**. Alerts and test notifications include your site name and address, the connection's name and provider, the error, and the failed email's subject and up to 10 recipient addresses — never the email body. Health alerts include the connection's status and last error.
 
-Don’t let emails go missing or end up in spam. Bit SMTP, the leading WP Mail SMTP plugin, gives you full control over your WordPress email delivery. You can use Gmail SMTP or connect to any mail service you trust. 
+* **Slack** — `hooks.slack.com`. [Terms](https://slack.com/terms-of-service/user), [Privacy](https://slack.com/trust/privacy/privacy-policy).
+* **Discord** — `discord.com`. [Terms](https://discord.com/terms), [Privacy](https://discord.com/privacy).
+* **Telegram** — `api.telegram.org`. [Terms](https://telegram.org/tos), [Privacy](https://telegram.org/privacy).
+* **Webhook** — the URL you enter receives the same details as signed JSON.
 
-Make sure all your emails get to the right place, every time. Install Bit SMTP now and enjoy reliable, secure email delivery from your WordPress site. Say goodbye to missed emails and spam issues!
+= Usage data sharing (opt-in) =
 
-## Track and Monitor WordPress Email Logs
-With Bit SMTP’s built-in email logs system, you can easily track every email you send. View delivery details and monitor performance right from your WordPress dashboard. This gives you complete transparency and control over your WordPress site's email activity.
+Only if you choose to share usage data in the welcome prompt or in **Settings**; you can stop at any time. The report goes to Bit Apps (`wp-api.bitapps.pro`) once when you agree and then about once a week. It contains your site name and address, the site admin email and the first administrator's name, your server's public IP address, WordPress, PHP, and MySQL versions, your theme and language, a few server settings, user counts by role, the names and versions of your active plugins, the number of inactive plugins, and how many test emails you sent. It never contains email content, recipients, logs, passwords, or API keys. [Bit Apps Terms](https://bitapps.pro/terms-of-service/), [Bit Apps Privacy](https://bitapps.pro/privacy-policy/).
 
-## Email Analytics Abilities (WordPress 6.9+)
+To find the server's public IP address, the report asks `icanhazip.com`, which is operated by Cloudflare. That request sends nothing except the request itself. [Cloudflare Privacy](https://www.cloudflare.com/privacypolicy/).
 
-On WordPress 6.9 or newer, Bit SMTP registers five read-only Email Analytics abilities for authorized tools and automation clients. The abilities API is an optional integration: Bit SMTP continues sending mail and recording logs on older supported WordPress versions, but no abilities are registered there.
+= Deactivation feedback (optional) =
 
-All five abilities require the WordPress `manage_options` capability. They return aggregate metrics or privacy-safe routing metadata and never return email bodies, attachments, credentials, API tokens, raw debug output, or complete recipient addresses. They operate only on retained Bit SMTP mail logs; they do not query orders, form entries, users, posts, or another plugin's data.
+When you deactivate Bit SMTP, an optional feedback form appears. Only if you choose a reason and submit it, Bit SMTP sends that reason and any text you typed, plus your site address, site language, and plugin version, to Bit Apps (`wp-api.bitapps.pro`). Choosing **Skip** sends nothing. [Bit Apps Terms](https://bitapps.pro/terms-of-service/), [Bit Apps Privacy](https://bitapps.pro/privacy-policy/).
 
-* `bit-smtp/get-email-analytics` — overview of volume, recipients counted, send acceptance, verified delivery outcomes, timing, sources, connections, retained-record bounds, and timestamp coverage. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
-* `bit-smtp/analyze-plugin-email` — aggregate timing, outcomes, connections, routes, and bounded normalized subject-pattern groups for one source. Required input: `plugin`; it also accepts `start`, `end`, `bucket`, and `connection_id`.
-* `bit-smtp/analyze-deliverability` — separates send acceptance from provider-confirmed delivery, grouped by source and connection. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
-* `bit-smtp/explain-routing` — either explain a retained decision with `log_id`, or simulate current recipient-domain and source-plugin rules with `to_domains` and optional `source_plugin`. Simulation is read-only and never sends email. It does not accept sender addresses or subjects because this read-only ability runs through a URL-visible REST request; when current rules require either private field, it returns a stable insufficient-input result instead of claiming a selected rule.
-* `bit-smtp/detect-email-anomalies` — compares aggregate activity with the preceding equal period. Optional inputs: `start`, `end`, `bucket`, `plugin`, and `connection_id`.
+= Open and click tracking (off by default) =
 
-`start` and `end` are complete ISO-8601 timestamps. If omitted, the effective range is the 30 days ending now, or the configured retention period when it is shorter. `bucket` is `hour`, `day`, or `week`; Bit SMTP selects a sensible default when it is omitted. A request may not exceed the configured log-retention period, capped at 200 days. Results use the site timezone for display and UTC timestamps for range filtering.
-
-Every result identifies its effective range and says that it represents retained email activity, not business records. The `timestamp_coverage` metadata distinguishes qualified rows with explicit UTC capture timestamps from unqualified historical rows; precise range and timing aggregates exclude unqualified rows instead of guessing a timezone. Anomaly comparisons also report whether logging was continuous throughout both windows, and suppress observations when that continuity or retained coverage is incomplete.
-
-Source attribution is collected for new mail activity. Historical rows without that evidence remain `unknown`; Bit SMTP never infers a plugin from a translated or customized subject line. WooCommerce results describe WooCommerce-generated notification activity only, as a proxy for order-related activity. Contact-form results likewise describe notification activity only, as a proxy for contact submissions.
-
-Delivery reporting keeps send acceptance distinct from delivery confirmation. A message is counted as delivered, bounced, blocked, deferred, spam, or another verified outcome only after an authenticated provider webhook correlates to the retained log. SMTP, webhook-disabled API, and other successful hand-offs are counted as `accepted` (or remain unknown), never as delivered.
-
-### **Explore Our Other Products :**
-
-* [**Bit Form**](https://bit-form.com/): A powerful WordPress form builder that lets you create **multi-step and conversational forms** with a **smart drag-and-drop builder**. Connect your forms with 50+ apps through **built-in integrations** to automate workflows. Build, customize, and convert with the lightning-fast form solution
-* [**Bit Integrations**](https://bit-integrations.com/): A no-code WordPress automation plugin that lets you connect **300+ apps and services** to automate your workflows in minutes. With its **3 easy automation methods**, you can automate tasks, sync data, and maximize productivity. It connects your forms, CRMs, LMS, and eCommerce tools all inside WordPress.
-* [**Bit Assist**](https://bitassist.co/): Connect all your customer support channels with a single button. Integrate Floating Chat Widget, WhatsApp, Email, SMS, Telegram, Messenger, and more with Bit Assist.
-* [**Bit Social**](https://bit-social.com/): A social media automation tool that lets you **auto-post, schedule, and share instantly** across **12+ platforms** like Facebook, Instagram, LinkedIn, X, Pinterest, and more with a smart calendar view.
-* [**Bit Flows**](https://bit-flows.com/): Bit Flows is a powerful automation tool with multi-step, unlimited workflows and advanced tools, including Router, Repeater, Iterator, and JSON Parser. With built-in AI integrations, it’s a more powerful and easier alternative to n8n.
-* [**Bit File Manager**:](https://bitapps.pro/bit-smtp/) Bit File Manager is a WordPress plugin for easy file management. Upload, organize, and control from your WordPress dashboard.
-
-Join our [**Bit Apps Community**](https://www.facebook.com/groups/bitapps) for the latest plugin and exclusive features updates
-
-You can find the full source code on [GitHub,](https://github.com/Bit-Apps-Pro/bit-smtp) and we welcome any contributions to help improve this amazing plugin
-
-#### **Telemetry Data**
-
-Bit SMTP uses [wp-telemetry](https://packagist.org/packages/bitapps/wp-telemetry) to collect some telemetry data upon the user’s confirmation. This helps us to troubleshoot problems faster & make product improvements.
-
-Wp-Telemetry DOES NOT IMMEDIATELY start gathering data; rather, it will gather basic telemetry data when a user allows it. We collect the data to ensure a great user experience for all our users.
+Not an external service: when you turn it on, the tracking image and rewritten links point to your own site (`https://your-site/bit-smtp/track/...`), and the results are stored in your own database.
 
 == Frequently Asked Questions ==
 
 = Which provider should I use? =
-Any of them work. If you already have an SMTP host, use **Other SMTP**. For better deliverability and speed, use a dedicated API provider (SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, SparkPost, Cloudflare Email Sending) or connect Gmail / Microsoft 365 over OAuth.
+Any of them work. If you already have an SMTP host, use **Other SMTP**. For better deliverability and speed, use a dedicated API provider (SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, Zoho CPaaS (ZeptoMail), SparkPost, Cloudflare Email Sending) or connect Gmail / Microsoft 365 over OAuth.
 
 = Do I have to enter my Gmail or Microsoft password? =
 No. Gmail and Microsoft 365 use OAuth: you create an app, enter its Client ID and Secret, then click **Connect** to authorize. Bit SMTP stores only the OAuth tokens, never your account password.
 
 = What happens if my email provider goes down? =
-Add more than one connection and drag them into a priority order. If the highest-priority connection fails, Bit SMTP automatically retries the next one, so your mail still goes out.
+Add more than one connection and drag them into a priority order. If the highest-priority connection fails, Bit SMTP automatically tries the next one. Turn on retries in **Settings** to also retry temporary failures later.
 
 = Can I see whether an email was actually delivered? =
-Yes. For providers that support delivery webhooks, the Logs screen shows a separate **Delivery** status (Delivered, Bounced, Blocked, Deferred) alongside the send status. Amazon SES send success means SES accepted the message; it is not recipient-confirmed delivery.
+Yes. For providers that support delivery webhooks, the Logs screen shows a separate **Delivery** status (Delivered, Bounced, Blocked, Deferred) next to the send result. A successful send on its own only means the provider accepted the email.
 
 = Are my API keys and passwords stored safely? =
-Yes. Credentials are encrypted at rest with authenticated AES-256-GCM before they are written to the database.
+Yes. Credentials are encrypted with authenticated AES-256-GCM before they are saved. You can also keep any credential out of the database by defining it in `wp-config.php` as `BIT_SMTP_<CONNECTION ID>_<FIELD>`.
 
 = Does it work with my form or WooCommerce emails? =
-Yes. Bit SMTP routes any email sent through WordPress's `wp_mail()`, including form plugins, WooCommerce, and core notifications.
+Yes. Bit SMTP handles any email sent through WordPress's `wp_mail()`, including form plugins, WooCommerce, and core notifications.
 
 = Will I be notified if sending fails? =
-Yes. Turn on failure alerts (Notifications) to be told by email, webhook, Slack, or Telegram when sending starts failing. Bit SMTP alerts once per failure streak and resets that alert state after a successful send. Slack webhooks and Telegram bot tokens are encrypted and masked in the settings screen; provider delivery is best effort with a five-second limit. WhatsApp notifications are not included in this release.
+Yes. Add an alert channel (email, webhook, Slack, Discord, or Telegram) in **Settings**. Bit SMTP alerts once when failures start and once when sending recovers.
+
+= Can I move my settings from another SMTP plugin? =
+Yes. Run `wp bit-smtp import` to bring over connections from WP Mail SMTP or Easy WP SMTP. You can also export and import Bit SMTP's own settings from **Settings**.
+
+= Which WP-CLI commands are available? =
+`wp bit-smtp send-test`, `wp bit-smtp logs`, `wp bit-smtp retry status`, `wp bit-smtp retry flush`, `wp bit-smtp health check`, `wp bit-smtp export`, and `wp bit-smtp import`. Add `--help` to any command for its options.
+
+= Does Bit SMTP track my recipients? =
+Not unless you turn on open and click tracking in **Settings** (off by default). When it is on, results stay in your own database and are included in WordPress's **Export Personal Data** and **Erase Personal Data** tools.
+
+= Can AI tools or automation read my email analytics? =
+On WordPress 6.9 or newer, Bit SMTP registers five read-only abilities for authorized tools: `bit-smtp/get-email-analytics`, `bit-smtp/analyze-plugin-email`, `bit-smtp/analyze-deliverability`, `bit-smtp/explain-routing`, and `bit-smtp/detect-email-anomalies`. All require the `manage_options` capability and return only aggregate metrics or privacy-safe routing details — never email bodies, attachments, credentials, tokens, or full recipient addresses. They read only Bit SMTP's retained logs.
+
+Inputs: `start` and `end` (ISO-8601 timestamps; default is the last 30 days, or your retention period if shorter, up to 200 days), `bucket` (`hour`, `day`, or `week`), `plugin`, and `connection_id`. `analyze-plugin-email` requires `plugin`. `explain-routing` takes either a `log_id` or `to_domains` with an optional `source_plugin`, and never sends email.
+
+Delivery counts stay separate from send acceptance: an email counts as delivered or bounced only after an authenticated provider webhook reports it. Older logs without source information are reported as `unknown` rather than guessed.
 
 == Screenshots ==
 1. SMTP Configuration
@@ -244,20 +193,21 @@ Yes. Turn on failure alerts (Notifications) to be told by email, webhook, Slack,
 
 == Changelog ==
 
-= 1.3.0 (26 Jul, 2026) =
-* Feat: Read-only Email Analytics abilities are available only on WordPress 6.9+ (`get-email-analytics`, `analyze-plugin-email`, `analyze-deliverability`, `explain-routing`, and `detect-email-anomalies`) and require `manage_options`. They accept documented ISO range/bucket and filter inputs, while routing accepts either a retained `log_id` or privacy-safe simulation inputs; older supported WordPress versions continue without abilities.
-* Feat: Analytics defaults to 30 days or a shorter configured retention period, with a 200-day retention maximum. It reports qualified UTC timestamp coverage separately from unqualified historical records and logging continuity, preserves unknown historical attribution, and returns aggregate metrics or privacy-safe routing metadata without raw recipient, body, credential, attachment, token, or debug data.
-* Feat: WooCommerce and contact-form analytics describe notification activity only as a proxy for business activity. Send acceptance remains distinct from provider-confirmed delivery; absent webhook data remains unknown rather than delivered.
-* Feat: Multi-provider framework — send over dedicated integrations for SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, ZeptoMail, and SparkPost, plus Gmail and Microsoft 365 via OAuth, any SMTP server, and PHP mail().
-* Feat: Cloudflare Email Sending (Beta) API integration. Configure your sender address/domain in Cloudflare; sending to general recipients requires Workers Paid. Use Other SMTP as the SMTP alternative.
-* Feat: Multiple connections with a priority order and automatic fallback to the next connection when a send fails.
-* Feat: Smart routing — send matching mail through a chosen connection by recipient, from address, subject, or source plugin.
-* Feat: Real delivery tracking — provider webhooks record each email's true outcome (Delivered / Bounced / Blocked / Deferred) in a separate Delivery column.
-* Feat: Failure alerts by email or webhook when a send fails.
-* Feat: Failure alerts can also notify Slack Incoming Webhooks and Telegram bots; secrets are encrypted and masked, and notifications are sent once per failure streak with five-second best-effort delivery.
-* Feat: Credentials encrypted at rest with AES-256-GCM; existing plaintext values are migrated on save.
-* Security: hardened the inbound delivery-webhook and outbound API paths.
-* Requires PHP 8.1 or newer (was 8.0). Installs on older PHP show an admin notice and stay inactive.
+= 1.3.0 (29 Oct, 2026) =
+* Feat: Dedicated API integrations for SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, Zoho CPaaS (ZeptoMail), SparkPost, and Cloudflare Email Sending (Beta), plus Gmail and Microsoft 365 via OAuth, any SMTP server, and PHP mail().
+* Feat: Multiple connections with a priority order and automatic fallback; enable, disable, and disconnect connections without deleting them.
+* Feat: Retry queue with backoff for temporary failures, failure classification, and connection health checks.
+* Feat: Smart routing by recipient, from address, subject, or source plugin; the source picker lists every installed plugin.
+* Feat: Real delivery tracking through provider webhooks, registered automatically when you save a supported connection; Amazon SES events via signed SNS notifications.
+* Feat: Failure and health alerts by email, webhook, Slack, Discord, and Telegram, sent once per incident with recovery notices.
+* Feat: Analytics dashboard, optional open and click tracking, and read-only Email Analytics abilities on WordPress 6.9+.
+* Feat: Richer logs — Cc/Bcc, message IDs, filters, resend history, and CSV export — with scheduled retention clean-up.
+* Feat: Settings page with export/import and a configurable send timeout; import connections from WP Mail SMTP and Easy WP SMTP with WP-CLI.
+* Feat: WP-CLI commands and `wp-config.php` credential constants.
+* Feat: Multisite support, guided setup with help on every field, a refreshed accessible theme, and dark mode.
+* Security: Credentials encrypted at rest with AES-256-GCM; hardened webhook and outbound API paths; usage data is shared only after a one-time opt-in.
+* Privacy: The admin font is now bundled with the plugin instead of loaded from Google Fonts; all external services are documented in this readme.
+* Requires PHP 8.1 or newer and WordPress 5.9 or newer. Installs on older PHP show an admin notice and stay inactive.
 
 = 1.2.4 (11 May, 2026) =
 * fix: short description issue in readme.txt 
