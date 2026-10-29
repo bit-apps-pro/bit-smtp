@@ -7,12 +7,12 @@ if (! \defined('ABSPATH')) {
  * Plugin Name: Bit SMTP
  * Plugin URI:  https://www.bitapps.pro/bit-smtp
  * Description: Send email via SMTP using BIT SMTP plugin by Bit Apps
- * Version:     1.2.4
+ * Version:     1.3.0
  * Author:      Bit Apps
  * Author URI:  https://bitapps.pro
  * Text Domain: bit-smtp
  * Requires PHP: 8.1
- * Requires WP: 5.0
+ * Requires at least: 5.9
  * Domain Path: /languages
  * License: GPLv2 or later
  */

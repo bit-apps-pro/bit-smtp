@@ -1,10 +1,10 @@
 === Bit SMTP – Easy SMTP Solution with Email Logs ===
 Contributors: bitpressadmin, akaioum
 Tags: email logs, smtp, email, gmail smtp, wp mail smtp
-Requires at least: 5.7
+Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.2.4
+Stable tag: 1.3.0
 License: GPLv2 or later
 
 SMTP plugin for reliable, secure email delivery. Connect Gmail, Outlook, SendGrid, Brevo, Mailgun, Amazon SES, Postmark, Cloudflare Email Sending, and more via API, OAuth, or SMTP.

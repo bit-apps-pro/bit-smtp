@@ -22,7 +22,7 @@ class Config
 
     public const VAR_PREFIX = 'bit_smtp_';
 
-    public const VERSION = '1.2.4';
+    public const VERSION = '1.3.0';
 
     public const DB_VERSION = '2.8';
 
@@ -38,9 +38,9 @@ class Config
 
     public const HEALTH_ALERT_HOOK = 'bit_smtp_health_alert';
 
-    public const REQUIRED_PHP_VERSION = '8.0';
+    public const REQUIRED_PHP_VERSION = '8.1';
 
-    public const REQUIRED_WP_VERSION = '5.0';
+    public const REQUIRED_WP_VERSION = '5.9';
 
     public const API_VERSION = '1';
 
