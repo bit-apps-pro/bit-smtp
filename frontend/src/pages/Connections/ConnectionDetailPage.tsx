@@ -65,7 +65,8 @@ function routeConnection(
 
 /**
  * Create (`/connection/new?provider=…`) and edit (`/connection/:id`) page. Both routes render this one component, so when
- * a new connection's first save swaps the URL to its edit route the editor, and any sign-in in progress, stays mounted.
+ * a new connection's first save swaps the URL to its edit route the editor, and any sign-in in progress, stays mounted;
+ * the editor is keyed by provider so switching providers in the URL starts a fresh form.
  */
 export default function ConnectionDetailPage() {
   const { id } = useParams()
@@ -110,6 +111,7 @@ export default function ConnectionDetailPage() {
     <Flex vertical gap="middle" style={{ padding: 24 }}>
       <Link to="/">{__('Back to connections')}</Link>
       <ConnectionEditor
+        key={provider.key}
         connection={connection}
         provider={provider}
         onSaved={() => navigate('/')}

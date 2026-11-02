@@ -137,7 +137,9 @@ export default defineConfig(({ mode }) => {
     test: {
       globals: true,
       environment: 'jsdom',
-      setupFiles: ['./config/test.setup.ts']
+      setupFiles: ['./config/test.setup.ts'],
+      // Full-page antd tests outrun the 5s default when every file runs in parallel.
+      testTimeout: 15000
     },
     server: {
       allowedHosts: ['.trycloudflare.com', 'localhost', 'wp-dev.io'],

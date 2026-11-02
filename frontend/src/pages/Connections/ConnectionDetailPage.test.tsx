@@ -1,4 +1,11 @@
-import { MemoryRouter, Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useNavigationType
+} from 'react-router-dom'
 import { StyleProvider } from '@ant-design/cssinjs'
 import notify from '@components/Toaster/Toaster'
 import ThemeProvider from '@config/themes/theme.provider'
@@ -95,10 +102,18 @@ const settings: MailSettings = {
   features: {}
 }
 
-/** Shows the current path and how the router got there, so tests can assert on URL swaps. */
+/** Shows the current path and how the router got there, and offers an in-app switch to the Gmail form, so tests can assert on URL changes. */
 function LocationProbe() {
   const { pathname } = useLocation()
-  return <output aria-label="Current route">{`${useNavigationType()} ${pathname}`}</output>
+  const navigate = useNavigate()
+  return (
+    <>
+      <output aria-label="Current route">{`${useNavigationType()} ${pathname}`}</output>
+      <button type="button" onClick={() => navigate('/connection/new?provider=gmail')}>
+        Go to Gmail form
+      </button>
+    </>
+  )
 }
 
 /** Renders the app's connection routes at the given URL. */
@@ -216,6 +231,15 @@ describe('ConnectionDetailPage', () => {
 
     expect(await screen.findByLabelText('Connection name')).toHaveValue('Other SMTP')
     expect(screen.getByLabelText('Current route')).toHaveTextContent('REPLACE /connection/new')
+  })
+
+  it('starts a fresh form when the URL switches to another provider', async () => {
+    renderAt('/connection/new?provider=other_smtp')
+    expect(screen.getByLabelText('Connection name')).toHaveValue('Other SMTP')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Go to Gmail form' }))
+
+    expect(await screen.findByLabelText('Connection name')).toHaveValue('Gmail')
   })
 
   it('returns to the connections list when the picker is closed without a choice', async () => {
