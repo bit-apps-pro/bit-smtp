@@ -16,6 +16,7 @@ import useSaveConnection from './data/useSaveConnection'
 import { type ConnectionTestResult } from './data/useTestConnection'
 import { getFieldHint } from './fields/FieldItem'
 import autoSetPatch from './fields/autoSet'
+import { hasOAuthToken } from './oauthStatus'
 import { getProviderVisual } from './providerVisuals'
 
 const { Text, Paragraph } = Typography
@@ -271,11 +272,15 @@ function initialFormValues(connection: Connection, provider: ProviderMeta): Conn
 export default function ConnectionEditor({
   connection,
   provider,
-  onSaved
+  onSaved,
+  onCreated,
+  onDiscarded
 }: {
   connection: Connection
   provider: ProviderMeta
   onSaved: () => void
+  onCreated?: (id: string) => void
+  onDiscarded?: () => void
 }) {
   const { token } = theme.useToken()
   const [form] = Form.useForm<ConnectionFormValues>()
@@ -316,7 +321,7 @@ export default function ConnectionEditor({
     notify.error(response?.message ?? __('Failed to save connection'))
   }
 
-  /** Always saves the current form first (so OAuth consent reads fresh, not stale, credentials) and reuses the minted id; returns '' to abort on failure. */
+  /** Always saves the current form first (so OAuth consent reads fresh, not stale, credentials), reuses the minted id and reports a newly created one; returns '' to abort on failure. */
   const persistConnection = async (): Promise<string> => {
     const response = await mutateAsync(buildPayload())
     if (response?.status !== 'success') {
@@ -329,6 +334,7 @@ export default function ConnectionEditor({
     const savedId = (response.data as { id?: string } | undefined)?.id ?? draftId
     if (savedId !== draftId) {
       setDraftId(savedId)
+      onCreated?.(savedId)
     }
     return savedId
   }
@@ -412,8 +418,9 @@ export default function ConnectionEditor({
                 <OAuthConnectButton
                   connectionId={draftId}
                   provider={provider.key}
-                  connected={Boolean(connection.credentials?.refresh_token?.value)}
+                  connected={hasOAuthToken(connection)}
                   persistConnection={persistConnection}
+                  onDiscarded={onDiscarded}
                 />
               </HelpfulFormItem>
             ) : null}

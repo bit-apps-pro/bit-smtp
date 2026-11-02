@@ -788,6 +788,37 @@ describe('ConnectionEditor', () => {
     expect(save.mock.calls[1][0]).toEqual(expect.objectContaining({ id: 'conn_new_123' }))
   })
 
+  it('reports the id minted by the first save of a new connection exactly once', async () => {
+    const save = vi.fn().mockResolvedValue({
+      status: 'success',
+      code: 'SUCCESS',
+      message: 'Connection saved',
+      data: { id: 'conn_new_123' }
+    })
+    ;(useSaveConnection as Mock).mockReturnValue({ mutateAsync: save, isPending: false })
+    ;(useOAuthAuthorize as Mock).mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue(undefined),
+      isPending: false
+    })
+    const onCreated = vi.fn()
+
+    renderWithQueryClient(
+      <ConnectionEditor
+        connection={{ ...gmailConnection, id: '' }}
+        provider={gmailMeta}
+        onSaved={() => {}}
+        onCreated={onCreated}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(onCreated).toHaveBeenCalledTimes(1)
+    expect(onCreated).toHaveBeenCalledWith('conn_new_123')
+  })
+
   describe('form UX (group E)', () => {
     const mailgunMeta: ProviderMeta = {
       key: 'mailgun',

@@ -33,6 +33,7 @@ import useProviders from './data/useProviders'
 import useSetDefaultConnection from './data/useSetDefaultConnection'
 import useToggleConnectionEnabled from './data/useToggleConnectionEnabled'
 import useUpdateSettings from './data/useUpdateSettings'
+import { hasOAuthToken, isOAuthProvider } from './oauthStatus'
 
 const { Title, Text } = Typography
 
@@ -81,6 +82,7 @@ function SortableConnectionCard({
   routingRuleCount,
   isDefault,
   health,
+  needsSignIn,
   onSetDefault,
   onToggleEnabled,
   onEdit,
@@ -92,6 +94,7 @@ function SortableConnectionCard({
   routingRuleCount: number
   isDefault: boolean
   health?: ConnectionHealth
+  needsSignIn: boolean
   onSetDefault: () => void
   onToggleEnabled: (enabled: boolean) => void
   onEdit: () => void
@@ -117,6 +120,7 @@ function SortableConnectionCard({
         backupNumber={backupNumber}
         routingRuleCount={routingRuleCount}
         health={health}
+        needsSignIn={needsSignIn}
         onSetDefault={onSetDefault}
         onToggleEnabled={onToggleEnabled}
         onEdit={onEdit}
@@ -183,7 +187,7 @@ export default function ConnectionsListPage() {
   const { token } = theme.useToken()
   const navigate = useNavigate()
   const { data: settings, isPending: isSettingsPending } = useMailSettings()
-  const { isPending: isProvidersPending } = useProviders()
+  const { data: providers, isPending: isProvidersPending } = useProviders()
   const { health } = useConnectionHealth()
   const checkConnectionHealth = useCheckConnectionHealth()
   const setDefaultConnection = useSetDefaultConnection()
@@ -270,6 +274,7 @@ export default function ConnectionsListPage() {
   const hasConnections = settings.connections.length > 0
   const hasPrimary = orderedIds[0] === settings.default_connection_id
   const rulesByConnection = countRulesByConnection(settings)
+  const oauthProviderKeys = new Set(providers?.filter(isOAuthProvider).map(provider => provider.key))
   const openProviderModal = () => setIsProviderModalOpen(true)
 
   return (
@@ -320,6 +325,7 @@ export default function ConnectionsListPage() {
                   routingRuleCount={rulesByConnection.get(connection.id) ?? 0}
                   isDefault={connection.id === settings.default_connection_id}
                   health={health[connection.id]}
+                  needsSignIn={oauthProviderKeys.has(connection.provider) && !hasOAuthToken(connection)}
                   onSetDefault={() => setDefaultConnection.mutate(connection.id)}
                   onToggleEnabled={enabled => toggleEnabled.mutate({ id: connection.id, enabled })}
                   onEdit={() => navigate(`/connection/${connection.id}`)}

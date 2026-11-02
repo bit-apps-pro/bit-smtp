@@ -170,6 +170,19 @@ describe('ConnectionCard', () => {
     expect(onDelete).toHaveBeenCalledTimes(1)
   })
 
+  it('flags a connection that still needs sign-in and says how to finish', () => {
+    renderCard({ needsSignIn: true })
+
+    expect(screen.getByText('Not signed in')).toBeInTheDocument()
+    expect(screen.getByText(/finish signing in/)).toBeInTheDocument()
+  })
+
+  it('shows no sign-in warning by default', () => {
+    renderCard()
+
+    expect(screen.queryByText('Not signed in')).not.toBeInTheDocument()
+  })
+
   it('warns in the delete confirmation that routing rules using it are deleted too', async () => {
     renderCard({ routingRuleCount: 2, isDefault: true })
 

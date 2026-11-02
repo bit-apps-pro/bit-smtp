@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { __, sprintf } from '@common/helpers/i18nwrap'
 import notify from '@components/Toaster/Toaster'
-import { type Connection } from '@pages/Connections/types'
 import { useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Flex, Form, Popconfirm, Space, Tag, Typography } from 'antd'
 import useDeleteConnection from './data/useDeleteConnection'
@@ -9,10 +8,13 @@ import useMailSettings, { MAIL_SETTINGS_QUERY_KEY } from './data/useMailSettings
 import useOAuthAuthorize from './data/useOAuthAuthorize'
 import useOAuthDisconnect from './data/useOAuthDisconnect'
 import { oauthFailureMessage, signInLabels } from './oauthMessages'
+import { hasOAuthToken } from './oauthStatus'
 
 const { Text } = Typography
 
 const OAUTH_MESSAGE_TYPE = 'bit-smtp-oauth'
+const OAUTH_CHANNEL_NAME = 'bit-smtp-oauth'
+const DUPLICATE_MESSAGE_WINDOW_MS = 2000
 const POPUP_NAME = 'bitsmtp_oauth'
 const POPUP_FEATURES = 'width=600,height=700'
 const ACCOUNT_SETTING = 'oauth_account'
@@ -25,7 +27,12 @@ interface OAuthCallbackMessage {
   reason?: string
 }
 
-/** Type guard for a same-origin OAuth popup postMessage payload. */
+interface PendingSignIn {
+  url: string
+  wasConnected: boolean
+}
+
+/** Type guard for a same-origin OAuth popup callback payload. */
 function isOAuthCallbackMessage(data: unknown): data is OAuthCallbackMessage {
   return (
     typeof data === 'object' && data !== null && (data as { type?: unknown }).type === OAUTH_MESSAGE_TYPE
@@ -41,11 +48,9 @@ function isHttpsUrl(url: string): boolean {
   }
 }
 
-/** Whether a stored connection holds an OAuth token, i.e. sign-in finished. */
-function hasOAuthToken(connection: Connection): boolean {
-  return Boolean(
-    connection.credentials?.refresh_token?.value || connection.credentials?.access_token?.value
-  )
+/** Opens the consent page in the named sign-in popup; call it from a click so popup blockers allow it. */
+function openSignInWindow(url: string) {
+  window.open(url, POPUP_NAME, POPUP_FEATURES)
 }
 
 /** Live sign-in state from the cached mail settings, falling back to the editor's snapshot before the first save. */
@@ -60,42 +65,96 @@ function useStoredSignIn(connectionId: string, connectedSnapshot: boolean) {
   }
 }
 
-/** Subscribes to same-origin OAuth popup callbacks addressed to this connection. */
+/**
+ * Subscribes to OAuth popup callbacks for this connection, sent both by opener postMessage and on a same-origin
+ * BroadcastChannel (which still works when the provider's COOP header severs the opener); a copy on both is handled once.
+ */
 function useOAuthCallback(connectionId: string, onMessage: (message: OAuthCallbackMessage) => void) {
   const handlerRef = useRef(onMessage)
   handlerRef.current = onMessage
+  const lastDeliveryRef = useRef({ key: '', at: 0 })
 
   useEffect(() => {
-    /** Forwards a trusted callback message for this connection to the latest handler. */
-    function handleMessage(event: MessageEvent) {
-      if (event.origin !== window.location.origin || !isOAuthCallbackMessage(event.data)) {
+    /** Forwards a valid callback for this connection to the latest handler, skipping the second copy of one just handled. */
+    function deliver(data: unknown) {
+      if (!isOAuthCallbackMessage(data) || (data.connectionId && data.connectionId !== connectionId)) {
         return
       }
-      if (event.data.connectionId && event.data.connectionId !== connectionId) {
+      const key = JSON.stringify(data)
+      const now = Date.now()
+      const last = lastDeliveryRef.current
+      if (key === last.key && now - last.at < DUPLICATE_MESSAGE_WINDOW_MS) {
         return
       }
-      handlerRef.current(event.data)
+      lastDeliveryRef.current = { key, at: now }
+      handlerRef.current(data)
     }
 
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
+    /** Accepts window messages only from this site's origin. */
+    function handleWindowMessage(event: MessageEvent) {
+      if (event.origin === window.location.origin) {
+        deliver(event.data)
+      }
+    }
+
+    /** Accepts channel messages, which only same-origin pages can post. */
+    function handleChannelMessage(event: MessageEvent) {
+      deliver(event.data)
+    }
+
+    window.addEventListener('message', handleWindowMessage)
+    const channel =
+      typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel(OAUTH_CHANNEL_NAME)
+    channel?.addEventListener('message', handleChannelMessage)
+
+    return () => {
+      window.removeEventListener('message', handleWindowMessage)
+      channel?.close()
+    }
   }, [connectionId])
+}
+
+/** While `active`, refetches mail settings whenever this window regains focus or becomes visible, so a sign-in finished in the popup shows up even if its message never arrived. */
+function useRefetchSettingsOnReturn(active: boolean) {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!active) {
+      return undefined
+    }
+
+    /** Refetches settings once the admin page is visible again. */
+    function refetchWhenVisible() {
+      if (document.visibilityState === 'visible') {
+        queryClient.invalidateQueries({ queryKey: MAIL_SETTINGS_QUERY_KEY })
+      }
+    }
+
+    window.addEventListener('focus', refetchWhenVisible)
+    document.addEventListener('visibilitychange', refetchWhenVisible)
+    return () => {
+      window.removeEventListener('focus', refetchWhenVisible)
+      document.removeEventListener('visibilitychange', refetchWhenVisible)
+    }
+  }, [active, queryClient])
 }
 
 /**
  * Sign-in button for OAuth providers: validates and saves the form, opens the consent popup inside the click
- * (so popup blockers allow it), reports plain-language failures, and shows which account is connected.
+ * (so popup blockers allow it), waits for the result, reports plain-language failures, and shows which account is connected.
  */
 export default function OAuthConnectButton({
   connectionId,
   provider,
   connected,
-  persistConnection
+  persistConnection,
+  onDiscarded
 }: {
   connectionId: string
   provider: string
   connected: boolean
   persistConnection: () => Promise<string>
+  onDiscarded?: () => void
 }) {
   const form = Form.useFormInstance()
   const queryClient = useQueryClient()
@@ -107,10 +166,24 @@ export default function OAuthConnectButton({
   const hintId = useId()
   const [isSaving, setIsSaving] = useState(false)
   const [blockedUrl, setBlockedUrl] = useState<string>()
+  const [pending, setPending] = useState<PendingSignIn>()
   const [failure, setFailure] = useState<string>()
   const [createdHere, setCreatedHere] = useState(false)
+  const finishedWithoutMessage = pending !== undefined && !pending.wasConnected && signIn.connected
+
+  useRefetchSettingsOnReturn(pending !== undefined)
+
+  useEffect(() => {
+    if (finishedWithoutMessage) {
+      setPending(undefined)
+      setFailure(undefined)
+      setCreatedHere(false)
+      notify.success(__('Account connected'))
+    }
+  }, [finishedWithoutMessage])
 
   useOAuthCallback(connectionId, message => {
+    setPending(undefined)
     queryClient.invalidateQueries({ queryKey: MAIL_SETTINGS_QUERY_KEY })
     if (message.status === 'success') {
       setFailure(undefined)
@@ -155,10 +228,14 @@ export default function OAuthConnectButton({
     }
   }
 
+  /** Marks sign-in as waiting on the popup, remembering whether an account was already connected. */
+  const awaitSignIn = (url: string) => setPending({ url, wasConnected: signIn.connected })
+
   /** Opens the popup synchronously inside the click, then points it at the consent page once it is ready. */
   const handleSignIn = async () => {
     const popup = window.open('', POPUP_NAME, POPUP_FEATURES)
     setBlockedUrl(undefined)
+    setPending(undefined)
     setFailure(undefined)
 
     const url = await prepareSignIn()
@@ -168,6 +245,7 @@ export default function OAuthConnectButton({
     }
     if (popup && !popup.closed) {
       popup.location.href = url
+      awaitSignIn(url)
     } else {
       setBlockedUrl(url)
     }
@@ -176,8 +254,9 @@ export default function OAuthConnectButton({
   /** Retry from the "blocked" notice; a direct click, so the browser allows this popup. */
   const openBlockedUrl = () => {
     if (blockedUrl) {
-      window.open(blockedUrl, POPUP_NAME, POPUP_FEATURES)
+      openSignInWindow(blockedUrl)
       setBlockedUrl(undefined)
+      awaitSignIn(blockedUrl)
     }
   }
 
@@ -186,8 +265,10 @@ export default function OAuthConnectButton({
     try {
       await deleteConnection(connectionId)
       setCreatedHere(false)
+      setPending(undefined)
       setFailure(undefined)
       notify.success(__('Connection removed'))
+      onDiscarded?.()
     } catch {
       notify.error(__("Couldn't remove the connection. Delete it from the Connections list."))
     }
@@ -210,6 +291,15 @@ export default function OAuthConnectButton({
     }
     return connectionId ? labels.signIn : labels.saveAndSignIn
   }
+
+  const unfinishedNote = createdHere
+    ? __("This connection is saved, but it can't send email until you sign in.")
+    : undefined
+  const removeButton = createdHere ? (
+    <Button size="small" danger loading={isDiscarding} onClick={discardConnection}>
+      {__('Remove this connection')}
+    </Button>
+  ) : null
 
   return (
     <Flex vertical gap="small">
@@ -259,18 +349,29 @@ export default function OAuthConnectButton({
           }
         />
       ) : null}
+      {pending ? (
+        <Alert
+          type="info"
+          showIcon
+          message={labels.finishInWindow}
+          description={unfinishedNote}
+          action={
+            <Space direction="vertical" size="small">
+              <Button size="small" onClick={() => openSignInWindow(pending.url)}>
+                {__('Open sign-in again')}
+              </Button>
+              {removeButton}
+            </Space>
+          }
+        />
+      ) : null}
       {failure && !signIn.connected ? (
         <Alert
           type="error"
           showIcon
           message={failure}
-          action={
-            createdHere ? (
-              <Button size="small" danger loading={isDiscarding} onClick={discardConnection}>
-                {__('Remove this connection')}
-              </Button>
-            ) : undefined
-          }
+          description={unfinishedNote}
+          action={removeButton}
         />
       ) : null}
     </Flex>

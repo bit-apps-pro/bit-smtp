@@ -5,6 +5,8 @@ interface SignInLabels {
   brand: string
   signIn: string
   saveAndSignIn: string
+  /** Shown while waiting for the user to finish in the sign-in popup. */
+  finishInWindow: string
 }
 
 /** Button and message wording for a provider's sign-in (Google, Microsoft, or a neutral fallback). */
@@ -14,16 +16,23 @@ export function signInLabels(provider: string): SignInLabels {
       return {
         brand: __('Google'),
         signIn: __('Sign in with Google'),
-        saveAndSignIn: __('Save and sign in with Google')
+        saveAndSignIn: __('Save and sign in with Google'),
+        finishInWindow: __('Finish signing in in the Google window.')
       }
     case 'microsoft365':
       return {
         brand: __('Microsoft'),
         signIn: __('Sign in with Microsoft'),
-        saveAndSignIn: __('Save and sign in with Microsoft')
+        saveAndSignIn: __('Save and sign in with Microsoft'),
+        finishInWindow: __('Finish signing in in the Microsoft window.')
       }
     default:
-      return { brand: __('The provider'), signIn: __('Sign in'), saveAndSignIn: __('Save and sign in') }
+      return {
+        brand: __('The provider'),
+        signIn: __('Sign in'),
+        saveAndSignIn: __('Save and sign in'),
+        finishInWindow: __('Finish signing in in the sign-in window.')
+      }
   }
 }
 

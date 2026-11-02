@@ -2,7 +2,7 @@ import type * as ReactRouterDom from 'react-router-dom'
 import notify from '@components/Toaster/Toaster'
 import { renderWithProviders } from '@config/test-utils'
 import type * as DndKitCore from '@dnd-kit/core'
-import { type MailSettings, type ProviderMeta } from '@pages/Connections/types'
+import { type FieldMeta, type MailSettings, type ProviderMeta } from '@pages/Connections/types'
 import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -49,6 +49,18 @@ const otherSmtpMeta: ProviderMeta = {
   label: 'Other SMTP',
   kind: 'smtp',
   fields: []
+}
+
+const oauthField: FieldMeta = {
+  key: 'oauth',
+  label: 'Google account',
+  type: 'oauth',
+  required: false,
+  secret: false,
+  placeholder: '',
+  default: '',
+  options: [],
+  dependsOn: null
 }
 
 const thirdConnection = {
@@ -131,6 +143,40 @@ describe('ConnectionsListPage', () => {
     expect(screen.getByText('Primary SMTP')).toBeInTheDocument()
     expect(screen.getByText('Backup SMTP')).toBeInTheDocument()
     expect(screen.getAllByText('Primary')).toHaveLength(1)
+  })
+
+  it('flags only OAuth connections that have no stored token as not signed in', () => {
+    const gmailMeta: ProviderMeta = {
+      key: 'gmail',
+      label: 'Gmail',
+      kind: 'api',
+      fields: [oauthField]
+    }
+    const gmail = { ...thirdConnection, provider: 'gmail', kind: 'api' }
+    ;(useProviders as Mock).mockReturnValue({ data: [otherSmtpMeta, gmailMeta], isPending: false })
+    ;(useMailSettings as Mock).mockReturnValue({
+      data: {
+        ...settings,
+        connections: [
+          ...settings.connections,
+          { ...gmail, id: 'gmail_unfinished', name: 'Unfinished Gmail' },
+          {
+            ...gmail,
+            id: 'gmail_signed_in',
+            name: 'Signed-in Gmail',
+            credentials: { refresh_token: { source: 'database', value: '********' } }
+          }
+        ]
+      },
+      isPending: false
+    })
+
+    renderWithProviders(<ConnectionsListPage />)
+
+    const cardOf = (name: string) => screen.getByText(name).closest('.ant-card') as HTMLElement
+    expect(within(cardOf('Unfinished Gmail')).getByText('Not signed in')).toBeInTheDocument()
+    expect(within(cardOf('Signed-in Gmail')).queryByText('Not signed in')).not.toBeInTheDocument()
+    expect(within(cardOf('Backup SMTP')).queryByText('Not signed in')).not.toBeInTheDocument()
   })
 
   it('explains how the primary and backups fail over', () => {

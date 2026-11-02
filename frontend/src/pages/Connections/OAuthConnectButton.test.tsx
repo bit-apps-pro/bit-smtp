@@ -24,6 +24,7 @@ vi.mock('@components/Toaster/Toaster', () => ({
 }))
 
 const CONSENT_URL = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=abc'
+const CHANNEL_DELIVERY_WAIT_MS = 50
 
 interface FakePopup {
   closed: boolean
@@ -45,6 +46,13 @@ function renderWithClient(ui: ReactElement) {
 function postOAuthMessage(data: Record<string, unknown>, origin = window.location.origin) {
   act(() => {
     window.dispatchEvent(new MessageEvent('message', { origin, data }))
+  })
+}
+
+/** Lets queued BroadcastChannel deliveries reach their listeners. */
+function flushChannel() {
+  return new Promise<void>(resolve => {
+    setTimeout(resolve, CHANNEL_DELIVERY_WAIT_MS)
   })
 }
 
@@ -317,6 +325,194 @@ describe('OAuthConnectButton', () => {
 
     expect(deleteConnection).toHaveBeenCalledWith('conn_new_1')
     expect(notify.success).toHaveBeenCalledWith('Connection removed')
+  })
+
+  it('waits for the user in the sign-in window and can reopen it', async () => {
+    const { open } = stubPopup()
+
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        persistConnection={vi.fn().mockResolvedValue('conn_1')}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+
+    expect(await screen.findByText('Finish signing in in the Google window.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove this connection' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Open sign-in again' }))
+    expect(open).toHaveBeenLastCalledWith(CONSENT_URL, 'bitsmtp_oauth', 'width=600,height=700')
+  })
+
+  it('offers to remove a connection it saved while waiting for sign-in', async () => {
+    stubPopup()
+    const deleteConnection = vi.fn().mockResolvedValue(undefined)
+    ;(useDeleteConnection as Mock).mockReturnValue({ mutateAsync: deleteConnection, isPending: false })
+    const onDiscarded = vi.fn()
+
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId=""
+        provider="gmail"
+        connected={false}
+        persistConnection={vi.fn().mockResolvedValue('conn_new_1')}
+        onDiscarded={onDiscarded}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Save and sign in with Google' }))
+
+    expect(
+      await screen.findByText("This connection is saved, but it can't send email until you sign in.")
+    ).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Remove this connection' }))
+
+    expect(onDiscarded).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Finish signing in in the Google window.')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['success', {}],
+    ['error', { reason: 'access_denied' }]
+  ])('stops waiting once the popup reports %s', async (status, extra) => {
+    stubPopup()
+
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        persistConnection={vi.fn().mockResolvedValue('conn_1')}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+    await screen.findByText('Finish signing in in the Google window.')
+    postOAuthMessage({ type: 'bit-smtp-oauth', status, connectionId: 'conn_1', ...extra })
+
+    expect(screen.queryByText('Finish signing in in the Google window.')).not.toBeInTheDocument()
+  })
+
+  it('waits for a popup opened from the "blocked" notice', async () => {
+    stubPopup(null)
+
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        persistConnection={vi.fn().mockResolvedValue('conn_1')}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Open sign-in page' }))
+
+    expect(screen.getByText('Finish signing in in the Google window.')).toBeInTheDocument()
+  })
+
+  it('hears a result posted on the callback channel when the opener link is severed', async () => {
+    const sender = new BroadcastChannel('bit-smtp-oauth')
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        persistConnection={vi.fn()}
+      />
+    )
+
+    sender.postMessage({ type: 'bit-smtp-oauth', status: 'success', connectionId: 'conn_1' })
+    sender.close()
+
+    await waitFor(() => expect(notify.success).toHaveBeenCalledWith('Account connected'))
+  })
+
+  it('ignores a channel message for a different connection', async () => {
+    const sender = new BroadcastChannel('bit-smtp-oauth')
+    const { invalidateQueries } = renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        persistConnection={vi.fn()}
+      />
+    )
+
+    sender.postMessage({ type: 'bit-smtp-oauth', status: 'success', connectionId: 'conn_other' })
+    sender.close()
+    await act(() => flushChannel())
+
+    expect(invalidateQueries).not.toHaveBeenCalled()
+  })
+
+  it('handles a result once when it arrives by both postMessage and the channel', async () => {
+    const sender = new BroadcastChannel('bit-smtp-oauth')
+    const message = { type: 'bit-smtp-oauth', status: 'success', connectionId: 'conn_1' }
+    renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        persistConnection={vi.fn()}
+      />
+    )
+
+    postOAuthMessage(message)
+    sender.postMessage(message)
+    sender.close()
+    await act(() => flushChannel())
+
+    expect(notify.success).toHaveBeenCalledTimes(1)
+  })
+
+  it('picks up a sign-in finished without a message when the admin window regains focus', async () => {
+    stubPopup()
+    const persistConnection = vi.fn().mockResolvedValue('conn_1')
+    const button = () => (
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        persistConnection={persistConnection}
+      />
+    )
+    const { invalidateQueries, rerender } = renderWithClient(button())
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+    await screen.findByText('Finish signing in in the Google window.')
+
+    mockStoredConnections([
+      {
+        id: 'conn_1',
+        settings: { oauth_account: 'owner@example.com' },
+        credentials: { refresh_token: { source: 'database', value: '********' } }
+      }
+    ])
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+    rerender(button())
+
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: MAIL_SETTINGS_QUERY_KEY })
+    expect(await screen.findByText('Connected as owner@example.com')).toBeInTheDocument()
+    expect(screen.queryByText('Finish signing in in the Google window.')).not.toBeInTheDocument()
+    expect(notify.success).toHaveBeenCalledWith('Account connected')
+  })
+
+  it('does not refetch on focus when no sign-in is in progress', () => {
+    const { invalidateQueries } = renderWithClient(
+      <OAuthConnectButton
+        connectionId="conn_1"
+        provider="gmail"
+        connected={false}
+        persistConnection={vi.fn()}
+      />
+    )
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    expect(invalidateQueries).not.toHaveBeenCalled()
   })
 
   it('ignores a postMessage for a different connection', () => {

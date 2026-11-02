@@ -27,6 +27,13 @@ use Throwable;
 class OAuthController
 {
     /**
+     * Same-origin BroadcastChannel the callback page also reports on, since a provider's COOP header can sever window.opener.
+     */
+    public const CALLBACK_CHANNEL = 'bit-smtp-oauth';
+
+    private const JSON_SCRIPT_FLAGS = \JSON_HEX_TAG | \JSON_HEX_AMP | \JSON_HEX_APOS | \JSON_HEX_QUOT;
+
+    /**
      * @var null|ApiClient
      */
     private $client;
@@ -286,11 +293,14 @@ class OAuthController
     }
 
     /**
+     * Popup page that reports the result to the opener and on the callback channel, then closes itself.
+     *
      * @param array<string,string> $message postMessage payload (no secrets)
      */
     private function page(string $heading, array $message): string
     {
-        $payload = (string) json_encode($message, \JSON_HEX_TAG | \JSON_HEX_AMP | \JSON_HEX_APOS | \JSON_HEX_QUOT);
+        $payload = (string) json_encode($message, self::JSON_SCRIPT_FLAGS);
+        $channel = (string) json_encode(self::CALLBACK_CHANNEL, self::JSON_SCRIPT_FLAGS);
         $heading = htmlspecialchars($heading, \ENT_QUOTES, 'UTF-8');
 
         return implode("\n", [
@@ -304,6 +314,11 @@ class OAuthController
             '    var message = ' . $payload . ';',
             '    if (window.opener) {',
             '        window.opener.postMessage(message, window.location.origin);',
+            '    }',
+            "    if (typeof BroadcastChannel !== 'undefined') {",
+            '        var channel = new BroadcastChannel(' . $channel . ');',
+            '        channel.postMessage(message);',
+            '        channel.close();',
             '    }',
             '    window.close();',
             '})();',

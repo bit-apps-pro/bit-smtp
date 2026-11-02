@@ -39,6 +39,7 @@ export default function ConnectionCard({
   backupNumber,
   routingRuleCount = 0,
   health,
+  needsSignIn = false,
   onSetDefault,
   onToggleEnabled,
   onEdit,
@@ -52,6 +53,7 @@ export default function ConnectionCard({
   backupNumber?: number
   routingRuleCount?: number
   health?: ConnectionHealth
+  needsSignIn?: boolean
   onSetDefault: () => void
   onToggleEnabled: (enabled: boolean) => void
   onEdit: () => void
@@ -163,6 +165,11 @@ export default function ConnectionCard({
             />
           </Tooltip>
           {health && <HealthBadge health={health} connectionName={connection.name} />}
+          {needsSignIn && (
+            <Tag bordered={false} color="warning">
+              {__('Not signed in')}
+            </Tag>
+          )}
           {isDefault && (
             <Tag bordered={false} color={token.colorPrimary}>
               {__('Primary')}
@@ -173,6 +180,11 @@ export default function ConnectionCard({
             <Tag bordered={false}>{sprintf(__('Backup #%d'), backupNumber)}</Tag>
           )}
         </Flex>
+        {needsSignIn && (
+          <Text type="warning" style={{ fontSize: token.fontSizeSM }}>
+            {__("Edit this connection and finish signing in. It can't send email until you do.")}
+          </Text>
+        )}
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
           {visual.blurb}
         </Text>

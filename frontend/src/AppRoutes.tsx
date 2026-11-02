@@ -4,7 +4,6 @@ import ThemeProvider from '@config/themes/theme.provider'
 import AnalyticsPage from '@pages/Analytics/AnalyticsPage'
 import ConnectionDetailPage from '@pages/Connections/ConnectionDetailPage'
 import ConnectionsListPage from '@pages/Connections/ConnectionsListPage'
-import NewConnectionPage from '@pages/Connections/NewConnectionPage'
 import Layout from '@pages/Layout'
 import Logs from '@pages/Logs'
 import LogDetails from '@pages/Logs/ui/LogDetails'
@@ -14,7 +13,7 @@ import RoutingRulesPage from '@pages/Routing/RoutingRulesPage'
 import SettingsPage from '@pages/Settings/SettingsPage'
 import { message, notification } from 'antd'
 
-/** Top-level providers and hash routes for the admin app. */
+/** Top-level providers and hash routes for the admin app; both connection routes share one page so a first save can swap the URL without remounting the editor. */
 export default function AppRoutes() {
   const [, notificationContextHolder] = notification.useNotification()
   const [, messageContextHolder] = message.useMessage()
@@ -28,7 +27,7 @@ export default function AppRoutes() {
           <Route path="/" element={<Layout />}>
             <Route index element={<ConnectionsListPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/connection/new" element={<NewConnectionPage />} />
+            <Route path="/connection/new" element={<ConnectionDetailPage />} />
             <Route path="/connection/:id" element={<ConnectionDetailPage />} />
             <Route path="/routing" element={<RoutingRulesPage />} />
             <Route path="/test-mail" element={<MailSendTest />} />

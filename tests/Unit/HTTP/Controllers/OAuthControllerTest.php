@@ -248,6 +248,28 @@ class OAuthControllerTest extends BaseUnitTestCase
         $this->assertStringContainsString('"reason":"invalid_state"', $this->controller->emittedHtml);
     }
 
+    public function testCallbackPageReportsToTheOpenerAndOnTheChannelBeforeClosing(): void
+    {
+        $this->controller->callback($this->request(['code' => 'AUTH-CODE', 'state' => 'tampered.state']));
+
+        $html          = $this->controller->emittedHtml;
+        $openerPost    = strpos($html, 'window.opener.postMessage(message, window.location.origin);');
+        $channelOpen   = strpos($html, 'new BroadcastChannel("' . OAuthController::CALLBACK_CHANNEL . '");');
+        $channelPost   = strpos($html, 'channel.postMessage(message);');
+        $channelClose  = strpos($html, 'channel.close();');
+        $windowClose   = strpos($html, 'window.close();');
+
+        $this->assertNotFalse($openerPost);
+        $this->assertNotFalse($channelOpen);
+        $this->assertNotFalse($channelPost);
+        $this->assertNotFalse($channelClose);
+        $this->assertNotFalse($windowClose);
+        $this->assertLessThan($channelPost, $channelOpen);
+        $this->assertLessThan($channelClose, $channelPost);
+        $this->assertLessThan($windowClose, $channelClose);
+        $this->assertStringContainsString("typeof BroadcastChannel !== 'undefined'", $html);
+    }
+
     public function testCallbackRejectsProviderErrorParamWithoutSave(): void
     {
         $this->apiClient->shouldNotReceive('postForm');
