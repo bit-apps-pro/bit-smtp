@@ -4,6 +4,7 @@ namespace BitApps\SMTP\Mail\Dispatch;
 
 use BitApps\SMTP\HTTP\Services\LogService;
 use BitApps\SMTP\Model\Log;
+use Closure;
 use PHPMailer\PHPMailer\PHPMailer;
 use WP_Error;
 
@@ -17,13 +18,24 @@ class MailEventLogger
     private LogService $logger;
 
     /**
+     * @var Closure(): ?int
+     */
+    private Closure $memoryHeadroom;
+
+    /**
      * @var array<int,array{status: int, data: array|WP_Error}>
      */
     private array $pendingLogs = [];
 
-    public function __construct(LogService $logger)
+    /**
+     * Wire the log store and a reader of bytes left before the memory limit (null when unlimited).
+     *
+     * @param null|Closure(): ?int $memoryHeadroom
+     */
+    public function __construct(LogService $logger, ?Closure $memoryHeadroom = null)
     {
-        $this->logger = $logger;
+        $this->logger         = $logger;
+        $this->memoryHeadroom = $memoryHeadroom ?? static fn (): ?int => self::phpMemoryHeadroom();
     }
 
     /**
@@ -141,21 +153,28 @@ class MailEventLogger
             return true;
         }
 
+        $headroom = ($this->memoryHeadroom)();
+
+        return $headroom !== null && $headroom < self::MEMORY_THRESHOLD;
+    }
+
+    /**
+     * Bytes left before PHP's memory_limit, or null when the limit is unlimited (-1).
+     */
+    private static function phpMemoryHeadroom(): ?int
+    {
         $limit = \ini_get('memory_limit');
-        if ($limit === '-1') {
-            return false;
+        if ($limit === false || $limit === '-1') {
+            return null;
         }
 
-        $limit = $this->getBytes($limit);
-        $used  = memory_get_usage(true);
-
-        return ($limit - $used) < self::MEMORY_THRESHOLD || self::MEMORY_THRESHOLD > $limit;
+        return self::getBytes($limit) - memory_get_usage(true);
     }
 
     /**
      * Convert a PHP memory-limit string (e.g. "128M") to bytes.
      */
-    private function getBytes(string $val): int
+    private static function getBytes(string $val): int
     {
         $val  = trim($val);
         $last = strtolower($val[\strlen($val) - 1]);

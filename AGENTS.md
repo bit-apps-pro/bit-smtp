@@ -54,8 +54,6 @@
   runs only `tests/Unit` + `tests/Golden` (no WordPress/DB, Brain\Monkey). Tests that touch `$wpdb`,
   REST routes, or `get_plugins()` belong in `tests/Integration` (`composer test:integration`, needs
   the docker `db`/`mailpit` services), not in the unit suite.
-- `tests/Unit/Mail/Dispatch/MailEventLoggerTest::testBatchingFlushesWhenLimitIsBelowThreshold` is a
-  known-flaky Mockery count assertion under the full unit run (passes in isolation); not a blocker.
 - `IntegrationTestCase::setUp()` deletes the `bit_smtp_preferences` option before every test (mirrors
   its `options`/`failure_notification_active` resets), so any test seeding a legacy option (e.g.
   `Config::updateOption('log_retention', ...)`) actually reaches `PluginSettings::getWithLegacyFallback()`'s

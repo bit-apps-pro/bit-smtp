@@ -238,47 +238,54 @@ class MailEventLoggerTest extends BaseUnitTestCase
         $this->eventLogger->logMailSuccess($mailData, $this->context, 'Primary SMTP');
     }
 
+    /**
+     * With no memory limit, batched logs stay buffered until an explicit flush writes them all at once.
+     */
     public function testBatchingDefersFlushUntilThresholdThenFlushesAll(): void
     {
         $this->context->setBatch(true);
+        $eventLogger = new MailEventLogger($this->logger, static fn (): ?int => null);
 
-        $originalLimit = \ini_get('memory_limit');
-        ini_set('memory_limit', '-1');
+        $this->logger->shouldNotReceive('bulkInsert');
 
-        try {
-            $this->logger->shouldNotReceive('bulkInsert');
+        $eventLogger->logMailSuccess(['subject' => 'one'], $this->context);
+        $eventLogger->logMailSuccess(['subject' => 'two'], $this->context);
 
-            $this->eventLogger->logMailSuccess(['subject' => 'one'], $this->context);
-            $this->eventLogger->logMailSuccess(['subject' => 'two'], $this->context);
+        $this->logger->shouldReceive('bulkInsert')
+            ->once()
+            ->with([
+                ['status' => Log::SUCCESS, 'data' => ['subject' => 'one'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null],
+                ['status' => Log::SUCCESS, 'data' => ['subject' => 'two'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null],
+            ]);
 
-            $this->logger->shouldReceive('bulkInsert')
-                ->once()
-                ->with([
-                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'one'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null],
-                    ['status' => Log::SUCCESS, 'data' => ['subject' => 'two'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null],
-                ]);
-
-            $this->eventLogger->flushPendingLogs();
-        } finally {
-            ini_set('memory_limit', $originalLimit);
-        }
+        $eventLogger->flushPendingLogs();
     }
 
+    /**
+     * With plenty of memory headroom, batched logs are not flushed yet.
+     */
+    public function testBatchingKeepsBufferingWhileHeadroomIsAboveThreshold(): void
+    {
+        $this->context->setBatch(true);
+        $eventLogger = new MailEventLogger($this->logger, static fn (): ?int => 512 * 1024 * 1024);
+
+        $this->logger->shouldNotReceive('bulkInsert');
+
+        $eventLogger->logMailSuccess(['subject' => 'keep-me'], $this->context);
+    }
+
+    /**
+     * Once memory headroom drops below the threshold, batched logs flush immediately.
+     */
     public function testBatchingFlushesWhenLimitIsBelowThreshold(): void
     {
         $this->context->setBatch(true);
+        $eventLogger = new MailEventLogger($this->logger, static fn (): ?int => 10 * 1024 * 1024);
 
-        $originalLimit = \ini_get('memory_limit');
-        ini_set('memory_limit', '64M');
+        $this->logger->shouldReceive('bulkInsert')
+            ->once()
+            ->with([['status' => Log::SUCCESS, 'data' => ['subject' => 'flush-me'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null]]);
 
-        try {
-            $this->logger->shouldReceive('bulkInsert')
-                ->once()
-                ->with([['status' => Log::SUCCESS, 'data' => ['subject' => 'flush-me'], 'connection' => null, 'connection_id' => null, 'message_id' => null, 'tracking_id' => null, 'delivery_status' => null, 'delivery_updated_at' => null, 'failure_class' => null]]);
-
-            $this->eventLogger->logMailSuccess(['subject' => 'flush-me'], $this->context);
-        } finally {
-            ini_set('memory_limit', $originalLimit);
-        }
+        $eventLogger->logMailSuccess(['subject' => 'flush-me'], $this->context);
     }
 }
