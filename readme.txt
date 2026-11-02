@@ -4,7 +4,7 @@ Tags: email logs, smtp, email, gmail smtp, transactional email
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.3.0
+Stable tag: 2.0.0
 License: GPLv2 or later
 
 Fix WordPress email delivery. Send through Gmail, Microsoft 365, SendGrid, Amazon SES, Brevo and more by API, OAuth, or SMTP, with fallback and logs.
@@ -193,7 +193,7 @@ Delivery counts stay separate from send acceptance: an email counts as delivered
 
 == Changelog ==
 
-= 1.3.0 (29 Oct, 2026) =
+= 2.0.0 (02 Nov, 2026) =
 * Feat: Dedicated API integrations for SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, Zoho CPaaS (ZeptoMail), SparkPost, and Cloudflare Email Sending (Beta), plus Gmail and Microsoft 365 via OAuth, any SMTP server, and PHP mail().
 * Feat: Multiple connections with a priority order and automatic fallback; enable, disable, and disconnect connections without deleting them.
 * Feat: Retry queue with backoff for temporary failures, failure classification, and connection health checks.
@@ -289,3 +289,8 @@ Fix: some issues
 
 = 1.0.0 =
 * Initial release of bit-smtp
+
+== Upgrade Notice ==
+
+= 2.0.0 =
+Major update: dedicated provider integrations, fallback, retries, delivery tracking, alerts, and analytics. Requires PHP 8.1+ and WordPress 5.9+; on older PHP the plugin stays inactive.
