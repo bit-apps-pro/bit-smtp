@@ -135,16 +135,15 @@ final class WpMailRoutingTest extends IntegrationTestCase
         }
     }
 
-    public function testDisabledSmtpAndLoggingDoNotDetectRetainedRoutingSource(): void
+    public function testDisabledConnectionAndLoggingDoNotDetectRetainedRoutingSource(): void
     {
         $this->useRealPhpMailer();
         $nativeMailpit = $this->configureNativeMailpit();
         $this->storeV2(
-            [$this->connection('conn_default', self::SMTP_HOST, self::SMTP_PORT)],
+            [['enabled' => false] + $this->connection('conn_default', self::SMTP_HOST, self::SMTP_PORT)],
             'conn_default',
             [],
-            $this->routingFeature('conn_default', 'recipient', 'domain', 'routed.test'),
-            false
+            $this->routingFeature('conn_default', 'recipient', 'domain', 'routed.test')
         );
 
         $detector = Mockery::mock(MailSourceDetector::class);
@@ -165,16 +164,15 @@ final class WpMailRoutingTest extends IntegrationTestCase
         }
     }
 
-    public function testDisabledSmtpWithLoggingCapturesNativeSource(): void
+    public function testDisabledConnectionWithLoggingCapturesNativeSource(): void
     {
         $this->useRealPhpMailer();
         $nativeMailpit = $this->configureNativeMailpit();
         $this->storeV2(
-            [$this->connection('conn_default', self::SMTP_HOST, self::SMTP_PORT)],
+            [['enabled' => false] + $this->connection('conn_default', self::SMTP_HOST, self::SMTP_PORT)],
             'conn_default',
             [],
-            $this->routingFeature('conn_default', 'recipient', 'domain', 'routed.test'),
-            false
+            $this->routingFeature('conn_default', 'recipient', 'domain', 'routed.test')
         );
 
         $detector = Mockery::mock(MailSourceDetector::class);
@@ -221,11 +219,10 @@ final class WpMailRoutingTest extends IntegrationTestCase
      * @param string[]                       $fallbackIds
      * @param array<string,mixed>            $features
      */
-    private function storeV2(array $connections, string $defaultId, array $fallbackIds, array $features, bool $enabled = true): void
+    private function storeV2(array $connections, string $defaultId, array $fallbackIds, array $features): void
     {
         $this->storeOptions([
             'schema_version'          => 2,
-            'enabled'                 => $enabled,
             'default_connection_id'   => $defaultId,
             'fallback_connection_ids' => $fallbackIds,
             'connections'             => $connections,

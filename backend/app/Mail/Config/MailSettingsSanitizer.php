@@ -12,7 +12,6 @@ final class MailSettingsSanitizer
 {
     private const ALLOWED_TOP_KEYS = [
         'schema_version',
-        'enabled',
         'default_connection_id',
         'fallback_connection_ids',
         'connections',
@@ -52,12 +51,6 @@ final class MailSettingsSanitizer
             switch ($key) {
                 case 'schema_version':
                     $out[$key] = isset($v2[$key]) ? (int) $v2[$key] : 2;
-
-                    break;
-                case 'enabled':
-                    $out[$key] = isset($v2[$key])
-                        ? (bool) filter_var($v2[$key], FILTER_VALIDATE_BOOLEAN)
-                        : false;
 
                     break;
                 case 'default_connection_id':

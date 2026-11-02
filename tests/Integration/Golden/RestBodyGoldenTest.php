@@ -125,7 +125,6 @@ final class RestBodyGoldenTest extends IntegrationTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => self::CONN_ID,
             'fallback_connection_ids' => [],
             'connections'             => [$this->connectionPayload()],

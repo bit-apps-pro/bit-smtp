@@ -211,7 +211,7 @@ class WpMailBridge
     }
 
     /**
-     * pre_wp_mail handler: short-circuit with fallover dispatch; null defers to native wp_mail if disabled/no connection.
+     * pre_wp_mail handler: short-circuit with failover dispatch; null defers to native wp_mail when no enabled, sendable connection exists.
      *
      * @param null|bool           $return short-circuit value from an earlier pre_wp_mail listener
      * @param array<string,mixed> $atts   wp_mail() arguments: to, subject, message, headers, attachments
@@ -239,13 +239,10 @@ class WpMailBridge
 
         $this->context->setNativeMailHeaders($atts['headers'] ?? '');
 
-        $settings = Plugin::instance()->mailConfigService()->load();
-        $this->routingPlanner->captureSourceForSend($settings, $this->context, $this->loggingEnabled);
-        if (!$settings->isEnabled()) {
-            return;
-        }
-
-        if ($this->routingPlanner->sendableConnections($settings, null) === []) {
+        $settings  = Plugin::instance()->mailConfigService()->load();
+        $willRoute = $this->routingPlanner->sendableConnections($settings, null) !== [];
+        $this->routingPlanner->captureSourceForSend($settings, $this->context, $this->loggingEnabled, $willRoute);
+        if (!$willRoute) {
             return;
         }
 

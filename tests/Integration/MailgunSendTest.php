@@ -104,7 +104,6 @@ final class MailgunSendTest extends IntegrationTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_mailgun',
             'fallback_connection_ids' => [],
             'connections'             => [

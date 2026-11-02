@@ -319,7 +319,6 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $service = new MailConfigService();
         $stored  = [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_stored',
             'fallback_connection_ids' => [],
             'connections'             => [[
@@ -430,6 +429,7 @@ final class MailSettingsControllerTest extends IntegrationTestCase
         $this->assertArrayHasKey('fallback_connection_ids', $result, 'validated() must not strip fallback_connection_ids');
         $this->assertSame(['log_emails' => true], $result['features']);
         $this->assertSame(['conn_2', 'conn_3'], $result['fallback_connection_ids']);
+        $this->assertArrayNotHasKey('enabled', $result, 'an older client posting the retired global flag must not persist it');
     }
 
     /**
@@ -500,7 +500,6 @@ final class MailSettingsControllerTest extends IntegrationTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => $connId,
             'fallback_connection_ids' => [],
             'connections'             => [[

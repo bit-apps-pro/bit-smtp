@@ -230,7 +230,6 @@ final class ConnectionHealthServiceTest extends BaseUnitTestCase
     {
         $settings = MailSettings::fromArray([
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => '',
             'fallback_connection_ids' => [],
             'connections'             => array_map(static fn (Connection $c): array => $c->toArray(), $connections),

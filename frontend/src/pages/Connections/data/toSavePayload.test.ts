@@ -4,7 +4,6 @@ import toSavePayload from './toSavePayload'
 
 const base: MailSettings = {
   schema_version: 2,
-  enabled: true,
   default_connection_id: 'conn_a',
   fallback_connection_ids: [],
   connections: [],

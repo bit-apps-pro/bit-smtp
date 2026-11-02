@@ -14,7 +14,7 @@ namespace BitApps\SMTP\Mail\Config;
  *   credentials: array<string, array{source: string, value: string}>
  * }
  * @phpstan-type PersistedSettingsV2 array{
- *   schema_version: int, enabled: bool, default_connection_id: string,
+ *   schema_version: int, default_connection_id: string,
  *   fallback_connection_ids: list<string>,
  *   connections: list<PersistedConnectionV2>,
  *   features: array<string, mixed>

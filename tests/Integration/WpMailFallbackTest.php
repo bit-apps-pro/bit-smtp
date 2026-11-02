@@ -260,25 +260,25 @@ final class WpMailFallbackTest extends IntegrationTestCase
     }
 
     /**
-     * BC: native wp_mail sends must still be logged when routing is disabled.
+     * BC: native wp_mail sends must still be logged when every connection is disabled.
      */
-    public function testNativePathSendIsStillLoggedWhenRoutingIsDisabled(): void
+    public function testNativePathSendIsStillLoggedWhenEveryConnectionIsDisabled(): void
     {
         $this->useRealPhpMailer();
         $this->storeV2([
-            $this->connection('conn_only', self::SMTP_HOST, self::SMTP_PORT),
-        ], 'conn_only', [], false);
+            ['enabled' => false] + $this->connection('conn_only', self::SMTP_HOST, self::SMTP_PORT),
+        ], 'conn_only', []);
 
         wp_mail('to@example.org', 'Native', 'Body');
 
         $this->assertCount(1, $this->logs(), 'a native-path send must still produce a log row');
     }
 
-    public function testDisabledPluginDefersToNativeWpMail(): void
+    public function testDisabledConnectionDefersToNativeWpMail(): void
     {
         $this->storeV2([
-            $this->connection('conn_only', self::SMTP_HOST, self::SMTP_PORT),
-        ], 'conn_only', [], false);
+            ['enabled' => false] + $this->connection('conn_only', self::SMTP_HOST, self::SMTP_PORT),
+        ], 'conn_only', []);
 
         $result = Plugin::instance()->smtpProvider()->onPreWpMail(null, [
             'to'      => 'to@example.org',
@@ -354,11 +354,10 @@ final class WpMailFallbackTest extends IntegrationTestCase
      * @param array<int,array<string,mixed>> $connections
      * @param string[]                       $fallbackIds
      */
-    private function storeV2(array $connections, string $defaultId, array $fallbackIds, bool $enabled = true): void
+    private function storeV2(array $connections, string $defaultId, array $fallbackIds): void
     {
         $this->storeOptions([
             'schema_version'          => 2,
-            'enabled'                 => $enabled,
             'default_connection_id'   => $defaultId,
             'fallback_connection_ids' => $fallbackIds,
             'connections'             => $connections,

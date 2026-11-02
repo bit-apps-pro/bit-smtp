@@ -33,7 +33,6 @@ final class MailSettingsMigrator
 
         return [
             'schema_version'          => 2,
-            'enabled'                 => $enabled,
             'default_connection_id'   => $connId,
             'fallback_connection_ids' => [],
             'connections'             => [$conn],
@@ -110,7 +109,6 @@ final class MailSettingsMigrator
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => false,
             'default_connection_id'   => '',
             'fallback_connection_ids' => [],
             'connections'             => [],

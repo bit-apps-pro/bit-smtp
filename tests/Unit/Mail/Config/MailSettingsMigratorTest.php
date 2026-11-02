@@ -25,7 +25,6 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
     {
         $v2 = [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_abc',
             'fallback_connection_ids' => [],
             'connections'             => [],
@@ -40,7 +39,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
         $result = MailSettingsMigrator::migrate([]);
 
         $this->assertSame(2, $result['schema_version']);
-        $this->assertFalse($result['enabled']);
+        $this->assertArrayNotHasKey('enabled', $result);
         $this->assertSame('', $result['default_connection_id']);
         $this->assertSame([], $result['fallback_connection_ids']);
         $this->assertSame([], $result['connections']);
@@ -62,7 +61,8 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
         $conn   = $result['connections'][0];
 
         $this->assertSame(2, $result['schema_version']);
-        $this->assertTrue($result['enabled']);
+        $this->assertArrayNotHasKey('enabled', $result);
+        $this->assertTrue($conn['enabled']);
         $this->assertSame(MailSettingsMigrator::MIGRATED_CONNECTION_ID, $result['default_connection_id']);
         $this->assertSame([], $result['fallback_connection_ids']);
         $this->assertCount(1, $result['connections']);
@@ -179,8 +179,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
         $input['status'] = 0;
         $result          = MailSettingsMigrator::migrate($input);
 
-        $this->assertFalse($result['enabled']);
-        $this->assertFalse($result['connections'][0]['enabled']);
+        $this->assertFalse($result['connections'][0]['enabled'], 'a 1.x site with SMTP off must migrate to a disabled connection');
     }
 
     public function testBooleanStatusTrueFromString(): void
@@ -189,7 +188,7 @@ class MailSettingsMigratorTest extends BaseUnitTestCase
         $input['status'] = 'true';
         $result          = MailSettingsMigrator::migrate($input);
 
-        $this->assertTrue($result['enabled']);
+        $this->assertTrue($result['connections'][0]['enabled']);
     }
 
     public function testPasswordInCredentials(): void

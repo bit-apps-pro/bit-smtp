@@ -191,7 +191,6 @@ final class Microsoft365SendTest extends IntegrationTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => self::CONNECTION_ID,
             'fallback_connection_ids' => [],
             'connections'             => [

@@ -10,7 +10,6 @@ vi.mock('@common/helpers/request', () => ({ default: vi.fn() }))
 
 const SETTINGS = {
   schema_version: 1,
-  enabled: true,
   default_connection_id: 'primary',
   fallback_connection_ids: ['backup'],
   connections: [

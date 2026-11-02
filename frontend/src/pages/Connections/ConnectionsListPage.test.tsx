@@ -78,7 +78,6 @@ const thirdConnection = {
 
 const settings: MailSettings = {
   schema_version: 2,
-  enabled: true,
   default_connection_id: 'conn_1',
   fallback_connection_ids: [],
   connections: [

@@ -38,7 +38,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
 
         $incoming = [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_abc',
             'fallback_connection_ids' => [],
             'connections'             => [
@@ -66,7 +65,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
 
         $incoming = [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_new',
             'fallback_connection_ids' => [],
             'connections'             => [
@@ -163,7 +161,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
         $current  = $this->currentSettings();
         $incoming = [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_new',
             'fallback_connection_ids' => [],
             'connections'             => [
@@ -209,7 +206,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
     {
         $current = MailSettings::fromArray([
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_A',
             'fallback_connection_ids' => [],
             'connections'             => [
@@ -225,7 +221,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
 
         $incomingV2 = [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_A',
             'fallback_connection_ids' => [],
             'connections'             => [
@@ -401,7 +396,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
     {
         return MailSettings::fromArray([
             'schema_version'          => 2,
-            'enabled'                 => false,
             'default_connection_id'   => '',
             'fallback_connection_ids' => [],
             'connections'             => [],
@@ -444,7 +438,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
 
         return MailSettings::fromArray([
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_abc',
             'fallback_connection_ids' => [],
             'connections'             => [
@@ -461,7 +454,6 @@ final class MaskedSecretResolverTest extends BaseUnitTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_abc',
             'fallback_connection_ids' => [],
             'connections'             => [

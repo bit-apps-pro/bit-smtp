@@ -51,7 +51,7 @@ class MailSettingsSerializer
         }
 
         return [
-            'status'             => $s->isEnabled() && $conn->isEnabled(),
+            'status'             => $conn->isEnabled(),
             'from_email_address' => $conn->getFromEmail(),
             'from_name'          => $conn->getFromName(),
             're_email_address'   => $conn->getReplyToEmail(),

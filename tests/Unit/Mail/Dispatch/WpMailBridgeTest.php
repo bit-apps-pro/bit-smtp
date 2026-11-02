@@ -2,7 +2,9 @@
 
 namespace BitApps\SMTP\Tests\Unit\Mail\Dispatch;
 
+use BitApps\SMTP\Deps\BitApps\WPKit\Container\Application;
 use BitApps\SMTP\HTTP\Services\LogService;
+use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Config\MailSettings;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
@@ -33,11 +35,14 @@ use BitApps\SMTP\Mail\Routing\RoutingDecision;
 use BitApps\SMTP\Mail\Routing\RoutingResolver;
 use BitApps\SMTP\Mail\Tracking\TokenSigner;
 use BitApps\SMTP\Mail\Tracking\TrackingBodyRewriter;
+use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
 use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
+use ReflectionProperty;
 use WP_Error;
 
 /**
@@ -54,6 +59,12 @@ class WpMailBridgeTest extends BaseUnitTestCase
         Functions\when('get_option')->justReturn(false);
         Functions\when('apply_filters')->returnArg(2);
         Functions\when('network_home_url')->justReturn('https://www.example.com');
+    }
+
+    protected function tearDown(): void
+    {
+        $this->setPluginInstance(null);
+        parent::tearDown();
     }
 
     public function testSendViaOverridesMessageFromWithTheConnectionsFromEmailAndName(): void
@@ -904,6 +915,48 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $bridge->onNativeMailSucceeded(['subject' => 'Hi', 'to' => ['a@example.org']]);
     }
 
+    /**
+     * @param array<string,mixed> $topLevel
+     */
+    #[DataProvider('freshInstallSettingsProvider')]
+    public function testPreWpMailRoutesThroughAnEnabledSendableConnectionWithoutAnyGlobalFlag(array $topLevel): void
+    {
+        $spy    = new SpyTransport();
+        $bridge = $this->dispatchableBridge($spy);
+        $this->useStoredSettings($topLevel + ['connections' => [['id' => 'conn_1', 'provider' => 'fake', 'kind' => 'api', 'enabled' => true]]]);
+
+        $result = $bridge->onPreWpMail(null, $this->testAtts());
+
+        $this->assertTrue($result);
+        $this->assertNotNull($spy->received, 'the enabled connection must carry the send');
+    }
+
+    /**
+     * @return array<string,array{0: array<string,mixed>}>
+     */
+    public static function freshInstallSettingsProvider(): array
+    {
+        return [
+            'flag absent'              => [['schema_version' => 2]],
+            'legacy stored flag false' => [['schema_version' => 2, 'enabled' => false]],
+        ];
+    }
+
+    public function testPreWpMailLeavesMailToWordPressWhenEveryConnectionIsDisabled(): void
+    {
+        $spy    = new SpyTransport();
+        $bridge = $this->dispatchableBridge($spy);
+        $this->useStoredSettings([
+            'schema_version' => 2,
+            'connections'    => [['id' => 'conn_1', 'provider' => 'fake', 'kind' => 'api', 'enabled' => false]],
+        ]);
+
+        $result = $bridge->onPreWpMail(null, $this->testAtts());
+
+        $this->assertNull($result);
+        $this->assertNull($spy->received);
+    }
+
     public function testNativeMailFailureIsForwardedToTheNotifier(): void
     {
         $bridge   = $this->bridgeWithTransport(new SpyTransport());
@@ -1364,6 +1417,32 @@ class WpMailBridgeTest extends BaseUnitTestCase
             'retry_max_attempts' => 5,
             'retry_backoff'      => 'exponential',
         ]);
+    }
+
+    /**
+     * Install a Plugin singleton whose mail config service loads the given stored settings blob.
+     *
+     * @param array<string,mixed> $stored
+     */
+    private function useStoredSettings(array $stored): void
+    {
+        $configService = Mockery::mock(MailConfigService::class);
+        $configService->shouldReceive('load')->andReturn(MailSettings::fromArray($stored));
+
+        $app = new Application();
+        $app->instance(MailConfigService::class, $configService);
+
+        $plugin = (new ReflectionClass(Plugin::class))->newInstanceWithoutConstructor();
+        (new ReflectionProperty(Plugin::class, 'app'))->setValue($plugin, $app);
+        $this->setPluginInstance($plugin);
+    }
+
+    /**
+     * Swap the Plugin::instance() singleton (null restores the unbooted state).
+     */
+    private function setPluginInstance(?Plugin $plugin): void
+    {
+        (new ReflectionProperty(Plugin::class, '_instance'))->setValue(null, $plugin);
     }
 
     /**

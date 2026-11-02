@@ -36,14 +36,13 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
         $this->assertIsInt($result['schema_version']);
     }
 
-    public function testCoercesEnabled(): void
+    public function testDropsTheRetiredGlobalEnabledKey(): void
     {
         $input            = $this->baseV2();
         $input['enabled'] = '1';
         $result           = MailSettingsSanitizer::sanitize($input);
 
-        $this->assertTrue($result['enabled']);
-        $this->assertIsBool($result['enabled']);
+        $this->assertArrayNotHasKey('enabled', $result);
     }
 
     public function testCoercesConnectionPort(): void
@@ -1003,7 +1002,6 @@ class MailSettingsSanitizerTest extends BaseUnitTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => false,
             'default_connection_id'   => '',
             'fallback_connection_ids' => [],
             'connections'             => [],

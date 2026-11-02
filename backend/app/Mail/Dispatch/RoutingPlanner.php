@@ -82,11 +82,11 @@ final class RoutingPlanner
     }
 
     /**
-     * Seed context with detected source before dispatch for proper logging of natively-deferred sends.
+     * Seed context with the detected source before dispatch when logging needs it or routing rules will evaluate it.
      */
-    public function captureSourceForSend(MailSettings $settings, SendContext $context, bool $loggingEnabled): void
+    public function captureSourceForSend(MailSettings $settings, SendContext $context, bool $loggingEnabled, bool $willRoute): void
     {
-        if (!$loggingEnabled && (!$settings->isEnabled() || $this->routingRules($settings) === null)) {
+        if (!$loggingEnabled && (!$willRoute || $this->routingRules($settings) === null)) {
             return;
         }
 

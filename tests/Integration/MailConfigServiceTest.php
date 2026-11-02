@@ -578,7 +578,6 @@ final class MailConfigServiceTest extends IntegrationTestCase
     {
         $this->freshService()->saveSettings([
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_oauth',
             'fallback_connection_ids' => [],
             'connections'             => [[
@@ -910,7 +909,6 @@ final class MailConfigServiceTest extends IntegrationTestCase
     {
         $this->freshService()->saveSettings([
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_oauth',
             'fallback_connection_ids' => [],
             'connections'             => [[
@@ -1055,7 +1053,6 @@ final class MailConfigServiceTest extends IntegrationTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => $connId,
             'fallback_connection_ids' => [],
             'connections'             => [

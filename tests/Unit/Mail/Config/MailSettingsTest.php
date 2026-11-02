@@ -19,7 +19,6 @@ class MailSettingsTest extends BaseUnitTestCase
         $settings = MailSettings::fromArray($this->v2Array());
 
         $this->assertSame(2, $settings->getSchemaVersion());
-        $this->assertTrue($settings->isEnabled());
         $this->assertSame('conn_abc', $settings->getDefaultConnectionId());
         $this->assertSame(['conn_xyz'], $settings->getFallbackConnectionIds());
         $this->assertSame(1, $settings->getConnections()->count());
@@ -33,7 +32,7 @@ class MailSettingsTest extends BaseUnitTestCase
         $result   = $settings->toArray();
 
         $this->assertSame($data['schema_version'], $result['schema_version']);
-        $this->assertSame($data['enabled'], $result['enabled']);
+        $this->assertArrayNotHasKey('enabled', $result, 'the retired global flag is read without error but never written back');
         $this->assertSame($data['default_connection_id'], $result['default_connection_id']);
         $this->assertSame($data['fallback_connection_ids'], $result['fallback_connection_ids']);
         $this->assertCount(\count($data['connections']), $result['connections']);

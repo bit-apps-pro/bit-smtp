@@ -159,7 +159,6 @@ export interface MailFeatures extends Record<string, unknown> {
 
 export interface MailSettings {
   schema_version: number
-  enabled: boolean
   default_connection_id: string
   fallback_connection_ids: string[]
   connections: Connection[]

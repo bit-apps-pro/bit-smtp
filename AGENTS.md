@@ -16,6 +16,9 @@
     `MailServiceProvider::boot()` force-resolves `WpMailBridge` so its constructor's
     `pre_wp_mail`/`wp_mail_succeeded` hooks actually register (a lazy singleton would silently never
     wire up if nothing else resolves it first). Access the container via `Plugin::instance()->app()`.
+    There is no global on/off switch: `WpMailBridge` takes over `wp_mail` whenever an enabled,
+    sendable connection exists (per-connection `enabled` is the only gate; a stored top-level
+    `enabled` key in `bit_smtp_options` is a retired 1.x/2.0-dev leftover, ignored on read).
   - `app/Settings/PluginSettings.php`: schema + repository for the plugin's global preferences,
     backed by wp-kit `Settings`. Stored as a single option, `bit_smtp_preferences` (never re-prefix
     with `Config::withPrefix()` — read/write it with plain `get_option()`/`delete_option()` or through

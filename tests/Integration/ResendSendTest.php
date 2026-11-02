@@ -95,7 +95,6 @@ final class ResendSendTest extends IntegrationTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_resend',
             'fallback_connection_ids' => [],
             'connections'             => [

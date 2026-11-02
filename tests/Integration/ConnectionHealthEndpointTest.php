@@ -109,7 +109,6 @@ final class ConnectionHealthEndpointTest extends IntegrationTestCase
     {
         $this->storeOptions([
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => $id,
             'fallback_connection_ids' => [],
             'connections'             => [[

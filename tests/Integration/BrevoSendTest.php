@@ -95,7 +95,6 @@ final class BrevoSendTest extends IntegrationTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_brevo',
             'fallback_connection_ids' => [],
             'connections'             => [

@@ -43,7 +43,6 @@ final class FailureNotifierIntegrationTest extends IntegrationTestCase
         $config = new MailConfigService();
         $config->saveSettings([
             'schema_version'          => 2,
-            'enabled'                 => false,
             'default_connection_id'   => '',
             'fallback_connection_ids' => [],
             'connections'             => [],

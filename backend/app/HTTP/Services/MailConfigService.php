@@ -444,7 +444,6 @@ class MailConfigService
             $connection['id'] = 'conn_' . wp_generate_uuid4();
             $empty            = MailSettings::fromArray([
                 'schema_version'          => 2,
-                'enabled'                 => false,
                 'default_connection_id'   => '',
                 'fallback_connection_ids' => [],
                 'connections'             => [],

@@ -72,7 +72,6 @@ final class ConnectionHealthPersistenceTest extends IntegrationTestCase
     {
         $this->storeOptions([
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_live',
             'fallback_connection_ids' => [],
             'connections'             => [
@@ -107,7 +106,6 @@ final class ConnectionHealthPersistenceTest extends IntegrationTestCase
     {
         $this->storeOptions([
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_gone',
             'fallback_connection_ids' => [],
             'connections'             => [

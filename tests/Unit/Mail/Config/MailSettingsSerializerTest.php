@@ -86,14 +86,14 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
         $this->assertSame(0,  $result['port']);
     }
 
-    public function testToLegacyShapeStatusFalseWhenSettingsDisabled(): void
+    public function testToLegacyShapeStatusFollowsTheConnectionNotARetiredGlobalFlag(): void
     {
         $data            = $this->v2Array();
         $data['enabled'] = false;
         $settings        = MailSettings::fromArray($data);
         $result          = MailSettingsSerializer::toLegacyShape($settings);
 
-        $this->assertFalse($result['status']);
+        $this->assertTrue($result['status']);
     }
 
     public function testToLegacyShapeStatusFalseWhenConnectionDisabled(): void
@@ -166,7 +166,7 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
         $conn2     = $settings2->defaultConnection();
 
         $this->assertSame(2,                  $v2Again['schema_version']);
-        $this->assertTrue($v2Again['enabled']);
+        $this->assertTrue($v2Again['connections'][0]['enabled']);
         $this->assertNotNull($conn2);
         $this->assertSame('from@example.com',  $conn2->getFromEmail());
         $this->assertSame('Sender',            $conn2->getFromName());
@@ -470,7 +470,6 @@ class MailSettingsSerializerTest extends BaseUnitTestCase
     {
         return [
             'schema_version'          => 2,
-            'enabled'                 => true,
             'default_connection_id'   => 'conn_abc',
             'fallback_connection_ids' => [],
             'connections'             => [

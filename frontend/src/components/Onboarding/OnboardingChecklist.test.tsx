@@ -15,7 +15,6 @@ const FLAGS = { checklistDismissed: false, testEmailSent: false, reviewPromptDis
 function settingsWith(connectionCount: number, alertsOn = false): MailSettings {
   return {
     schema_version: 1,
-    enabled: true,
     default_connection_id: '',
     fallback_connection_ids: [],
     connections: Array.from({ length: connectionCount }, (_, i) => ({

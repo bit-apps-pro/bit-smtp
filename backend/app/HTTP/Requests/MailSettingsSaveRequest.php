@@ -9,7 +9,6 @@ class MailSettingsSaveRequest extends Request
     public function rules()
     {
         return [
-            'enabled'                 => ['nullable', 'boolean'],
             'default_connection_id'   => ['nullable', 'string', 'sanitize:text'],
             'connections'             => ['nullable', 'array'],
             'features'                => ['nullable', 'array'],

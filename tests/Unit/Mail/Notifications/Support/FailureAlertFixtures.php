@@ -180,7 +180,6 @@ trait FailureAlertFixtures
         $config = Mockery::mock(MailConfigService::class);
         $config->shouldReceive('load')->andReturn(MailSettings::fromArray([
             'schema_version'          => 2,
-            'enabled'                 => false,
             'default_connection_id'   => '',
             'fallback_connection_ids' => [],
             'connections'             => [],

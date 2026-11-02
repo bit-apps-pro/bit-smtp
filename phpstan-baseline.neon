@@ -1024,7 +1024,7 @@ parameters:
 		-
 			message: '#^Method BitApps\\SMTP\\Mail\\Dispatch\\WpMailBridge\:\:onPreWpMail\(\) should return bool\|null but empty return statement found\.$#'
 			identifier: return.empty
-			count: 5
+			count: 4
 			path: backend/app/Mail/Dispatch/WpMailBridge.php
 
 		-
