@@ -2,34 +2,32 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import EmailPreviewer from './EmailPreviewer'
 
-describe('EmailPreviewer dark-mode body color', () => {
-  it('injects the light text color and a dark color-scheme when isDark is true', async () => {
-    render(<EmailPreviewer html="<p>Hello</p>" isDark />)
-    const iframe = screen.getByTitle('Email Preview') as HTMLIFrameElement
+/** Renders the previewer and waits until its srcdoc holds the email HTML. */
+async function renderPreview(html: string): Promise<HTMLIFrameElement> {
+  render(<EmailPreviewer html={html} />)
+  const iframe = screen.getByTitle('Email Preview') as HTMLIFrameElement
+  await waitFor(() => expect(iframe.srcdoc).toContain('Hello'))
+  return iframe
+}
 
-    await waitFor(() => expect(iframe.srcdoc).toContain('Hello'))
-
-    expect(iframe.srcdoc).toContain('<meta name="color-scheme" content="dark">')
-    expect(iframe.srcdoc).toContain('body { color: #f8fafc; }')
-  })
-
-  it('injects black text and a light color-scheme when isDark is false', async () => {
-    render(<EmailPreviewer html="<p>Hello</p>" isDark={false} />)
-    const iframe = screen.getByTitle('Email Preview') as HTMLIFrameElement
-
-    await waitFor(() => expect(iframe.srcdoc).toContain('Hello'))
+describe('EmailPreviewer', () => {
+  it('renders the email on white paper with dark text and a light color-scheme', async () => {
+    const iframe = await renderPreview('<p>Hello</p>')
 
     expect(iframe.srcdoc).toContain('<meta name="color-scheme" content="light">')
-    expect(iframe.srcdoc).toContain('body { color: #000000; }')
+    expect(iframe.srcdoc).toContain('body { background: #ffffff; color: #000000; }')
   })
 
-  it('keeps the injected rule low-specificity so the email HTML can still set its own color', async () => {
-    render(<EmailPreviewer html='<p style="color: red">Hello</p>' isDark />)
-    const iframe = screen.getByTitle('Email Preview') as HTMLIFrameElement
-
-    await waitFor(() => expect(iframe.srcdoc).toContain('Hello'))
+  it('keeps the defaults low-specificity so the email HTML can still set its own colors', async () => {
+    const iframe = await renderPreview('<p style="color: red">Hello</p>')
 
     expect(iframe.srcdoc).not.toContain('!important')
     expect(iframe.srcdoc).toContain('style="color: red"')
+  })
+
+  it('grants the sandbox no permissions so email HTML cannot run scripts or reach the admin page', async () => {
+    const iframe = await renderPreview('<p>Hello</p>')
+
+    expect(iframe.getAttribute('sandbox')).toBe('')
   })
 })

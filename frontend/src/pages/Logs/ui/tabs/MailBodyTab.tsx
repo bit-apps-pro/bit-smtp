@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { useTheme } from '@config/themes/theme.provider'
 import { type LogType } from '@pages/Logs/data/useFetchLogs'
 import EmailPreviewer from '@pages/Logs/ui/EmailPreviewer'
 import dompurify from 'dompurify'
@@ -8,9 +7,8 @@ interface MailBodyTabProps {
   log: LogType
 }
 
-/** Sanitizes the raw mail body HTML and renders it in the themed email previewer. */
+/** Sanitizes the raw mail body HTML and renders it in the sandboxed email previewer. */
 export default function MailBodyTab({ log }: MailBodyTabProps) {
-  const { isDark } = useTheme()
   const message = log?.details?.message || ''
   const mailBodyHtml = useMemo(
     () =>
@@ -63,5 +61,5 @@ export default function MailBodyTab({ log }: MailBodyTabProps) {
       }),
     [message]
   )
-  return <EmailPreviewer html={mailBodyHtml} isDark={isDark} />
+  return <EmailPreviewer html={mailBodyHtml} />
 }

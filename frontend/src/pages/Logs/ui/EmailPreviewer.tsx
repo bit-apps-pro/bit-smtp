@@ -1,38 +1,47 @@
 import type React from 'react'
 import { useEffect, useRef } from 'react'
+import { theme } from 'antd'
 
 interface EmailPreviewerProps {
   html: string
-  isDark: boolean
   style?: React.CSSProperties
 }
 
-const DARK_BODY_TEXT_COLOR = '#f8fafc'
-const LIGHT_BODY_TEXT_COLOR = '#000000'
+const PAPER_BACKGROUND = '#ffffff'
+const PAPER_TEXT_COLOR = '#000000'
 
-/** Prefixes the iframe document with a color-scheme meta tag and a low-specificity `body` color default that the email's own inline/CSS colors still override. */
-function buildSrcDoc(html: string, isDark: boolean): string {
-  const colorScheme = isDark ? 'dark' : 'light'
-  const bodyColor = isDark ? DARK_BODY_TEXT_COLOR : LIGHT_BODY_TEXT_COLOR
-  return `<meta name="color-scheme" content="${colorScheme}"><style>body { color: ${bodyColor}; }</style>${html}`
+/** Empty sandbox: no scripts, opaque origin — the email HTML can never reach the admin page. */
+const SANDBOX_NO_PERMISSIONS = ''
+
+/** Prefixes the email with a light color-scheme and low-specificity white-paper defaults, as mail clients render it, so its own colors stay readable in either admin theme. */
+function buildSrcDoc(html: string): string {
+  return `<meta name="color-scheme" content="light"><style>body { background: ${PAPER_BACKGROUND}; color: ${PAPER_TEXT_COLOR}; }</style>${html}`
 }
 
-/** Iframe-based email HTML preview that re-renders its srcdoc when the html or theme changes. */
-function EmailPreviewer({ html, isDark, style }: EmailPreviewerProps) {
+/** Sandboxed iframe that previews email HTML on a white page framed by the admin theme. */
+function EmailPreviewer({ html, style }: EmailPreviewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const { token } = theme.useToken()
 
   useEffect(() => {
     if (iframeRef.current) {
-      iframeRef.current.srcdoc = buildSrcDoc(html, isDark)
+      iframeRef.current.srcdoc = buildSrcDoc(html)
     }
-  }, [html, isDark])
+  }, [html])
 
   return (
     <iframe
       ref={iframeRef}
       title="Email Preview"
-      style={{ width: '100%', minHeight: '100vh', ...style }}
-      sandbox="allow-scripts allow-same-origin"
+      style={{
+        width: '100%',
+        minHeight: '100vh',
+        background: PAPER_BACKGROUND,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadius,
+        ...style
+      }}
+      sandbox={SANDBOX_NO_PERMISSIONS}
     />
   )
 }
