@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { __ } from '@common/helpers/i18nwrap'
 import { type Connection, type MailSettings, type ProviderMeta } from '@pages/Connections/types'
 import { Flex, Spin, Typography } from 'antd'
 import ConnectionEditor from './ConnectionEditor'
+import ProviderSelectorModal from './ProviderSelectorModal'
 import useMailSettings from './data/useMailSettings'
 import useProviders from './data/useProviders'
 
@@ -23,6 +24,27 @@ function blankConnection(provider: ProviderMeta, id = ''): Connection {
     settings: {},
     credentials: {}
   }
+}
+
+/** Provider picker for `/connection/new` without a valid provider: picking continues to that provider's form, closing returns to the list. */
+function NewConnectionProviderPicker() {
+  const navigate = useNavigate()
+  const pickedRef = useRef(false)
+
+  /** Continues to the new-connection form for the chosen provider. */
+  const handleSelect = (providerKey: string) => {
+    pickedRef.current = true
+    navigate(`/connection/new?provider=${encodeURIComponent(providerKey)}`, { replace: true })
+  }
+
+  /** Returns to the connections list unless the picker closed because a provider was picked. */
+  const handleClose = () => {
+    if (!pickedRef.current) {
+      navigate('/')
+    }
+  }
+
+  return <ProviderSelectorModal open onClose={handleClose} onSelect={handleSelect} />
 }
 
 /** The connection a route shows: the saved one for an id (or the one just created here until settings catch up), else a blank draft for the requested provider. */
@@ -66,9 +88,13 @@ export default function ConnectionDetailPage() {
       )
     }
 
+    if (!id) {
+      return <NewConnectionProviderPicker />
+    }
+
     return (
       <Flex vertical gap="middle" style={{ padding: 24 }}>
-        <Text>{id ? __('Connection not found') : __('Select a provider to create a connection')}</Text>
+        <Text>{__('Connection not found')}</Text>
         <Link to="/">{__('Back to connections')}</Link>
       </Flex>
     )

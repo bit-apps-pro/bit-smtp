@@ -202,14 +202,30 @@ describe('ConnectionDetailPage', () => {
   })
 
   it.each(['/connection/new', '/connection/new?provider=does-not-exist'])(
-    'asks for a provider when %s names none it knows',
+    'opens the provider picker when %s names no provider it knows',
     path => {
       renderAt(path)
 
-      expect(screen.getByText('Select a provider to create a connection')).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Back to connections' })).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Choose a provider' })).toBeInTheDocument()
     }
   )
+
+  it('continues to the chosen provider’s form when one is picked', async () => {
+    renderAt('/connection/new')
+
+    await userEvent.click(screen.getByRole('button', { name: /Other SMTP/ }))
+
+    expect(await screen.findByLabelText('Connection name')).toHaveValue('Other SMTP')
+    expect(screen.getByLabelText('Current route')).toHaveTextContent('REPLACE /connection/new')
+  })
+
+  it('returns to the connections list when the picker is closed without a choice', async () => {
+    renderAt('/connection/new')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(await screen.findByText('Connections list')).toBeInTheDocument()
+  })
 
   describe('first save of a new OAuth connection', () => {
     it('replaces the URL with the saved connection’s edit route, so a reload reopens it', async () => {
