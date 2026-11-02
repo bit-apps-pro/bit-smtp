@@ -80,7 +80,7 @@ const providers: Record<string, ProviderEntry> = {
   zeptomail: {
     logo: zeptomailLogo,
     accent: '#E42527',
-    blurb: () => __('Zoho ZeptoMail API')
+    blurb: () => __('Zoho CPaaS email API, formerly ZeptoMail')
   },
   mailgun: {
     logo: mailgunLogo,

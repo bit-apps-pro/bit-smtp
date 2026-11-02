@@ -280,7 +280,7 @@ class ZeptoProviderTest extends BaseUnitTestCase
         $result = $this->provider()->transport()->send($this->message(), $this->connection());
 
         $this->assertFalse($result->isOk());
-        $this->assertSame('ZeptoMail error HTTP 200', $result->getError());
+        $this->assertSame('Zoho CPaaS (ZeptoMail) error HTTP 200', $result->getError());
     }
 
     public function testNestedErrorDetailsBodyAtA4xxMapsToSendResultFailureCarryingTheFirstErrorPath(): void

@@ -756,7 +756,7 @@
     },
     {
         "key": "zeptomail",
-        "label": "ZeptoMail",
+        "label": "Zoho CPaaS (ZeptoMail)",
         "kind": "api",
         "supports_webhook": true,
         "supports_webhook_provisioning": false,

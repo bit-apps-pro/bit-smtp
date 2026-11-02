@@ -25,7 +25,7 @@ final class ZeptoProvider extends DescriptorProvider
     {
         return ProviderDescriptor::fromArray([
             'key'    => 'zeptomail',
-            'label'  => 'ZeptoMail',
+            'label'  => 'Zoho CPaaS (ZeptoMail)',
             'kind'   => 'api',
             'fields' => [
                 ['key' => 'data_center', 'label' => __('Account data center', 'bit-smtp'), 'type' => 'select', 'required' => false, 'secret' => false, 'placeholder' => '', 'default' => 'us', 'options' => [
