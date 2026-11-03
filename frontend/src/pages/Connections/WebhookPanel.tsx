@@ -66,9 +66,14 @@ function WebhookHealth({
           type="warning"
           showIcon
           message={__("Couldn't set up delivery tracking automatically")}
-          description={`${provisioning.reason ?? __('Unknown error')} — ${__(
-            "Check your API key's permissions, then save again."
-          )}`}
+          description={
+            <>
+              <Text style={{ display: 'block' }}>{provisioning.reason ?? __('Unknown error')}</Text>
+              <Text type="secondary">
+                {__('Fix the problem above (often an API key without webhook access), then save again.')}
+              </Text>
+            </>
+          }
         />
       )
     case 'unsupported':

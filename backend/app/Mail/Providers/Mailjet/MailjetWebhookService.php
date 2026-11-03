@@ -112,10 +112,8 @@ final class MailjetWebhookService extends AbstractWebhookProvisioner
                 continue;
             }
 
-            $host = (string) wp_parse_url($current['url'], PHP_URL_HOST);
-
-            // translators: 1: Mailjet event type, e.g. "bounce"; 2: host name the events currently go to
-            throw new RuntimeException(esc_html(\sprintf(__('Mailjet already sends "%1$s" events for this account to %2$s, and allows only one address per event. Remove it in Mailjet (Account settings > Event notifications), or use a separate Mailjet sub-account for this site, then save again.', 'bit-smtp'), $type, $host !== '' ? $host : __('another address', 'bit-smtp'))));
+            // translators: %s: Mailjet event type, e.g. "bounce"
+            throw new RuntimeException(esc_html(\sprintf(__('Mailjet already sends "%s" events for this account to another address, and allows only one. Remove it in Mailjet (Account settings > Event notifications) or use a sub-account for this site.', 'bit-smtp'), $type)));
         }
     }
 

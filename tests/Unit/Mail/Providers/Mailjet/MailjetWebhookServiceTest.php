@@ -122,7 +122,7 @@ final class MailjetWebhookServiceTest extends BaseUnitTestCase
         $this->client->shouldNotReceive('post');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Mailjet already sends "spam" events for this account to staging.test');
+        $this->expectExceptionMessage('Mailjet already sends "spam" events for this account to another address');
 
         (new MailjetWebhookService($this->client, $this->auth))->ensure($this->connection());
     }

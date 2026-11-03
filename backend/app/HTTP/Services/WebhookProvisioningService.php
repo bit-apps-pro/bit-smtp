@@ -24,6 +24,11 @@ final class WebhookProvisioningService
      */
     private const PROVISION_REQUEST_TIMEOUT_SECONDS = 5;
 
+    /**
+     * Longest provisioning failure reason kept for the connection's webhook panel.
+     */
+    private const MAX_REASON_LENGTH = 200;
+
     private MailConfigService $config;
 
     private ProviderRegistry $providers;
@@ -164,9 +169,17 @@ final class WebhookProvisioningService
     {
         $this->config->persistConnectionProvisioning($connection->getId(), [], [
             'webhook_provisioning_status'     => $status,
-            'webhook_provisioning_reason'     => $reason !== null ? mb_substr($reason, 0, 200) : '',
+            'webhook_provisioning_reason'     => $reason !== null ? $this->storableReason($reason) : '',
             'webhook_provisioning_updated_at' => time(),
         ]);
+    }
+
+    /**
+     * Plain-text reason for the UI: undo the esc_html() applied when the exception was thrown (React escapes on render), then cap it.
+     */
+    private function storableReason(string $reason): string
+    {
+        return mb_substr(html_entity_decode($reason, ENT_QUOTES | ENT_HTML5, 'UTF-8'), 0, self::MAX_REASON_LENGTH);
     }
 
     /**

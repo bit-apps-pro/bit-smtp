@@ -183,6 +183,26 @@ final class WebhookProvisioningServiceTest extends BaseUnitTestCase
         $this->assertNotEmpty($result['message']);
     }
 
+    public function testProvisionOnSaveStoresTheFailureReasonAsPlainText(): void
+    {
+        $this->expectOutputRegex('/webhook auto-provision failed/');
+
+        $this->registry->shouldReceive('get')->with('sendgrid')->andReturn($this->bearerProvider());
+
+        $provisioner = Mockery::mock(WebhookProvisionerInterface::class);
+        $provisioner->shouldReceive('ensure')->andThrow(new RuntimeException('Already sends &quot;sent&quot; events (Settings &gt; Events) &#039;here&#039;'));
+        $this->factory->shouldReceive('forProvider')->andReturn($provisioner);
+
+        $this->config->shouldReceive('persistConnectionProvisioning')
+            ->once()
+            ->with('conn_1', [], Mockery::on(static function (array $settings): bool {
+                return ($settings['webhook_provisioning_reason'] ?? null) === 'Already sends "sent" events (Settings > Events) \'here\'';
+            }))
+            ->andReturn(true);
+
+        $this->service()->provisionOnSave($this->connection());
+    }
+
     public function testProvisionOnSaveReturnsOkAndPersistsPublicKeyOnSuccess(): void
     {
         $this->registry->shouldReceive('get')->with('sendgrid')->andReturn($this->bearerProvider());
