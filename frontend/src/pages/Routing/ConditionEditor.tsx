@@ -102,6 +102,12 @@ function labelWithSlug(source: MailSource): MailSource {
   }
 }
 
+/** Friendly name of the known source whose slug is exactly `value`, or undefined when unknown or unnamed. */
+function sourceName({ seen, installed }: MailSourceCatalog, value: string): string | undefined {
+  const source = [...seen, ...installed].find(candidate => candidate.value === value)
+  return source && source.label !== source.value ? source.label : undefined
+}
+
 /** Grouped picker options: plugins seen sending mail first, then other installed plugins; empty groups dropped. */
 function sourceOptions({ seen, installed }: MailSourceCatalog) {
   return [
@@ -162,16 +168,24 @@ export default function ConditionEditor({
         <Flex align="center" gap={2} style={{ flex: '2 1 220px', minWidth: 0 }}>
           {condition.field === 'source_plugin' ? (
             <AutoComplete
-              aria-label={__('Value')}
-              aria-describedby={valueDescribedBy}
               value={condition.value}
               options={sourceOptions(sources)}
-              placeholder={placeholder}
-              status={valueStatus}
               style={{ flex: 1, minWidth: 0 }}
               filterOption={matchesSource}
               onChange={(value: string) => onChange({ ...condition, value })}
-            />
+            >
+              <Input
+                aria-label={__('Value')}
+                aria-describedby={valueDescribedBy}
+                placeholder={placeholder}
+                status={valueStatus}
+                suffix={
+                  <Text type="secondary" ellipsis style={{ maxWidth: 140 }}>
+                    {sourceName(sources, condition.value)}
+                  </Text>
+                }
+              />
+            </AutoComplete>
           ) : (
             <Input
               aria-label={__('Value')}

@@ -101,6 +101,45 @@ describe('ConditionEditor', () => {
     expect(screen.getByTitle('Bit Form (bit-form)')).toBeInTheDocument()
   })
 
+  it('names a saved source slug with its friendly plugin name', () => {
+    const savedCondition: EditableRoutingCondition = {
+      id: 'condition-2',
+      field: 'source_plugin',
+      operator: 'equals',
+      value: 'woocommerce'
+    }
+    render(
+      <ConditionEditor
+        condition={savedCondition}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Value' })).toHaveValue('woocommerce')
+    expect(screen.getByText('WooCommerce')).toBeInTheDocument()
+  })
+
+  it('shows no plugin name for a slug that is not a known source', () => {
+    const customCondition: EditableRoutingCondition = {
+      id: 'condition-2',
+      field: 'source_plugin',
+      operator: 'contains',
+      value: 'woo'
+    }
+    render(
+      <ConditionEditor
+        condition={customCondition}
+        sources={sources}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('WooCommerce')).not.toBeInTheDocument()
+  })
+
   it('offers installed plugins that have not sent mail yet under their own group', async () => {
     const sourceCondition: EditableRoutingCondition = {
       id: 'condition-2',
