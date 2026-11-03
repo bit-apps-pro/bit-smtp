@@ -108,6 +108,61 @@ final class MailjetWebhookServiceTest extends BaseUnitTestCase
         $this->assertSame(['created' => true, 'id' => '222'], $result);
     }
 
+    public function testRefusesBeforeAnyWriteWhenAnEventGoesToAnotherAddress(): void
+    {
+        $this->expectSignedForJson();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'Count' => 2,
+            'Data'  => [
+                $this->existing('sent'),
+                ['ID' => 999, 'EventType' => 'spam', 'Url' => 'https://staging.test/bit-smtp/conn_1/othersecret', 'Status' => 'alive', 'Version' => 2],
+            ],
+        ]));
+        $this->client->shouldNotReceive('put');
+        $this->client->shouldNotReceive('post');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Mailjet already sends "spam" events for this account to staging.test');
+
+        (new MailjetWebhookService($this->client, $this->auth))->ensure($this->connection());
+    }
+
+    public function testRefusalNeverExposesTheOtherAddressSecretPath(): void
+    {
+        $this->expectSignedForJson();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'Count' => 1,
+            'Data'  => [
+                ['ID' => 999, 'EventType' => 'bounce', 'Url' => 'https://staging.test/bit-smtp/conn_1/othersecret', 'Status' => 'alive', 'Version' => 2],
+            ],
+        ]));
+
+        try {
+            (new MailjetWebhookService($this->client, $this->auth))->ensure($this->connection());
+            self::fail('Expected a refusal.');
+        } catch (RuntimeException $e) {
+            $this->assertStringNotContainsString('othersecret', $e->getMessage());
+        }
+    }
+
+    public function testIgnoresBackupCallbacksWhenRegistering(): void
+    {
+        $this->expectSignedForJson();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'Count' => 1,
+            'Data'  => [
+                ['ID' => 777, 'EventType' => 'sent', 'Url' => 'https://crm.test/backup', 'IsBackup' => true, 'Status' => 'alive', 'Version' => 2],
+            ],
+        ]));
+        $this->client->shouldNotReceive('put');
+        $this->client->shouldReceive('post')->times(4)
+            ->andReturnUsing(static fn (string $endpoint, array $body): ApiResponse => self::created($body['EventType']));
+
+        $result = (new MailjetWebhookService($this->client, $this->auth))->ensure($this->connection());
+
+        $this->assertSame(['created' => true, 'id' => '111'], $result);
+    }
+
     public function testThrowsWhenRegisteringACallbackFails(): void
     {
         $this->expectSignedForJson();
@@ -133,6 +188,20 @@ final class MailjetWebhookServiceTest extends BaseUnitTestCase
         $this->client->shouldReceive('delete')->once()->with(self::ENDPOINT . '/111')->andReturn(new ApiResponse(200, []));
         $this->client->shouldReceive('delete')->once()->with(self::ENDPOINT . '/222')->andReturn(new ApiResponse(200, []));
         $this->client->shouldNotReceive('delete')->with(self::ENDPOINT . '/999');
+
+        (new MailjetWebhookService($this->client, $this->auth))->deregister($this->connection());
+    }
+
+    public function testDeregisterAlsoDeletesABackupCallbackPointingAtOurUrl(): void
+    {
+        $this->expectSignedForJson();
+        $this->client->shouldReceive('get')->once()->andReturn(new ApiResponse(200, [
+            'Count' => 1,
+            'Data'  => [
+                ['ID' => 888, 'EventType' => 'sent', 'Url' => self::WEBHOOK_URL, 'IsBackup' => true, 'Status' => 'alive', 'Version' => 2],
+            ],
+        ]));
+        $this->client->shouldReceive('delete')->once()->with(self::ENDPOINT . '/888')->andReturn(new ApiResponse(200, []));
 
         (new MailjetWebhookService($this->client, $this->auth))->deregister($this->connection());
     }

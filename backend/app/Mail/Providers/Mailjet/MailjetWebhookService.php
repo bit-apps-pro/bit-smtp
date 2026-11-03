@@ -6,6 +6,7 @@ namespace BitApps\SMTP\Mail\Providers\Mailjet;
 
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Providers\AbstractWebhookProvisioner;
+use RuntimeException;
 
 final class MailjetWebhookService extends AbstractWebhookProvisioner
 {
@@ -17,7 +18,7 @@ final class MailjetWebhookService extends AbstractWebhookProvisioner
     private const EVENT_TYPES = ['sent', 'bounce', 'blocked', 'spam'];
 
     /**
-     * Register our callback URL for each delivery event type, skipping any already pointing at it.
+     * Register our callback URL for each delivery event type, reusing any already pointing at it.
      *
      * @return array{created: bool, id: string}
      */
@@ -31,29 +32,22 @@ final class MailjetWebhookService extends AbstractWebhookProvisioner
         $existing = $this->client->get(self::ENDPOINT);
         $this->assertOk($existing, $url);
 
-        $registered = $this->registeredEventTypes($existing->getBody(), $url);
+        $primaries = $this->primaryCallbacksByEventType($existing->getBody());
+        $this->assertNoForeignCallback($primaries, $url);
 
         $created   = false;
         $createdId = '';
         $reusedId  = '';
         foreach (self::EVENT_TYPES as $type) {
-            if (isset($registered[$type])) {
-                $reusedId = $registered[$type];
+            if (isset($primaries[$type])) {
+                $reusedId = $primaries[$type]['id'];
 
                 continue;
             }
 
-            $response = $this->client->post(self::ENDPOINT, [
-                'EventType' => $type,
-                'Url'       => $url,
-                'Version'   => 2,
-                'Status'    => 'alive',
-            ]);
-            $this->assertOk($response, $url);
-
+            $id = $this->create($type, $url);
             if (!$created) {
-                $body      = $response->getBody();
-                $createdId = \is_array($body) && isset($body['Data'][0]['ID']) ? (string) $body['Data'][0]['ID'] : '';
+                $createdId = $id;
                 $created   = true;
             }
         }
@@ -66,7 +60,7 @@ final class MailjetWebhookService extends AbstractWebhookProvisioner
     }
 
     /**
-     * Delete only webhook entries pointing to this connection's URL (one per event type).
+     * Delete every webhook entry (primary or backup) pointing to this connection's URL.
      */
     public function deregister(Connection $connection): void
     {
@@ -80,29 +74,93 @@ final class MailjetWebhookService extends AbstractWebhookProvisioner
             return;
         }
 
-        foreach ($this->registeredEventTypes($existing->getBody(), $url) as $id) {
-            $this->client->delete(self::ENDPOINT . '/' . rawurlencode($id));
+        foreach ($this->callbacks($existing->getBody()) as $callback) {
+            if ($callback['url'] === $url) {
+                $this->client->delete(self::ENDPOINT . '/' . rawurlencode($callback['id']));
+            }
         }
     }
 
     /**
-     * Map EventType => ID for entries already pointing at this URL (safe to skip).
+     * Register a new callback for one event type and return its ID.
+     */
+    private function create(string $type, string $url): string
+    {
+        $response = $this->client->post(self::ENDPOINT, [
+            'EventType' => $type,
+            'Url'       => $url,
+            'Version'   => 2,
+            'Status'    => 'alive',
+        ]);
+        $this->assertOk($response, $url);
+
+        $body = $response->getBody();
+
+        return \is_array($body) && isset($body['Data'][0]['ID']) ? (string) $body['Data'][0]['ID'] : '';
+    }
+
+    /**
+     * Refuse before any write when an event already goes elsewhere: Mailjet allows one address per event, and overwriting it would silently cut off that site or app.
+     *
+     * @param array<string,array{id: string, url: string}> $primaries
+     */
+    private function assertNoForeignCallback(array $primaries, string $url): void
+    {
+        foreach (self::EVENT_TYPES as $type) {
+            $current = $primaries[$type] ?? null;
+            if ($current === null || $current['url'] === $url) {
+                continue;
+            }
+
+            $host = (string) wp_parse_url($current['url'], PHP_URL_HOST);
+
+            // translators: 1: Mailjet event type, e.g. "bounce"; 2: host name the events currently go to
+            throw new RuntimeException(esc_html(\sprintf(__('Mailjet already sends "%1$s" events for this account to %2$s, and allows only one address per event. Remove it in Mailjet (Account settings > Event notifications), or use a separate Mailjet sub-account for this site, then save again.', 'bit-smtp'), $type, $host !== '' ? $host : __('another address', 'bit-smtp'))));
+        }
+    }
+
+    /**
+     * Map EventType => {id, url} for the account's primary (non-backup) callbacks.
      *
      * @param array<mixed>|string $body
      *
-     * @return array<string,string>
+     * @return array<string,array{id: string, url: string}>
      */
-    private function registeredEventTypes($body, string $url): array
+    private function primaryCallbacksByEventType($body): array
     {
-        $entries = \is_array($body) && isset($body['Data']) && \is_array($body['Data']) ? $body['Data'] : [];
-
         $map = [];
-        foreach ($entries as $entry) {
-            if (\is_array($entry) && ($entry['Url'] ?? '') === $url && isset($entry['EventType'], $entry['ID'])) {
-                $map[(string) $entry['EventType']] = (string) $entry['ID'];
+        foreach ($this->callbacks($body) as $callback) {
+            if (!$callback['backup']) {
+                $map[$callback['type']] = ['id' => $callback['id'], 'url' => $callback['url']];
             }
         }
 
         return $map;
+    }
+
+    /**
+     * Normalize the callback list response into {type, id, url, backup} entries.
+     *
+     * @param array<mixed>|string $body
+     *
+     * @return list<array{type: string, id: string, url: string, backup: bool}>
+     */
+    private function callbacks($body): array
+    {
+        $entries = \is_array($body) && isset($body['Data']) && \is_array($body['Data']) ? $body['Data'] : [];
+
+        $callbacks = [];
+        foreach ($entries as $entry) {
+            if (\is_array($entry) && isset($entry['EventType'], $entry['ID'])) {
+                $callbacks[] = [
+                    'type'   => (string) $entry['EventType'],
+                    'id'     => (string) $entry['ID'],
+                    'url'    => (string) ($entry['Url'] ?? ''),
+                    'backup' => !empty($entry['IsBackup']),
+                ];
+            }
+        }
+
+        return $callbacks;
     }
 }
