@@ -32,6 +32,6 @@ describe('getProviderVisual', () => {
     expect(v.logo).toBeNull()
     expect(v.initial).toBe('C')
     expect(v.accent).toBe('#F6821F')
-    expect(v.blurb).toBe('Cloudflare Email Sender API')
+    expect(v.blurb).toBe('Cloudflare Email Sending API')
   })
 })

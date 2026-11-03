@@ -65,7 +65,7 @@ const providers: Record<string, ProviderEntry> = {
   cloudflare: {
     logo: null,
     accent: '#F6821F',
-    blurb: () => __('Cloudflare Email Sender API')
+    blurb: () => __('Cloudflare Email Sending API')
   },
   resend: {
     logo: resendLogo,
