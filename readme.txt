@@ -193,7 +193,7 @@ Delivery counts stay separate from send acceptance: an email counts as delivered
 
 == Changelog ==
 
-= 2.0.0 (02 Nov, 2026) =
+= 2.0.0 (03 Nov, 2026) =
 * Feat: Dedicated API integrations for SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, Zoho CPaaS (ZeptoMail), SparkPost, and Cloudflare Email Sending (Beta), plus Gmail and Microsoft 365 via OAuth, any SMTP server, and PHP mail().
 * Feat: Multiple connections with a priority order and automatic fallback; enable, disable, and disconnect connections without deleting them.
 * Feat: Retry queue with backoff for temporary failures, failure classification, and connection health checks.
