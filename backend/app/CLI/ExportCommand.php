@@ -10,8 +10,26 @@ use BitApps\SMTP\HTTP\Services\LogService;
 /**
  * Export filtered logs to RFC-4180 CSV (safe columns, formula-injection protected) via LogCsvExporter.
  */
-final class ExportCommand
+final class ExportCommand implements DescribedCommand
 {
+    public const SHORTDESC = 'Export email logs as CSV, to a file or to the screen.';
+
+    public const SYNOPSIS = [
+        [
+            'type'        => 'assoc',
+            'name'        => 'status',
+            'description' => 'Export only logs with this send outcome.',
+            'optional'    => true,
+            'options'     => ['sent', 'failed'],
+        ],
+        [
+            'type'        => 'assoc',
+            'name'        => 'file',
+            'description' => 'File to write the CSV to. Prints to the screen when omitted.',
+            'optional'    => true,
+        ],
+    ];
+
     private LogService $logService;
 
     private LogCsvExporter $exporter;

@@ -12,12 +12,49 @@ use BitApps\SMTP\Settings\PluginSettings;
 /**
  * List recent mail logs (safe columns only) filtered by status in requested format.
  */
-final class LogsCommand
+final class LogsCommand implements DescribedCommand
 {
+    public const SHORTDESC = 'List recent email logs.';
+
+    public const SYNOPSIS = [
+        [
+            'type'        => 'assoc',
+            'name'        => 'status',
+            'description' => 'Show only logs with this send outcome.',
+            'optional'    => true,
+            'options'     => ['sent', 'failed'],
+        ],
+        [
+            'type'        => 'assoc',
+            'name'        => 'limit',
+            'description' => 'Maximum number of logs to show.',
+            'optional'    => true,
+            'default'     => self::DEFAULT_LIMIT,
+        ],
+        [
+            'type'        => 'assoc',
+            'name'        => 'format',
+            'description' => 'Output format.',
+            'optional'    => true,
+            'default'     => self::DEFAULT_FORMAT,
+            'options'     => self::FORMATS,
+        ],
+    ];
+
     /**
      * Default row count when `--limit` is omitted.
      */
     private const DEFAULT_LIMIT = 20;
+
+    /**
+     * Output formats `--format` accepts.
+     */
+    private const FORMATS = ['table', 'csv', 'json'];
+
+    /**
+     * Output format when `--format` is omitted.
+     */
+    private const DEFAULT_FORMAT = 'table';
 
     private LogService $logService;
 
@@ -87,8 +124,8 @@ final class LogsCommand
      */
     private function format(array $assocArgs): string
     {
-        $format = isset($assocArgs['format']) ? (string) $assocArgs['format'] : 'table';
+        $format = isset($assocArgs['format']) ? (string) $assocArgs['format'] : self::DEFAULT_FORMAT;
 
-        return \in_array($format, ['table', 'csv', 'json'], true) ? $format : 'table';
+        return \in_array($format, self::FORMATS, true) ? $format : self::DEFAULT_FORMAT;
     }
 }

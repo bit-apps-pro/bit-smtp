@@ -21,7 +21,8 @@ final class CliServiceProviderTest extends BaseUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        WP_CLI::$commands = [];
+        WP_CLI::$commands    = [];
+        WP_CLI::$commandArgs = [];
     }
 
     public function testRegisterIsANoOpWhenNotInWpCliContext(): void
@@ -65,5 +66,23 @@ final class CliServiceProviderTest extends BaseUnitTestCase
         foreach (WP_CLI::$commands as $callable) {
             $this->assertIsCallable($callable);
         }
+    }
+
+    public function testEveryCommandIsRegisteredWithHelpText(): void
+    {
+        $provider = new class(new Application()) extends CliServiceProvider {
+            protected function isCliContext(): bool
+            {
+                return true;
+            }
+        };
+
+        $provider->register();
+
+        foreach (WP_CLI::$commandArgs as $name => $args) {
+            $this->assertNotSame('', $args['shortdesc'] ?? '', $name . ' needs a short description');
+            $this->assertIsArray($args['synopsis'] ?? null, $name . ' needs a synopsis');
+        }
+        $this->assertCount(\count(WP_CLI::$commands), WP_CLI::$commandArgs);
     }
 }

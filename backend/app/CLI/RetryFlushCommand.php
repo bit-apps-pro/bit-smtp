@@ -9,8 +9,12 @@ use BitApps\SMTP\Mail\Dispatch\RetryQueue;
 /**
  * Discard all queued retries (destructive; mirrors REST flush action).
  */
-final class RetryFlushCommand
+final class RetryFlushCommand implements DescribedCommand
 {
+    public const SHORTDESC = 'Discard every queued retry.';
+
+    public const SYNOPSIS = [];
+
     private RetryQueue $queue;
 
     public function __construct(RetryQueue $queue)

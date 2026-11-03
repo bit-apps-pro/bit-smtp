@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Providers;
 
+use BitApps\SMTP\CLI\DescribedCommand;
 use BitApps\SMTP\CLI\ExportCommand;
 use BitApps\SMTP\CLI\HealthCheckCommand;
 use BitApps\SMTP\CLI\ImportCommand;
@@ -27,7 +28,7 @@ class CliServiceProvider extends ServiceProvider
     /**
      * Container-resolved command classes keyed by WP-CLI command name (autowired, dependencies pre-bound).
      *
-     * @var array<string,class-string>
+     * @var array<string,class-string<DescribedCommand>>
      */
     private const COMMANDS = [
         'bit-smtp send-test'    => SendTestCommand::class,
@@ -80,7 +81,10 @@ class CliServiceProvider extends ServiceProvider
     protected function registerCommands(): void
     {
         foreach (self::COMMANDS as $name => $class) {
-            WP_CLI::add_command($name, $this->handler($class));
+            WP_CLI::add_command($name, $this->handler($class), [
+                'shortdesc' => $class::SHORTDESC,
+                'synopsis'  => $class::SYNOPSIS,
+            ]);
         }
     }
 

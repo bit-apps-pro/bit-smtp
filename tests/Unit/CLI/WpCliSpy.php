@@ -14,6 +14,11 @@ namespace {
             public static array $commands = [];
 
             /**
+             * @var array<string,array<string,mixed>>
+             */
+            public static array $commandArgs = [];
+
+            /**
              * Record a registered command name -> callable, mirroring WP_CLI::add_command's signature.
              *
              * @param callable|object|string $callable
@@ -22,7 +27,8 @@ namespace {
              */
             public static function add_command($name, $callable, $args = []): void
             {
-                self::$commands[$name] = $callable;
+                self::$commands[$name]    = $callable;
+                self::$commandArgs[$name] = $args;
             }
         }
     }

@@ -9,8 +9,31 @@ use BitApps\SMTP\Mail\Dispatch\WpMailBridge;
 /**
  * Send test email via wp_mail and report success or transport debug output on failure.
  */
-final class SendTestCommand
+final class SendTestCommand implements DescribedCommand
 {
+    public const SHORTDESC = 'Send a test email through the active connections.';
+
+    public const SYNOPSIS = [
+        [
+            'type'        => 'positional',
+            'name'        => 'to',
+            'description' => 'Recipient email address.',
+        ],
+        [
+            'type'        => 'assoc',
+            'name'        => 'subject',
+            'description' => 'Email subject.',
+            'optional'    => true,
+            'default'     => 'Bit SMTP test email',
+        ],
+        [
+            'type'        => 'assoc',
+            'name'        => 'message',
+            'description' => 'Email body.',
+            'optional'    => true,
+        ],
+    ];
+
     private WpMailBridge $mailBridge;
 
     public function __construct(WpMailBridge $mailBridge)

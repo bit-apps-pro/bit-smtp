@@ -13,8 +13,12 @@ use BitApps\SMTP\Mail\Health\HealthProbeRunner;
 /**
  * Probe every connection's health and display results in a secret-free table.
  */
-final class HealthCheckCommand
+final class HealthCheckCommand implements DescribedCommand
 {
+    public const SHORTDESC = 'Test every connection and show its health.';
+
+    public const SYNOPSIS = [];
+
     /**
      * Health columns from ConnectionHealth::toPublicArray() plus connection label.
      */

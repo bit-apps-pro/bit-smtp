@@ -9,8 +9,12 @@ use BitApps\SMTP\Mail\Dispatch\RetryQueue;
 /**
  * Print retry queue depth and metadata-only table of pending rows (no encrypted payload).
  */
-final class RetryStatusCommand
+final class RetryStatusCommand implements DescribedCommand
 {
+    public const SHORTDESC = 'Show the retry queue size and its pending emails.';
+
+    public const SYNOPSIS = [];
+
     /**
      * Pending-row columns surfaced to the operator; all are safe metadata from RetryQueue::pending().
      */

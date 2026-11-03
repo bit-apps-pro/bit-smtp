@@ -9,8 +9,25 @@ use BitApps\SMTP\Mail\Import\ImportService;
 /**
  * Import SMTP plugin settings into a Bit SMTP connection (list detected or import given key).
  */
-final class ImportCommand
+final class ImportCommand implements DescribedCommand
 {
+    public const SHORTDESC = 'Import settings from another SMTP plugin, or list the ones found.';
+
+    public const SYNOPSIS = [
+        [
+            'type'        => 'positional',
+            'name'        => 'plugin',
+            'description' => 'Key of the plugin to import. Lists importable plugins when omitted.',
+            'optional'    => true,
+        ],
+        [
+            'type'        => 'flag',
+            'name'        => 'dry-run',
+            'description' => 'Print the connection that would be created, with secrets hidden, without saving it.',
+            'optional'    => true,
+        ],
+    ];
+
     private ImportService $import;
 
     public function __construct(ImportService $import)
