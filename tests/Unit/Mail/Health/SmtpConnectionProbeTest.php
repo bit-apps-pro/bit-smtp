@@ -50,7 +50,6 @@ final class SmtpConnectionProbeTest extends BaseUnitTestCase
     {
         $probe  = new SmtpConnectionProbe(Mockery::mock(SmtpTransport::class), new FailureClassifier());
         $method = new ReflectionMethod(SmtpConnectionProbe::class, 'toFailure');
-        $method->setAccessible(true);
 
         return $method->invoke($probe, $message, $code);
     }

@@ -1233,7 +1233,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
     private function invokeDispatchFull(WpMailBridge $bridge, array $connections, MailMessage $message, array $mailData, bool $isWorkerRedispatch = false): array
     {
         $method = new ReflectionMethod(WpMailBridge::class, 'dispatch');
-        $method->setAccessible(true);
 
         return $method->invoke($bridge, $connections, $message, $mailData, $isWorkerRedispatch ? DispatchMode::workerRetry() : DispatchMode::live());
     }
@@ -1241,71 +1240,60 @@ class WpMailBridgeTest extends BaseUnitTestCase
     private function setEventLogger(WpMailBridge $bridge, LogService $logService): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('eventLogger');
-        $property->setAccessible(true);
         $property->setValue($bridge, new MailEventLogger($logService));
     }
 
     private function setContext(WpMailBridge $bridge, SendContext $context): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('context');
-        $property->setAccessible(true);
         $property->setValue($bridge, $context);
     }
 
     private function setLoggingEnabled(WpMailBridge $bridge, bool $enabled): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('loggingEnabled');
-        $property->setAccessible(true);
         $property->setValue($bridge, $enabled);
     }
 
     private function setSourceDetector(WpMailBridge $bridge, MailSourceDetector $detector): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('sourceDetector');
-        $property->setAccessible(true);
         $property->setValue($bridge, $detector);
 
         $plannerProperty = (new ReflectionClass(WpMailBridge::class))->getProperty('routingPlanner');
-        $plannerProperty->setAccessible(true);
-        $planner = $plannerProperty->getValue($bridge);
+        $planner         = $plannerProperty->getValue($bridge);
 
         $plannerDetector = (new ReflectionClass(RoutingPlanner::class))->getProperty('sourceDetector');
-        $plannerDetector->setAccessible(true);
         $plannerDetector->setValue($planner, $detector);
     }
 
     private function setFailureNotifier(WpMailBridge $bridge, FailureNotifierInterface $notifier): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('failureNotifier');
-        $property->setAccessible(true);
         $property->setValue($bridge, $notifier);
     }
 
     private function setRetryQueue(WpMailBridge $bridge, RetryQueue $retryQueue): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('retryQueue');
-        $property->setAccessible(true);
         $property->setValue($bridge, $retryQueue);
     }
 
     private function setHealthEnabled(WpMailBridge $bridge, bool $enabled): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('healthEnabled');
-        $property->setAccessible(true);
         $property->setValue($bridge, $enabled);
     }
 
     private function setTrackingEnabled(WpMailBridge $bridge, bool $enabled): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('trackingEnabled');
-        $property->setAccessible(true);
         $property->setValue($bridge, $enabled);
     }
 
     private function setHealthRecorder(WpMailBridge $bridge, HealthRecorder $recorder): void
     {
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('healthRecorder');
-        $property->setAccessible(true);
         $property->setValue($bridge, $recorder);
     }
 
@@ -1330,49 +1318,38 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $bridge   = $refClass->newInstanceWithoutConstructor();
 
         $registryProperty = $refClass->getProperty('registry');
-        $registryProperty->setAccessible(true);
         $registryProperty->setValue($bridge, $registry);
 
         $eventLoggerProperty = $refClass->getProperty('eventLogger');
-        $eventLoggerProperty->setAccessible(true);
         $eventLoggerProperty->setValue($bridge, new MailEventLogger(Mockery::mock(LogService::class)));
 
         $classifierProperty = $refClass->getProperty('classifier');
-        $classifierProperty->setAccessible(true);
         $classifierProperty->setValue($bridge, new FailureClassifier());
 
         $retryQueueProperty = $refClass->getProperty('retryQueue');
-        $retryQueueProperty->setAccessible(true);
         $retryQueueProperty->setValue($bridge, new RetryQueue());
 
         $mailDataProperty = $refClass->getProperty('mailData');
-        $mailDataProperty->setAccessible(true);
         $mailDataProperty->setValue($bridge, new MailDataBuilder());
 
         $stamperProperty = $refClass->getProperty('stamper');
-        $stamperProperty->setAccessible(true);
         $stamperProperty->setValue($bridge, new TrackingIdStamper());
 
         $trackingRewriterProperty = $refClass->getProperty('trackingBodyRewriter');
-        $trackingRewriterProperty->setAccessible(true);
         $trackingRewriterProperty->setValue($bridge, new TrackingBodyRewriter());
 
         $sourceDetector         = new MailSourceDetector();
         $sourceDetectorProperty = $refClass->getProperty('sourceDetector');
-        $sourceDetectorProperty->setAccessible(true);
         $sourceDetectorProperty->setValue($bridge, $sourceDetector);
 
         $messageFactoryProperty = $refClass->getProperty('messageFactory');
-        $messageFactoryProperty->setAccessible(true);
         $messageFactoryProperty->setValue($bridge, new MailMessageFactory());
 
         $sendability         = new ConnectionSendability($registry);
         $sendabilityProperty = $refClass->getProperty('sendability');
-        $sendabilityProperty->setAccessible(true);
         $sendabilityProperty->setValue($bridge, $sendability);
 
         $routingPlannerProperty = $refClass->getProperty('routingPlanner');
-        $routingPlannerProperty->setAccessible(true);
         $routingPlannerProperty->setValue($bridge, new RoutingPlanner(
             new ConnectionResolver(),
             new RoutingResolver(),
@@ -1381,7 +1358,6 @@ class WpMailBridgeTest extends BaseUnitTestCase
         ));
 
         $routingSkipTracerProperty = $refClass->getProperty('routingSkipTracer');
-        $routingSkipTracerProperty->setAccessible(true);
         $routingSkipTracerProperty->setValue($bridge, new RoutingSkipTracer($sendability));
 
         return $bridge;
@@ -1397,12 +1373,10 @@ class WpMailBridgeTest extends BaseUnitTestCase
 
     private function invokeSendVia(WpMailBridge $bridge, Connection $connection, MailMessage $message): SendResult
     {
-        $resolve = new ReflectionMethod(WpMailBridge::class, 'resolveProvider');
-        $resolve->setAccessible(true);
+        $resolve  = new ReflectionMethod(WpMailBridge::class, 'resolveProvider');
         $provider = $resolve->invoke($bridge, $connection);
 
         $method = new ReflectionMethod(WpMailBridge::class, 'sendVia');
-        $method->setAccessible(true);
 
         return $method->invoke($bridge, $provider, $connection, $message, [], null);
     }

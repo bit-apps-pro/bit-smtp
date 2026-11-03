@@ -73,8 +73,7 @@ final class SendPayloadGoldenTest extends GoldenTestCase
     {
         $transport = $this->providerFor($key)->transport();
 
-        $ref = new ReflectionMethod($transport, 'buildBody');
-        $ref->setAccessible(true);
+        $ref  = new ReflectionMethod($transport, 'buildBody');
         $body = $ref->invoke($transport, $this->message(), $this->connectionFor($key));
 
         $this->assertMatchesGolden($body, 'buildbody_' . $key);

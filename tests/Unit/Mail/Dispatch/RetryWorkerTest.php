@@ -224,7 +224,6 @@ final class RetryWorkerTest extends BaseUnitTestCase
     {
         $bridge   = Mockery::mock(WpMailBridge::class);
         $property = (new ReflectionClass(WpMailBridge::class))->getProperty('eventLogger');
-        $property->setAccessible(true);
         $property->setValue($bridge, new MailEventLogger(Mockery::mock(LogService::class)));
 
         return $bridge;

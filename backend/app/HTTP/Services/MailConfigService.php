@@ -184,38 +184,6 @@ class MailConfigService
     }
 
     /**
-     * Write/overwrite connection credential (encrypted at rest like all secrets).
-     */
-    public function setConnectionCredential(string $connectionId, string $key, string $value): bool
-    {
-        $data  = $this->load()->toArray();
-        $found = false;
-        foreach ($data['connections'] as $i => $connection) {
-            if (($connection['id'] ?? '') !== $connectionId) {
-                continue;
-            }
-
-            $credentials = isset($connection['credentials']) && \is_array($connection['credentials'])
-                ? $connection['credentials']
-                : [];
-            $credentials[$key]                      = ['source' => 'manual', 'value' => $value];
-            $data['connections'][$i]['credentials'] = $credentials;
-            $found                                  = true;
-
-            break;
-        }
-
-        if (!$found) {
-            return false;
-        }
-
-        $stored = $this->store(MailSettings::fromArray(MailSettingsSanitizer::sanitize($data)));
-        $this->reload();
-
-        return $stored;
-    }
-
-    /**
      * Persist webhook-provisioning output (credentials + server-managed settings, atomic).
      *
      * @param array<string,string> $credentials plaintext values keyed by credential name, tagged 'provisioned'
