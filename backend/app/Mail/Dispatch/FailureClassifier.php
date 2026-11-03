@@ -9,7 +9,7 @@ use BitApps\SMTP\Mail\Message\SendResult;
  */
 class FailureClassifier
 {
-    private const AUTH_PATTERN = '/\b(auth|authenticat|credential|username|password|535|534)\b/';
+    private const AUTH_PATTERN = '/(\b(auth|credential|username|password|535|534)\b|could not authenticate|authentication (failed|unsuccessful)|\bunauthori[sz]ed\b)/';
 
     private const RATE_LIMITED_PATTERN = '/(rate.?limit|too many|throttl|\b429\b)/';
 

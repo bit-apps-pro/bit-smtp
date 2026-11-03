@@ -83,6 +83,38 @@ final class FailureClassifierTest extends BaseUnitTestCase
                 SendResult::failure('SMTP Error: Could not authenticate (535)', '0'),
                 FailureCategory::AUTH,
             ],
+            'SMTP "Could not authenticate." without a reply code is AUTH' => [
+                SendResult::failure('SMTP Error: Could not authenticate.', '0'),
+                FailureCategory::AUTH,
+            ],
+            '"Authentication failed" is AUTH' => [
+                SendResult::failure('535 5.7.8 Authentication failed', '0'),
+                FailureCategory::AUTH,
+            ],
+            '"Unauthorized" without an HTTP status is AUTH' => [
+                SendResult::failure('Unauthorized: invalid API key', null),
+                FailureCategory::AUTH,
+            ],
+            '"Could not decode user and password" is AUTH' => [
+                SendResult::failure('501 Could not decode user and password', '0'),
+                FailureCategory::AUTH,
+            ],
+            'DMARC "senders to authenticate with SPF or DKIM" rejection is not AUTH' => [
+                SendResult::failure('550-5.7.26 Gmail requires all senders to authenticate with SPF or DKIM', '0'),
+                FailureCategory::INVALID_RECIPIENT,
+            ],
+            '"454 Temporary authentication failure" is TRANSIENT, not AUTH' => [
+                SendResult::failure('454 4.7.0 Temporary authentication failure', '0'),
+                FailureCategory::TRANSIENT,
+            ],
+            '"Too many authentication failures" is RATE_LIMITED, not AUTH' => [
+                SendResult::failure('Too many authentication failures, try again later', '0'),
+                FailureCategory::RATE_LIMITED,
+            ],
+            'credential lookup timeout is TRANSIENT, not AUTH' => [
+                SendResult::failure('Error retrieving credentials: request timed out', null),
+                FailureCategory::TRANSIENT,
+            ],
             'SMTP "SMTP connect() failed" is TRANSIENT' => [
                 SendResult::failure('SMTP connect() failed', '0'),
                 FailureCategory::TRANSIENT,
