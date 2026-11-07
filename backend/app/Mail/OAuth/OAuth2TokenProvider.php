@@ -58,6 +58,7 @@ class OAuth2TokenProvider
 
         $body = $response->getBody();
         if (!$response->isOk() || !\is_array($body) || empty($body['access_token'])) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Int status and a vetted OAuth error code; plain-text message escaped where displayed.
             throw OAuthException::refreshFailed($response->getStatus(), $this->oauthError($body));
         }
 

@@ -62,6 +62,7 @@ class MailMessageFactory
 
         $given = $this->givenAddresses($to);
         if ($fields['to'] === [] && $given !== []) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Plain-text log/WP_Error message; escaped where displayed.
             throw new NoValidRecipientException($fields, $given);
         }
 
