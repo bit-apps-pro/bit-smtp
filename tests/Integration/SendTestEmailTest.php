@@ -72,12 +72,66 @@ final class SendTestEmailTest extends IntegrationTestCase
         $this->assertNotEmpty($this->mailpitMessages());
     }
 
+    /**
+     * @return array<string,array{0:string}>
+     */
+    public static function addressesFilterVarAcceptsButWordPressRejects(): array
+    {
+        return [
+            'ip literal' => ['user@[127.0.0.1]'],
+            'too short'  => ['a@b.c'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('addressesFilterVarAcceptsButWordPressRejects')]
+    public function testTheRequestRejectsAnAddressWordPressCannotSendTo(string $to): void
+    {
+        $request   = new MailTestRequest();
+        $validator = $request->make(['to' => $to, 'subject' => 'S'], $request->rules(), $request->messages());
+
+        $this->assertTrue($validator->fails());
+        $this->assertStringContainsString('valid email address', (string) wp_json_encode($validator->errors()));
+    }
+
+    public function testRoutedTestSendToAnInvalidAddressExplainsTheFailure(): void
+    {
+        $this->sendUnvalidated(['to' => 'user@[127.0.0.1]', 'subject' => 'Bad to']);
+
+        $this->assertSame(Response::ERROR, Response::getStatus());
+        $this->assertStringContainsString('No valid recipient address', (string) wp_json_encode(Response::getData()));
+        $this->assertEmpty($this->mailpitMessages());
+    }
+
+    public function testChosenConnectionTestSendToAnInvalidAddressExplainsTheFailure(): void
+    {
+        $connection = Plugin::instance()->mailConfigService()->load()->getConnections()->first();
+
+        $this->sendUnvalidated(['to' => 'user@[127.0.0.1]', 'subject' => 'Bad to', 'connection_id' => $connection->getId()]);
+
+        $this->assertSame(Response::ERROR, Response::getStatus());
+        $data = (string) wp_json_encode(Response::getData());
+        $this->assertStringContainsString('No valid recipient address', $data);
+        $this->assertStringNotContainsString('Missing required field', $data);
+    }
+
     public function testAnUnknownConnectionIsRejectedWithoutSending(): void
     {
         $this->send(['connection_id' => 'does-not-exist']);
 
         $this->assertSame(Response::ERROR, Response::getStatus());
         $this->assertEmpty($this->mailpitMessages());
+    }
+
+    /**
+     * Call the endpoint with data that skips the recipient rules, as a client posting past the form would.
+     *
+     * @param array<string,string> $data
+     */
+    private function sendUnvalidated(array $data): void
+    {
+        $request = new MailTestRequest();
+        $request->make($data, ['to' => ['required', 'sanitize:text'], 'subject' => ['required', 'sanitize:text'], 'message' => ['nullable'], 'connection_id' => ['nullable', 'string']]);
+        (new SMTPController())->sendTestEmail($request);
     }
 
     /**

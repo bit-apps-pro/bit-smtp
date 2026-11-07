@@ -310,6 +310,31 @@ class WpMailBridgeTest extends BaseUnitTestCase
         );
     }
 
+    public function testTestSendToNoValidAddressFailsClearlyWithoutTouchingTheConnection(): void
+    {
+        Functions\when('is_email')->justReturn(false);
+        $transport = new ScriptedTransport([]);
+        $bridge    = $this->dispatchableBridge($transport);
+        $bridge->setDebug(true);
+
+        $failed = [];
+        Functions\when('do_action')->alias(static function (string $hook, $arg = null) use (&$failed): void {
+            if ($hook === 'wp_mail_failed') {
+                $failed[] = $arg;
+            }
+        });
+
+        $succeeded = $bridge->dispatchTest(['to' => 'user@[127.0.0.1]', 'subject' => 'Hi', 'message' => 'Body'], $this->connection(['id' => 'chosen']));
+
+        $this->assertFalse($succeeded);
+        $this->assertSame(0, $transport->callCount);
+        $this->assertTrue($bridge->isFailed());
+        $this->assertSame([], $bridge->lastAttempts());
+        $this->assertStringContainsString('No valid recipient address', implode('', $bridge->getDebugOutput()));
+        $this->assertCount(1, $failed);
+        $this->assertStringContainsString('No valid recipient address', $failed[0]->get_error_message());
+    }
+
     public function testFailedTestSendEnqueuesNoRetry(): void
     {
         $this->enableRetries();

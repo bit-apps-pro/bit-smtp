@@ -20,6 +20,9 @@ class MailSourceController
 
     private ?MailSourceLabeler $labeler;
 
+    /**
+     * Optional collaborators let tests inject doubles; production builds both lazily.
+     */
     public function __construct(?MailAnalyticsRepository $repository = null, ?MailSourceLabeler $labeler = null)
     {
         $this->repository = $repository;

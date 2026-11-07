@@ -7,7 +7,6 @@ use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Contracts\OAuth2ProviderInterface;
 use BitApps\SMTP\Mail\Exceptions\OAuthException;
 use BitApps\SMTP\Mail\Http\ApiClient;
-use BitApps\SMTP\Mail\Http\ApiResponse;
 
 /**
  * Resolve OAuth2 access token; return cached or refresh and persist.
@@ -18,6 +17,8 @@ class OAuth2TokenProvider
      * Refresh early so a token doesn't expire mid-flight while being used.
      */
     private const EXPIRY_SKEW_SECONDS = 60;
+
+    private const OAUTH_ERROR_PATTERN = '/^[a-z0-9_.-]{1,64}$/iD';
 
     private ApiClient $client;
 
@@ -57,7 +58,7 @@ class OAuth2TokenProvider
 
         $body = $response->getBody();
         if (!$response->isOk() || !\is_array($body) || empty($body['access_token'])) {
-            throw OAuthException::refreshFailed(esc_html($this->errorMessage($response)));
+            throw OAuthException::refreshFailed($response->getStatus(), $this->oauthError($body));
         }
 
         $accessToken     = (string) $body['access_token'];
@@ -86,17 +87,15 @@ class OAuth2TokenProvider
         return $updated;
     }
 
-    private function errorMessage(ApiResponse $response): string
+    /**
+     * The RFC 6749 error code from a token response when it is a plain token; the free-text description is never used, as it can name the account.
+     *
+     * @param mixed $body decoded token-endpoint response
+     */
+    private function oauthError($body): string
     {
-        $body = $response->getBody();
-        if (\is_array($body) && !empty($body['error_description'])) {
-            return (string) $body['error_description'];
-        }
+        $error = \is_array($body) ? ($body['error'] ?? '') : '';
 
-        if (\is_array($body) && !empty($body['error'])) {
-            return (string) $body['error'];
-        }
-
-        return 'HTTP ' . $response->getStatus();
+        return \is_string($error) && preg_match(self::OAUTH_ERROR_PATTERN, $error) === 1 ? $error : '';
     }
 }

@@ -50,6 +50,17 @@ final class NativeMailLoggingTest extends IntegrationTestCase
         $this->assertSame(['bcc@example.org'], $log->bcc);
     }
 
+    public function testNativeSendWithAnAllInvalidToStillLogsTheSenderAndCc(): void
+    {
+        wp_mail('john@typo', 'Native Invalid To', 'Body', ['From: Sender <sender@example.org>', 'Cc: cc@example.org']);
+
+        $log = Log::where('subject', 'Native Invalid To')->first();
+        $this->assertInstanceOf(Log::class, $log);
+
+        $this->assertSame('Sender <sender@example.org>', $log->sender);
+        $this->assertSame(['cc@example.org'], $log->cc);
+    }
+
     /**
      * Guards the blank-sender bug: the effective wp_mail default sender must fill it.
      */

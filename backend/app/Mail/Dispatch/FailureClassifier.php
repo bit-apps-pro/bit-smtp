@@ -9,6 +9,12 @@ use BitApps\SMTP\Mail\Message\SendResult;
  */
 class FailureClassifier
 {
+    private const NAMED_CODES = [
+        SendResult::CODE_UNSENDABLE_BODY    => FailureCategory::PERMANENT,
+        SendResult::CODE_AUTH_REJECTED      => FailureCategory::AUTH,
+        SendResult::CODE_NO_VALID_RECIPIENT => FailureCategory::INVALID_RECIPIENT,
+    ];
+
     private const AUTH_PATTERN = '/(\b(auth|credential|username|password|535|534)\b|could not authenticate|authentication (failed|unsuccessful)|\bunauthori[sz]ed\b)/';
 
     private const RATE_LIMITED_PATTERN = '/(rate.?limit|too many|throttl|\b429\b)/';
@@ -35,8 +41,8 @@ class FailureClassifier
         $code = $result->getCode();
         $msg  = strtolower((string) $result->getError());
 
-        if ($code === SendResult::CODE_UNSENDABLE_BODY) {
-            return FailureCategory::PERMANENT;
+        if ($code !== null && isset(self::NAMED_CODES[$code])) {
+            return self::NAMED_CODES[$code];
         }
 
         if ($code !== null && is_numeric($code) && (int) $code >= 100 && (int) $code <= 599) {

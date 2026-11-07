@@ -23,6 +23,23 @@ final class FailureClassifierTest extends BaseUnitTestCase
         $this->classifier = new FailureClassifier();
     }
 
+    public function testNoValidRecipientIsAnInvalidRecipientInAnyLanguage(): void
+    {
+        $category = $this->classifier->classify(SendResult::failure('Kein gültiger Empfänger', SendResult::CODE_NO_VALID_RECIPIENT));
+
+        $this->assertSame(FailureCategory::INVALID_RECIPIENT, $category);
+        $this->assertFalse(FailureCategory::isRetryable($category));
+    }
+
+    public function testRejectedSignInIsAuthInAnyLanguage(): void
+    {
+        $category = $this->classifier->classify(SendResult::failure('Anmeldung abgelehnt', SendResult::CODE_AUTH_REJECTED));
+
+        $this->assertSame(FailureCategory::AUTH, $category);
+        $this->assertFalse(FailureCategory::isRetryable($category));
+        $this->assertFalse(FailureCategory::stopsFailover($category));
+    }
+
     public function testUnsendableBodyIsPermanentInAnyLanguage(): void
     {
         $category = $this->classifier->classify(SendResult::failure('Der Inhalt ist nicht lesbar', SendResult::CODE_UNSENDABLE_BODY));

@@ -20,6 +20,20 @@ final class MailDataBuilder
      */
     public function buildFromAtts(array $atts, MailMessage $message): array
     {
+        return $this->buildFromParts($atts, $message->getCc(), $message->getBcc());
+    }
+
+    /**
+     * The base log payload from wp_mail's atts and already-parsed Cc/Bcc, for a send that never became a message.
+     *
+     * @param array<string,mixed> $atts
+     * @param array<int,string>   $cc
+     * @param array<int,string>   $bcc
+     *
+     * @return array<string,mixed>
+     */
+    public function buildFromParts(array $atts, array $cc, array $bcc): array
+    {
         $to = $atts['to'] ?? [];
         if (!\is_array($to)) {
             $to = explode(',', $to);
@@ -27,8 +41,8 @@ final class MailDataBuilder
 
         return [
             'to'          => $to,
-            'cc'          => $message->getCc(),
-            'bcc'         => $message->getBcc(),
+            'cc'          => $cc,
+            'bcc'         => $bcc,
             'subject'     => $atts['subject']     ?? '',
             'message'     => $atts['message']     ?? '',
             'headers'     => $atts['headers']     ?? '',

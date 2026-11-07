@@ -6,6 +6,7 @@ use BitApps\SMTP\Deps\BitApps\WPKit\Hooks\Hooks;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Connections\ConnectionResolver;
 use BitApps\SMTP\Mail\Contracts\ProviderInterface;
+use BitApps\SMTP\Mail\Exceptions\NoValidRecipientException;
 use BitApps\SMTP\Mail\Exceptions\ProviderNotFoundException;
 use BitApps\SMTP\Mail\Health\HealthRecorder;
 use BitApps\SMTP\Mail\Health\HealthTransition;
@@ -248,6 +249,10 @@ class WpMailBridge
 
         try {
             $message = $this->messageFactory->fromWpMailAtts($atts);
+        } catch (NoValidRecipientException $e) {
+            $this->context->setResendParentId($resendParentId);
+
+            return $this->failWithoutRecipient($atts, $e, DispatchMode::live());
         } catch (InvalidArgumentException $e) {
             return;
         }
@@ -434,9 +439,44 @@ class WpMailBridge
         $this->context->setResendParentId($resendParentId);
         $this->context->setRoutingDecision(new RoutingDecision($this->sourceDetector->detect(), $connection->getId(), 'manual', null));
 
-        $message = $this->messageFactory->fromWpMailAtts($atts);
+        try {
+            $message = $this->messageFactory->fromWpMailAtts($atts);
+        } catch (NoValidRecipientException $e) {
+            return $this->failWithoutRecipient($atts, $e, $mode);
+        }
 
         return $this->dispatch([$connection], $message, $this->mailData->buildFromAtts($atts, $message), $mode)['succeeded'];
+    }
+
+    /**
+     * Fail a send whose To holds no valid address the way a rejected recipient fails (logged, reported, never retried), without trying any connection or native mail().
+     *
+     * @param array<string,mixed> $atts
+     */
+    private function failWithoutRecipient(array $atts, NoValidRecipientException $e, DispatchMode $mode): bool
+    {
+        $this->dispatching = true;
+
+        try {
+            $fields   = $e->fields();
+            $result   = SendResult::failure($e->getMessage(), SendResult::CODE_NO_VALID_RECIPIENT, [$e->getMessage()]);
+            $mailData = $this->mailData->withSender(
+                $this->mailData->buildFromParts($atts, $fields['cc'], $fields['bcc']),
+                SenderFormatter::format($fields['from'], $fields['fromName'])
+            );
+
+            $this->context->setFailed(true);
+            $this->appendDebug($result);
+            $this->logOutcome(false, $result, $mailData, null, null, null, null, $this->classifier->classify($result));
+            if ($mode->notifiesOutcome()) {
+                $this->notifyOutcome(false, $result, $mailData, null);
+            }
+            $this->fireWpMailAction(false, $result, $mailData);
+
+            return false;
+        } finally {
+            $this->dispatching = false;
+        }
     }
 
     /**
@@ -668,14 +708,16 @@ class WpMailBridge
         $atts['headers'] = $this->context->getNativeMailHeaders() ?: ($mailData['headers'] ?? '');
 
         try {
-            $message = $this->messageFactory->fromWpMailAtts($atts);
+            $fields = $this->messageFactory->fromWpMailAtts($atts)->toArray();
+        } catch (NoValidRecipientException $e) {
+            $fields = $e->fields();
         } catch (InvalidArgumentException $e) {
             return $mailData;
         }
 
-        $mailData['from'] = SenderFormatter::format($message->getFrom(), $message->getFromName());
-        $mailData['cc']   = $message->getCc();
-        $mailData['bcc']  = $message->getBcc();
+        $mailData['from'] = SenderFormatter::format($fields['from'], $fields['fromName']);
+        $mailData['cc']   = $fields['cc'];
+        $mailData['bcc']  = $fields['bcc'];
 
         return $mailData;
     }

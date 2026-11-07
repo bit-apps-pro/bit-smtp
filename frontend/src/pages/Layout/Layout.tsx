@@ -8,6 +8,15 @@ import useWpSubmenuHighlight from './useWpSubmenuHighlight'
 
 const CONTENT_MAX_WIDTH = 1280
 
+const WIDE_CONTENT_MAX_WIDTH = 1440
+
+const WIDE_CONTENT_PATH = '/logs'
+
+/** Max width of the routed page: the Logs table gets extra room so all its columns fit, others keep the default. */
+function contentMaxWidth(pathname: string): number {
+  return pathname === WIDE_CONTENT_PATH ? WIDE_CONTENT_MAX_WIDTH : CONTENT_MAX_WIDTH
+}
+
 /** Secondary links kept out of the primary nav. */
 function Footer() {
   const { token } = theme.useToken()
@@ -50,7 +59,7 @@ function Layout() {
       <div
         role="region"
         aria-label="Bit SMTP"
-        style={{ maxWidth: CONTENT_MAX_WIDTH, width: '100%', margin: '0 auto', flex: 'auto' }}
+        style={{ maxWidth: contentMaxWidth(pathname), width: '100%', margin: '0 auto', flex: 'auto' }}
       >
         {pathname === '/' ? <OnboardingChecklist /> : null}
         <Outlet />

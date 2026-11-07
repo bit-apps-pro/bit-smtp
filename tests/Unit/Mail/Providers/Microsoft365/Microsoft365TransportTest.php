@@ -4,10 +4,14 @@ namespace BitApps\SMTP\Tests\Unit\Mail\Providers\Microsoft365;
 
 use BitApps\SMTP\HTTP\Services\MailConfigService;
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Dispatch\FailureCategory;
+use BitApps\SMTP\Mail\Dispatch\FailureClassifier;
+use BitApps\SMTP\Mail\Exceptions\OAuthException;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Http\ApiResponse;
 use BitApps\SMTP\Mail\Message\MailMessage;
 use BitApps\SMTP\Mail\Message\MimeBuilder;
+use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Mail\Providers\Microsoft365\Microsoft365Transport;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
@@ -261,6 +265,32 @@ class Microsoft365TransportTest extends BaseUnitTestCase
         $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(202, []));
 
         $this->transport->send($multipart, $this->connection());
+    }
+
+    public function testRejectedTokenRefreshFailsAsAnAuthProblem(): void
+    {
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->andReturn('raw-mime');
+        $this->tokenProvider->shouldReceive('accessToken')->once()->andThrow(OAuthException::refreshFailed(400, 'invalid_grant'));
+        $this->apiClient->shouldNotReceive('post');
+
+        $result = $this->transport->send($this->message(), $this->connection());
+
+        $this->assertFalse($result->isAccepted());
+        $this->assertSame(SendResult::CODE_AUTH_REJECTED, $result->getCode());
+        $this->assertSame(FailureCategory::AUTH, (new FailureClassifier())->classify($result));
+        $this->assertStringContainsString('invalid_grant', (string) $result->getError());
+    }
+
+    public function testUnreachableTokenEndpointFailsAsTransient(): void
+    {
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->andReturn('raw-mime');
+        $this->tokenProvider->shouldReceive('accessToken')->once()->andThrow(OAuthException::refreshFailed(503, ''));
+        $this->apiClient->shouldNotReceive('post');
+
+        $result = $this->transport->send($this->message(), $this->connection());
+
+        $this->assertSame('503', $result->getCode());
+        $this->assertSame(FailureCategory::TRANSIENT, (new FailureClassifier())->classify($result));
     }
 
     private function message(): MailMessage

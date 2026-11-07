@@ -2,8 +2,10 @@
 
 namespace BitApps\SMTP\Tests\Integration;
 
+use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Plugin;
+use WP_Error;
 
 /**
  * Exercises the live wp_mail send path end-to-end through WpMailBridge against mailpit.
@@ -65,6 +67,58 @@ final class WpMailBridgeTest extends IntegrationTestCase
         $this->assertInstanceOf(Log::class, $log);
         $this->assertSame(['cc@example.org'], $log->cc);
         $this->assertSame(['bcc@example.org'], $log->bcc);
+    }
+
+    public function testAllInvalidToFailsWithoutDeferringToNativeMail(): void
+    {
+        $this->truncateTables((new Log())->getTable());
+        $nativeRan = false;
+        $failure   = null;
+        $native    = static function () use (&$nativeRan): void {
+            $nativeRan = true;
+        };
+        $listener = static function (WP_Error $error) use (&$failure): void {
+            $failure = $error;
+        };
+        add_action('phpmailer_init', $native);
+        add_action('wp_mail_failed', $listener);
+
+        try {
+            $sent = wp_mail('john@typo', 'All invalid', 'Body', ['Cc: real@example.org']);
+        } finally {
+            remove_action('phpmailer_init', $native);
+            remove_action('wp_mail_failed', $listener);
+        }
+
+        $this->assertFalse($sent);
+        $this->assertFalse($nativeRan, 'core wp_mail must not take over and send the Cc through mail()');
+        $this->assertEmpty($this->mailpitMessages());
+        $this->assertInstanceOf(WP_Error::class, $failure);
+        $this->assertStringContainsString('No valid recipient address', $failure->get_error_message());
+
+        $log = Log::where('subject', 'All invalid')->first();
+        $this->assertInstanceOf(Log::class, $log);
+        $this->assertSame(Log::ERROR, (int) $log->status);
+        $this->assertSame(FailureCategory::INVALID_RECIPIENT, $log->failure_class);
+        $this->assertSame(['real@example.org'], $log->cc);
+        $this->assertNotSame('', (string) $log->sender);
+    }
+
+    public function testEmptyToKeepsTheNativeFallback(): void
+    {
+        $nativeRan = false;
+        $native    = static function () use (&$nativeRan): void {
+            $nativeRan = true;
+        };
+        add_action('phpmailer_init', $native);
+
+        try {
+            wp_mail('', 'Empty to', 'Body');
+        } finally {
+            remove_action('phpmailer_init', $native);
+        }
+
+        $this->assertTrue($nativeRan);
     }
 
     /**

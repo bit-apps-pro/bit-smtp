@@ -2,7 +2,9 @@
 
 namespace BitApps\SMTP\Mail\Message;
 
+use BitApps\SMTP\Mail\Exceptions\NoValidRecipientException;
 use BitApps\SMTP\Mail\Support\MailAddress;
+use InvalidArgumentException;
 
 /**
  * Maintained fork of wp_mail() header/from/content-type resolution; verify on WP bumps.
@@ -15,6 +17,9 @@ class MailMessageFactory
      * Resolve wp_mail() arguments into a structured MailMessage with headers parsed.
      *
      * @param array<string,mixed> $atts wp_mail() arguments: to, subject, message, headers, attachments
+     *
+     * @throws NoValidRecipientException when To names addresses but none is valid
+     * @throws InvalidArgumentException  when To is empty, which callers leave to native wp_mail()
      */
     public function fromWpMailAtts(array $atts): MailMessage
     {
@@ -40,7 +45,7 @@ class MailMessageFactory
         $headerType   = ContentTypeValue::parse($parsed['content_type'] ?? ContentTypeValue::TEXT_PLAIN);
         $filteredType = $this->filteredContentType($headerType);
 
-        return MailMessage::fromArray([
+        $fields = [
             'to'          => $this->validAddresses($to),
             'cc'          => $this->validAddresses($parsed['cc']),
             'bcc'         => $this->validAddresses($parsed['bcc']),
@@ -53,7 +58,14 @@ class MailMessageFactory
             'replyTo'     => $this->firstReplyTo($parsed['reply_to']),
             'headers'     => $parsed['headers'],
             'attachments' => $attachments,
-        ]);
+        ];
+
+        $given = $this->givenAddresses($to);
+        if ($fields['to'] === [] && $given !== []) {
+            throw new NoValidRecipientException($fields, $given);
+        }
+
+        return MailMessage::fromArray($fields);
     }
 
     /**
@@ -230,6 +242,18 @@ class MailMessageFactory
         return array_values(array_filter(array_map('trim', $addresses), static function ($address) {
             return is_email(MailAddress::split($address)[0]) !== false;
         }));
+    }
+
+    /**
+     * The non-blank addresses the caller passed, valid or not.
+     *
+     * @param array<int,string> $addresses
+     *
+     * @return array<int,string>
+     */
+    private function givenAddresses(array $addresses): array
+    {
+        return array_values(array_filter(array_map('trim', $addresses), static fn ($address) => $address !== ''));
     }
 
     /**

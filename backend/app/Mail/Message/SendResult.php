@@ -6,6 +6,10 @@ class SendResult
 {
     public const CODE_UNSENDABLE_BODY = 'unsendable_body';
 
+    public const CODE_AUTH_REJECTED = 'auth_rejected';
+
+    public const CODE_NO_VALID_RECIPIENT = 'no_valid_recipient';
+
     private bool $accepted;
 
     private bool $ok;

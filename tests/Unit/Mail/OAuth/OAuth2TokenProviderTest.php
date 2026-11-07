@@ -8,6 +8,7 @@ use BitApps\SMTP\Mail\Contracts\OAuth2ProviderInterface;
 use BitApps\SMTP\Mail\Exceptions\OAuthException;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Http\ApiResponse;
+use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\OAuth\OAuth2TokenProvider;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Mockery;
@@ -147,6 +148,94 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
         $this->tokenProvider->accessToken($connection, $this->provider);
     }
 
+    /**
+     * @return array<string,array{0:int,1:mixed}>
+     */
+    public static function rejectedRefreshes(): array
+    {
+        return [
+            'google revoked token'   => [400, ['error' => 'invalid_grant', 'error_description' => 'Bad Request']],
+            'bad client secret'      => [401, ['error' => 'invalid_client']],
+            'unauthorized client'    => [400, ['error' => 'unauthorized_client']],
+            'missing parameter'      => [400, ['error' => 'invalid_request']],
+            'no error code'          => [400, 'Bad Request'],
+            'forbidden'              => [403, []],
+            'wrong token url'        => [404, []],
+        ];
+    }
+
+    /**
+     * @param mixed $body
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('rejectedRefreshes')]
+    public function testRejectedRefreshCarriesTheAuthRejectedCode(int $status, $body): void
+    {
+        $exception = $this->refreshFailure(new ApiResponse($status, $body));
+
+        $this->assertSame(SendResult::CODE_AUTH_REJECTED, $exception->sendResultCode());
+        $this->assertStringContainsString('Reconnect', $exception->getMessage());
+    }
+
+    /**
+     * @return array<string,array{0:int,1:mixed,2:?string}>
+     */
+    public static function retryableRefreshes(): array
+    {
+        return [
+            'network error'          => [0, 'cURL error 28: Operation timed out', null],
+            'server error'           => [500, ['error' => 'server_error'], '500'],
+            'unavailable'            => [503, [], '503'],
+            'rate limited'           => [429, [], '429'],
+            'request timeout'        => [408, [], '408'],
+            'busy with 400 status'   => [400, ['error' => 'temporarily_unavailable'], null],
+            'server_error with 400'  => [400, ['error' => 'server_error'], null],
+            'ok without a token'     => [200, ['expires_in' => 3600], null],
+        ];
+    }
+
+    /**
+     * @param mixed $body
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('retryableRefreshes')]
+    public function testRetryableRefreshKeepsAStatusCodeOrNone(int $status, $body, ?string $expectedCode): void
+    {
+        $exception = $this->refreshFailure(new ApiResponse($status, $body));
+
+        $this->assertSame($expectedCode, $exception->sendResultCode());
+        $this->assertStringNotContainsString('Reconnect', $exception->getMessage());
+    }
+
+    public function testRejectedRefreshNamesTheOAuthErrorButNeverSecretsOrTheBody(): void
+    {
+        $message = $this->refreshFailure(new ApiResponse(400, [
+            'error'             => 'invalid_grant',
+            'error_description' => 'AADSTS700082: token for user@example.org expired',
+        ]))->getMessage();
+
+        $this->assertStringContainsString('invalid_grant', $message);
+        $this->assertStringNotContainsString('AADSTS', $message);
+        $this->assertStringNotContainsString('user@example.org', $message);
+        $this->assertStringNotContainsString('refresh-1', $message);
+        $this->assertStringNotContainsString('csecret', $message);
+    }
+
+    public function testUnsafeOAuthErrorCodeIsLeftOutOfTheMessage(): void
+    {
+        $exception = $this->refreshFailure(new ApiResponse(400, ['error' => "invalid_grant\r\n<script>\"x\""]));
+
+        $this->assertSame(SendResult::CODE_AUTH_REJECTED, $exception->sendResultCode());
+        $this->assertStringNotContainsString('<script>', $exception->getMessage());
+        $this->assertStringContainsString('HTTP 400', $exception->getMessage());
+    }
+
+    public function testMissingRefreshTokenCarriesTheAuthRejectedCode(): void
+    {
+        $exception = OAuthException::missingRefreshToken();
+
+        $this->assertSame(SendResult::CODE_AUTH_REJECTED, $exception->sendResultCode());
+        $this->assertStringContainsString('Reconnect', $exception->getMessage());
+    }
+
     public function testThrowsOAuthExceptionWhenResponseHasNoAccessToken(): void
     {
         $connection = $this->connection(
@@ -239,6 +328,31 @@ class OAuth2TokenProviderTest extends BaseUnitTestCase
         $token = $this->tokenProvider->accessToken($connection, $this->provider);
 
         $this->assertSame('new-token', $token);
+    }
+
+    /**
+     * Refresh an expired token against the given token-endpoint response and return the exception it raises.
+     */
+    private function refreshFailure(ApiResponse $response): OAuthException
+    {
+        $connection = $this->connection(
+            ['token_expires_at' => time() - 100, 'client_id' => 'cid'],
+            [
+                'refresh_token' => ['source' => 'database', 'value' => 'refresh-1'],
+                'client_secret' => ['source' => 'database', 'value' => 'csecret'],
+            ]
+        );
+
+        $this->apiClient->shouldReceive('postForm')->once()->andReturn($response);
+        $this->config->shouldNotReceive('saveConnection');
+
+        try {
+            $this->tokenProvider->accessToken($connection, $this->provider);
+        } catch (OAuthException $e) {
+            return $e;
+        }
+
+        $this->fail('a failed refresh must throw OAuthException');
     }
 
     private function connection(array $settings, array $credentials): Connection

@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\HTTP\Requests;
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
+use BitApps\SMTP\HTTP\Requests\Rules\RecipientEmailRule;
 
 class MailTestRequest extends Request
 {
@@ -10,7 +11,7 @@ class MailTestRequest extends Request
     {
         return
             [
-                'to'            => ['required', 'email', 'sanitize:text'],
+                'to'            => ['required', 'email', new RecipientEmailRule(), 'sanitize:text'],
                 'subject'       => ['required', 'sanitize:text'],
                 'message'       => ['nullable', 'sanitize:wp_kses_post'],
                 'connection_id' => ['nullable', 'string', 'sanitize:text'],

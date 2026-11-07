@@ -4,7 +4,7 @@ Tags: email logs, smtp, email, gmail smtp, transactional email
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 2.0.0
+Stable tag: 2.0.1
 License: GPLv2 or later
 
 Fix WordPress email delivery. Send through Gmail, Microsoft 365, SendGrid, Amazon SES, Brevo and more by API, OAuth, or SMTP, with fallback and logs.
@@ -193,6 +193,16 @@ Delivery counts stay separate from send acceptance: an email counts as delivered
 
 == Changelog ==
 
+= 2.0.1 (07 Nov, 2026) =
+* Fix: Accented and non-Latin text (for example Bengali, Arabic, Chinese, emoji) no longer arrives garbled; emails use the site's character set again, as WordPress does.
+* Fix: HTML emails from plugins such as Bit Form and WooCommerce arrive as HTML instead of raw code.
+* Fix: Multipart and calendar emails keep their format over SMTP, PHP mail, Gmail, Microsoft 365, and Amazon SES; other API providers receive the HTML or text part.
+* Fix: One invalid address no longer stops the whole email; it is skipped and everyone else still gets the message. If no recipient is valid, the email fails with a clear reason in the logs, and the test email form rejects such addresses.
+* Fix: Resending from the logs keeps plain-text and multipart emails as they were.
+* Fix: OAuth sign-in problems with Gmail and Microsoft 365 are reported as needing reconnection instead of being retried.
+* Fix: The logs table fits your screen, with a wider layout on large screens; the routing source picker shows long plugin names and stays on screen on phones.
+* Fix: Other installed copies of Bit SMTP no longer appear in the source list.
+
 = 2.0.0 (03 Nov, 2026) =
 * Feat: Dedicated API integrations for SendGrid, Amazon SES, Mailgun, Postmark, Brevo, Resend, Mailjet, Zoho CPaaS (ZeptoMail), SparkPost, and Cloudflare Email Sending (Beta), plus Gmail and Microsoft 365 via OAuth, any SMTP server, and PHP mail().
 * Feat: Multiple connections with a priority order and automatic fallback; enable, disable, and disconnect connections without deleting them.
@@ -291,6 +301,9 @@ Fix: some issues
 * Initial release of bit-smtp
 
 == Upgrade Notice ==
+
+= 2.0.1 =
+Fixes garbled accented and non-Latin text and HTML emails shown as raw code since 2.0.0. Update recommended.
 
 = 2.0.0 =
 Major update: dedicated provider integrations, fallback, retries, delivery tracking, alerts, and analytics. Requires PHP 8.1+ and WordPress 5.9+; on older PHP the plugin stays inactive.

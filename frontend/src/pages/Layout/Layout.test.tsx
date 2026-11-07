@@ -20,6 +20,8 @@ function renderShellAt(hash: string) {
   )
 }
 
+const contentRegion = () => screen.getByRole('region', { name: 'Bit SMTP' })
+
 describe('Layout shell', () => {
   beforeEach(() => {
     vi.mocked(request).mockResolvedValue({
@@ -105,5 +107,23 @@ describe('Layout shell', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Help us make Bit SMTP better?' })
     ).toBeInTheDocument()
+  })
+
+  it('keeps the default content width on regular pages', () => {
+    renderShellAt('#/routing')
+
+    expect(contentRegion()).toHaveStyle({ maxWidth: '1280px' })
+  })
+
+  it('widens the content area on the Logs page only', () => {
+    renderShellAt('#/logs')
+
+    expect(contentRegion()).toHaveStyle({ maxWidth: '1440px' })
+  })
+
+  it('keeps the default width on a single log details page', () => {
+    renderShellAt('#/logs/42')
+
+    expect(contentRegion()).toHaveStyle({ maxWidth: '1280px' })
   })
 })

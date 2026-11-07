@@ -2,6 +2,7 @@
 
 namespace BitApps\SMTP\Tests\Unit\Mail\Message;
 
+use BitApps\SMTP\Mail\Exceptions\NoValidRecipientException;
 use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Tests\BaseUnitTestCase;
 use Brain\Monkey\Functions;
@@ -339,6 +340,47 @@ class MailMessageFactoryTest extends BaseUnitTestCase
         $this->assertFalse($this->factory->declaresContentType('X-Foo: bar'));
         $this->assertFalse($this->factory->declaresContentType(''));
         $this->assertFalse($this->factory->declaresContentType([null]));
+    }
+
+    public function testToWithNoValidAddressThrowsCarryingTheParsedFields(): void
+    {
+        try {
+            $this->factory->fromWpMailAtts([
+                'to'      => 'john@typo, also bad',
+                'subject' => 'S',
+                'message' => 'B',
+                'headers' => ['From: Sender <sender@example.com>', 'Cc: real@example.org', 'Bcc: hidden@example.org'],
+            ]);
+            $this->fail('an all-invalid To must throw');
+        } catch (NoValidRecipientException $e) {
+            $fields = $e->fields();
+            $this->assertSame([], $fields['to']);
+            $this->assertSame(['real@example.org'], $fields['cc']);
+            $this->assertSame(['hidden@example.org'], $fields['bcc']);
+            $this->assertSame('sender@example.com', $fields['from']);
+            $this->assertSame('Sender', $fields['fromName']);
+            $this->assertStringContainsString('No valid recipient address', $e->getMessage());
+            $this->assertStringContainsString('john@typo', $e->getMessage());
+        }
+    }
+
+    public function testEmptyToStillFailsAsAPlainMissingField(): void
+    {
+        foreach (['', [], ' , '] as $to) {
+            try {
+                $this->factory->fromWpMailAtts(['to' => $to, 'subject' => 'S', 'message' => 'B', 'headers' => ['From: s@example.org', 'Cc: real@example.org']]);
+                $this->fail('an empty To must throw');
+            } catch (InvalidArgumentException $e) {
+                $this->assertNotInstanceOf(NoValidRecipientException::class, $e);
+            }
+        }
+    }
+
+    public function testOneValidAddressAmongInvalidOnesStillSends(): void
+    {
+        $message = $this->factory->fromWpMailAtts(['to' => 'john@typo, ok@example.org', 'subject' => 'S', 'message' => 'B', 'headers' => 'From: s@example.org']);
+
+        $this->assertSame(['ok@example.org'], $message->getTo());
     }
 
     public function testNonStringHeaderElementsAreSkipped(): void

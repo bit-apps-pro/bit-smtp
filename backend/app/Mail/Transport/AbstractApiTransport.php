@@ -5,6 +5,7 @@ namespace BitApps\SMTP\Mail\Transport;
 use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Mail\Contracts\AuthStrategyInterface;
 use BitApps\SMTP\Mail\Contracts\TransportInterface;
+use BitApps\SMTP\Mail\Exceptions\OAuthException;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Http\ApiResponse;
 use BitApps\SMTP\Mail\Message\MailMessage;
@@ -149,6 +150,8 @@ abstract class AbstractApiTransport implements TransportInterface
             $this->authStrategy->apply($request, $connection);
 
             $response = $this->client->setHeaders($request->headers)->post($request->url, $request->body);
+        } catch (OAuthException $e) {
+            return SendResult::failure($e->getMessage(), $e->sendResultCode(), ['exception' => OAuthException::class]);
         } catch (Throwable $e) {
             return SendResult::failure($e->getMessage(), null, ['exception' => \get_class($e)]);
         }
