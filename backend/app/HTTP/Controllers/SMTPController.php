@@ -13,6 +13,10 @@ use BitApps\SMTP\HTTP\Requests\MailTestRequest;
 use BitApps\SMTP\HTTP\Requests\ResendEditRequest;
 use BitApps\SMTP\HTTP\Services\LogBodyRedactor;
 use BitApps\SMTP\HTTP\Services\TestMailReport;
+use BitApps\SMTP\Mail\Message\ContentTypeValue;
+use BitApps\SMTP\Mail\Message\HtmlMarkup;
+use BitApps\SMTP\Mail\Message\MailMessage;
+use BitApps\SMTP\Mail\Message\MailMessageFactory;
 use BitApps\SMTP\Plugin;
 use BitApps\SMTP\Views\EmailTemplate;
 use Throwable;
@@ -103,7 +107,6 @@ class SMTPController
         if (empty($logs)) {
             return Response::error(__('Log not found', 'bit-smtp'));
         }
-        Hooks::addFilter('wp_mail_content_type', [$this, 'setContentType']);
         $resent  = 0;
         $skipped = 0;
         foreach ($logs as $log) {
@@ -115,14 +118,9 @@ class SMTPController
             }
 
             $smtpProvider->setResendParentId((int) $log->id)->setDebug(true);
-            $headers     = Arr::get($log->details, 'headers', '');
-            $attachments = Arr::get($log->details, 'attachments', []);
-
-            wp_mail($log->to_addr, $log->subject, trim($message), $headers, $attachments);
+            $this->resendLoggedMessage($log, trim($message));
             ++$resent;
         }
-
-        remove_filter('wp_mail_content_type', [$this, 'setContentType']);
 
         if ($resent === 0 && $skipped > 0) {
             return Response::error(__('Cannot resend: the message body was not retained (log body storage is set to redacted or metadata only).', 'bit-smtp'));
@@ -153,7 +151,7 @@ class SMTPController
             return Response::error(__('Log not found', 'bit-smtp'));
         }
 
-        $body = (string) Arr::get($log->details, 'message', '');
+        $body = trim((string) Arr::get($log->details, 'message', ''));
         if (!LogBodyRedactor::isBodyRetained($body)) {
             return Response::error(__('Cannot resend: the message body was not retained (log body storage is set to redacted or metadata only).', 'bit-smtp'));
         }
@@ -172,8 +170,8 @@ class SMTPController
         $atts = [
             'to'          => $to,
             'subject'     => (string) $data['subject'],
-            'message'     => trim($body),
-            'headers'     => $this->resendHeaders($request->recipients('cc'), $request->recipients('bcc')),
+            'message'     => $body,
+            'headers'     => $this->resendHeaders($this->editedResendContentType($log, $to, $body), $request->recipients('cc'), $request->recipients('bcc')),
             'attachments' => Arr::get($log->details, 'attachments', []),
         ];
 
@@ -187,6 +185,56 @@ class SMTPController
     public function setContentType()
     {
         return 'text/html';
+    }
+
+    /**
+     * Resend one logged message under a content type decided from its own body; the per-message filter is removed even if wp_mail throws.
+     */
+    private function resendLoggedMessage(object $log, string $body): void
+    {
+        $headers = Arr::get($log->details, 'headers', '');
+        $promote = $this->promotesToHtml($headers, $body);
+        $filter  = static fn ($contentType) => $promote && \is_string($contentType) && stripos(ltrim($contentType), ContentTypeValue::MULTIPART_PREFIX) !== 0
+            ? ContentTypeValue::TEXT_HTML
+            : $contentType;
+
+        Hooks::addFilter('wp_mail_content_type', $filter);
+
+        try {
+            wp_mail($log->to_addr, $log->subject, $body, $headers, Arr::get($log->details, 'attachments', []));
+        } finally {
+            remove_filter('wp_mail_content_type', $filter);
+        }
+    }
+
+    /**
+     * Treat a logged body as HTML only when its headers declare no type at all (a filter set it, as Bit Form does) and it has real tags; a declared type is honoured.
+     *
+     * @param string|array<int,string> $headers
+     */
+    private function promotesToHtml($headers, string $body): bool
+    {
+        return !(new MailMessageFactory())->declaresContentType($headers) && HtmlMarkup::isPresentIn($body);
+    }
+
+    /**
+     * Content-Type header value for an edited resend: the type the logged headers resolve to, in UTF-8 because the edited fields come from the admin UI as UTF-8.
+     *
+     * @param string[] $to
+     */
+    private function editedResendContentType(object $log, array $to, string $body): string
+    {
+        $headers = Arr::get($log->details, 'headers', '');
+        $logged  = (new MailMessageFactory())->fromWpMailAtts([
+            'to'      => $to,
+            'subject' => '',
+            'message' => $body,
+            'headers' => $headers,
+        ]);
+
+        $contentType = $this->promotesToHtml($headers, $body) && !$logged->isMultipart() ? ContentTypeValue::TEXT_HTML : $logged->getContentType();
+
+        return $contentType . '; charset=' . MailMessage::DEFAULT_CHARSET;
     }
 
     /**
@@ -220,14 +268,15 @@ class SMTPController
     /**
      * Build wp_mail headers for edited resend (content type + Cc/Bcc); addresses pre-validated.
      *
+     * @param string   $contentType full Content-Type header value
      * @param string[] $cc
      * @param string[] $bcc
      *
      * @return string[]
      */
-    private function resendHeaders(array $cc, array $bcc): array
+    private function resendHeaders(string $contentType, array $cc, array $bcc): array
     {
-        $headers = ['Content-Type: text/html; charset=UTF-8'];
+        $headers = ['Content-Type: ' . $contentType];
         foreach ($cc as $address) {
             $headers[] = 'Cc: ' . $address;
         }

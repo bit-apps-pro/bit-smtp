@@ -35,6 +35,10 @@ class FailureClassifier
         $code = $result->getCode();
         $msg  = strtolower((string) $result->getError());
 
+        if ($code === SendResult::CODE_UNSENDABLE_BODY) {
+            return FailureCategory::PERMANENT;
+        }
+
         if ($code !== null && is_numeric($code) && (int) $code >= 100 && (int) $code <= 599) {
             $category = $this->classifyHttpStatus((int) $code, $msg);
 

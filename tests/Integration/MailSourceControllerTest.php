@@ -7,6 +7,7 @@ namespace BitApps\SMTP\Tests\Integration;
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Response;
 use BitApps\SMTP\HTTP\Controllers\MailSourceController;
 use BitApps\SMTP\Mail\Analytics\MailAnalyticsRepository;
+use BitApps\SMTP\Mail\Routing\MailSourceLabeler;
 use BitApps\SMTP\Model\Log;
 
 /**
@@ -75,6 +76,25 @@ final class MailSourceControllerTest extends IntegrationTestCase
         self::assertNotContains($seen, $values);
         self::assertNotContains('bit-smtp', $values);
         self::assertEqualsCanonicalizing(array_values(array_diff($installed, [$seen, 'bit-smtp'])), $values);
+    }
+
+    public function testControllerExcludesBitSmtpCopiesFromSeenAndInstalledSources(): void
+    {
+        $this->seed('woocommerce');
+        $this->seed('bit-smtp-2');
+        $labeler = new MailSourceLabeler([
+            'bit-smtp/bit_smtp.php'       => ['Name' => 'Bit SMTP'],
+            'bit-smtp-2/bit_smtp.php'     => ['Name' => 'Bit SMTP'],
+            'bit-smtp-3/bit_smtp.php'     => ['Name' => 'Bit SMTP'],
+            'woocommerce/woocommerce.php' => ['Name' => 'WooCommerce'],
+            'bit-crm/bit-crm.php'         => ['Name' => 'Bit CRM'],
+        ]);
+
+        (new MailSourceController(new MailAnalyticsRepository(), $labeler))->index();
+        $data = (array) Response::getData();
+
+        self::assertSame(['woocommerce'], array_column($data['sources'], 'value'));
+        self::assertSame(['bit-crm'], array_column($data['installed'], 'value'));
     }
 
     public function testRoutingSourcesRouteIsRegisteredUnderTheAdminGuardedApi(): void

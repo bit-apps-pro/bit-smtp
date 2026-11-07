@@ -1,24 +1,11 @@
 import { useEffect, useState } from 'react'
 import { __ } from '@common/helpers/i18nwrap'
 import useUnsavedChangesGuard from '@common/hooks/useUnsavedChangesGuard'
+import SortableList from '@components/SortableList/SortableList'
+import useSortableItem from '@components/SortableList/useSortableItem'
 import notify from '@components/Toaster/Toaster'
-import {
-  DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { type DragEndEvent } from '@dnd-kit/core'
+import { arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useUpdateSettings from '@pages/Connections/data/useUpdateSettings'
 import { type MailSettings } from '@pages/Connections/types'
@@ -104,15 +91,7 @@ function SortableRuleRow({
   onChange: (rule: EditableRoutingRule) => void
   onRemove: () => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: rule.id
-  })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1
-  }
+  const { setNodeRef, style, dragHandleAttributes, dragHandleListeners } = useSortableItem(rule.id)
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -123,8 +102,8 @@ function SortableRuleRow({
         priority={priority}
         onChange={onChange}
         onRemove={onRemove}
-        dragHandleAttributes={attributes}
-        dragHandleListeners={listeners}
+        dragHandleAttributes={dragHandleAttributes}
+        dragHandleListeners={dragHandleListeners}
       />
     </div>
   )
@@ -138,10 +117,6 @@ export default function RoutingRulesPage() {
   const updateSettings = useUpdateSettings()
   const [rules, setRules] = useState<EditableRoutingRule[]>(() =>
     settings ? toEditableRules(settings) : []
-  )
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
   const isDirty = settings ? !sameStoredRules(rules, readRoutingRules(settings.features)) : false
   const guard = useUnsavedChangesGuard(isDirty)
@@ -180,8 +155,7 @@ export default function RoutingRulesPage() {
   }
 
   /** Reorders rules locally on drop; persistence happens on the existing Save click. */
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) {
       return
     }
@@ -255,23 +229,25 @@ export default function RoutingRulesPage() {
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
             {__('Drag rules to change their order.')}
           </Text>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={rules.map(rule => rule.id)} strategy={verticalListSortingStrategy}>
-              <Flex vertical gap="middle">
-                {rules.map((rule, index) => (
-                  <SortableRuleRow
-                    key={rule.id}
-                    rule={rule}
-                    connections={settings.connections}
-                    sources={sources ?? EMPTY_SOURCES}
-                    priority={index + 1}
-                    onChange={updated => updateRule(index, updated)}
-                    onRemove={() => removeRule(index)}
-                  />
-                ))}
-              </Flex>
-            </SortableContext>
-          </DndContext>
+          <SortableList
+            items={rules.map(rule => rule.id)}
+            strategy={verticalListSortingStrategy}
+            onDragEnd={handleDragEnd}
+          >
+            <Flex vertical gap="middle">
+              {rules.map((rule, index) => (
+                <SortableRuleRow
+                  key={rule.id}
+                  rule={rule}
+                  connections={settings.connections}
+                  sources={sources ?? EMPTY_SOURCES}
+                  priority={index + 1}
+                  onChange={updated => updateRule(index, updated)}
+                  onRemove={() => removeRule(index)}
+                />
+              ))}
+            </Flex>
+          </SortableList>
           <Button type="dashed" onClick={addRule}>
             {__('Add rule')}
           </Button>

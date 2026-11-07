@@ -612,6 +612,78 @@ class DescriptorApiTransportTest extends BaseUnitTestCase
         $this->assertTrue($this->transportWith($descriptor)->send($message, $this->connection())->isOk());
     }
 
+    /**
+     * @return array<string,array{0:string}>
+     */
+    public static function htmlContentTypes(): array
+    {
+        return [
+            'bare'        => ['text/html'],
+            'bit form'    => ['text/html; charset=UTF-8'],
+            'upper case'  => ['TEXT/HTML'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('htmlContentTypes')]
+    public function testHtmlContentTypesRouteToTheHtmlKey(string $contentType): void
+    {
+        $posted = $this->postedBody(['contentType' => $contentType, 'body' => '<p>x</p>']);
+
+        $this->assertSame('<p>x</p>', $posted['html']);
+        $this->assertArrayNotHasKey('text', $posted);
+    }
+
+    public function testBareMultipartWithHtmlBodyRoutesToTheHtmlKeyWithoutFailing(): void
+    {
+        $posted = $this->postedBody(['contentType' => 'multipart/alternative', 'body' => '<p>Order</p>']);
+
+        $this->assertSame('<p>Order</p>', $posted['html']);
+        $this->assertArrayNotHasKey('text', $posted);
+    }
+
+    public function testCalendarRoutesToTheTextKey(): void
+    {
+        $posted = $this->postedBody(['contentType' => 'text/calendar; method=REQUEST', 'body' => 'BEGIN:VCALENDAR']);
+
+        $this->assertSame('BEGIN:VCALENDAR', $posted['text']);
+        $this->assertArrayNotHasKey('html', $posted);
+    }
+
+    public function testMultipartIsFlattenedBeforeTheBodyIsMapped(): void
+    {
+        $posted = $this->postedBody([
+            'contentType' => 'multipart/alternative; boundary="b1"',
+            'body'        => "--b1\r\nContent-Type: text/plain\r\n\r\nplain\r\n--b1\r\nContent-Type: text/html\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" . quoted_printable_encode('<p>Příliš</p>') . "\r\n--b1--",
+        ]);
+
+        $this->assertSame('<p>Příliš</p>', $posted['html']);
+        $this->assertArrayNotHasKey('text', $posted);
+    }
+
+    /**
+     * Send a message through the default transport and return the decoded JSON posted to the provider.
+     *
+     * @param array<string,string> $overrides
+     *
+     * @return array<string,mixed>
+     */
+    private function postedBody(array $overrides): array
+    {
+        $posted = null;
+        $this->apiClient->shouldReceive('setHeaders')->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->with(Mockery::any(), Mockery::on(static function (string $json) use (&$posted): bool {
+                $posted = json_decode($json, true);
+
+                return true;
+            }))
+            ->andReturn(new ApiResponse(202, []));
+
+        $this->transport()->send($this->message($overrides), $this->connection());
+
+        return $posted;
+    }
+
     private function transport(): DescriptorApiTransport
     {
         return $this->transportWith(ProviderDescriptor::fromArray($this->descriptorConfig()));

@@ -55,7 +55,7 @@ class SendGridTransport extends AbstractApiTransport
             'subject'          => $message->getSubject(),
             'content'          => [
                 [
-                    'type'  => $message->getContentType(),
+                    'type'  => $message->getMediaType(),
                     'value' => $message->getBody(),
                 ],
             ],

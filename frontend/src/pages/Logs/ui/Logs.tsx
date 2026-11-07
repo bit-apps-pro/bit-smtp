@@ -2,15 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DELIVERY_STATUSES, SEND_RESULTS } from '@common/glossary'
 import { __ } from '@common/helpers/i18nwrap'
+import useElementWidth from '@common/hooks/useElementWidth'
+import usePopupMatchSelectWidth from '@common/hooks/usePopupMatchSelectWidth'
 import useMailSettings from '@pages/Connections/data/useMailSettings'
 import useDeleteLog from '@pages/Logs/data/useDeleteLog'
 import useExportLogs, { type LogExportFilters } from '@pages/Logs/data/useExportLogs'
 import { type LogQueryType, type LogType } from '@pages/Logs/data/useFetchLogs'
 import useFetchLogs from '@pages/Logs/data/useFetchLogs'
 import useResendLogs from '@pages/Logs/data/useResendLogs'
+import fitColumns, { SELECTION_COLUMN_WIDTH, scrollFor } from '@pages/Logs/ui/fitColumns'
 import useMailSources from '@pages/Routing/data/useMailSources'
 import {
-  type Breakpoint,
   Button,
   Card,
   DatePicker,
@@ -137,25 +139,6 @@ function renderRetries(retryCount: number) {
   )
 }
 
-/**
- * Minimum viewport breakpoint at which each lower-priority column appears, keyed by column key;
- * an unlisted column always shows. antd breakpoints: xs <576, sm ≥576, md ≥768, lg ≥992, xl ≥1200, xxl ≥1600.
- */
-const COLUMN_BREAKPOINTS: Record<string, Breakpoint[]> = {
-  retry_count: ['xxl'],
-  to_addr: ['xxl'],
-  connection: ['xl'],
-  subject: ['md']
-}
-
-/** Narrowest the table may shrink to before it scrolls inside its card instead of crushing Subject. */
-const TABLE_MIN_WIDTH = 720
-
-/** Attaches each column's responsive breakpoints so narrow screens keep only the columns that matter most. */
-function withBreakpoints(cols: TableColumnsType<LogType>): TableColumnsType<LogType> {
-  return cols.map(column => ({ ...column, responsive: COLUMN_BREAKPOINTS[String(column.key)] }))
-}
-
 const columns: TableColumnsType<LogType> = [
   {
     title: <LegendTitle label={__('Result')} entries={Object.values(SEND_RESULTS)} />,
@@ -192,6 +175,8 @@ const columns: TableColumnsType<LogType> = [
 /** Logs list page: filterable, paginated log table with export, confirmed resend/delete, and logging status. */
 export default function Logs() {
   const { token } = theme.useToken()
+  const popupMatchSelectWidth = usePopupMatchSelectWidth()
+  const [tableWrapperRef, tableWidth] = useElementWidth<HTMLDivElement>()
   const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState<LogQueryType>(() => ({
     pageNo: 1,
@@ -223,7 +208,7 @@ export default function Logs() {
 
   const tableColumns = useMemo<TableColumnsType<LogType>>(() => {
     if (!trackingEnabled) {
-      return withBreakpoints(columns)
+      return columns
     }
     const trackingColumn: TableColumnsType<LogType>[number] = {
       title: __('Tracking'),
@@ -241,8 +226,9 @@ export default function Logs() {
         )
       }
     }
-    return withBreakpoints([...columns.slice(0, -1), trackingColumn, ...columns.slice(-1)])
+    return [...columns.slice(0, -1), trackingColumn, ...columns.slice(-1)]
   }, [trackingEnabled])
+  const visibleColumns = useMemo(() => fitColumns(tableColumns, tableWidth), [tableColumns, tableWidth])
 
   /** Removes a filter param from the URL without touching unrelated params or pushing a history entry. */
   const removeSearchParam = (key: FilterChipKey) => {
@@ -381,6 +367,7 @@ export default function Logs() {
 
   const rowSelection: TableRowSelection<LogType> = {
     selectedRowKeys,
+    columnWidth: SELECTION_COLUMN_WIDTH,
     onChange: onSelectChange
   }
 
@@ -504,6 +491,7 @@ export default function Logs() {
             loading={isSourcesLoading}
             value={query.source_plugin}
             options={sourceOptions}
+            popupMatchSelectWidth={popupMatchSelectWidth}
             style={FILTER_CONTROL_STYLE}
             onChange={value => setFilterParam('source_plugin', value)}
           />
@@ -570,28 +558,30 @@ export default function Logs() {
           </Flex>
         ) : null}
 
-        <Table
-          rowKey="id"
-          size="middle"
-          columns={tableColumns}
-          rowSelection={rowSelection}
-          dataSource={logs}
-          scroll={{ x: TABLE_MIN_WIDTH }}
-          onRow={onRowClick}
-          loading={isLoading || isLogsFetching}
-          locale={{
-            emptyText: (
-              <LogsEmptyState filtered={activeChips.length > 0} onClearFilters={clearAllFilters} />
-            )
-          }}
-          pagination={{
-            current: query.pageNo,
-            total,
-            pageSize: query.limit,
-            onChange,
-            position: ['bottomRight']
-          }}
-        />
+        <div ref={tableWrapperRef} style={{ minWidth: 0 }}>
+          <Table
+            rowKey="id"
+            size="middle"
+            columns={visibleColumns}
+            rowSelection={rowSelection}
+            dataSource={logs}
+            scroll={scrollFor(visibleColumns)}
+            onRow={onRowClick}
+            loading={isLoading || isLogsFetching}
+            locale={{
+              emptyText: (
+                <LogsEmptyState filtered={activeChips.length > 0} onClearFilters={clearAllFilters} />
+              )
+            }}
+            pagination={{
+              current: query.pageNo,
+              total,
+              pageSize: query.limit,
+              onChange,
+              position: ['bottomRight']
+            }}
+          />
+        </div>
       </Card>
     </Flex>
   )

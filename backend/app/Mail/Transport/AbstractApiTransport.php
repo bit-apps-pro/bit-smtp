@@ -8,6 +8,7 @@ use BitApps\SMTP\Mail\Contracts\TransportInterface;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Http\ApiResponse;
 use BitApps\SMTP\Mail\Message\MailMessage;
+use BitApps\SMTP\Mail\Message\MultipartBodyReader;
 use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Support\ApiRequest;
 use BitApps\SMTP\Mail\Support\EncoderInterface;
@@ -31,19 +32,30 @@ abstract class AbstractApiTransport implements TransportInterface
 
     public function send(MailMessage $message, Connection $connection): SendResult
     {
-        if ($this->authStrategy !== null && $this->encoder !== null) {
-            return $this->sendViaStrategy($message, $connection);
+        if ($this->sendsRawMime()) {
+            return $this->post($message, $connection);
         }
 
-        try {
-            $response = $this->client
-                ->setHeaders($this->authHeaders($connection) + ['Content-Type' => 'application/json'])
-                ->post($this->endpoint($connection), $this->buildBody($message, $connection));
-        } catch (Throwable $e) {
-            return SendResult::failure($e->getMessage(), null, ['exception' => \get_class($e)]);
+        $flattened = (new MultipartBodyReader())->flatten($message);
+        $debug     = array_map(static fn (string $part): string => 'Multipart part not sent through the API: ' . $part, $flattened['dropped']);
+
+        if ($flattened['message'] === null) {
+            return SendResult::failure(
+                __('This email is multipart but has no readable text or HTML part, so this provider\'s API cannot send it.', 'bit-smtp'),
+                SendResult::CODE_UNSENDABLE_BODY,
+                $debug
+            );
         }
 
-        return $this->toSendResult($response);
+        return $this->post($flattened['message'], $connection)->withDebugLines($debug);
+    }
+
+    /**
+     * Whether this transport posts a full MIME message, which can carry a multipart body as is; others get it flattened to one part.
+     */
+    protected function sendsRawMime(): bool
+    {
+        return false;
     }
 
     /**
@@ -107,6 +119,26 @@ abstract class AbstractApiTransport implements TransportInterface
     protected function messageIdFrom(int $status, $body): ?string
     {
         return null;
+    }
+
+    /**
+     * Post through the strategy path when configured, otherwise with plain auth headers.
+     */
+    private function post(MailMessage $message, Connection $connection): SendResult
+    {
+        if ($this->authStrategy !== null && $this->encoder !== null) {
+            return $this->sendViaStrategy($message, $connection);
+        }
+
+        try {
+            $response = $this->client
+                ->setHeaders($this->authHeaders($connection) + ['Content-Type' => 'application/json'])
+                ->post($this->endpoint($connection), $this->buildBody($message, $connection));
+        } catch (Throwable $e) {
+            return SendResult::failure($e->getMessage(), null, ['exception' => \get_class($e)]);
+        }
+
+        return $this->toSendResult($response);
     }
 
     private function sendViaStrategy(MailMessage $message, Connection $connection): SendResult

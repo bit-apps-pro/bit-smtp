@@ -2,6 +2,7 @@ import type * as ReactRouterDom from 'react-router-dom'
 import notify from '@components/Toaster/Toaster'
 import { renderWithProviders } from '@config/test-utils'
 import type * as DndKitCore from '@dnd-kit/core'
+import * as DndKitSortable from '@dnd-kit/sortable'
 import { type FieldMeta, type MailSettings, type ProviderMeta } from '@pages/Connections/types'
 import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -42,6 +43,11 @@ vi.mock('@dnd-kit/core', async importOriginal => {
       return children
     }
   }
+})
+
+vi.mock('@dnd-kit/sortable', async importOriginal => {
+  const actual = await importOriginal<typeof DndKitSortable>()
+  return { ...actual, useSortable: vi.fn(actual.useSortable) }
 })
 
 const otherSmtpMeta: ProviderMeta = {
@@ -134,6 +140,16 @@ describe('ConnectionsListPage', () => {
     })
     ;(useDeleteConnection as Mock).mockReturnValue({ mutate: deleteMutate })
     ;(useUpdateSettings as Mock).mockReturnValue({ mutate: updateSettingsMutate })
+  })
+
+  it('disables dragging only for the locked primary connection', () => {
+    renderWithProviders(<ConnectionsListPage />)
+
+    const disabledById = new Map(
+      vi.mocked(DndKitSortable.useSortable).mock.calls.map(([args]) => [args.id, args.disabled])
+    )
+    expect(disabledById.get('conn_1')).toBe(true)
+    expect(disabledById.get('conn_2')).toBe(false)
   })
 
   it('renders a card per connection with a Primary tag on the default one', () => {

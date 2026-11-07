@@ -58,7 +58,9 @@ class WpMailBridgeTest extends BaseUnitTestCase
         Functions\when('wp_generate_uuid4')->justReturn('track-uuid');
         Functions\when('get_option')->justReturn(false);
         Functions\when('apply_filters')->returnArg(2);
+        Functions\when('get_bloginfo')->justReturn('UTF-8');
         Functions\when('network_home_url')->justReturn('https://www.example.com');
+        Functions\when('is_email')->alias(static fn ($email) => filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? $email : false);
     }
 
     protected function tearDown(): void
@@ -626,6 +628,50 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertSame(FailureCategory::TRANSIENT, $outcome['failure_class']);
     }
 
+    public function testUnsendableLastAttemptDefersTheRetryDecisionToTheEarlierAttempt(): void
+    {
+        $this->assertSame(FailureCategory::TRANSIENT, $this->retryClassAfter([
+            SendResult::failure('Connection timed out'),
+            SendResult::failure('unreadable', SendResult::CODE_UNSENDABLE_BODY),
+        ], true));
+    }
+
+    public function testSeveralUnsendableAttemptsWalkBackToTheLastRealOne(): void
+    {
+        $this->assertSame(FailureCategory::TRANSIENT, $this->retryClassAfter([
+            SendResult::failure('Connection timed out'),
+            SendResult::failure('unreadable', SendResult::CODE_UNSENDABLE_BODY),
+            SendResult::failure('unreadable', SendResult::CODE_UNSENDABLE_BODY),
+        ], true));
+    }
+
+    public function testOnlyUnsendableAttemptsQueueNoRetry(): void
+    {
+        $this->assertSame(FailureCategory::PERMANENT, $this->retryClassAfter([
+            SendResult::failure('unreadable', SendResult::CODE_UNSENDABLE_BODY),
+        ], false));
+    }
+
+    public function testRealLastAttemptStillDecidesTheRetry(): void
+    {
+        $this->assertSame(FailureCategory::PERMANENT, $this->retryClassAfter([
+            SendResult::failure('Connection timed out'),
+            SendResult::failure('blocked by policy', '403 blocked'),
+        ], false));
+    }
+
+    public function testWorkerSeesTheEarlierAttemptsClass(): void
+    {
+        $bridge = $this->dispatchableBridge(new ScriptedTransport([
+            SendResult::failure('Connection timed out'),
+            SendResult::failure('unreadable', SendResult::CODE_UNSENDABLE_BODY),
+        ]));
+
+        $outcome = $this->invokeDispatchFull($bridge, [$this->connection(['id' => 'a']), $this->connection(['id' => 'b'])], $this->message(), [], true);
+
+        $this->assertSame(FailureCategory::TRANSIENT, $outcome['failure_class']);
+    }
+
     public function testDispatchDoesNotEnqueueRetryForAClassExcludedByTheRetryFilter(): void
     {
         Functions\when('get_option')->justReturn([
@@ -1132,6 +1178,32 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $this->assertSame(['t' => 'inject-token', 'u' => 'https://example.com/order/42'], TokenSigner::verify($click[1]));
     }
 
+    public function testTrackingEnabledInjectsIntoHtmlDeclaredWithCharset(): void
+    {
+        $spy = $this->dispatchWithTracking(['body' => '<html><body><a href="https://example.com/x">x</a></body></html>', 'contentType' => 'text/html; charset=UTF-8']);
+
+        $this->assertStringContainsString('track/open/', $spy->received->getBody());
+        $this->assertStringContainsString('track/click/', $spy->received->getBody());
+    }
+
+    public function testTrackingEnabledLeavesMultipartBodyAlone(): void
+    {
+        $body = "--b1\r\nContent-Type: text/html\r\n\r\n<a href=\"https://example.com/x\">x</a>\r\n--b1--";
+        $spy  = $this->dispatchWithTracking(['body' => $body, 'contentType' => 'multipart/alternative; boundary="b1"']);
+
+        $this->assertSame($body, $spy->received->getBody());
+        $this->assertTrue($spy->received->isMultipart());
+    }
+
+    public function testDispatchRebuildsKeepCharsetAndContentType(): void
+    {
+        $spy = $this->dispatchWithTracking(['body' => '<p>x</p>', 'contentType' => 'text/html', 'charset' => 'ISO-8859-2']);
+
+        $this->assertSame('from@example.com', $spy->received->getFrom());
+        $this->assertSame('text/html', $spy->received->getContentType());
+        $this->assertSame('ISO-8859-2', $spy->received->getCharset());
+    }
+
     public function testTrackingEnabledPlainTextSendIsNotRewritten(): void
     {
         $spy    = new SpyTransport();
@@ -1216,6 +1288,31 @@ class WpMailBridgeTest extends BaseUnitTestCase
     }
 
     /**
+     * Dispatch one message with tracking and logging on, returning the transport spy that received it.
+     *
+     * @param array<string,string> $overrides
+     */
+    private function dispatchWithTracking(array $overrides): SpyTransport
+    {
+        Functions\when('wp_generate_uuid4')->justReturn('inject-token');
+        Functions\when('wp_salt')->justReturn('unit-test-tracking-salt');
+        Functions\when('home_url')->alias(static fn ($path = '') => 'https://site.test/' . ltrim((string) $path, '/'));
+
+        $spy    = new SpyTransport();
+        $bridge = $this->bridgeWithTransport($spy);
+        $this->setTrackingEnabled($bridge, true);
+        $this->setEventLogger($bridge, Mockery::mock(LogService::class)->shouldIgnoreMissing());
+        $this->setContext($bridge, new SendContext());
+        $this->setLoggingEnabled($bridge, true);
+
+        $connection = $this->connection(['fromEmail' => 'from@example.com', 'settings' => ['webhook_enabled' => false]]);
+
+        $this->assertTrue($this->invokeDispatch($bridge, [$connection], $this->message($overrides), ['subject' => 'Hi', 'to' => ['a@example.org']]));
+
+        return $spy;
+    }
+
+    /**
      * dispatch() returns array{succeeded: bool, failure_class: ?string}; unwraps bool at one place, not each call site.
      *
      * @param Connection[] $connections
@@ -1235,6 +1332,27 @@ class WpMailBridgeTest extends BaseUnitTestCase
         $method = new ReflectionMethod(WpMailBridge::class, 'dispatch');
 
         return $method->invoke($bridge, $connections, $message, $mailData, $isWorkerRedispatch ? DispatchMode::workerRetry() : DispatchMode::live());
+    }
+
+    /**
+     * Dispatch the scripted results over one connection each, asserting whether a retry is queued, and return the class used to decide.
+     *
+     * @param SendResult[] $results
+     */
+    private function retryClassAfter(array $results, bool $expectsRetry): string
+    {
+        $this->enableRetries();
+        $bridge     = $this->dispatchableBridge(new ScriptedTransport($results));
+        $retryQueue = Mockery::mock(RetryQueue::class);
+        $retryQueue->shouldReceive('enqueue')->times($expectsRetry ? 1 : 0);
+        $this->setRetryQueue($bridge, $retryQueue);
+
+        $connections = [];
+        foreach (array_keys($results) as $index) {
+            $connections[] = $this->connection(['id' => 'conn_' . $index]);
+        }
+
+        return $this->invokeDispatchFull($bridge, $connections, $this->message(), [])['failure_class'];
     }
 
     private function setEventLogger(WpMailBridge $bridge, LogService $logService): void

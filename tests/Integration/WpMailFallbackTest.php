@@ -45,6 +45,92 @@ final class WpMailFallbackTest extends IntegrationTestCase
         $this->assertSame(['conn_fallback', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
     }
 
+    public function testUnreadableMultipartFailsOverFromApiProviderToSmtpWithoutPosting(): void
+    {
+        $posted = false;
+        $filter = static function ($preempt) use (&$posted) {
+            $posted = true;
+
+            return $preempt;
+        };
+        add_filter('pre_http_request', $filter);
+
+        try {
+            $this->storeV2([
+                $this->sendGridConnection('conn_sendgrid', 'SG.key'),
+                $this->connection('conn_smtp', self::SMTP_HOST, self::SMTP_PORT),
+            ], 'conn_sendgrid', ['conn_smtp']);
+
+            $sent = wp_mail(
+                'to@example.org',
+                'Calendar only',
+                "--b1\r\nContent-Type: text/calendar\r\n\r\nBEGIN:VCALENDAR\r\n--b1--\r\n",
+                'Content-Type: multipart/mixed; boundary="b1"'
+            );
+        } finally {
+            remove_filter('pre_http_request', $filter);
+        }
+
+        $this->assertTrue($sent);
+        $this->assertFalse($posted, 'raw MIME must never be posted to the API provider');
+        $this->assertNotEmpty($this->mailpitMessages(), 'the SMTP fallback sends the multipart body as is');
+
+        $attempts = $this->logs()[0]->details['attempts'] ?? [];
+        $this->assertSame(['conn_sendgrid', 'failed'], [$attempts[0]['connection'], $attempts[0]['status']]);
+        $this->assertNotEmpty($attempts[0]['error']);
+        $this->assertSame(['conn_smtp', 'sent'], [$attempts[1]['connection'], $attempts[1]['status']]);
+    }
+
+    public function testWooCommerceMultipartPatternPostsHtmlToTheApiProvider(): void
+    {
+        $posted = '';
+        $filter = static function ($preempt, $args) use (&$posted) {
+            $posted = (string) ($args['body'] ?? '');
+
+            return ['headers' => [], 'body' => '', 'response' => ['code' => 202, 'message' => 'Accepted'], 'cookies' => [], 'filename' => null];
+        };
+        $type = static fn (): string => 'multipart/alternative';
+        add_filter('pre_http_request', $filter, 10, 2);
+        add_filter('wp_mail_content_type', $type);
+
+        try {
+            $this->storeV2([$this->sendGridConnection('conn_sendgrid', 'SG.key')], 'conn_sendgrid', []);
+
+            $sent = wp_mail('to@example.org', 'Order', '<p>Order</p>', "Content-Type: multipart/alternative\r\n");
+        } finally {
+            remove_filter('pre_http_request', $filter, 10);
+            remove_filter('wp_mail_content_type', $type);
+        }
+
+        $this->assertTrue($sent);
+        $this->assertSame([['type' => 'text/html', 'value' => '<p>Order</p>']], json_decode($posted, true)['content']);
+    }
+
+    public function testPartsLeftOutOfAnApiSendAppearInTheBridgeDebugOutput(): void
+    {
+        $filter = static fn () => ['headers' => [], 'body' => '', 'response' => ['code' => 202, 'message' => 'Accepted'], 'cookies' => [], 'filename' => null];
+        add_filter('pre_http_request', $filter);
+
+        try {
+            $this->storeV2([$this->sendGridConnection('conn_sendgrid', 'SG.key')], 'conn_sendgrid', []);
+
+            $bridge = Plugin::instance()->smtpProvider()->setDebug(true);
+            $sent   = wp_mail(
+                'to@example.org',
+                'With logo',
+                "--b1\r\nContent-Type: text/html\r\n\r\n<p>x</p>\r\n--b1\r\nContent-Type: image/png; name=\"logo.png\"\r\n\r\nSECRET-BYTES\r\n--b1--\r\n",
+                'Content-Type: multipart/related; boundary="b1"'
+            );
+        } finally {
+            remove_filter('pre_http_request', $filter);
+        }
+
+        $this->assertTrue($sent);
+        $debug = implode('', $bridge->getDebugOutput());
+        $this->assertStringContainsString('image/png (logo.png)', $debug);
+        $this->assertStringNotContainsString('SECRET-BYTES', $debug);
+    }
+
     public function testFallsBackToApiProviderWhenPrimarySmtpIsUnreachable(): void
     {
         $apiKey   = 'SG.test-key-abc123';

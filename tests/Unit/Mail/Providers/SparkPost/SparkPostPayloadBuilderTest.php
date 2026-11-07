@@ -130,6 +130,16 @@ class SparkPostPayloadBuilderTest extends BaseUnitTestCase
         $this->assertArrayNotHasKey('text', $body['content']);
     }
 
+    public function testFilteredAndUppercaseHtmlContentTypesRouteToTheHtmlKey(): void
+    {
+        foreach (['text/html; charset=UTF-8', 'TEXT/HTML'] as $contentType) {
+            $body = $this->build(['contentType' => $contentType, 'body' => '<p>Hi</p>']);
+
+            $this->assertSame('<p>Hi</p>', $body['content']['html']);
+            $this->assertArrayNotHasKey('text', $body['content']);
+        }
+    }
+
     public function testPlainContentTypeRoutesBodyToTheTextKeyAndOmitsHtml(): void
     {
         $body = $this->build(['body' => 'Plain body']);

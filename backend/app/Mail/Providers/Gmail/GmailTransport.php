@@ -50,6 +50,14 @@ class GmailTransport extends AbstractOAuth2Transport
         return ['access_type' => 'offline', 'prompt' => 'consent'];
     }
 
+    /**
+     * The whole message goes out as MIME, so a multipart body needs no flattening.
+     */
+    protected function sendsRawMime(): bool
+    {
+        return true;
+    }
+
     protected function endpoint(Connection $connection): string
     {
         return self::SEND_ENDPOINT;

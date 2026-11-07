@@ -47,6 +47,15 @@ class SendResultTest extends BaseUnitTestCase
         $this->assertSame($debugInfo, $result->getDebug());
     }
 
+    public function testWithDebugLinesPrependsLinesAndKeepsKeyedEntriesAndOutcome(): void
+    {
+        $result = SendResult::success(['status' => 202, 'body' => 'ok'])->withMessageId('id-1')->withDebugLines(['line one']);
+
+        $this->assertTrue($result->isOk());
+        $this->assertSame('id-1', $result->getMessageId());
+        $this->assertSame(['line one', 'status' => 202, 'body' => 'ok'], $result->getDebug());
+    }
+
     public function testFailureWithoutCode(): void
     {
         $result = SendResult::failure('Bad credentials');

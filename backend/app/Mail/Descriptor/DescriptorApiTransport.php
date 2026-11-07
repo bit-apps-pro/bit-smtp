@@ -201,9 +201,7 @@ final class DescriptorApiTransport extends AbstractApiTransport
             return;
         }
 
-        $map = $payload['body'];
-
-        $key = stripos($message->getContentType(), 'text/html') === 0 ? ($map['html'] ?? null) : ($map['text'] ?? null);
+        $key = $payload['body'][$message->isHtml() ? 'html' : 'text'] ?? null;
 
         if ($key !== null) {
             $body[$key] = $message->getBody();

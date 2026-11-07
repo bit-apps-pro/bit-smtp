@@ -8,6 +8,7 @@ use BitApps\SMTP\Mail\Contracts\AuthStrategyInterface;
 use BitApps\SMTP\Mail\Http\ApiClient;
 use BitApps\SMTP\Mail\Http\ApiResponse;
 use BitApps\SMTP\Mail\Message\MailMessage;
+use BitApps\SMTP\Mail\Message\SendResult;
 use BitApps\SMTP\Mail\Support\EncoderInterface;
 use BitApps\SMTP\Mail\Support\JsonEncoder;
 use BitApps\SMTP\Mail\Transport\AbstractApiTransport;
@@ -54,6 +55,65 @@ class AbstractApiTransportTest extends BaseUnitTestCase
         $result = $this->transport->send($this->message, $this->connection);
 
         $this->assertTrue($result->isOk());
+    }
+
+    public function testMultipartMessageReachesBuildBodyAsSinglePart(): void
+    {
+        $this->expectPostedBody(['type' => 'text/html', 'body' => '<p>html</p>']);
+
+        (new BodyEchoApiTransport($this->apiClient))->send($this->multipartMessage(), $this->connection);
+    }
+
+    public function testUnreadableMultipartFailsWithoutPosting(): void
+    {
+        $this->apiClient->shouldNotReceive('post');
+
+        $message = MailMessage::fromArray([
+            'to'          => ['user@example.com'],
+            'subject'     => 'Hi',
+            'body'        => "--b1\r\nContent-Type: text/calendar\r\n\r\nBEGIN:VCALENDAR\r\n--b1--",
+            'contentType' => 'multipart/alternative; boundary="b1"',
+        ]);
+
+        $result = (new BodyEchoApiTransport($this->apiClient))->send($message, $this->connection);
+
+        $this->assertFalse($result->isOk());
+        $this->assertFalse($result->isAccepted());
+        $this->assertNotEmpty($result->getError());
+        $this->assertSame(SendResult::CODE_UNSENDABLE_BODY, $result->getCode());
+        $this->assertStringContainsString('text/calendar', implode(' ', $result->getDebug()));
+    }
+
+    public function testPartsLeftOutOfAFlattenedSendReachTheDebugLines(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(202, ['id' => 'abc']));
+
+        $result = (new BodyEchoApiTransport($this->apiClient))->send($this->multipartMessage(), $this->connection);
+
+        $this->assertTrue($result->isOk());
+        $debug = $result->getDebug();
+        $this->assertStringContainsString('text/plain', (string) $debug[0]);
+        $this->assertStringNotContainsString('plain' . "\r\n", (string) $debug[0]);
+        $this->assertSame(202, $debug['status']);
+    }
+
+    public function testSinglePartSendAddsNoDebugLines(): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(202, ['id' => 'abc']));
+
+        $result = (new BodyEchoApiTransport($this->apiClient))->send($this->message, $this->connection);
+
+        $this->assertSame(['status' => 202, 'body' => ['id' => 'abc']], $result->getDebug());
+    }
+
+    public function testRawMimeTransportKeepsTheMultipartBody(): void
+    {
+        $message = $this->multipartMessage();
+        $this->expectPostedBody(['type' => 'multipart/alternative; boundary="b1"', 'body' => $message->getBody()]);
+
+        (new RawMimeApiTransport($this->apiClient))->send($message, $this->connection);
     }
 
     public function testSendReturnsSuccessResultOn2xxWithDebugPayload(): void
@@ -124,6 +184,33 @@ class AbstractApiTransportTest extends BaseUnitTestCase
 
         $this->assertTrue($result->isOk());
     }
+
+    /**
+     * Multipart message whose HTML part is base64 encoded.
+     */
+    private function multipartMessage(): MailMessage
+    {
+        return MailMessage::fromArray([
+            'to'          => ['user@example.com'],
+            'subject'     => 'Hi',
+            'body'        => "--b1\r\nContent-Type: text/plain\r\n\r\nplain\r\n--b1\r\nContent-Type: text/html\r\nContent-Transfer-Encoding: base64\r\n\r\n" . base64_encode('<p>html</p>') . "\r\n--b1--",
+            'contentType' => 'multipart/alternative; boundary="b1"',
+        ]);
+    }
+
+    /**
+     * Expect one post whose body equals the given array.
+     *
+     * @param array<string,string> $expected
+     */
+    private function expectPostedBody(array $expected): void
+    {
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with(Mockery::any(), $expected)
+            ->andReturn(new ApiResponse(202, []));
+    }
 }
 
 /**
@@ -171,6 +258,25 @@ class FakeApiTransport extends AbstractApiTransport
     protected function errorFrom(int $status, $body): string
     {
         return \is_array($body) && isset($body['message']) ? $body['message'] : 'Unknown error';
+    }
+}
+
+class BodyEchoApiTransport extends FakeApiTransport
+{
+    /**
+     * @return array|string
+     */
+    protected function buildBody(MailMessage $message, Connection $connection)
+    {
+        return ['type' => $message->getContentType(), 'body' => $message->getBody()];
+    }
+}
+
+class RawMimeApiTransport extends BodyEchoApiTransport
+{
+    protected function sendsRawMime(): bool
+    {
+        return true;
     }
 }
 

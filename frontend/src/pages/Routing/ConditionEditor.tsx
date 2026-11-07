@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { DeleteOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
+import usePopupMatchSelectWidth from '@common/hooks/usePopupMatchSelectWidth'
 import { type HelpDetails, HelpPopover, IconButton } from '@components/FieldHelp'
 import {
   type EditableRoutingCondition,
@@ -129,6 +130,7 @@ export default function ConditionEditor({
   onRemove: () => void
 }) {
   const patternWarningId = useId()
+  const popupMatchSelectWidth = usePopupMatchSelectWidth()
 
   /** Resets value on a source_plugin mode switch (stale slug/free-text can't leak) and operator when the new field disallows it. */
   const changeField = (field: RoutingField) => {
@@ -170,6 +172,7 @@ export default function ConditionEditor({
             <AutoComplete
               value={condition.value}
               options={sourceOptions(sources)}
+              popupMatchSelectWidth={popupMatchSelectWidth}
               style={{ flex: 1, minWidth: 0 }}
               filterOption={matchesSource}
               onChange={(value: string) => onChange({ ...condition, value })}

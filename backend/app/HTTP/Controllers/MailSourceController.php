@@ -18,27 +18,32 @@ class MailSourceController
 {
     private ?MailAnalyticsRepository $repository;
 
-    public function __construct(?MailAnalyticsRepository $repository = null)
+    private ?MailSourceLabeler $labeler;
+
+    public function __construct(?MailAnalyticsRepository $repository = null, ?MailSourceLabeler $labeler = null)
     {
         $this->repository = $repository;
+        $this->labeler    = $labeler;
     }
 
     /**
-     * Returns { sources, installed }: plugins seen sending mail, then other installed plugins, as { value, label }.
+     * Returns { sources, installed }: plugins seen sending mail, then other installed plugins, as { value, label }; Bit SMTP copies are left out.
      */
     public function index(): Response
     {
-        $slugs = $this->repository()->distinctSourcePlugins();
-        if ($slugs instanceof WP_Error) {
+        $seen = $this->repository()->distinctSourcePlugins();
+        if ($seen instanceof WP_Error) {
             return Response::error(__('Failed to load mail sources', 'bit-smtp'));
         }
 
-        $labeler = new MailSourceLabeler();
+        $labeler = $this->labeler ?? new MailSourceLabeler();
         $ownSlug = \dirname(Config::get('BASENAME'));
+        $copies  = $labeler->copySlugs($ownSlug);
+        $slugs   = array_values(array_diff($seen, $copies));
 
         return Response::success([
             'sources'   => $labeler->options($slugs),
-            'installed' => $labeler->installed([...$slugs, $ownSlug]),
+            'installed' => $labeler->installed([...$slugs, $ownSlug, ...$copies]),
         ]);
     }
 

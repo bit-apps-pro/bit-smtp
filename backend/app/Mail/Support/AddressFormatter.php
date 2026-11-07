@@ -69,16 +69,9 @@ final class AddressFormatter
      */
     private function parseOne(string $raw): array
     {
-        $raw = trim($raw);
+        [$address, $name] = MailAddress::split($raw);
 
-        if (preg_match('/^(.*)<([^<>]+)>$/', $raw, $matches) === 1) {
-            return [
-                'name'    => trim($matches[1]),
-                'address' => trim($matches[2]),
-            ];
-        }
-
-        return ['name' => '', 'address' => $raw];
+        return ['name' => $name, 'address' => $address];
     }
 
     /**

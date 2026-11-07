@@ -349,6 +349,53 @@ class SendGridTransportTest extends BaseUnitTestCase
         $this->assertSame('SendGrid error HTTP 500', $result->getError());
     }
 
+    public function testHtmlContentTypeIsSentWithoutItsCharset(): void
+    {
+        $this->assertSame('text/html', $this->sentContent(['contentType' => 'text/html; charset=UTF-8', 'body' => '<p>x</p>'])['type']);
+    }
+
+    public function testOtherContentTypeIsSentWithoutItsParameters(): void
+    {
+        $this->assertSame('text/calendar', $this->sentContent(['contentType' => 'text/calendar; method=REQUEST', 'body' => 'BEGIN:VCALENDAR'])['type']);
+    }
+
+    public function testMultipartIsSentAsItsHtmlPart(): void
+    {
+        $content = $this->sentContent([
+            'contentType' => 'multipart/alternative; boundary="b1"',
+            'body'        => "--b1\r\nContent-Type: text/plain\r\n\r\nplain\r\n--b1\r\nContent-Type: text/html\r\n\r\n<p>html</p>\r\n--b1--",
+        ]);
+
+        $this->assertSame(['type' => 'text/html', 'value' => '<p>html</p>'], $content);
+    }
+
+    /**
+     * Send a message built from the given fields and return the first posted content entry.
+     *
+     * @param array<string,string> $overrides
+     *
+     * @return array<string,string>
+     */
+    private function sentContent(array $overrides): array
+    {
+        $posted = null;
+        $this->apiClient->shouldReceive('setHeaders')->andReturnSelf();
+        $this->apiClient->shouldReceive('post')
+            ->with(Mockery::any(), Mockery::on(static function (string $json) use (&$posted): bool {
+                $posted = json_decode($json, true);
+
+                return true;
+            }))
+            ->andReturn(new ApiResponse(202, []));
+
+        $this->transport->send(
+            MailMessage::fromArray(array_merge(['to' => ['to@example.com'], 'subject' => 'Subject', 'body' => 'Body text'], $overrides)),
+            $this->connection()
+        );
+
+        return $posted['content'][0];
+    }
+
     private function message(): MailMessage
     {
         return MailMessage::fromArray([

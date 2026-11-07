@@ -29,6 +29,18 @@ class TrackingIdStamperTest extends BaseUnitTestCase
         $this->assertSame('u-1', $this->stamper->generate());
     }
 
+    public function testStampingKeepsCharsetAndContentType(): void
+    {
+        $message = $this->message(['contentType' => 'multipart/mixed; boundary="x"', 'charset' => 'ISO-8859-2']);
+
+        foreach (['metadata', 'header'] as $channel) {
+            $stamped = $this->stamper->stamp($message, ['channel' => $channel, 'key' => 'bit_tracking_id'], 'u-1');
+
+            $this->assertSame('multipart/mixed; boundary="x"', $stamped->getContentType());
+            $this->assertSame('ISO-8859-2', $stamped->getCharset());
+        }
+    }
+
     public function testMetadataChannelStampsTheTrackingIdUnderTheDeclaredKey(): void
     {
         $message  = $this->message();

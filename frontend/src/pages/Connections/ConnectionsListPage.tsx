@@ -2,24 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiOutlined } from '@ant-design/icons'
 import { __ } from '@common/helpers/i18nwrap'
+import SortableList from '@components/SortableList/SortableList'
+import useSortableItem from '@components/SortableList/useSortableItem'
 import notify from '@components/Toaster/Toaster'
-import {
-  DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  arrayMove,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates,
-  useSortable
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { type DragEndEvent } from '@dnd-kit/core'
+import { arrayMove, rectSortingStrategy } from '@dnd-kit/sortable'
 import { type Connection, type ConnectionHealth, type MailSettings } from '@pages/Connections/types'
 import { countRulesByConnection } from '@pages/Routing/routingRules'
 import { Button, Col, Flex, Row, Spin, Typography, theme } from 'antd'
@@ -101,16 +88,10 @@ function SortableConnectionCard({
   onDelete: () => void
   isToggling: boolean
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: connection.id,
-    disabled: isDefault
-  })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1
-  }
+  const { setNodeRef, style, dragHandleAttributes, dragHandleListeners } = useSortableItem(
+    connection.id,
+    isDefault
+  )
 
   return (
     <Col ref={setNodeRef} style={style} xs={24} sm={12} lg={8}>
@@ -126,8 +107,8 @@ function SortableConnectionCard({
         onEdit={onEdit}
         onDelete={onDelete}
         isToggling={isToggling}
-        dragHandleAttributes={attributes}
-        dragHandleListeners={listeners}
+        dragHandleAttributes={dragHandleAttributes}
+        dragHandleListeners={dragHandleListeners}
       />
     </Col>
   )
@@ -194,10 +175,6 @@ export default function ConnectionsListPage() {
   const toggleEnabled = useToggleConnectionEnabled()
   const deleteConnection = useDeleteConnection()
   const updateSettings = useUpdateSettings()
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
 
   const [orderedIds, setOrderedIds] = useState<string[]>([])
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
@@ -314,28 +291,26 @@ export default function ConnectionsListPage() {
         onSelect={handleProviderSelected}
       />
       {hasConnections ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={orderedIds} strategy={rectSortingStrategy}>
-            <Row gutter={[16, 16]}>
-              {orderedConnections.map((connection, index) => (
-                <SortableConnectionCard
-                  key={connection.id}
-                  connection={connection}
-                  backupNumber={hasPrimary ? index : index + 1}
-                  routingRuleCount={rulesByConnection.get(connection.id) ?? 0}
-                  isDefault={connection.id === settings.default_connection_id}
-                  health={health[connection.id]}
-                  needsSignIn={oauthProviderKeys.has(connection.provider) && !hasOAuthToken(connection)}
-                  onSetDefault={() => setDefaultConnection.mutate(connection.id)}
-                  onToggleEnabled={enabled => toggleEnabled.mutate({ id: connection.id, enabled })}
-                  onEdit={() => navigate(`/connection/${connection.id}`)}
-                  onDelete={() => deleteConnection.mutate(connection.id)}
-                  isToggling={toggleEnabled.isPending && toggleEnabled.variables?.id === connection.id}
-                />
-              ))}
-            </Row>
-          </SortableContext>
-        </DndContext>
+        <SortableList items={orderedIds} strategy={rectSortingStrategy} onDragEnd={handleDragEnd}>
+          <Row gutter={[16, 16]}>
+            {orderedConnections.map((connection, index) => (
+              <SortableConnectionCard
+                key={connection.id}
+                connection={connection}
+                backupNumber={hasPrimary ? index : index + 1}
+                routingRuleCount={rulesByConnection.get(connection.id) ?? 0}
+                isDefault={connection.id === settings.default_connection_id}
+                health={health[connection.id]}
+                needsSignIn={oauthProviderKeys.has(connection.provider) && !hasOAuthToken(connection)}
+                onSetDefault={() => setDefaultConnection.mutate(connection.id)}
+                onToggleEnabled={enabled => toggleEnabled.mutate({ id: connection.id, enabled })}
+                onEdit={() => navigate(`/connection/${connection.id}`)}
+                onDelete={() => deleteConnection.mutate(connection.id)}
+                isToggling={toggleEnabled.isPending && toggleEnabled.variables?.id === connection.id}
+              />
+            ))}
+          </Row>
+        </SortableList>
       ) : (
         <EmptyConnections onAddConnection={openProviderModal} />
       )}

@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\HTTP\Requests;
 
 use BitApps\SMTP\Deps\BitApps\WPKit\Http\Request\Request;
+use BitApps\SMTP\Mail\Support\MailAddress;
 
 /**
  * Validate edited resend (log id, recipients/subject, connection); block mail-header injection.
@@ -57,7 +58,7 @@ class ResendEditRequest extends Request
                 continue;
             }
 
-            $address = preg_match('/<([^>]+)>/', $value, $matches) === 1 ? trim($matches[1]) : $value;
+            $address = MailAddress::split($value)[0];
             if (is_email($address)) {
                 $clean[strtolower($address)] = $value;
             }

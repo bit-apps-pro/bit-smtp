@@ -2,11 +2,15 @@
 
 namespace BitApps\SMTP\Mail\Message;
 
+use BitApps\SMTP\Mail\Support\MailAddress;
+
 /**
  * Maintained fork of wp_mail() header/from/content-type resolution; verify on WP bumps.
  */
 class MailMessageFactory
 {
+    private const BOUNDARY_LINE_PATTERN = '/^\s*boundary\s*=/i';
+
     /**
      * Resolve wp_mail() arguments into a structured MailMessage with headers parsed.
      *
@@ -33,16 +37,17 @@ class MailMessageFactory
         $fromEmail = $this->resolveFromEmail($parsed['from_email']);
         $fromName  = $this->resolveFromName($parsed['from_name']);
 
-        $contentType = $parsed['content_type'] !== null ? $parsed['content_type'] : 'text/plain';
-        $contentType = apply_filters('wp_mail_content_type', $contentType);
+        $headerType   = ContentTypeValue::parse($parsed['content_type'] ?? ContentTypeValue::TEXT_PLAIN);
+        $filteredType = $this->filteredContentType($headerType);
 
         return MailMessage::fromArray([
-            'to'          => $this->trimAddresses($to),
-            'cc'          => $this->trimAddresses($parsed['cc']),
-            'bcc'         => $this->trimAddresses($parsed['bcc']),
+            'to'          => $this->validAddresses($to),
+            'cc'          => $this->validAddresses($parsed['cc']),
+            'bcc'         => $this->validAddresses($parsed['bcc']),
             'subject'     => $subject,
             'body'        => $message,
-            'contentType' => $contentType,
+            'contentType' => $filteredType->filterValue(),
+            'charset'     => $this->resolveCharset($headerType, $filteredType),
             'from'        => $fromEmail,
             'fromName'    => $fromName,
             'replyTo'     => $this->firstReplyTo($parsed['reply_to']),
@@ -52,7 +57,17 @@ class MailMessageFactory
     }
 
     /**
-     * Parse headers to extract addresses and content-type, mirroring wp_mail().
+     * Whether wp_mail() headers declare a Content-Type of their own.
+     *
+     * @param string|array<int,string> $headers
+     */
+    public function declaresContentType($headers): bool
+    {
+        return $this->parseHeaders($headers)['content_type'] !== null;
+    }
+
+    /**
+     * Parse headers to extract addresses and the full raw content-type value, mirroring wp_mail() except that non-strings are skipped and continuation lines directly after Content-Type are kept.
      *
      * @param string|array<int,string> $headers
      *
@@ -78,14 +93,21 @@ class MailMessageFactory
             $tempHeaders = $headers;
         }
 
-        foreach ((array) $tempHeaders as $header) {
-            if (strpos($header, ':') === false) {
+        $followsContentType = false;
+
+        foreach (array_filter((array) $tempHeaders, 'is_string') as $header) {
+            if ($this->isContentTypeContinuation($header)) {
+                if ($followsContentType) {
+                    $contentType .= ';' . $header;
+                }
+
                 continue;
             }
 
             list($name, $content) = explode(':', trim($header), 2);
             $name                 = trim($name);
             $content              = trim($content);
+            $followsContentType   = strtolower($name) === 'content-type' && $content !== '';
 
             switch (strtolower($name)) {
                 case 'from':
@@ -93,7 +115,7 @@ class MailMessageFactory
 
                     break;
                 case 'content-type':
-                    $this->parseContentType($content, $contentType);
+                    $contentType = $content !== '' ? $content : $contentType;
 
                     break;
                 case 'cc':
@@ -118,6 +140,14 @@ class MailMessageFactory
         return $this->headerResult($fromEmail, $fromName, $contentType, $cc, $bcc, $replyTo, $extra);
     }
 
+    /**
+     * A colon-less line, or a boundary line whose value holds a colon, is a folded continuation rather than a header of its own.
+     */
+    private function isContentTypeContinuation(string $header): bool
+    {
+        return strpos($header, ':') === false || preg_match(self::BOUNDARY_LINE_PATTERN, $header) === 1;
+    }
+
     private function parseFrom(string $content, ?string &$fromEmail, ?string &$fromName): void
     {
         $bracketPos = strpos($content, '<');
@@ -133,14 +163,32 @@ class MailMessageFactory
         }
     }
 
-    private function parseContentType(string $content, ?string &$contentType): void
+    /**
+     * Run wp_mail_content_type over the header's type; plugins may return a full value such as "text/html; charset=UTF-8", and returning the same multipart type bare keeps the header's boundary.
+     */
+    private function filteredContentType(ContentTypeValue $headerType): ContentTypeValue
     {
-        if (strpos($content, ';') !== false) {
-            list($type)  = explode(';', $content);
-            $contentType = trim($type);
-        } elseif (trim($content) !== '') {
-            $contentType = trim($content);
+        $filtered     = apply_filters('wp_mail_content_type', $headerType->filterValue());
+        $filteredType = ContentTypeValue::parse(\is_string($filtered) ? $filtered : '');
+
+        return $filteredType->isBareMultipart() && $filteredType->filterValue() === $headerType->mediaType() ? $headerType : $filteredType;
+    }
+
+    /**
+     * Run the filtered, header or site charset through wp_mail_charset, falling back if invalid; unlike core, multipart keeps a real charset because PHPMailer encodes the subject and From name with it.
+     */
+    private function resolveCharset(ContentTypeValue $headerType, ContentTypeValue $filteredType): string
+    {
+        $siteCharset = get_bloginfo('charset');
+        $charset     = apply_filters('wp_mail_charset', $filteredType->charset() ?? $headerType->charset() ?? $siteCharset);
+
+        foreach ([$charset, $siteCharset] as $candidate) {
+            if (\is_string($candidate) && ContentTypeValue::isValidCharset($candidate)) {
+                return $candidate;
+            }
         }
+
+        return MailMessage::DEFAULT_CHARSET;
     }
 
     private function resolveFromEmail(?string $fromEmail): string
@@ -171,14 +219,16 @@ class MailMessageFactory
     }
 
     /**
+     * Trim addresses and drop invalid ones, so one bad address is skipped as in core instead of failing the whole send.
+     *
      * @param array<int,string> $addresses
      *
      * @return array<int,string>
      */
-    private function trimAddresses(array $addresses): array
+    private function validAddresses(array $addresses): array
     {
         return array_values(array_filter(array_map('trim', $addresses), static function ($address) {
-            return $address !== '';
+            return is_email(MailAddress::split($address)[0]) !== false;
         }));
     }
 
@@ -189,9 +239,7 @@ class MailMessageFactory
      */
     private function firstReplyTo(array $replyTo): ?string
     {
-        $trimmed = $this->trimAddresses($replyTo);
-
-        return $trimmed === [] ? null : $trimmed[0];
+        return $this->validAddresses($replyTo)[0] ?? null;
     }
 
     /**

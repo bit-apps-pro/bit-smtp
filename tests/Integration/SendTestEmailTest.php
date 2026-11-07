@@ -50,6 +50,15 @@ final class SendTestEmailTest extends IntegrationTestCase
         $this->assertNotEmpty($this->mailpitMessages());
     }
 
+    public function testTestEmailWithPlainWordsStillSendsAsHtml(): void
+    {
+        $this->send(['message' => 'Plain words, no tags']);
+
+        $delivered = $this->latestMailpitMessage();
+        $this->assertNotNull($delivered);
+        $this->assertStringContainsString('text/html', (string) ($this->mailpitHeaders($delivered['ID'])['Content-Type'][0] ?? ''));
+    }
+
     public function testAChosenConnectionDeliversThroughThatConnection(): void
     {
         $connection = Plugin::instance()->mailConfigService()->load()->getConnections()->first();

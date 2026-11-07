@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\Privacy;
 
 use BitApps\SMTP\Deps\BitApps\WPDatabase\Connection;
+use BitApps\SMTP\Mail\Support\MailAddress;
 use BitApps\SMTP\Model\Log;
 
 \defined('ABSPATH') || exit();
@@ -68,24 +69,12 @@ final class RecipientLogLocator
                 continue;
             }
 
-            $address = $this->extractEmail((string) $recipient);
+            $address = MailAddress::split((string) $recipient)[0];
             if ($address !== '' && strtolower($address) === $needle) {
                 return true;
             }
         }
 
         return false;
-    }
-
-    /**
-     * The bare email from a recipient string, unwrapping an RFC "Display Name <email>" form.
-     */
-    private function extractEmail(string $recipient): string
-    {
-        if (preg_match('/<([^>]+)>/', $recipient, $matches) === 1) {
-            return trim($matches[1]);
-        }
-
-        return trim($recipient);
     }
 }

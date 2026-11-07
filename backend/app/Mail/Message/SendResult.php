@@ -4,6 +4,8 @@ namespace BitApps\SMTP\Mail\Message;
 
 class SendResult
 {
+    public const CODE_UNSENDABLE_BODY = 'unsendable_body';
+
     private bool $accepted;
 
     private bool $ok;
@@ -83,5 +85,15 @@ class SendResult
     public function withMessageId(?string $messageId): self
     {
         return new self($this->accepted, $this->ok, $this->code, $this->error, $this->debug, $messageId);
+    }
+
+    /**
+     * Return immutable copy with extra lines ahead of the existing debug output, keeping its keyed entries.
+     *
+     * @param array<int,string> $lines
+     */
+    public function withDebugLines(array $lines): self
+    {
+        return new self($this->accepted, $this->ok, $this->code, $this->error, array_merge($lines, $this->debug), $this->messageId);
     }
 }

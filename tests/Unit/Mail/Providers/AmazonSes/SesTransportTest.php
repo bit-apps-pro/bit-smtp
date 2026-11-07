@@ -263,6 +263,25 @@ class SesTransportTest extends BaseUnitTestCase
     }
 
     /**
+     * @param array<string,mixed>|string $body
+     */
+    public function testMultipartMessageReachesTheMimeBuilderUnflattened(): void
+    {
+        $multipart = MailMessage::fromArray([
+            'to'          => ['to@example.com'],
+            'subject'     => 'Subject',
+            'body'        => "--b1\r\nContent-Type: text/html\r\n\r\n<p>x</p>\r\n--b1--",
+            'contentType' => 'multipart/alternative; boundary="b1"',
+        ]);
+
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->with($multipart, Mockery::any())->andReturn('raw-mime');
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, []));
+
+        $this->transport->send($multipart, $this->connection());
+    }
+
+    /**
      * Region SSRF guard in AwsSigV4Strategy validates before signing; malformed region aborts before API client.
      */
     private function assertMalformedRegionIsRejectedBeforeAnyNetworkCall(string $region): void
@@ -277,9 +296,6 @@ class SesTransportTest extends BaseUnitTestCase
         $this->assertSame('Invalid AWS region: ' . json_encode($region), $result->getError());
     }
 
-    /**
-     * @param array<string,mixed>|string $body
-     */
     private function messageIdFrom(int $status, $body): ?string
     {
         return (new ReflectionMethod($this->transport, 'messageIdFrom'))->invoke($this->transport, $status, $body);

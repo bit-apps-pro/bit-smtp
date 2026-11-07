@@ -31,7 +31,7 @@ final class SmtpTransportTest extends IntegrationTestCase
 
     public function testSendDeliversMessageToMailpit(): void
     {
-        $connection = $this->mailpitConnection();
+        $connection = $this->mailpitSmtpConnection();
         $message    = MailMessage::fromArray([
             'to'          => ['recipient@example.org'],
             'subject'     => 'Transport Subject',
@@ -53,7 +53,7 @@ final class SmtpTransportTest extends IntegrationTestCase
 
     public function testSuccessfulSendCapturesPhpmailerMessageId(): void
     {
-        $connection = $this->mailpitConnection();
+        $connection = $this->mailpitSmtpConnection();
         $message    = MailMessage::fromArray([
             'to'      => ['recipient@example.org'],
             'subject' => 'Message-ID Capture',
@@ -72,7 +72,7 @@ final class SmtpTransportTest extends IntegrationTestCase
 
     public function testSendSplitsNamedCcAndKeepsCustomHeader(): void
     {
-        $connection = $this->mailpitConnection();
+        $connection = $this->mailpitSmtpConnection();
         $message    = MailMessage::fromArray([
             'to'      => ['recipient@example.org'],
             'cc'      => ['Cee Cee <cc@example.org>'],
@@ -161,7 +161,7 @@ final class SmtpTransportTest extends IntegrationTestCase
     public function testConfigureAppliesAnInjectedTimeoutSecondsOntoPhpmailer(): void
     {
         $transport  = new SmtpTransport(new DatabaseCredentialResolver(), 15);
-        $connection = $this->mailpitConnection();
+        $connection = $this->mailpitSmtpConnection();
 
         $mailer = new PHPMailer(true);
         $transport->configure($mailer, $connection);
@@ -174,7 +174,7 @@ final class SmtpTransportTest extends IntegrationTestCase
      */
     public function testSendStripsHeaderNameCrlf(): void
     {
-        $connection = $this->mailpitConnection();
+        $connection = $this->mailpitSmtpConnection();
         $message    = MailMessage::fromArray([
             'to'      => ['recipient@example.org'],
             'subject' => 'CRLF Injection Test',
@@ -210,24 +210,6 @@ final class SmtpTransportTest extends IntegrationTestCase
             }
         }
         $this->assertTrue($collapsedExists, 'Collapsed header X-SafeX-Injected should be present as a single header');
-    }
-
-    private function mailpitConnection(): Connection
-    {
-        return Connection::fromArray([
-            'id'        => 'mailpit',
-            'provider'  => 'other_smtp',
-            'kind'      => 'smtp',
-            'enabled'   => true,
-            'fromEmail' => 'sender@example.org',
-            'fromName'  => 'Sender',
-            'settings'  => [
-                'host'       => self::SMTP_HOST,
-                'port'       => self::SMTP_PORT,
-                'encryption' => 'none',
-                'auth'       => false,
-            ],
-        ]);
     }
 
     /**

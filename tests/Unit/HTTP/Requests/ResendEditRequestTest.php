@@ -57,6 +57,22 @@ final class ResendEditRequestTest extends BaseUnitTestCase
         );
     }
 
+    /**
+     * Validation must judge the same bracket the send path uses, so a valid first address can't vouch for a bad last one.
+     */
+    public function testRecipientsValidatesTheAddressTheSendPathWouldUse(): void
+    {
+        $request = new ResendEditRequest();
+        $request->make([
+            'id'            => 5,
+            'subject'       => 'Hi',
+            'connection_id' => 'c1',
+            'to'            => ['<good@example.org> <not-an-email>', 'plain@example.org'],
+        ], $request->rules());
+
+        $this->assertSame(['plain@example.org'], $request->recipients('to'));
+    }
+
     public function testRecipientsRejectsHeaderInjectionPayloads(): void
     {
         $request = new ResendEditRequest();

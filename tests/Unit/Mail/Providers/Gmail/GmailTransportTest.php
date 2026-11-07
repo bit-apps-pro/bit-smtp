@@ -175,6 +175,23 @@ class GmailTransportTest extends BaseUnitTestCase
         $this->assertSame('Gmail error HTTP 500', $result->getError());
     }
 
+    public function testMultipartMessageReachesTheMimeBuilderUnflattened(): void
+    {
+        $multipart = MailMessage::fromArray([
+            'to'          => ['to@example.com'],
+            'subject'     => 'Subject',
+            'body'        => "--b1\r\nContent-Type: text/html\r\n\r\n<p>x</p>\r\n--b1--",
+            'contentType' => 'multipart/alternative; boundary="b1"',
+        ]);
+
+        $this->mimeBuilder->shouldReceive('fromMailMessage')->once()->with($multipart, Mockery::any())->andReturn('raw-mime');
+        $this->tokenProvider->shouldReceive('accessToken')->once()->andReturn('tok123');
+        $this->apiClient->shouldReceive('setHeaders')->once()->andReturnSelf();
+        $this->apiClient->shouldReceive('post')->once()->andReturn(new ApiResponse(200, []));
+
+        $this->transport->send($multipart, $this->connection());
+    }
+
     private function message(): MailMessage
     {
         return MailMessage::fromArray([

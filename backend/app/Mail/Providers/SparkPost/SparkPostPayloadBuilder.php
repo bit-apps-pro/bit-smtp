@@ -77,7 +77,7 @@ final class SparkPostPayloadBuilder
             'subject' => $message->getSubject(),
         ];
 
-        $bodyKey           = stripos($message->getContentType(), 'text/html') === 0 ? 'html' : 'text';
+        $bodyKey           = $message->isHtml() ? 'html' : 'text';
         $content[$bodyKey] = $message->getBody();
 
         if (!empty($replyTo)) {

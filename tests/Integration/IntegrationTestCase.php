@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Mail\Connections\Connection;
 use BitApps\SMTP\Model\Log;
 use BitApps\SMTP\Model\LogDeliveryEvent;
 use BitApps\SMTP\Model\LogEngagementEvent;
@@ -121,6 +122,27 @@ abstract class IntegrationTestCase extends TestCase
         $headers  = json_decode(wp_remote_retrieve_body($response), true);
 
         return \is_array($headers) ? $headers : [];
+    }
+
+    /**
+     * SMTP connection pointing at the Mailpit container.
+     */
+    protected function mailpitSmtpConnection(): Connection
+    {
+        return Connection::fromArray([
+            'id'        => 'mailpit',
+            'provider'  => 'other_smtp',
+            'kind'      => 'smtp',
+            'enabled'   => true,
+            'fromEmail' => 'sender@example.org',
+            'fromName'  => 'Sender',
+            'settings'  => [
+                'host'       => self::SMTP_HOST,
+                'port'       => self::SMTP_PORT,
+                'encryption' => 'none',
+                'auth'       => false,
+            ],
+        ]);
     }
 
     /**

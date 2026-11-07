@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\Tests\Integration;
 
 use BitApps\SMTP\Config;
+use BitApps\SMTP\Mail\Credentials\CredentialCipher;
 use BitApps\SMTP\Mail\Dispatch\FailureCategory;
 use BitApps\SMTP\Mail\Dispatch\RetryQueue;
 use BitApps\SMTP\Mail\Message\MailMessage;
@@ -68,6 +69,42 @@ final class RetryQueueTest extends IntegrationTestCase
     /**
      * Rescheduled row is released from lock and becomes claimable again once next_attempt_at passes.
      */
+    public function testQueuedMessageKeepsCharsetAndContentType(): void
+    {
+        $message = MailMessage::fromArray([
+            'to'          => ['a@example.com'],
+            'subject'     => 'Subject',
+            'body'        => 'Body',
+            'contentType' => 'multipart/mixed; boundary="b1"',
+            'charset'     => 'ISO-8859-2',
+        ]);
+
+        $this->queue->enqueue($message, [], ['conn_a'], FailureCategory::TRANSIENT, null, 5, -60);
+
+        $row = $this->queue->claimDue(10)[0];
+
+        $this->assertSame('multipart/mixed; boundary="b1"', $row['message']->getContentType());
+        $this->assertSame('ISO-8859-2', $row['message']->getCharset());
+    }
+
+    public function testRowStoredBeforeTheCharsetFieldExistedClaimsAsUtf8Html(): void
+    {
+        $message = MailMessage::fromArray(['to' => ['a@example.com'], 'subject' => 'Subject', 'body' => 'Body']);
+        $this->queue->enqueue($message, [], ['conn_a'], FailureCategory::TRANSIENT, null, 5, -60);
+
+        $legacyPayload = CredentialCipher::encrypt((string) wp_json_encode([
+            'message'   => ['to' => ['a@example.com'], 'subject' => 'Subject', 'body' => '<p>Body</p>', 'contentType' => 'text/html; charset=UTF-8'],
+            'mail_data' => [],
+        ]));
+        $GLOBALS['wpdb']->query($GLOBALS['wpdb']->prepare("UPDATE `{$this->table}` SET payload = %s", $legacyPayload));
+
+        $row = $this->queue->claimDue(10)[0];
+
+        $this->assertSame('text/html', $row['message']->getContentType());
+        $this->assertTrue($row['message']->isHtml());
+        $this->assertSame('UTF-8', $row['message']->getCharset());
+    }
+
     public function testRescheduleUpdatesTheRowAndReleasesTheClaimSoItBecomesClaimableAgain(): void
     {
         $message = MailMessage::fromArray(['to' => ['a@example.com'], 'subject' => 'S', 'body' => 'B']);

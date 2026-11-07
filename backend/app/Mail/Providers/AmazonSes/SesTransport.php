@@ -22,6 +22,14 @@ class SesTransport extends AbstractApiTransport
         $this->useStrategy(new AwsSigV4Strategy($signer, 'ses'), new JsonEncoder());
     }
 
+    /**
+     * The whole message goes out as MIME, so a multipart body needs no flattening.
+     */
+    protected function sendsRawMime(): bool
+    {
+        return true;
+    }
+
     protected function endpoint(Connection $connection): string
     {
         return \sprintf(

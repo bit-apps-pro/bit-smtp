@@ -332,7 +332,7 @@ class WpMailBridge
     }
 
     /**
-     * Attempt each connection in order, stopping at the first success; injects tracking once before failover (no-op if tracking off), records health per-attempt without delaying failover, falls back only on non-accepted sends to prevent duplicates, and lets $mode decide whether the outcome notifies and a retryable failure is enqueued.
+     * Attempt each connection in order, stopping at the first success; injects tracking once before failover (no-op if tracking off), records health per-attempt without delaying failover, falls back only on non-accepted sends to prevent duplicates, and lets $mode decide whether the outcome notifies and a retryable failure is enqueued; a connection that could not read the body says nothing about retrying, so the retry decision uses the last attempt that really tried to send.
      *
      * @param Connection[]                                                                $connections
      * @param array<string,mixed>                                                         $mailData
@@ -348,6 +348,7 @@ class WpMailBridge
         try {
             $succeeded             = false;
             $lastResult            = null;
+            $retryBasis            = null;
             $lastConnection        = null;
             $attempts              = [];
             $connectionIdsTried    = [];
@@ -365,6 +366,9 @@ class WpMailBridge
                 $trackingId           = $messageTrackingId ?? ($tracking !== [] ? $this->stamper->generate() : null);
                 $lastResult           = $this->sendVia($provider, $connection, $outgoing, $tracking, $trackingId);
                 $lastConnection       = $connection;
+                if ($lastResult->getCode() !== SendResult::CODE_UNSENDABLE_BODY) {
+                    $retryBasis = $lastResult;
+                }
                 $this->appendDebug($lastResult);
                 $attempts[]           = $this->mailData->attemptEntry($connection, $lastResult);
                 $connectionIdsTried[] = $connection->getId();
@@ -391,7 +395,8 @@ class WpMailBridge
             $this->context->setFailed(!$succeeded);
             $this->lastAttempts = $attempts;
 
-            $failureClass = $lastResult !== null && !$succeeded ? $this->classifier->classify($lastResult) : null;
+            $failureClass = $lastResult   !== null && !$succeeded ? $this->classifier->classify($lastResult) : null;
+            $retryClass   = $failureClass !== null ? $this->classifier->classify($retryBasis ?? $lastResult) : null;
 
             $winningMessage  = $lastConnection !== null ? $this->applyConnectionFrom($lastConnection, $outgoing) : $outgoing;
             $sender          = SenderFormatter::format($winningMessage->getFrom(), $winningMessage->getFromName());
@@ -407,11 +412,11 @@ class WpMailBridge
 
             $this->fireWpMailAction($succeeded, $lastResult, $mailData);
 
-            if (!$succeeded && $mode->enqueuesRetry() && $failureClass !== null && FailureCategory::isRetryable($failureClass)) {
-                $this->maybeEnqueueRetry($message, $mailData, $connectionIdsTried, $failureClass);
+            if (!$succeeded && $mode->enqueuesRetry() && $retryClass !== null && FailureCategory::isRetryable($retryClass)) {
+                $this->maybeEnqueueRetry($message, $mailData, $connectionIdsTried, $retryClass);
             }
 
-            return ['succeeded' => $succeeded, 'failure_class' => $failureClass];
+            return ['succeeded' => $succeeded, 'failure_class' => $retryClass];
         } finally {
             $this->dispatching = false;
         }
@@ -441,7 +446,7 @@ class WpMailBridge
      */
     private function maybeInjectTracking(MailMessage $message): array
     {
-        if (!$this->trackingEnabled || !$this->loggingEnabled || $message->getContentType() !== 'text/html') {
+        if (!$this->trackingEnabled || !$this->loggingEnabled || !$message->isHtml()) {
             return [$message, null];
         }
 

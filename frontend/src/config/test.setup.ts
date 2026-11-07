@@ -27,3 +27,14 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 Object.defineProperty(window, 'scrollTo', { value: () => {}, writable: true })
+
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe = vi.fn()
+
+    unobserve = vi.fn()
+
+    disconnect = vi.fn()
+  }
+)

@@ -83,4 +83,32 @@ class MailSourceLabelerTest extends BaseUnitTestCase
 
         self::assertSame([['value' => 'bit-pi', 'label' => 'Bit Flows']], $labeler->installed([]));
     }
+
+    public function testCopySlugsFindsBitSmtpCopiesByHeaderNameOrMainFileNotFolder(): void
+    {
+        $labeler = new MailSourceLabeler([
+            'bit-smtp/bit_smtp.php'      => ['Name' => 'Bit SMTP'],
+            'bit-smtp-2/bit_smtp.php'    => ['Name' => 'Bit SMTP'],
+            'renamed-copy/bit_smtp.php'  => ['Name' => 'Something Else'],
+            'odd-folder/main.php'        => ['Name' => 'Bit SMTP'],
+            'bit-smtp-tools/tools.php'   => ['Name' => 'Bit SMTP Tools'],
+            'bit-crm/bit-crm.php'        => ['Name' => 'Bit CRM'],
+        ]);
+
+        self::assertSame(['bit-smtp-2', 'renamed-copy', 'odd-folder'], $labeler->copySlugs('bit-smtp'));
+    }
+
+    public function testCopySlugsIsEmptyWhenOnlyTheOwnInstallExists(): void
+    {
+        $labeler = new MailSourceLabeler(['bit-smtp/bit_smtp.php' => ['Name' => 'Bit SMTP']]);
+
+        self::assertSame([], $labeler->copySlugs('bit-smtp'));
+    }
+
+    public function testCopiesStillResolveToTheirLabelForASavedSlug(): void
+    {
+        $labeler = new MailSourceLabeler(['bit-smtp-2/bit_smtp.php' => ['Name' => 'Bit SMTP']]);
+
+        self::assertSame([['value' => 'bit-smtp-2', 'label' => 'Bit SMTP']], $labeler->options(['bit-smtp-2']));
+    }
 }

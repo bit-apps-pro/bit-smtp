@@ -3,6 +3,7 @@
 namespace BitApps\SMTP\Mail\Message;
 
 use BitApps\SMTP\Mail\Connections\Connection;
+use BitApps\SMTP\Mail\Support\MailAddress;
 use BitApps\SMTP\Mail\Support\SenderResolver;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
 use PHPMailer\PHPMailer\PHPMailer;
@@ -35,75 +36,26 @@ class MimeBuilder
     }
 
     /**
-     * Applies message fields to the PHPMailer instance; From/Reply-To follow the shared message-wins, connection-fallback policy so raw-MIME transports never emit an empty From. Headers are stripped of CRLF to prevent injection.
+     * Applies message fields to the PHPMailer instance; From/Reply-To follow the shared message-wins, connection-fallback policy so raw-MIME transports never emit an empty From.
      *
      * @throws PHPMailerException
      */
     private function applyMessage(PHPMailer $mailer, MailMessage $message, Connection $connection): void
     {
-        foreach ($message->getTo() as $address) {
-            $this->addRecipient($mailer, 'addAddress', $address);
-        }
-        foreach ($message->getCc() as $address) {
-            $this->addRecipient($mailer, 'addCC', $address);
-        }
-        foreach ($message->getBcc() as $address) {
-            $this->addRecipient($mailer, 'addBCC', $address);
-        }
-
-        $mailer->Subject = $message->getSubject();
-        $mailer->Body    = $message->getBody();
-        $mailer->isHTML($message->getContentType() === 'text/html');
+        PhpMailerContent::applyRecipientsAndBody($mailer, $message);
 
         $sender = new SenderResolver();
 
         foreach ($sender->from($message, $connection) as $from) {
-            [$fromEmail, $fromName] = $this->splitAddress($from);
+            [$fromEmail, $fromName] = MailAddress::split($from);
             $mailer->setFrom($fromEmail, $fromName, false);
         }
 
         foreach ($sender->replyTo($message, $connection) as $replyTo) {
-            [$replyEmail, $replyName] = $this->splitAddress($replyTo);
-            $mailer->addReplyTo($replyEmail, $replyName);
+            $mailer->addReplyTo(...MailAddress::split($replyTo));
         }
 
-        foreach ($message->getHeaders() as $name => $content) {
-            if (\in_array($name, ['MIME-Version', 'X-Mailer'], true)) {
-                continue;
-            }
-            $name    = str_replace(["\r", "\n"], '', $name);
-            $content = str_replace(["\r", "\n"], '', $content);
-            $mailer->addCustomHeader(\sprintf('%s: %s', $name, $content));
-        }
-
-        foreach ($message->getAttachments() as $filename => $attachment) {
-            $mailer->addAttachment($attachment, \is_string($filename) ? $filename : '');
-        }
-    }
-
-    /**
-     * Add a recipient through the given PHPMailer method, preserving any "Name <addr>" display name.
-     */
-    private function addRecipient(PHPMailer $mailer, string $method, string $address): void
-    {
-        [$email, $name] = $this->splitAddress($address);
-        $mailer->{$method}($email, $name);
-    }
-
-    /**
-     * Split RFC822 address string into [address, display name] for PHPMailer.
-     *
-     * @return array{0:string,1:string}
-     */
-    private function splitAddress(string $address): array
-    {
-        $name = '';
-        if (preg_match('/(.*)<(.+)>/', $address, $matches) && \count($matches) === 3) {
-            $name    = trim($matches[1]);
-            $address = trim($matches[2]);
-        }
-
-        return [trim($address), $name];
+        PhpMailerContent::applyHeadersAndAttachments($mailer, $message);
     }
 
     /**

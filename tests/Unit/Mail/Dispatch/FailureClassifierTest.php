@@ -23,6 +23,15 @@ final class FailureClassifierTest extends BaseUnitTestCase
         $this->classifier = new FailureClassifier();
     }
 
+    public function testUnsendableBodyIsPermanentInAnyLanguage(): void
+    {
+        $category = $this->classifier->classify(SendResult::failure('Der Inhalt ist nicht lesbar', SendResult::CODE_UNSENDABLE_BODY));
+
+        $this->assertSame(FailureCategory::PERMANENT, $category);
+        $this->assertFalse(FailureCategory::stopsFailover($category));
+        $this->assertFalse(FailureCategory::isRetryable($category));
+    }
+
     #[DataProvider('sendResultProvider')]
     public function testClassifyMapsSendResultToExpectedCategory(SendResult $result, string $expected): void
     {

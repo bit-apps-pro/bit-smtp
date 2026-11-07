@@ -68,6 +68,30 @@ final class PhpSendmailTransportTest extends IntegrationTestCase
         $this->assertSame(['X-Bit-SMTP-Test', 'php-sendmail'], $mailer->getCustomHeaders()[0]);
     }
 
+    public function testSendAppliesCharsetAndFullContentTypeBeforePhpmailerInit(): void
+    {
+        $mailer    = new RecordingPhpMailer();
+        $transport = new PhpSendmailTransport(static fn (): PHPMailer => $mailer);
+        $seen      = [];
+        $observer  = static function (PHPMailer $hooked) use (&$seen): void {
+            $seen = [$hooked->CharSet, $hooked->ContentType];
+        };
+        add_action('phpmailer_init', $observer);
+
+        $result = $transport->send(MailMessage::fromArray([
+            'to'          => ['recipient@example.org'],
+            'subject'     => 'Subject',
+            'body'        => 'BEGIN:VCALENDAR',
+            'contentType' => 'text/calendar; method=REQUEST',
+            'charset'     => 'ISO-8859-2',
+        ]), $this->connection());
+
+        remove_action('phpmailer_init', $observer);
+
+        $this->assertTrue($result->isOk());
+        $this->assertSame(['ISO-8859-2', 'text/calendar; method=REQUEST'], $seen);
+    }
+
     public function testSendReturnsFailureWhenPhpMailerThrows(): void
     {
         $mailer          = new RecordingPhpMailer();

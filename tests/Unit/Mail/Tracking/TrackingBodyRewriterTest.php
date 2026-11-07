@@ -41,6 +41,18 @@ final class TrackingBodyRewriterTest extends BaseUnitTestCase
         $this->assertSame('text/html', $rewritten->getContentType());
     }
 
+    public function testRewriteKeepsTheCharset(): void
+    {
+        $message = MailMessage::fromArray([
+            'to' => ['to@example.com'], 'subject' => 'S', 'body' => '<p>x</p>', 'contentType' => 'text/html', 'charset' => 'ISO-8859-2',
+        ]);
+
+        $rewritten = (new TrackingBodyRewriter())->rewrite($message, self::TOKEN);
+
+        $this->assertNotSame($message->getBody(), $rewritten->getBody());
+        $this->assertSame('ISO-8859-2', $rewritten->getCharset());
+    }
+
     public function testTheEmbeddedTokensVerifyToTheMessageToken(): void
     {
         $message = $this->htmlMessage('<body><a href="https://example.com/x?y=1">x</a></body>');

@@ -53,6 +53,14 @@ class Microsoft365Transport extends AbstractOAuth2Transport implements OAuth2Pro
         return ['prompt' => 'select_account'];
     }
 
+    /**
+     * The whole message goes out as MIME, so a multipart body needs no flattening.
+     */
+    protected function sendsRawMime(): bool
+    {
+        return true;
+    }
+
     protected function endpoint(Connection $connection): string
     {
         return self::SEND_ENDPOINT;

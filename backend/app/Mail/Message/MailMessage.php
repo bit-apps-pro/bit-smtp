@@ -6,6 +6,8 @@ use InvalidArgumentException;
 
 class MailMessage
 {
+    public const DEFAULT_CHARSET = 'UTF-8';
+
     private array $to;
 
     private array $cc;
@@ -16,7 +18,9 @@ class MailMessage
 
     private string $body;
 
-    private string $contentType;
+    private ContentTypeValue $contentType;
+
+    private string $charset;
 
     private ?string $from;
 
@@ -47,7 +51,9 @@ class MailMessage
         $this->bcc           = $data['bcc'] ?? [];
         $this->subject       = $data['subject'];
         $this->body          = $data['body'];
-        $this->contentType   = $data['contentType']    ?? 'text/plain';
+        $declaredType        = ContentTypeValue::parse($data['contentType'] ?? ContentTypeValue::TEXT_PLAIN);
+        $this->contentType   = self::bodyAwareType($declaredType, $this->body);
+        $this->charset       = self::resolveCharset($data['charset'] ?? null, $declaredType);
         $this->from          = $data['from']           ?? null;
         $this->fromName      = $data['fromName']       ?? null;
         $this->replyTo       = $data['replyTo']        ?? null;
@@ -58,7 +64,7 @@ class MailMessage
         $this->tags          = $data['tags']           ?? [];
         $this->metadata      = $data['metadata']       ?? [];
         $this->openTracking  = $data['openTracking']   ?? null;
-        $this->clickTracking = $data['clickTracking'] ?? null;
+        $this->clickTracking = $data['clickTracking']  ?? null;
     }
 
     public static function fromArray(array $data): self
@@ -101,9 +107,52 @@ class MailMessage
         return $this->body;
     }
 
+    /**
+     * Value the Content-Type header must carry, minus the charset, which is kept separately.
+     */
     public function getContentType(): string
     {
-        return $this->contentType;
+        return $this->contentType->headerValue();
+    }
+
+    /**
+     * Bare media type, for APIs that reject Content-Type parameters.
+     */
+    public function getMediaType(): string
+    {
+        return $this->contentType->mediaType();
+    }
+
+    /**
+     * Multipart boundary, or null for single-part messages.
+     */
+    public function getBoundary(): ?string
+    {
+        return $this->contentType->boundary();
+    }
+
+    /**
+     * Charset of the subject, From name and body; never empty.
+     */
+    public function getCharset(): string
+    {
+        return $this->charset;
+    }
+
+    /**
+     * Whether the body is HTML.
+     */
+    public function isHtml(): bool
+    {
+        return $this->contentType->isHtml();
+    }
+
+    /**
+     * Whether the body is raw multipart MIME.
+     */
+    public function isMultipart(): bool
+    {
+        return $this->contentType->isMultipart();
     }
 
     public function getFrom(): ?string
@@ -169,7 +218,8 @@ class MailMessage
             'bcc'           => $this->bcc,
             'subject'       => $this->subject,
             'body'          => $this->body,
-            'contentType'   => $this->contentType,
+            'contentType'   => $this->contentType->headerValue(),
+            'charset'       => $this->charset,
             'from'          => $this->from,
             'fromName'      => $this->fromName,
             'replyTo'       => $this->replyTo,
@@ -182,5 +232,29 @@ class MailMessage
             'openTracking'  => $this->openTracking,
             'clickTracking' => $this->clickTracking,
         ];
+    }
+
+    /**
+     * A multipart type with no usable boundary, as WooCommerce's multipart emails declare, is HTML when the body has real tags and plain text otherwise.
+     */
+    private static function bodyAwareType(ContentTypeValue $declaredType, string $body): ContentTypeValue
+    {
+        return $declaredType->isBareMultipart() && HtmlMarkup::isPresentIn($body)
+            ? ContentTypeValue::parse(ContentTypeValue::TEXT_HTML)
+            : $declaredType;
+    }
+
+    /**
+     * Use a safe stored charset, else the one in the content type (rows from 2.0.0 keep it there), else UTF-8.
+     *
+     * @param mixed $charset
+     */
+    private static function resolveCharset($charset, ContentTypeValue $contentType): string
+    {
+        if (\is_string($charset) && ContentTypeValue::isValidCharset($charset)) {
+            return $charset;
+        }
+
+        return $contentType->charset() ?? self::DEFAULT_CHARSET;
     }
 }
